@@ -1,4 +1,4 @@
-# Critical Point
+# Points
 
 **This project is WIP.**
 
