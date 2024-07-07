@@ -1,0 +1,15 @@
+[package]
+name = "critical-point-pyext"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "critical_point_pyext"
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1.0.75"
+cirtical-point-core = { path = "../core" }
+ozz-animation-rs = { path = "../../../ozz-animation-rs" }
+pyo3 = "0.19.0"
