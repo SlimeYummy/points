@@ -1,8 +1,9 @@
-use anyhow::{anyhow, Result};
 use std::any::Any;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::{mem, ptr};
+
+use crate::utils::{XError, XResult};
 
 pub fn const_ptr<T, U>(val: &T) -> *const U {
     return (val as *const T) as *const U;
@@ -21,19 +22,19 @@ pub fn size_of_array<T: Sized>(len: usize) -> usize {
 }
 
 pub trait CastRef {
-    fn cast<T: Any>(&self) -> Result<&T>;
-    fn cast_mut<T: Any>(&mut self) -> Result<&mut T>;
+    fn cast<T: Any>(&self) -> XResult<&T>;
+    fn cast_mut<T: Any>(&mut self) -> XResult<&mut T>;
     unsafe fn cast_unchecked<T: Any>(&self) -> &T;
     unsafe fn cast_mut_unchecked<T: Any>(&mut self) -> &mut T;
 }
 
 impl<TO: ?Sized> CastRef for TO {
-    fn cast<T: Any>(&self) -> Result<&T> {
+    fn cast<T: Any>(&self) -> XResult<&T> {
         ref_check_variant::<TO, T>(&self)?;
         return Ok(unsafe { self.cast_unchecked() });
     }
 
-    fn cast_mut<T: Any>(&mut self) -> Result<&mut T> {
+    fn cast_mut<T: Any>(&mut self) -> XResult<&mut T> {
         ref_check_variant::<TO, T>(&self)?;
         return Ok(unsafe { self.cast_mut_unchecked() });
     }
@@ -49,7 +50,7 @@ impl<TO: ?Sized> CastRef for TO {
     }
 }
 
-fn ref_check_variant<TO: ?Sized, T: Any>(re: &TO) -> Result<()> {
+fn ref_check_variant<TO: ?Sized, T: Any>(re: &TO) -> XResult<()> {
     let src_meta = ptr::metadata(re as *const TO);
     let src_drop = unsafe { *mem::transmute_copy::<_, *mut *mut u8>(&src_meta) };
 
@@ -58,31 +59,31 @@ fn ref_check_variant<TO: ?Sized, T: Any>(re: &TO) -> Result<()> {
     let dst_drop = unsafe { *mem::transmute_copy::<_, *mut *mut u8>(&dst_meta) };
 
     if src_drop != dst_drop {
-        return Err(anyhow!("Not this variant"));
+        return Err(XError::BadType);
     }
     return Ok(());
 }
 
 pub trait CastRc {
-    fn cast_as<T: Any>(self) -> Result<Rc<T>>;
-    fn cast_to<T: Any>(&self) -> Result<Rc<T>>;
-    fn cast_ref<T: Any>(&self) -> Result<&T>;
+    fn cast_as<T: Any>(self) -> XResult<Rc<T>>;
+    fn cast_to<T: Any>(&self) -> XResult<Rc<T>>;
+    fn cast_ref<T: Any>(&self) -> XResult<&T>;
     unsafe fn cast_as_unchecked<T: Any>(self) -> Rc<T>;
     unsafe fn cast_to_unchecked<T: Any>(&self) -> Rc<T>;
     unsafe fn cast_ref_unchecked<T: Any>(&self) -> &T;
 }
 
 impl<TO: ?Sized> CastRc for Rc<TO> {
-    fn cast_as<T: Any>(self) -> Result<Rc<T>> {
+    fn cast_as<T: Any>(self) -> XResult<Rc<T>> {
         rc_check_variant::<TO, T>(&self)?;
         return Ok(unsafe { self.cast_as_unchecked() });
     }
 
-    fn cast_to<T: Any>(&self) -> Result<Rc<T>> {
+    fn cast_to<T: Any>(&self) -> XResult<Rc<T>> {
         return self.clone().cast_as();
     }
 
-    fn cast_ref<T: Any>(&self) -> Result<&T> {
+    fn cast_ref<T: Any>(&self) -> XResult<&T> {
         rc_check_variant::<TO, T>(&self)?;
         return Ok(unsafe { self.cast_ref_unchecked() });
     }
@@ -104,7 +105,7 @@ impl<TO: ?Sized> CastRc for Rc<TO> {
     }
 }
 
-fn rc_check_variant<TO: ?Sized, T: Any>(rc: &Rc<TO>) -> Result<()> {
+fn rc_check_variant<TO: ?Sized, T: Any>(rc: &Rc<TO>) -> XResult<()> {
     let src_meta = ptr::metadata(Rc::as_ptr(rc));
     let src_drop = unsafe { *mem::transmute_copy::<_, *mut *mut u8>(&src_meta) };
 
@@ -113,31 +114,31 @@ fn rc_check_variant<TO: ?Sized, T: Any>(rc: &Rc<TO>) -> Result<()> {
     let dst_drop = unsafe { *mem::transmute_copy::<_, *mut *mut u8>(&dst_meta) };
 
     if src_drop != dst_drop {
-        return Err(anyhow!("Not this variant"));
+        return Err(XError::BadType);
     }
     return Ok(());
 }
 
 pub trait CastArc {
-    fn cast_as<T: Any>(self) -> Result<Arc<T>>;
-    fn cast_to<T: Any>(&self) -> Result<Arc<T>>;
-    fn cast_ref<T: Any>(&self) -> Result<&T>;
+    fn cast_as<T: Any>(self) -> XResult<Arc<T>>;
+    fn cast_to<T: Any>(&self) -> XResult<Arc<T>>;
+    fn cast_ref<T: Any>(&self) -> XResult<&T>;
     unsafe fn cast_as_unchecked<T: Any>(self) -> Arc<T>;
     unsafe fn cast_to_unchecked<T: Any>(&self) -> Arc<T>;
     unsafe fn cast_ref_unchecked<T: Any>(&self) -> &T;
 }
 
 impl<TO: ?Sized> CastArc for Arc<TO> {
-    fn cast_as<T: Any>(self) -> Result<Arc<T>> {
+    fn cast_as<T: Any>(self) -> XResult<Arc<T>> {
         arc_check_variant::<TO, T>(&self)?;
         return Ok(unsafe { self.cast_as_unchecked() });
     }
 
-    fn cast_to<T: Any>(&self) -> Result<Arc<T>> {
+    fn cast_to<T: Any>(&self) -> XResult<Arc<T>> {
         return self.clone().cast_as();
     }
 
-    fn cast_ref<T: Any>(&self) -> Result<&T> {
+    fn cast_ref<T: Any>(&self) -> XResult<&T> {
         arc_check_variant::<TO, T>(&self)?;
         return Ok(unsafe { self.cast_ref_unchecked() });
     }
@@ -159,7 +160,7 @@ impl<TO: ?Sized> CastArc for Arc<TO> {
     }
 }
 
-fn arc_check_variant<TO: ?Sized, T: Any>(arc: &Arc<TO>) -> Result<()> {
+fn arc_check_variant<TO: ?Sized, T: Any>(arc: &Arc<TO>) -> XResult<()> {
     let src_meta = ptr::metadata(Arc::as_ptr(arc));
     let src_drop = unsafe { *mem::transmute_copy::<_, *mut *mut u8>(&src_meta) };
 
@@ -168,7 +169,7 @@ fn arc_check_variant<TO: ?Sized, T: Any>(arc: &Arc<TO>) -> Result<()> {
     let dst_drop = unsafe { *mem::transmute_copy::<_, *mut *mut u8>(&dst_meta) };
 
     if src_drop != dst_drop {
-        return Err(anyhow!("Not this variant"));
+        return Err(XError::BadType);
     }
     return Ok(());
 }
