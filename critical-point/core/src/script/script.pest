@@ -1,0 +1,131 @@
+Script = { SOI ~ (OutConst | OutVar | Block)* ~ EOI }
+
+// declare
+OutConst = { "const" ~ Word ~ "=" ~ (Number | String) }
+OutVar = { "var" ~ Word ~ "=" ~ Number }
+
+// code block
+Block = {
+    (
+        OnAssemble |
+        AfterAssemble |
+        OnStart |
+        OnFinish |
+        BeforeHit |
+        AfterHit |
+        BeforeInjure |
+        AfterInjure |
+        OnTreat |
+        (OnTimeout ~ "(" ~ (Time | Float) ~ ")") |
+        (OnInterval ~ "(" ~ (Time | Float) ~ ")")
+    ) ~ "{" ~ Stat* ~ "}"
+}
+
+OnAssemble = { "on_assemble" }
+AfterAssemble = { "after_assemble" }
+OnStart = { "on_start" }
+OnFinish = { "on_finish" }
+BeforeHit = { "before_hit" }
+AfterHit = { "after_hit" }
+BeforeInjure = { "before_injure" }
+AfterInjure = { "after_injure" }
+OnTreat = { "on_treat" }
+OnTimeout = { "on_timeout" }
+OnInterval = { "on_interval" }
+
+// statement
+Stat = _{ InConst | InVar | Assign | CallStat | IfStat | Return  }
+
+// block declare
+InConst = { "const" ~ Word ~ "=" ~ (Number | String) }
+InVar = { "var" ~ Word ~ "=" ~ Expr }
+
+// assign statement
+Assign = { Ident ~ (RawAssign | AddAssign | SubAssign | MulAssign | DivAssign) ~ Expr }
+RawAssign = { "=" }
+AddAssign = { "+=" }
+SubAssign = { "-=" }
+MulAssign = { "*=" }
+DivAssign = { "/=" }
+
+// call statement
+CallStat = { Ident ~ "(" ~ ((Expr | String) ~ ",")? ~ (Expr | String ~ ","?)* ~ ")" }
+
+// condition statement
+IfStat = { "if" ~ Expr ~ "{" ~ Stat* ~ "}" ~ (ElsifStat | ElseStat)? }
+ElsifStat = { "elsif" ~ Expr ~ "{" ~ Stat* ~ "}" ~ (ElsifStat | ElseStat)? }
+ElseStat = { "else" ~ "{" ~ Stat* ~ "}" }
+
+Return = { "return" }
+
+// expression
+Expr = { Primary ~ (Binary ~ Primary)* }
+Primary = _{ Number | (Unary? ~ (Group | IfExpr | CallExpr | Ident | Number)) }
+CallExpr = { Ident ~ "(" ~ ((Expr | String) ~ ",")? ~ ((Expr | String) ~ ","?)* ~ ")" }
+Group = { "(" ~ Expr ~ ")" }
+
+// condition expression
+IfExpr = { "if" ~ Expr ~ "{" ~ Expr ~ "}" ~ (ElsifExpr | ElseExpr) }
+ElsifExpr = { "elsif" ~ Expr ~ "{" ~ Expr ~ "}" ~ (ElsifExpr | ElseExpr) }
+ElseExpr = { "else" ~ "{" ~ Expr ~ "}" }
+
+// unary operator
+Unary = _{ (Pos | Neg | Not) }
+Pos = { "+" }
+Neg = { "-" }
+Not = { "!" }
+
+// binary operator
+Binary = _{ Add | Sub | Pow | Mul | Div | Mod | Le | Lt | Ge | Gt | Eq | Ne | And | Or }
+Add = { "+" }
+Sub = { "-" }
+Pow = { "**" }
+Mul = { "*" }
+Div = { "/" }
+Mod = { "%%" }
+Le = { "<=" }
+Lt = { "<" }
+Ge = { ">=" }
+Gt = { ">" }
+Eq = { "==" }
+Ne = { "!=" }
+And = { "&&" }
+Or = { "||" }
+
+// ident: variable / constant / function name ...
+Ident = @{ Word ~ ("." ~ Word)* }
+Word = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+
+// number
+Number = _{ Hex | Percent | Time | Float }
+Hex = @{ "0x" ~ ASCII_HEX_DIGIT{1,8} }
+Percent = @{
+    ("-" | "+")? ~
+    ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) ~
+    ("." ~ ASCII_DIGIT*)? ~
+    "%"
+}
+Time = @{
+    ("-" | "+")? ~
+    ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) ~
+    ("." ~ ASCII_DIGIT*)? ~
+    ("s" | "m" | "h")
+}
+Float = @{
+    ("-" | "+")? ~
+    ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) ~
+    ("." ~ ASCII_DIGIT*)? ~
+    (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?
+}
+
+// string
+String = @{
+    ("'" ~ Char1+ ~ "'") |
+    ("\"" ~ Char2+ ~ "\"")
+}
+Char1 = @{ (!("\'" | "\\") ~ ANY) }
+Char2 = @{ (!("\"" | "\\") ~ ANY) }
+
+// ...
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+COMMENT = _{ "#" ~ ANY }
