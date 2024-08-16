@@ -31,8 +31,7 @@ impl<K, V> Drop for Table<K, V> {
             unsafe { ptr::drop_in_place(self.values.add(i as usize)) };
         }
         let data = self.headers as *mut u8;
-        let (size, _, align) =
-            Table::<K, V>::size(self.header_len as usize, self.value_len as usize);
+        let (size, _, align) = Table::<K, V>::size(self.header_len as usize, self.value_len as usize);
         unsafe { alloc::dealloc(data, Layout::from_size_align(size, align).unwrap()) };
         self.headers = ptr::null_mut();
         self.values = ptr::null_mut();
@@ -154,27 +153,18 @@ impl<K, V> Table<K, V> {
     }
 
     #[inline]
-    pub fn iter(&self) -> TableIter<K, V> {
-        return TableIter {
-            table: self,
-            cursor: 0,
-        };
+    pub fn iter(&self) -> TableIter<'_, K, V> {
+        return TableIter { table: self, cursor: 0 };
     }
 
     #[inline]
-    pub fn key_iter(&self) -> TableKeyIter<K, V> {
-        return TableKeyIter {
-            table: self,
-            cursor: 0,
-        };
+    pub fn key_iter(&self) -> TableKeyIter<'_, K, V> {
+        return TableKeyIter { table: self, cursor: 0 };
     }
 
     #[inline]
-    pub fn values_iter(&self) -> TableValuesIter<K, V> {
-        return TableValuesIter {
-            table: self,
-            cursor: 0,
-        };
+    pub fn values_iter(&self) -> TableValuesIter<'_, K, V> {
+        return TableValuesIter { table: self, cursor: 0 };
     }
 
     #[inline]
@@ -241,7 +231,7 @@ impl<'t, K, V> Iterator for TableValuesIter<'t, K, V> {
 }
 
 impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for Table<K, V> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut out = f.debug_map();
         for (key, values) in self.iter() {
             out.key(key);
@@ -251,14 +241,22 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for Table<K, V> {
     }
 }
 
+impl<'t, K, V> IntoIterator for &'t Table<K, V> {
+    type Item = (&'t K, &'t [V]);
+    type IntoIter = TableIter<'t, K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        return self.iter();
+    }
+}
+
 //
 // serde
 //
 
 const _: () = {
     use serde::de::{
-        Deserialize, DeserializeOwned, DeserializeSeed, Deserializer, Error, MapAccess, SeqAccess,
-        Visitor,
+        Deserialize, DeserializeOwned, DeserializeSeed, Deserializer, Error, MapAccess, SeqAccess, Visitor,
     };
 
     impl<'de, K: DeserializeOwned, V: DeserializeOwned> Deserialize<'de> for Table<K, V> {
@@ -272,9 +270,8 @@ const _: () = {
     impl<'de, K: DeserializeOwned, V: DeserializeOwned> Visitor<'de> for TableVisitor<K, V> {
         type Value = Table<K, V>;
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            return formatter
-                .write_str(r#"expecting {"key":[value, ...]} or [{"k":key,"v":[value, ...]}]"#);
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            return formatter.write_str(r#"expecting {"key":[value, ...]} or [{"k":key,"v":[value, ...]}]"#);
         }
 
         fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Table<K, V>, A::Error> {
@@ -334,10 +331,7 @@ const _: () = {
     impl<'de, 't, T: DeserializeOwned> DeserializeSeed<'de> for VecVisitor<'t, T> {
         type Value = ();
 
-        fn deserialize<D: Deserializer<'de>>(
-            self,
-            deserializer: D,
-        ) -> Result<Self::Value, D::Error> {
+        fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
             return deserializer.deserialize_seq(self);
         }
     }
@@ -345,7 +339,7 @@ const _: () = {
     impl<'de, 't, T: DeserializeOwned> Visitor<'de> for VecVisitor<'t, T> {
         type Value = ();
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             return formatter.write_str(r#"expecting [value, ...]"#);
         }
 
@@ -362,15 +356,10 @@ const _: () = {
         _phantom: PhantomData<K>,
     }
 
-    impl<'de, 't, K: DeserializeOwned, V: DeserializeOwned> DeserializeSeed<'de>
-        for SeqItemVisitor<'t, K, V>
-    {
+    impl<'de, 't, K: DeserializeOwned, V: DeserializeOwned> DeserializeSeed<'de> for SeqItemVisitor<'t, K, V> {
         type Value = K;
 
-        fn deserialize<D: Deserializer<'de>>(
-            self,
-            deserializer: D,
-        ) -> Result<Self::Value, D::Error> {
+        fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
             return deserializer.deserialize_map(self);
         }
     }
@@ -378,7 +367,7 @@ const _: () = {
     impl<'de, 't, K: DeserializeOwned, V: DeserializeOwned> Visitor<'de> for SeqItemVisitor<'t, K, V> {
         type Value = K;
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             return formatter.write_str(r#"expecting {"k":key, "v":[value, ...]}"#);
         }
 
@@ -487,14 +476,9 @@ mod tests {
         assert_eq!(tb2.xkey(1), &456);
         assert_eq!(tb2.xvalues(0), &[10.0f32, 20.0f32, 30.0f32]);
         assert_eq!(tb2.xvalues(1), &[21.0f32, 22.0f32]);
+        assert_eq!(tb2.key_iter().map(|x| *x).collect::<Vec<u32>>(), vec![123, 456]);
         assert_eq!(
-            tb2.key_iter().map(|x| *x).collect::<Vec<u32>>(),
-            vec![123, 456]
-        );
-        assert_eq!(
-            tb2.values_iter()
-                .map(|x| x.to_vec())
-                .collect::<Vec<Vec<f32>>>(),
+            tb2.values_iter().map(|x| x.to_vec()).collect::<Vec<Vec<f32>>>(),
             vec![vec![10.0, 20.0, 30.0], vec![21.0, 22.0]]
         );
         assert_eq!(
@@ -542,14 +526,9 @@ mod tests {
         ]"#;
         let tb1: Table<u16, f64> = serde_json::from_str(json).unwrap();
         assert_eq!(tb1.len(), 2);
+        assert_eq!(tb1.key_iter().map(|x| *x).collect::<Vec<u16>>(), vec![123, 789]);
         assert_eq!(
-            tb1.key_iter().map(|x| *x).collect::<Vec<u16>>(),
-            vec![123, 789]
-        );
-        assert_eq!(
-            tb1.values_iter()
-                .map(|x| x.to_vec())
-                .collect::<Vec<Vec<f64>>>(),
+            tb1.values_iter().map(|x| x.to_vec()).collect::<Vec<Vec<f64>>>(),
             vec![vec![5.0, 6.0, 7.0], vec![12.0, 13.0]]
         );
 
@@ -565,14 +544,8 @@ mod tests {
             vec![s!("k1"), s!("k2"), s!("k3")]
         );
         assert_eq!(
-            tb2.values_iter()
-                .map(|x| x.to_vec())
-                .collect::<Vec<Vec<Symbol>>>(),
-            vec![
-                vec![s!("aaa"), s!("bbb")],
-                vec![s!("xx")],
-                vec![s!("xx"), s!("yy")]
-            ]
+            tb2.values_iter().map(|x| x.to_vec()).collect::<Vec<Vec<Symbol>>>(),
+            vec![vec![s!("aaa"), s!("bbb")], vec![s!("xx")], vec![s!("xx"), s!("yy")]]
         );
     }
 

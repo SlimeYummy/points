@@ -153,10 +153,12 @@ where
         // Start loop at a None node, to keep the inserted order of nodes
         for pos in offset..(offset + prime) {
             let node = unsafe { &mut *self.nodes.add(pos % prime) };
-            if node.is_none() {
+            if let Some(mut node) = node.take() {
+                node.next = u32::MAX;
+                Self::insert_impl(new_nodes, new_prime as usize, node);
+            } else {
                 continue;
             }
-            Self::insert_impl(new_nodes, new_prime as usize, node.take().unwrap());
         }
 
         let old_layout = Layout::array::<Option<IndexNode<K, V>>>(prime).unwrap();
@@ -209,11 +211,7 @@ where
             match node {
                 Some(node) => {
                     if node.key == *key {
-                        return Some(IndexValueIter {
-                            map: self,
-                            key,
-                            pos,
-                        });
+                        return Some(IndexValueIter { map: self, key, pos });
                     } else {
                         pos = (pos + 1) % (self.prime as usize);
                     }
@@ -221,6 +219,25 @@ where
                 None => return None,
             }
         }
+    }
+
+    #[inline]
+    pub fn find_iter<'a, 'b>(&'a self, key: &'b K) -> IndexValueIter<'a, 'b, K, V, S> {
+        match self.find(key) {
+            Some(iter) => return iter,
+            None => {
+                return IndexValueIter {
+                    map: self,
+                    key,
+                    pos: (u32::MAX as usize),
+                }
+            }
+        };
+    }
+
+    #[inline]
+    pub fn find_first<'a, 'b>(&'a self, key: &'b K) -> Option<&'a V> {
+        return self.find(key)?.next();
     }
 
     #[inline]
@@ -237,7 +254,7 @@ where
     }
 
     #[inline]
-    pub fn iter(&self) -> HashIndexIter<K, V, S> {
+    pub fn iter(&self) -> HashIndexIter<'_, K, V, S> {
         return HashIndexIter { map: self, pos: 0 };
     }
 
@@ -253,7 +270,7 @@ where
 }
 
 impl<K: Debug, V: Debug, S> fmt::Debug for HashIndex<K, V, S> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut map = f.debug_map();
         for idx in 0..(self.prime as usize) {
             let node = unsafe { &*self.nodes.add(idx) };
@@ -321,14 +338,8 @@ mod tests {
         hi.insert(s!("b"), 2);
         hi.insert(s!("a"), 3);
         assert_eq!(hi.len(), 3);
-        assert_eq!(
-            hi.find(&s!("a")).unwrap().map(|x| *x).collect::<Vec<_>>(),
-            vec![1, 3]
-        );
-        assert_eq!(
-            hi.find(&s!("b")).unwrap().map(|x| *x).collect::<Vec<_>>(),
-            vec![2]
-        );
+        assert_eq!(hi.find(&s!("a")).unwrap().map(|x| *x).collect::<Vec<_>>(), vec![1, 3]);
+        assert_eq!(hi.find(&s!("b")).unwrap().map(|x| *x).collect::<Vec<_>>(), vec![2]);
 
         let all = hi.iter().map(|(k, v)| (k.clone(), *v)).collect::<Vec<_>>();
         assert!(all.contains(&(s!("a"), 1)));
@@ -358,8 +369,7 @@ mod tests {
             }
         }
 
-        let mut hi: HashIndex<Symbol, u32, TestState> =
-            HashIndex::with_capacity_and_hasher(1, TestState);
+        let mut hi: HashIndex<Symbol, u32, TestState> = HashIndex::with_capacity_and_hasher(1, TestState);
         hi.insert(s!("xxx"), 1);
         hi.insert(s!("yyy"), 2);
         hi.insert(s!("yyy"), 3);
@@ -372,14 +382,8 @@ mod tests {
             hi.find(&s!("xxx")).unwrap().map(|x| *x).collect::<Vec<_>>(),
             vec![1, 4, 6]
         );
-        assert_eq!(
-            hi.find(&s!("yyy")).unwrap().map(|x| *x).collect::<Vec<_>>(),
-            vec![2, 3]
-        );
-        assert_eq!(
-            hi.find(&s!("zzz")).unwrap().map(|x| *x).collect::<Vec<_>>(),
-            vec![5, 5]
-        );
+        assert_eq!(hi.find(&s!("yyy")).unwrap().map(|x| *x).collect::<Vec<_>>(), vec![2, 3]);
+        assert_eq!(hi.find(&s!("zzz")).unwrap().map(|x| *x).collect::<Vec<_>>(), vec![5, 5]);
     }
 
     #[test]
