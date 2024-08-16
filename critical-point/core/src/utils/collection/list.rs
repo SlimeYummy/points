@@ -69,11 +69,8 @@ impl<V> List<V> {
     }
 
     #[inline]
-    pub fn iter(&self) -> ListIter<V> {
-        return ListIter {
-            list: self,
-            cursor: 0,
-        };
+    pub fn iter(&self) -> ListIter<'_, V> {
+        return ListIter { list: self, cursor: 0 };
     }
 
     #[inline]
@@ -94,7 +91,6 @@ impl<V> Index<usize> for List<V> {
     }
 }
 
-#[derive(Debug)]
 pub struct ListIter<'t, V> {
     list: &'t List<V>,
     cursor: usize,
@@ -111,8 +107,17 @@ impl<'t, V> Iterator for ListIter<'t, V> {
 }
 
 impl<L: fmt::Debug> fmt::Debug for List<L> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         return f.debug_list().entries(self.iter()).finish();
+    }
+}
+
+impl<'t, L> IntoIterator for &'t List<L> {
+    type Item = &'t L;
+    type IntoIter = ListIter<'t, L>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        return self.iter();
     }
 }
 
@@ -134,7 +139,7 @@ const _: () = {
     impl<'de, V: DeserializeOwned> Visitor<'de> for ListVisitor<V> {
         type Value = List<V>;
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             return formatter.write_str("expecting [...]");
         }
 
@@ -205,6 +210,9 @@ mod tests {
     use super::*;
     use crate::utils::{s, Symbol};
     use anyhow::Result;
+    use rkyv::ser::serializers::AllocSerializer;
+    use rkyv::ser::Serializer;
+    use rkyv::{Deserialize, Infallible, Serialize};
     use std::mem;
 
     #[test]
@@ -226,10 +234,7 @@ mod tests {
         assert_eq!(lt2.get(2), Some(&30));
         assert_eq!(lt2.get(3), None);
         assert_eq!(lt2.as_slice(), &[10, 20, 30]);
-        assert_eq!(
-            lt2.iter().map(|x| *x).collect::<Vec<i32>>(),
-            vec![10, 20, 30]
-        );
+        assert_eq!(lt2.iter().map(|x| *x).collect::<Vec<i32>>(), vec![10, 20, 30]);
 
         let mut lt3 = List::alloc(2);
         let s1 = s!("abc");
@@ -263,20 +268,16 @@ mod tests {
 
     #[test]
     fn test_list_rkyv() {
-        use rkyv::ser::serializers::AllocSerializer;
-        use rkyv::ser::Serializer;
-        use rkyv::{Deserialize, Infallible, Serialize};
-
         fn test_rkyv<V>(list: List<V>) -> Result<()>
         where
             V: PartialEq + Serialize<AllocSerializer<4096>>,
             V::Archived: Deserialize<V, Infallible>,
         {
-            let mut serializer = rkyv::ser::serializers::AllocSerializer::<4096>::default();
+            let mut serializer = AllocSerializer::<4096>::default();
             serializer.serialize_value(&list)?;
             let buffer = serializer.into_serializer().into_inner();
             let archived = unsafe { rkyv::archived_root::<List<V>>(&buffer) };
-            let mut deserializer = rkyv::Infallible::default();
+            let mut deserializer = Infallible::default();
             let result: List<V> = archived.deserialize(&mut deserializer)?;
             if list.as_slice() != result.as_slice() {
                 return Err(anyhow::anyhow!("rkyv test not equal"));

@@ -143,7 +143,7 @@ const _: () = {
     impl<'de> Visitor<'de> for SymbolVisitor {
         type Value = Symbol;
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             return formatter.write_str("string");
         }
 
@@ -173,10 +173,7 @@ const _: () = {
 
     impl<S: Serializer + ?Sized> Serialize<S> for Symbol {
         fn serialize(&self, serializer: &mut S) -> Result<Self::Resolver, S::Error> {
-            return Ok(ArchivedString::serialize_from_str(
-                self.as_str(),
-                serializer,
-            )?);
+            return Ok(ArchivedString::serialize_from_str(self.as_str(), serializer)?);
         }
     }
 

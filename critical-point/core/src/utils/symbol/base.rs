@@ -130,11 +130,7 @@ impl<N: InnerNode> InnerMap<N> {
     }
 
     #[inline]
-    pub(crate) unsafe fn cleanup<F: Fn(NonNull<N>)>(
-        &mut self,
-        ignore_ref_count: bool,
-        func: F,
-    ) -> usize {
+    pub(crate) unsafe fn cleanup<F: Fn(NonNull<N>)>(&mut self, ignore_ref_count: bool, func: F) -> usize {
         let mut count = 0;
         for idx in 0..self.nodes.len() {
             let mut node = unsafe { self.nodes.get_unchecked_mut(idx) };

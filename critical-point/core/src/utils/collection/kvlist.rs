@@ -58,24 +58,18 @@ impl<K, V> KvList<K, V> {
     }
 
     #[inline]
-    pub fn iter(&self) -> ListIter<(K, V)> {
+    pub fn iter(&self) -> ListIter<'_, (K, V)> {
         return self.0.iter();
     }
 
     #[inline]
-    pub fn key_iter(&self) -> KvListKeyIter<K, V> {
-        return KvListKeyIter {
-            list: self,
-            cursor: 0,
-        };
+    pub fn key_iter(&self) -> KvListKeyIter<'_, K, V> {
+        return KvListKeyIter { list: self, cursor: 0 };
     }
 
     #[inline]
-    pub fn value_iter(&self) -> KvListValueIter<K, V> {
-        return KvListValueIter {
-            list: self,
-            cursor: 0,
-        };
+    pub fn value_iter(&self) -> KvListValueIter<'_, K, V> {
+        return KvListValueIter { list: self, cursor: 0 };
     }
 
     #[inline]
@@ -127,12 +121,21 @@ impl<'t, K, V> Iterator for KvListValueIter<'t, K, V> {
 }
 
 impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for KvList<K, V> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut out = f.debug_list();
         for pair in self.iter() {
             out.entry(&pair);
         }
         return out.finish();
+    }
+}
+
+impl<'t, K, V> IntoIterator for &'t KvList<K, V> {
+    type Item = &'t (K, V);
+    type IntoIter = ListIter<'t, (K, V)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        return self.iter();
     }
 }
 
@@ -156,7 +159,7 @@ const _: () = {
     impl<'de, K: DeserializeOwned, V: DeserializeOwned> Visitor<'de> for KvListVisitor<K, V> {
         type Value = KvList<K, V>;
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             return formatter.write_str(r#"expecting {"key":value} or [{"k":key,"v":value}]"#);
         }
 
@@ -212,10 +215,7 @@ mod tests {
             lt.key_iter().map(|x| x.clone()).collect::<Vec<Symbol>>(),
             vec![s!("xx"), s!("yy"), s!("zz")]
         );
-        assert_eq!(
-            lt.value_iter().map(|x| *x).collect::<Vec<i32>>(),
-            vec![10, 20, 30]
-        );
+        assert_eq!(lt.value_iter().map(|x| *x).collect::<Vec<i32>>(), vec![10, 20, 30]);
     }
 
     #[test]
@@ -241,9 +241,6 @@ mod tests {
             {"k":987, "v":"def"}
         ]"#;
         let lt3: KvList<u32, Symbol> = serde_json::from_str(json).unwrap();
-        assert_eq!(
-            lt3.as_slice(),
-            &[(234, s!("abc")), (345, s!("def")), (987, s!("def"))]
-        );
+        assert_eq!(lt3.as_slice(), &[(234, s!("abc")), (345, s!("def")), (987, s!("def"))]);
     }
 }

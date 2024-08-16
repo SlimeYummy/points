@@ -111,7 +111,7 @@ impl SymbolCache {
         let mut buf = Vec::new();
         file.read_to_end(&mut buf)?;
 
-        let strings: JsonStrings = serde_json::from_slice(&buf)?;
+        let strings: JsonStrings<'_> = serde_json::from_slice(&buf)?;
         for string in strings.0.iter() {
             self.new_symbol_node(string)?;
         }
@@ -128,8 +128,7 @@ impl SymbolCache {
         let mut buf = Vec::new();
         file.read_to_end(&mut buf)?;
 
-        let archive = rkyv::check_archived_root::<RkyvStrings>(&buf[..])
-            .map_err(|e| anyhow!("rkyv: {}", e))?;
+        let archive = rkyv::check_archived_root::<RkyvStrings>(&buf[..]).map_err(|e| anyhow!("rkyv: {}", e))?;
         for string in archive.0.iter() {
             self.new_symbol_node(string)?;
         }
@@ -149,10 +148,8 @@ impl SymbolCache {
 
         let mut node;
         unsafe {
-            let layout = Layout::from_size_align_unchecked(
-                SymbolNode::size(string.len()),
-                mem::align_of::<SymbolNode>(),
-            );
+            let layout =
+                Layout::from_size_align_unchecked(SymbolNode::size(string.len()), mem::align_of::<SymbolNode>());
             node = NonNull::new_unchecked(alloc::alloc(layout) as *mut SymbolNode);
             node.as_mut().initialize(hash, string);
         }
@@ -294,7 +291,7 @@ impl PartialEq for Symbol {
 }
 
 impl fmt::Debug for Symbol {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         return write!(f, "s{:?}", self.as_str());
     }
 }
@@ -317,14 +314,7 @@ mod tests {
         let res = Symbol::preload_strings(&[&"x".repeat((1 << 16) + 1)]);
         assert!(res.is_err());
 
-        Symbol::preload_strings(&[
-            "aaa",
-            "bbb",
-            &"x".repeat(16),
-            &"x".repeat(32),
-            &"x".repeat(64),
-        ])
-        .unwrap();
+        Symbol::preload_strings(&["aaa", "bbb", &"x".repeat(16), &"x".repeat(32), &"x".repeat(64)]).unwrap();
         assert_eq!(Symbol::node_count(), 6);
         assert_eq!(Symbol::node_capacity(), 12289);
 

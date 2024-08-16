@@ -118,10 +118,8 @@ impl SymbolCache {
 
         let mut node;
         unsafe {
-            let layout = Layout::from_size_align_unchecked(
-                SymbolNode::size(string.len()),
-                mem::align_of::<SymbolNode>(),
-            );
+            let layout =
+                Layout::from_size_align_unchecked(SymbolNode::size(string.len()), mem::align_of::<SymbolNode>());
             node = NonNull::new_unchecked(alloc::alloc(layout) as *mut SymbolNode);
             node.as_mut().initialize(hash, string);
         }
@@ -232,7 +230,7 @@ impl PartialEq for Symbol {
 }
 
 impl fmt::Debug for Symbol {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         return write!(f, "s{:?}", self.as_str());
     }
 }
