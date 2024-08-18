@@ -1,4 +1,3 @@
-#[macro_export]
 macro_rules! extend {
     ($cls:ident, $base:ty) => {
         static_assertions::const_assert!(std::mem::offset_of!($cls, _base) == 0);
@@ -6,41 +5,46 @@ macro_rules! extend {
         impl std::ops::Deref for $cls {
             type Target = $base;
 
+            #[inline(always)]
             fn deref(&self) -> &$base {
                 return &self._base;
             }
         }
 
         impl std::ops::DerefMut for $cls {
+            #[inline(always)]
             fn deref_mut(&mut self) -> &mut $base {
                 return &mut self._base;
             }
         }
     };
 }
-pub use extend;
+pub(crate) use extend;
 
-#[macro_export]
 macro_rules! interface {
     ($itf:ident, $base:ty) => {
         impl std::ops::Deref for dyn $itf {
             type Target = $base;
 
-            fn deref(&self) -> &$base {
+            #[inline(always)]
+            fn deref(&self) -> &Self::Target {
                 let (ptr, _) = (self as *const dyn $itf).to_raw_parts();
-                return unsafe { &*(ptr as *const () as *const $base) };
+                return unsafe { &*(ptr as *const () as *const Self::Target) };
             }
         }
 
         impl std::ops::DerefMut for dyn $itf {
-            fn deref_mut(&mut self) -> &mut $base {
+            #[inline(always)]
+            fn deref_mut(&mut self) -> &mut Self::Target {
                 let (ptr, _) = (self as *mut dyn $itf).to_raw_parts();
-                return unsafe { &mut *(ptr as *const () as *mut $base) };
+                return unsafe { &mut *(ptr as *const () as *mut Self::Target) };
             }
         }
+
+        impl crate::utils::Castable for dyn $itf {}
     };
 }
-pub use interface;
+pub(crate) use interface;
 
 #[cfg(test)]
 mod tests {
@@ -97,7 +101,7 @@ mod tests {
         assert_eq!(itf.b2, 2);
         assert_eq!(itf.b3, "aaa");
 
-        let dd = itf.cast::<Derived>().unwrap();
+        let dd = itf.cast_ref::<Derived>().unwrap();
         assert_eq!(dd.b1, 1);
         assert_eq!(dd.b2, 2);
         assert_eq!(dd.b3, "aaa");
