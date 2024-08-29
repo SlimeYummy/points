@@ -235,7 +235,7 @@ impl<T: ?Sized> RcCell<T> {
     }
 }
 
-pub struct RcCellRef<'b, T: ?Sized + 'b> {
+pub struct RcCellRef<'b, T: ?Sized> {
     borrow: &'b Cell<isize>,
     value: &'b T,
 }
@@ -276,7 +276,7 @@ impl<T: ?Sized> RcCell<T> {
     }
 }
 
-pub struct RcCellRefMut<'b, T: ?Sized + 'b> {
+pub struct RcCellRefMut<'b, T: ?Sized> {
     borrow: &'b Cell<isize>,
     value: &'b mut T,
 }

@@ -22,16 +22,16 @@ pub fn is_invalid_num_id(id: NumID) -> bool {
     return id == u64::MAX;
 }
 
-pub struct NumIDGenerator {
+pub struct NumIDFactory {
     counter: NumID,
 }
 
-impl NumIDGenerator {
-    pub fn new(init: NumID) -> NumIDGenerator {
-        return NumIDGenerator { counter: init };
+impl NumIDFactory {
+    pub fn new(init: NumID) -> NumIDFactory {
+        return NumIDFactory { counter: init };
     }
 
-    pub fn generate(&mut self) -> NumID {
+    pub fn gen(&mut self) -> NumID {
         let id = self.counter;
         self.counter += 1;
         return id;
@@ -42,9 +42,7 @@ impl NumIDGenerator {
 // IDLevel
 //
 
-#[derive(
-    Debug, Default, Clone, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct IDLevel {
     pub id: StrID,
     pub level: u32,
@@ -52,10 +50,7 @@ pub struct IDLevel {
 
 impl IDLevel {
     pub fn new(id: &StrID, level: u32) -> IDLevel {
-        return IDLevel {
-            id: id.clone(),
-            level,
-        };
+        return IDLevel { id: id.clone(), level };
     }
 }
 
@@ -93,7 +88,7 @@ const _: () = {
     impl<'de> Visitor<'de> for TmplIDLevelVisitor {
         type Value = IDLevel;
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             return formatter.write_str(r#"[id, level] or {"id": id, "level": level}"#);
         }
 
@@ -117,35 +112,30 @@ const _: () = {
 };
 
 //
-// IDCount
+// IDPlus
 //
 
-#[derive(
-    Debug, Default, Clone, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
-pub struct IDCount {
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+pub struct IDPlus {
     pub id: StrID,
-    pub count: u32,
+    pub plus: u32,
 }
 
-impl IDCount {
-    pub fn new(id: &StrID, count: u32) -> IDCount {
-        return IDCount {
-            id: id.clone(),
-            count,
-        };
+impl IDPlus {
+    pub fn new(id: &StrID, plus: u32) -> IDPlus {
+        return IDPlus { id: id.clone(), plus };
     }
 }
 
-impl From<(StrID, u32)> for IDCount {
-    fn from((id, count): (StrID, u32)) -> Self {
-        return IDCount { id, count };
+impl From<(StrID, u32)> for IDPlus {
+    fn from((id, plus): (StrID, u32)) -> Self {
+        return IDPlus { id, plus };
     }
 }
 
-impl Into<(StrID, u32)> for IDCount {
+impl Into<(StrID, u32)> for IDPlus {
     fn into(self) -> (StrID, u32) {
-        return (self.id, self.count);
+        return (self.id, self.plus);
     }
 }
 
@@ -154,8 +144,8 @@ const _: () = {
     use serde::de::{Deserializer, MapAccess, SeqAccess, Visitor};
     use serde::Deserialize;
 
-    impl<'de> Deserialize<'de> for IDCount {
-        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<IDCount, D::Error> {
+    impl<'de> Deserialize<'de> for IDPlus {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<IDPlus, D::Error> {
             return deserializer.deserialize_any(TmplIDCountVisitor::new());
         }
     }
@@ -169,27 +159,27 @@ const _: () = {
     }
 
     impl<'de> Visitor<'de> for TmplIDCountVisitor {
-        type Value = IDCount;
+        type Value = IDPlus;
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            return formatter.write_str(r#"[id, count] or {"id": id, "count": count}"#);
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            return formatter.write_str(r#"[id, plus] or {"id": id, "plus": plus}"#);
         }
 
         fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
             #[derive(Deserialize)]
             struct Helper(StrID, u32);
-            let Helper(id, count) = Helper::deserialize(SeqAccessDeserializer::new(&mut seq))?;
-            return Ok(IDCount { id, count });
+            let Helper(id, plus) = Helper::deserialize(SeqAccessDeserializer::new(&mut seq))?;
+            return Ok(IDPlus { id, plus });
         }
 
         fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
             #[derive(Deserialize)]
             struct Helper {
                 id: StrID,
-                count: u32,
+                plus: u32,
             }
-            let Helper { id, count } = Helper::deserialize(MapAccessDeserializer::new(map))?;
-            return Ok(IDCount { id, count });
+            let Helper { id, plus } = Helper::deserialize(MapAccessDeserializer::new(map))?;
+            return Ok(IDPlus { id, plus });
         }
     }
 };
@@ -198,9 +188,7 @@ const _: () = {
 // IDSymbol
 //
 
-#[derive(
-    Debug, Default, Clone, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct IDSymbol {
     pub id: StrID,
     pub symbol: Symbol,
@@ -249,7 +237,7 @@ const _: () = {
     impl<'de> Visitor<'de> for TmplIDLevelVisitor {
         type Value = IDSymbol;
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             return formatter.write_str(r#"[id, symbol] or {"id": id, "symbol": symbol}"#);
         }
 
