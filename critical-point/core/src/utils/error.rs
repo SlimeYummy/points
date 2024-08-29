@@ -4,14 +4,20 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum XError {
     #[error("Unexpected error")]
-    Unexpected,
+    Unexpected(Box<String>),
 
     #[error("Bad argument")]
-    BadArgument,
+    BadArgument(Box<String>),
     #[error("Not found")]
     NotFound(Box<String>),
     #[error("Bad type")]
     BadType,
+    #[error("Invalid operation")]
+    InvalidOperation(Box<String>),
+    #[error("Overflow")]
+    Overflow(Box<String>),
+    #[error("ID miss match")]
+    IDMissMatch,
 
     #[error("Symbol too long")]
     SymbolTooLong,
@@ -24,6 +30,8 @@ pub enum XError {
     BadParameter(Box<String>),
     #[error("Bad attribute: {0}")]
     BadAttribute(Box<String>),
+    #[error("Bad template: {0}")]
+    BadTemplate(Box<String>),
     #[error("Bad script: {0}")]
     BadScript(Box<String>),
     #[error("Bad action: {0}")]
@@ -52,22 +60,52 @@ pub enum XError {
 }
 
 impl XError {
+    #[inline]
+    pub fn unexpected<S: ToString>(s: S) -> XError {
+        return XError::Unexpected(Box::new(s.to_string()));
+    }
+
+    #[inline]
+    pub fn bad_argument<S: ToString>(s: S) -> XError {
+        return XError::BadArgument(Box::new(s.to_string()));
+    }
+
+    #[inline]
+    pub fn invalid_operation<S: ToString>(s: S) -> XError {
+        return XError::InvalidOperation(Box::new(s.to_string()));
+    }
+
+    #[inline]
+    pub fn overflow<S: ToString>(s: S) -> XError {
+        return XError::Overflow(Box::new(s.to_string()));
+    }
+
+    #[inline]
     pub fn not_found<S: ToString>(s: S) -> XError {
         return XError::NotFound(Box::new(s.to_string()));
     }
 
+    #[inline]
     pub fn bad_parameter<S: ToString>(s: S) -> XError {
         return XError::BadParameter(Box::new(s.to_string()));
     }
 
+    #[inline]
     pub fn bad_attribute<S: ToString>(s: S) -> XError {
         return XError::BadAttribute(Box::new(s.to_string()));
     }
 
+    #[inline]
+    pub fn bad_template<S: ToString>(s: S) -> XError {
+        return XError::BadTemplate(Box::new(s.to_string()));
+    }
+
+    #[inline]
     pub fn bad_script<S: ToString>(s: S) -> XError {
         return XError::BadScript(Box::new(s.to_string()));
     }
 
+    #[inline]
     pub fn bad_action<S: ToString>(s: S) -> XError {
         return XError::BadAction(Box::new(s.to_string()));
     }
