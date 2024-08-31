@@ -8,14 +8,7 @@ use crate::script::config::SEGMENT_NAMES;
 use crate::utils::{Num, Symbol};
 
 #[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
+    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 pub struct ScriptBlocks {
     blocks: Vec<ScriptBlock>,
@@ -108,15 +101,7 @@ impl ScriptBlocks {
     }
 }
 
-#[derive(
-    Clone,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-)]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct ScriptBlock {
     #[serde(rename = "type")]
     pub(crate) typ: ScriptBlockType,
@@ -130,11 +115,7 @@ impl ScriptBlock {
         if !typ.is_hook() {
             return Err(anyhow!("Invalid hook type"));
         }
-        return Ok(ScriptBlock {
-            typ,
-            arg: None,
-            code,
-        });
+        return Ok(ScriptBlock { typ, arg: None, code });
     }
 
     pub fn new_timer(typ: ScriptBlockType, time: Num, code: ScriptByteCode) -> Result<ScriptBlock> {
@@ -346,7 +327,7 @@ const _: () = {
     impl<'de> Visitor<'de> for ScriptByteCodeVisitor {
         type Value = ScriptByteCode;
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             return formatter.write_str("a base64 string");
         }
 
@@ -377,9 +358,7 @@ impl fmt::Debug for ScriptByteCode {
                 JmpSet => dl.entry(self.jmp_set_pc(&mut pc)),
                 JmpCas0 | JmpCas1 => dl.entry(self.jmp_cas_pc(&mut pc)),
                 Mov | Neg | Not => dl.entry(self.call_pc::<1>(&mut pc)),
-                Add | Sub | Mul | Pow | Div | Mod | Le | Lt | Ge | Gt | Eq | Ne => {
-                    dl.entry(self.call_pc::<2>(&mut pc))
-                }
+                Add | Sub | Mul | Pow | Div | Mod | Le | Lt | Ge | Gt | Eq | Ne => dl.entry(self.call_pc::<2>(&mut pc)),
                 IfElse0 | IfElse1 => dl.entry(self.call_pc::<3>(&mut pc)),
                 XInit | XSet => dl.entry(self.call_pc::<2>(&mut pc)),
                 XGet | XHas | XDel => dl.entry(self.call_pc::<1>(&mut pc)),
@@ -634,10 +613,7 @@ pub struct CmdJmp {
 
 impl CmdJmp {
     pub fn new(pc: CmdAddr) -> CmdJmp {
-        return CmdJmp {
-            opt: CmdOpt::Jmp,
-            pc,
-        };
+        return CmdJmp { opt: CmdOpt::Jmp, pc };
     }
 }
 

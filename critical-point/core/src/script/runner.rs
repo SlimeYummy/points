@@ -3,9 +3,9 @@ use std::{fmt, mem, slice};
 
 use crate::script::command::*;
 use crate::script::config::{
-    MAX_FUNCTION_ARGUMENTS, MAX_OFFSET, MAX_REGISTER, MUT_SEGMENT_COUNT, NUM_SEGMENT_COUNT,
-    SEGMENT_CLOSURE, SEGMENT_CONSTANT, SEGMENT_IN_MAX, SEGMENT_IN_MIN, SEGMENT_NAMES,
-    SEGMENT_OUT_MAX, SEGMENT_OUT_MIN, SEGMENT_REGISTER, SEGMENT_STRING,
+    MAX_FUNCTION_ARGUMENTS, MAX_OFFSET, MAX_REGISTER, MUT_SEGMENT_COUNT, NUM_SEGMENT_COUNT, SEGMENT_CLOSURE,
+    SEGMENT_CONSTANT, SEGMENT_IN_MAX, SEGMENT_IN_MIN, SEGMENT_NAMES, SEGMENT_OUT_MAX, SEGMENT_OUT_MIN,
+    SEGMENT_REGISTER, SEGMENT_STRING,
 };
 use crate::utils::{Num, Symbol, SymbolMap, XError, XResult};
 
@@ -43,10 +43,8 @@ impl ScriptRunner {
             None => return Err(XError::ScriptNoHook),
         };
 
-        self.num_segs
-            .set_segment(SEGMENT_CLOSURE, context.closure_segment());
-        self.num_segs
-            .set_segment(SEGMENT_CONSTANT, blocks.constant_segment());
+        self.num_segs.set_segment(SEGMENT_CLOSURE, context.closure_segment());
+        self.num_segs.set_segment(SEGMENT_CONSTANT, blocks.constant_segment());
         self.str_seg.set_segment(blocks.string_segment());
 
         let out_segments = context.out_segments();
@@ -57,8 +55,7 @@ impl ScriptRunner {
 
         let in_segments = context.in_segments();
         for idx in 0..usize::min(I, SEGMENT_IN_MAX as usize) {
-            self.num_segs
-                .set_segment(SEGMENT_IN_MIN + idx as u8, in_segments[idx]);
+            self.num_segs.set_segment(SEGMENT_IN_MIN + idx as u8, in_segments[idx]);
         }
 
         return self.execute_loop(&hook_block.code, context);
@@ -320,12 +317,7 @@ pub trait ScriptEnv<const I: usize, const O: usize> {
     fn in_segments(&self) -> [&[u64]; I];
     fn out_segments(&mut self) -> [&mut [u64]; O];
     fn global(&mut self) -> &mut SymbolMap<Num>;
-    fn call_ext<'t>(
-        &'t mut self,
-        _ce: ScriptCallExt<'t>,
-        _opt: u16,
-        _args: &[CmdAddr],
-    ) -> XResult<Num> {
+    fn call_ext<'t>(&'t mut self, _ce: ScriptCallExt<'t>, _opt: u16, _args: &[CmdAddr]) -> XResult<Num> {
         return Err(XError::ScriptBadCommand);
     }
 }
@@ -439,10 +431,7 @@ mod tests {
 
         code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_IN_MIN, 1),
-                CmdAddr::new(SEGMENT_CLOSURE, 0),
-            ],
+            [CmdAddr::new(SEGMENT_IN_MIN, 1), CmdAddr::new(SEGMENT_CLOSURE, 0)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         let blocks = new_blocks(BeforeHit, mem::take(&mut code));
@@ -471,9 +460,7 @@ mod tests {
             CmdAddr::new(SEGMENT_OUT_MIN, 2),
         ));
         let mut blocks = new_blocks(AfterAssemble, mem::take(&mut code));
-        blocks
-            .constant_segment
-            .push(unsafe { mem::transmute(111.0) });
+        blocks.constant_segment.push(unsafe { mem::transmute(111.0) });
         runner.registers[2] = 32.0;
         ctx.in2.gg = 55.5;
         runner.run_hook(&blocks, AfterAssemble, &mut ctx).unwrap();
@@ -489,9 +476,7 @@ mod tests {
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         let mut blocks = new_blocks(AfterAssemble, code);
-        blocks
-            .constant_segment
-            .push(unsafe { mem::transmute(111.0) });
+        blocks.constant_segment.push(unsafe { mem::transmute(111.0) });
         runner.registers[12] = 1.0;
         runner.registers[13] = 21.0;
         runner.registers[14] = 31.0;
@@ -509,10 +494,7 @@ mod tests {
         code.write(&CmdJmp::new(CmdAddr::new(SEGMENT_CONSTANT, 0)));
         code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_IN_MIN, 1),
-                CmdAddr::new(SEGMENT_CLOSURE, 0),
-            ],
+            [CmdAddr::new(SEGMENT_IN_MIN, 1), CmdAddr::new(SEGMENT_CLOSURE, 0)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         code.write(&CmdCall::new(
@@ -540,18 +522,12 @@ mod tests {
         ));
         code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_OUT_MIN, 0),
-                CmdAddr::new(SEGMENT_IN_MIN, 1),
-            ],
+            [CmdAddr::new(SEGMENT_OUT_MIN, 0), CmdAddr::new(SEGMENT_IN_MIN, 1)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_OUT_MIN, 0),
-                CmdAddr::new(SEGMENT_IN_MIN, 1),
-            ],
+            [CmdAddr::new(SEGMENT_OUT_MIN, 0), CmdAddr::new(SEGMENT_IN_MIN, 1)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         let mut blocks = new_blocks(OnTreat, code);
@@ -582,10 +558,7 @@ mod tests {
         ));
         code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_OUT_MIN, 0),
-                CmdAddr::new(SEGMENT_IN_MIN, 1),
-            ],
+            [CmdAddr::new(SEGMENT_OUT_MIN, 0), CmdAddr::new(SEGMENT_IN_MIN, 1)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         let mut blocks = new_blocks(OnTreat, code);
@@ -613,18 +586,12 @@ mod tests {
         ));
         code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_REGISTER, 0),
-                CmdAddr::new(SEGMENT_IN_MIN, 2),
-            ],
+            [CmdAddr::new(SEGMENT_REGISTER, 0), CmdAddr::new(SEGMENT_IN_MIN, 2)],
             CmdAddr::new(SEGMENT_REGISTER, 0),
         ));
         code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_REGISTER, 0),
-                CmdAddr::new(SEGMENT_IN_MIN, 0),
-            ],
+            [CmdAddr::new(SEGMENT_REGISTER, 0), CmdAddr::new(SEGMENT_IN_MIN, 0)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         let mut blocks = new_blocks(OnTreat, code);
