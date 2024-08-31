@@ -49,9 +49,7 @@ pub struct TestEnv {
 
 impl ScriptEnv<2, 1> for TestEnv {
     fn closure_segment(&mut self) -> &mut [u64] {
-        return unsafe {
-            slice::from_raw_parts_mut(self.closure_segment.as_mut_ptr() as *mut u64, MAX_CLOSURE)
-        };
+        return unsafe { slice::from_raw_parts_mut(self.closure_segment.as_mut_ptr() as *mut u64, MAX_CLOSURE) };
     }
 
     fn in_segments(&self) -> [&[u64]; 2] {
@@ -84,12 +82,7 @@ impl ScriptEnv<2, 1> for TestEnv {
         return &mut self.global;
     }
 
-    fn call_ext<'t>(
-        &'t mut self,
-        _ce: ScriptCallExt<'t>,
-        _opt: u16,
-        _args: &[CmdAddr],
-    ) -> XResult<Num> {
+    fn call_ext<'t>(&'t mut self, _ce: ScriptCallExt<'t>, _opt: u16, _args: &[CmdAddr]) -> XResult<Num> {
         todo!()
     }
 }
@@ -99,11 +92,7 @@ pub fn new_parser() -> ScriptParser {
     for block_typ in enum_iterator::all::<ScriptBlockType>() {
         inputs.insert(
             (block_typ, SEGMENT_IN_MIN),
-            HashMap::from([
-                ("in.aa".into(), 0),
-                ("in.bb".into(), 1),
-                ("in.cc".into(), 2),
-            ]),
+            HashMap::from([("in.aa".into(), 0), ("in.bb".into(), 1), ("in.cc".into(), 2)]),
         );
         if block_typ.is_hook() {
             inputs.insert(

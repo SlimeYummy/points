@@ -4,13 +4,11 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::mem;
 
 use crate::script::ast::{
-    AstBlock, AstExpr, AstExprBranch, AstExprCall, AstExprCallExt, AstExprLogic, AstLogicType,
-    AstStat, AstStatAssign, AstStatBranch, AstStatCall, AstStatCallExt, AstVar,
+    AstBlock, AstExpr, AstExprBranch, AstExprCall, AstExprCallExt, AstExprLogic, AstLogicType, AstStat, AstStatAssign,
+    AstStatBranch, AstStatCall, AstStatCallExt, AstVar,
 };
 use crate::script::command::*;
-use crate::script::config::{
-    MAX_OFFSET, MAX_REGISTER, SEGMENT_CONSTANT, SEGMENT_REGISTER, SEGMENT_STRING,
-};
+use crate::script::config::{MAX_OFFSET, MAX_REGISTER, SEGMENT_CONSTANT, SEGMENT_REGISTER, SEGMENT_STRING};
 use crate::script::parser::ParserResult;
 use crate::utils::{Num, Symbol, XResult};
 
@@ -48,9 +46,7 @@ impl ScriptGenerator {
             } else {
                 let block = ScriptBlock::new_timer(
                     ast_block.typ,
-                    ast_block
-                        .arg
-                        .ok_or_else(|| anyhow!("Timer miss argument"))?,
+                    ast_block.arg.ok_or_else(|| anyhow!("Timer miss argument"))?,
                     mem::take(&mut self.byte_code),
                 )?;
                 blocks.push(block);
@@ -91,8 +87,7 @@ impl ScriptGenerator {
 
         let expr_addr = self.visit_expr(&assign.expr, Context::new(Some(var_addr), ctx.end))?;
         if expr_addr != var_addr {
-            self.byte_code
-                .write(&CmdCall::new(CmdOpt::Mov, [expr_addr], var_addr));
+            self.byte_code.write(&CmdCall::new(CmdOpt::Mov, [expr_addr], var_addr));
             self.reg_manager.free_register(expr_addr);
         }
 
@@ -115,11 +110,7 @@ impl ScriptGenerator {
         return Ok(());
     }
 
-    fn visit_stat_call_impl<const N: usize>(
-        &mut self,
-        call: &AstStatCall,
-        ctx: Context,
-    ) -> Result<()> {
+    fn visit_stat_call_impl<const N: usize>(&mut self, call: &AstStatCall, ctx: Context) -> Result<()> {
         let mut src: [CmdAddr; N] = [CmdAddr::default(); N];
         for idx in 0..N {
             src[idx] = self.visit_expr(&call.args[idx], ctx)?;
@@ -181,10 +172,7 @@ impl ScriptGenerator {
         match (&branch.cond, &branch.next) {
             // if/elsif condition with next branch
             (Some(cond), Some(next)) => {
-                let cmd_if = CmdJmpCmp::new(
-                    self.visit_expr(&cond, NO_CTX)?,
-                    self.constant_writer.write_pc(0)?,
-                );
+                let cmd_if = CmdJmpCmp::new(self.visit_expr(&cond, NO_CTX)?, self.constant_writer.write_pc(0)?);
                 self.reg_manager.free_register(cmd_if.cond);
                 self.byte_code.write(&cmd_if);
 
@@ -198,17 +186,13 @@ impl ScriptGenerator {
                 }
 
                 self.byte_code.write(&CmdJmp::new(end));
-                self.constant_writer
-                    .update_pc(cmd_if.pc, self.byte_code.len() as u64)?; // to next
+                self.constant_writer.update_pc(cmd_if.pc, self.byte_code.len() as u64)?; // to next
 
                 self.visit_stat_branch(next, Context::new(None, Some(end)))?;
             }
             // if/elsif condition without next branch
             (Some(cond), None) => {
-                let cmd_if = CmdJmpCmp::new(
-                    self.visit_expr(&cond, NO_CTX)?,
-                    self.use_or_alloc_pc(ctx.end)?,
-                );
+                let cmd_if = CmdJmpCmp::new(self.visit_expr(&cond, NO_CTX)?, self.use_or_alloc_pc(ctx.end)?);
                 self.reg_manager.free_register(cmd_if.cond);
                 self.byte_code.write(&cmd_if);
 
@@ -220,8 +204,8 @@ impl ScriptGenerator {
                     }
                 }
 
-                self.constant_writer
-                    .update_pc(cmd_if.pc, self.byte_code.len() as u64)?; // to end
+                self.constant_writer.update_pc(cmd_if.pc, self.byte_code.len() as u64)?;
+                // to end
             }
             // else
             (None, None) => {
@@ -286,11 +270,7 @@ impl ScriptGenerator {
         };
     }
 
-    fn visit_expr_call_impl<const N: usize>(
-        &mut self,
-        call: &AstExprCall,
-        ctx: Context,
-    ) -> Result<CmdAddr> {
+    fn visit_expr_call_impl<const N: usize>(&mut self, call: &AstExprCall, ctx: Context) -> Result<CmdAddr> {
         let mut src: [CmdAddr; N] = [CmdAddr::default(); N];
         for idx in 0..N {
             src[idx] = self.visit_expr(&call.args[idx], NO_CTX)?;
@@ -395,8 +375,7 @@ impl ScriptGenerator {
                 self.visit_expr(&branch.left, Context::new(Some(cmd.dst), Some(cmd.pc)))?;
             }
 
-            self.constant_writer
-                .update_pc(cmd.pc, self.byte_code.len() as u64)?; // to end
+            self.constant_writer.update_pc(cmd.pc, self.byte_code.len() as u64)?; // to end
             return Ok(cmd.dst);
 
         // 0 value
@@ -410,8 +389,7 @@ impl ScriptGenerator {
 
             let end = self.use_or_alloc_pc(ctx.end)?;
             let dst = self.visit_expr(&branch.left, Context::new(ctx.dst, Some(end)))?;
-            self.constant_writer
-                .update_pc(cmd_if.pc, self.byte_code.len() as u64)?; // to next
+            self.constant_writer.update_pc(cmd_if.pc, self.byte_code.len() as u64)?; // to next
 
             let cmd_left = CmdJmp::new(end);
             self.byte_code.write(&cmd_left);
@@ -465,8 +443,7 @@ impl ScriptGenerator {
             self.byte_code.write(&cmd);
 
             self.visit_expr(&logic.right, Context::new(Some(cmd.dst), None))?;
-            self.constant_writer
-                .update_pc(cmd.pc, self.byte_code.len() as u64)?; // to end
+            self.constant_writer.update_pc(cmd.pc, self.byte_code.len() as u64)?; // to end
 
             return Ok(cmd.dst);
         }
@@ -493,10 +470,7 @@ struct Context {
     end: Option<CmdAddr>,
 }
 
-const NO_CTX: Context = Context {
-    dst: None,
-    end: None,
-};
+const NO_CTX: Context = Context { dst: None, end: None };
 
 impl Context {
     fn new(dst: Option<CmdAddr>, end: Option<CmdAddr>) -> Context {
@@ -725,18 +699,12 @@ mod tests {
         let mut byte_code = ScriptByteCode::default();
         byte_code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_CONSTANT, 0),
-                CmdAddr::new(SEGMENT_CLOSURE, 0),
-            ],
+            [CmdAddr::new(SEGMENT_CONSTANT, 0), CmdAddr::new(SEGMENT_CLOSURE, 0)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Mul,
-            [
-                CmdAddr::new(SEGMENT_OUT_MIN, 2),
-                CmdAddr::new(SEGMENT_IN_MIN + 1, 1),
-            ],
+            [CmdAddr::new(SEGMENT_OUT_MIN, 2), CmdAddr::new(SEGMENT_IN_MIN + 1, 1)],
             CmdAddr::new(SEGMENT_OUT_MIN, 2),
         ));
         assert_eq!(
@@ -768,26 +736,17 @@ mod tests {
         let mut byte_code = ScriptByteCode::default();
         byte_code.write(&CmdCall::new(
             CmdOpt::Max,
-            [
-                CmdAddr::new(SEGMENT_CONSTANT, 0),
-                CmdAddr::new(SEGMENT_CONSTANT, 1),
-            ],
+            [CmdAddr::new(SEGMENT_CONSTANT, 0), CmdAddr::new(SEGMENT_CONSTANT, 1)],
             CmdAddr::new(SEGMENT_REGISTER, 0),
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_CONSTANT, 0),
-                CmdAddr::new(SEGMENT_REGISTER, 0),
-            ],
+            [CmdAddr::new(SEGMENT_CONSTANT, 0), CmdAddr::new(SEGMENT_REGISTER, 0)],
             CmdAddr::new(SEGMENT_REGISTER, 0),
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::XInit,
-            [
-                CmdAddr::new(SEGMENT_STRING, 0),
-                CmdAddr::new(SEGMENT_REGISTER, 0),
-            ],
+            [CmdAddr::new(SEGMENT_STRING, 0), CmdAddr::new(SEGMENT_REGISTER, 0)],
             CmdAddr::default(),
         ));
         assert_eq!(
@@ -818,24 +777,13 @@ mod tests {
 
         assert_eq!(
             blocks.constant_segment,
-            vec![
-                f64_u64(0.0),
-                12,
-                21,
-                f64_u64(3.0),
-                f64_u64(7.0),
-                17,
-                f64_u64(9.0),
-            ]
+            vec![f64_u64(0.0), 12, 21, f64_u64(3.0), f64_u64(7.0), 17, f64_u64(9.0),]
         );
 
         let mut byte_code = ScriptByteCode::default();
         byte_code.write(&CmdCall::new(
             CmdOpt::Gt,
-            [
-                CmdAddr::new(SEGMENT_IN_MIN, 2),
-                CmdAddr::new(SEGMENT_CONSTANT, 0),
-            ],
+            [CmdAddr::new(SEGMENT_IN_MIN, 2), CmdAddr::new(SEGMENT_CONSTANT, 0)],
             CmdAddr::new(SEGMENT_REGISTER, 0),
         ));
         byte_code.write(&CmdJmpCmp::new(
@@ -855,10 +803,7 @@ mod tests {
         byte_code.write(&CmdJmp::new(CmdAddr::new(SEGMENT_CONSTANT, 2)));
         byte_code.write(&CmdCall::new(
             CmdOpt::Sub,
-            [
-                CmdAddr::new(SEGMENT_OUT_MIN, 1),
-                CmdAddr::new(SEGMENT_CONSTANT, 6),
-            ],
+            [CmdAddr::new(SEGMENT_OUT_MIN, 1), CmdAddr::new(SEGMENT_CONSTANT, 6)],
             CmdAddr::new(SEGMENT_OUT_MIN, 1),
         ));
         assert_eq!(
@@ -898,10 +843,7 @@ mod tests {
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Ne,
-            [
-                CmdAddr::new(SEGMENT_IN_MIN, 2),
-                CmdAddr::new(SEGMENT_CONSTANT, 1),
-            ],
+            [CmdAddr::new(SEGMENT_IN_MIN, 2), CmdAddr::new(SEGMENT_CONSTANT, 1)],
             CmdAddr::new(SEGMENT_REGISTER, 0),
         ));
         byte_code.write(&CmdJmpCmp::new(
@@ -940,10 +882,7 @@ mod tests {
         let res = parser.run(code, &[]).unwrap();
         let blocks = generator.run(res).unwrap();
 
-        assert_eq!(
-            blocks.constant_segment,
-            vec![core::u64::MAX, 5, f64_u64(-4.5),]
-        );
+        assert_eq!(blocks.constant_segment, vec![core::u64::MAX, 5, f64_u64(-4.5),]);
 
         let mut byte_code = ScriptByteCode::default();
         byte_code.write(&CmdJmp::new(CmdAddr::new(SEGMENT_CONSTANT, 0)));
@@ -994,10 +933,7 @@ mod tests {
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Eq,
-            [
-                CmdAddr::new(SEGMENT_IN_MIN, 1),
-                CmdAddr::new(SEGMENT_CONSTANT, 1),
-            ],
+            [CmdAddr::new(SEGMENT_IN_MIN, 1), CmdAddr::new(SEGMENT_CONSTANT, 1)],
             CmdAddr::new(SEGMENT_REGISTER, 1),
         ));
         byte_code.write(&CmdJmpCmp::new(
@@ -1006,10 +942,7 @@ mod tests {
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_REGISTER, 0),
-                CmdAddr::new(SEGMENT_CONSTANT, 3),
-            ],
+            [CmdAddr::new(SEGMENT_REGISTER, 0), CmdAddr::new(SEGMENT_CONSTANT, 3)],
             CmdAddr::new(SEGMENT_REGISTER, 1),
         ));
         byte_code.write(&CmdCall::new(
@@ -1041,18 +974,12 @@ mod tests {
         let mut byte_code = ScriptByteCode::default();
         byte_code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_IN_MIN + 1, 4),
-                CmdAddr::new(SEGMENT_CONSTANT, 1),
-            ],
+            [CmdAddr::new(SEGMENT_IN_MIN + 1, 4), CmdAddr::new(SEGMENT_CONSTANT, 1)],
             CmdAddr::new(SEGMENT_REGISTER, 1),
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Mul,
-            [
-                CmdAddr::new(SEGMENT_CONSTANT, 0),
-                CmdAddr::new(SEGMENT_REGISTER, 1),
-            ],
+            [CmdAddr::new(SEGMENT_CONSTANT, 0), CmdAddr::new(SEGMENT_REGISTER, 1)],
             CmdAddr::new(SEGMENT_REGISTER, 0),
         ));
         byte_code.write(&CmdCall::new(
@@ -1067,10 +994,7 @@ mod tests {
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Sub,
-            [
-                CmdAddr::new(SEGMENT_REGISTER, 1),
-                CmdAddr::new(SEGMENT_CONSTANT, 2),
-            ],
+            [CmdAddr::new(SEGMENT_REGISTER, 1), CmdAddr::new(SEGMENT_CONSTANT, 2)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         assert_eq!(
@@ -1125,10 +1049,7 @@ mod tests {
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_IN_MIN, 0),
-                CmdAddr::new(SEGMENT_CONSTANT, 3),
-            ],
+            [CmdAddr::new(SEGMENT_IN_MIN, 0), CmdAddr::new(SEGMENT_CONSTANT, 3)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         assert_eq!(
@@ -1162,10 +1083,7 @@ mod tests {
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Pow,
-            [
-                CmdAddr::new(SEGMENT_IN_MIN, 2),
-                CmdAddr::new(SEGMENT_CONSTANT, 2),
-            ],
+            [CmdAddr::new(SEGMENT_IN_MIN, 2), CmdAddr::new(SEGMENT_CONSTANT, 2)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         byte_code.write(&CmdJmp::new(CmdAddr::new(SEGMENT_CONSTANT, 1)));
@@ -1203,13 +1121,7 @@ mod tests {
 
         assert_eq!(
             blocks.constant_segment,
-            vec![
-                f64_u64(100.0),
-                14,
-                f64_u64(25.0),
-                f64_u64(1.0),
-                f64_u64(2.0)
-            ]
+            vec![f64_u64(100.0), 14, f64_u64(25.0), f64_u64(1.0), f64_u64(2.0)]
         );
 
         let mut byte_code = ScriptByteCode::default();
@@ -1229,10 +1141,7 @@ mod tests {
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_CONSTANT, 3),
-                CmdAddr::new(SEGMENT_CONSTANT, 4),
-            ],
+            [CmdAddr::new(SEGMENT_CONSTANT, 3), CmdAddr::new(SEGMENT_CONSTANT, 4)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         assert_eq!(
@@ -1256,10 +1165,7 @@ mod tests {
         let res = parser.run(code, &[]).unwrap();
         let blocks = generator.run(res).unwrap();
 
-        assert_eq!(
-            blocks.constant_segment,
-            vec![16, 10, f64_u64(6.0), f64_u64(5.0),]
-        );
+        assert_eq!(blocks.constant_segment, vec![16, 10, f64_u64(6.0), f64_u64(5.0),]);
 
         let mut byte_code = ScriptByteCode::default();
         byte_code.write(&CmdJmpCmp::new(
@@ -1272,19 +1178,13 @@ mod tests {
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_CONSTANT, 2),
-                CmdAddr::new(SEGMENT_IN_MIN, 0),
-            ],
+            [CmdAddr::new(SEGMENT_CONSTANT, 2), CmdAddr::new(SEGMENT_IN_MIN, 0)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         byte_code.write(&CmdJmp::new(CmdAddr::new(SEGMENT_CONSTANT, 0)));
         byte_code.write(&CmdCall::new(
             CmdOpt::Sub,
-            [
-                CmdAddr::new(SEGMENT_CONSTANT, 3),
-                CmdAddr::new(SEGMENT_IN_MIN, 0),
-            ],
+            [CmdAddr::new(SEGMENT_CONSTANT, 3), CmdAddr::new(SEGMENT_IN_MIN, 0)],
             CmdAddr::new(SEGMENT_OUT_MIN, 0),
         ));
         assert_eq!(
@@ -1307,10 +1207,7 @@ mod tests {
         let res = parser.run(code, &[]).unwrap();
         let blocks = generator.run(res).unwrap();
 
-        assert_eq!(
-            blocks.constant_segment,
-            vec![10, f64_u64(1.0), f64_u64(0.0), 20]
-        );
+        assert_eq!(blocks.constant_segment, vec![10, f64_u64(1.0), f64_u64(0.0), 20]);
 
         let mut byte_code = ScriptByteCode::default();
         byte_code.write(&CmdJmpCas::new(
@@ -1368,10 +1265,7 @@ mod tests {
         let res = parser.run(code, &[]).unwrap();
         let blocks = generator.run(res).unwrap();
 
-        assert_eq!(
-            blocks.constant_segment,
-            vec![f64_u64(100.0), 14, f64_u64(30.0),]
-        );
+        assert_eq!(blocks.constant_segment, vec![f64_u64(100.0), 14, f64_u64(30.0),]);
 
         let mut byte_code = ScriptByteCode::default();
         byte_code.write(&CmdJmpCas::new(
@@ -1390,10 +1284,7 @@ mod tests {
         ));
         byte_code.write(&CmdCall::new(
             CmdOpt::Add,
-            [
-                CmdAddr::new(SEGMENT_IN_MIN, 0),
-                CmdAddr::new(SEGMENT_CONSTANT, 2),
-            ],
+            [CmdAddr::new(SEGMENT_IN_MIN, 0), CmdAddr::new(SEGMENT_CONSTANT, 2)],
             CmdAddr::new(SEGMENT_REGISTER, 0),
         ));
         assert_eq!(

@@ -9,7 +9,6 @@ macro_rules! sin {
         (stringify!($field), std::mem::offset_of!($path, $field))
     };
 }
-
 pub(crate) use sin;
 
 pub fn script_in(prefix: &str, fields: Vec<(&str, usize)>) -> ScriptInputMap {
@@ -21,10 +20,7 @@ pub fn script_in(prefix: &str, fields: Vec<(&str, usize)>) -> ScriptInputMap {
         if field_offset % 8 != 0 {
             panic!("offset not aligned");
         }
-        ins.insert(
-            format!("{}.{}", prefix, field_name),
-            (field_offset / 8) as u16,
-        );
+        ins.insert(format!("{}.{}", prefix, field_name), (field_offset / 8) as u16);
     }
     return ins;
 }
@@ -98,7 +94,6 @@ macro_rules! sout {
         )
     };
 }
-
 pub(crate) use sout;
 
 pub fn script_out(prefix: &str, fields: Vec<(&str, usize, ScriptOutType)>) -> ScriptOutputMap {

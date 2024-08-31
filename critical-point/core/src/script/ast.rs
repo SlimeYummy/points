@@ -10,11 +10,7 @@ pub struct AstBlock {
 
 impl AstBlock {
     pub fn new_hook(typ: ScriptBlockType, stats: Vec<AstStat>) -> AstBlock {
-        return AstBlock {
-            typ,
-            arg: None,
-            stats,
-        };
+        return AstBlock { typ, arg: None, stats };
     }
 
     pub fn new_timer(typ: ScriptBlockType, arg: Num, stats: Vec<AstStat>) -> AstBlock {
@@ -48,11 +44,7 @@ impl AstStat {
         return AstStat::CallExt(AstStatCallExt::new(ext, args));
     }
 
-    pub fn new_branch(
-        cond: Option<AstExpr>,
-        stats: Vec<AstStat>,
-        next: Option<AstStatBranch>,
-    ) -> AstStat {
+    pub fn new_branch(cond: Option<AstExpr>, stats: Vec<AstStat>, next: Option<AstStatBranch>) -> AstStat {
         return AstStat::Branch(AstStatBranch::new(cond, stats, next));
     }
 
@@ -115,11 +107,7 @@ pub struct AstStatBranch {
 }
 
 impl AstStatBranch {
-    pub fn new(
-        cond: Option<AstExpr>,
-        stats: Vec<AstStat>,
-        next: Option<AstStatBranch>,
-    ) -> AstStatBranch {
+    pub fn new(cond: Option<AstExpr>, stats: Vec<AstStat>, next: Option<AstStatBranch>) -> AstStatBranch {
         return AstStatBranch {
             cond: cond.map(|c| Box::new(c)),
             stats,
