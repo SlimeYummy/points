@@ -5,7 +5,6 @@ mod id;
 mod key;
 mod math;
 mod ptr;
-mod rc_cell;
 mod symbol;
 
 pub use collection::*;
@@ -14,7 +13,6 @@ pub use id::*;
 pub use key::*;
 pub use math::*;
 pub use ptr::*;
-pub use rc_cell::{RcCell, RcCellError, RcCellRef, RcCellRefMut};
 pub use symbol::*;
 
 pub(crate) use extend::{extend, interface};

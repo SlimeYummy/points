@@ -32,20 +32,20 @@ impl<N: InnerNode> InnerMap<N> {
         pow = pow.max(5);
         let prime_pos = pow - 5;
 
-        return InnerMap {
+        InnerMap {
             nodes: vec![ptr::null_mut(); PRIME_TABLE[prime_pos] as usize],
             prime: PRIME_TABLE[prime_pos] as u64,
             count: 0,
             prime_pos,
             state: DeterministicState::new(),
-        };
+        }
     }
 
     #[inline(always)]
     pub(super) fn hash(&self, string: &str) -> u64 {
         let mut hasher = self.state.build_hasher();
         hasher.write(string.as_bytes());
-        return hasher.finish();
+        hasher.finish()
     }
 
     #[inline]
@@ -147,16 +147,16 @@ impl<N: InnerNode> InnerMap<N> {
                 }
             }
         }
-        return count;
+        count
     }
 
     #[inline(always)]
     pub(crate) fn count(&self) -> usize {
-        return self.count;
+        self.count
     }
 
     #[inline(always)]
     pub(crate) fn capacity(&self) -> usize {
-        return self.prime as usize;
+        self.prime as usize
     }
 }

@@ -1,3 +1,4 @@
+use cirtical_point_csgen::CsGen;
 use std::fmt;
 
 use crate::utils::Symbol;
@@ -9,7 +10,7 @@ use crate::utils::Symbol;
 pub type StrID = Symbol;
 
 pub fn is_invalid_str_id(id: StrID) -> bool {
-    return id.is_empty();
+    id.is_empty()
 }
 
 //
@@ -19,30 +20,27 @@ pub fn is_invalid_str_id(id: StrID) -> bool {
 pub type NumID = u64;
 
 pub fn is_invalid_num_id(id: NumID) -> bool {
-    return id == u64::MAX;
-}
-
-pub struct NumIDFactory {
-    counter: NumID,
-}
-
-impl NumIDFactory {
-    pub fn new(init: NumID) -> NumIDFactory {
-        return NumIDFactory { counter: init };
-    }
-
-    pub fn gen(&mut self) -> NumID {
-        let id = self.counter;
-        self.counter += 1;
-        return id;
-    }
+    id == u64::MAX
 }
 
 //
 // IDLevel
 //
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    CsGen,
+)]
+#[cs_attr(Cs, Struct)]
 pub struct IDLevel {
     pub id: StrID,
     pub level: u32,
@@ -50,19 +48,19 @@ pub struct IDLevel {
 
 impl IDLevel {
     pub fn new(id: &StrID, level: u32) -> IDLevel {
-        return IDLevel { id: id.clone(), level };
+        IDLevel { id: id.clone(), level }
     }
 }
 
 impl From<(StrID, u32)> for IDLevel {
     fn from((id, level): (StrID, u32)) -> Self {
-        return IDLevel { id, level };
+        IDLevel { id, level }
     }
 }
 
-impl Into<(StrID, u32)> for IDLevel {
-    fn into(self) -> (StrID, u32) {
-        return (self.id, self.level);
+impl From<IDLevel> for (StrID, u32) {
+    fn from(val: IDLevel) -> Self {
+        (val.id, val.level)
     }
 }
 
@@ -81,7 +79,7 @@ const _: () = {
 
     impl TmplIDLevelVisitor {
         pub fn new() -> Self {
-            return TmplIDLevelVisitor {};
+            TmplIDLevelVisitor {}
         }
     }
 
@@ -89,14 +87,14 @@ const _: () = {
         type Value = IDLevel;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            return formatter.write_str(r#"[id, level] or {"id": id, "level": level}"#);
+            formatter.write_str(r#"[id, level] or {"id": id, "level": level}"#)
         }
 
         fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
             #[derive(Deserialize)]
             struct Helper(StrID, u32);
             let Helper(id, level) = Helper::deserialize(SeqAccessDeserializer::new(&mut seq))?;
-            return Ok(IDLevel { id, level });
+            Ok(IDLevel { id, level })
         }
 
         fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
@@ -106,7 +104,7 @@ const _: () = {
                 level: u32,
             }
             let Helper { id, level } = Helper::deserialize(MapAccessDeserializer::new(map))?;
-            return Ok(IDLevel { id, level });
+            Ok(IDLevel { id, level })
         }
     }
 };
@@ -115,7 +113,20 @@ const _: () = {
 // IDPlus
 //
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    CsGen,
+)]
+#[cs_attr(Cs, Struct)]
 pub struct IDPlus {
     pub id: StrID,
     pub plus: u32,
@@ -123,19 +134,19 @@ pub struct IDPlus {
 
 impl IDPlus {
     pub fn new(id: &StrID, plus: u32) -> IDPlus {
-        return IDPlus { id: id.clone(), plus };
+        IDPlus { id: id.clone(), plus }
     }
 }
 
 impl From<(StrID, u32)> for IDPlus {
     fn from((id, plus): (StrID, u32)) -> Self {
-        return IDPlus { id, plus };
+        IDPlus { id, plus }
     }
 }
 
-impl Into<(StrID, u32)> for IDPlus {
-    fn into(self) -> (StrID, u32) {
-        return (self.id, self.plus);
+impl From<IDPlus> for (StrID, u32) {
+    fn from(val: IDPlus) -> Self {
+        (val.id, val.plus)
     }
 }
 
@@ -154,7 +165,7 @@ const _: () = {
 
     impl TmplIDCountVisitor {
         pub fn new() -> Self {
-            return TmplIDCountVisitor {};
+            TmplIDCountVisitor {}
         }
     }
 
@@ -162,14 +173,14 @@ const _: () = {
         type Value = IDPlus;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            return formatter.write_str(r#"[id, plus] or {"id": id, "plus": plus}"#);
+            formatter.write_str(r#"[id, plus] or {"id": id, "plus": plus}"#)
         }
 
         fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
             #[derive(Deserialize)]
             struct Helper(StrID, u32);
             let Helper(id, plus) = Helper::deserialize(SeqAccessDeserializer::new(&mut seq))?;
-            return Ok(IDPlus { id, plus });
+            Ok(IDPlus { id, plus })
         }
 
         fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
@@ -179,7 +190,7 @@ const _: () = {
                 plus: u32,
             }
             let Helper { id, plus } = Helper::deserialize(MapAccessDeserializer::new(map))?;
-            return Ok(IDPlus { id, plus });
+            Ok(IDPlus { id, plus })
         }
     }
 };
@@ -188,7 +199,20 @@ const _: () = {
 // IDSymbol
 //
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    CsGen,
+)]
+#[cs_attr(Cs, Struct)]
 pub struct IDSymbol {
     pub id: StrID,
     pub symbol: Symbol,
@@ -196,22 +220,22 @@ pub struct IDSymbol {
 
 impl IDSymbol {
     pub fn new(id: &StrID, symbol: &Symbol) -> IDSymbol {
-        return IDSymbol {
+        IDSymbol {
             id: id.clone(),
             symbol: symbol.clone(),
-        };
+        }
     }
 }
 
 impl From<(StrID, Symbol)> for IDSymbol {
     fn from((id, symbol): (StrID, Symbol)) -> Self {
-        return IDSymbol { id, symbol };
+        IDSymbol { id, symbol }
     }
 }
 
-impl Into<(StrID, Symbol)> for IDSymbol {
-    fn into(self) -> (StrID, Symbol) {
-        return (self.id, self.symbol);
+impl From<IDSymbol> for (StrID, Symbol) {
+    fn from(val: IDSymbol) -> Self {
+        (val.id, val.symbol)
     }
 }
 
@@ -230,7 +254,7 @@ const _: () = {
 
     impl TmplIDLevelVisitor {
         pub fn new() -> Self {
-            return TmplIDLevelVisitor {};
+            TmplIDLevelVisitor {}
         }
     }
 
@@ -238,14 +262,14 @@ const _: () = {
         type Value = IDSymbol;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            return formatter.write_str(r#"[id, symbol] or {"id": id, "symbol": symbol}"#);
+            formatter.write_str(r#"[id, symbol] or {"id": id, "symbol": symbol}"#)
         }
 
         fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
             #[derive(Deserialize)]
             struct Helper(StrID, Symbol);
             let Helper(id, symbol) = Helper::deserialize(SeqAccessDeserializer::new(&mut seq))?;
-            return Ok(IDSymbol { id, symbol });
+            Ok(IDSymbol { id, symbol })
         }
 
         fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
@@ -255,7 +279,7 @@ const _: () = {
                 symbol: Symbol,
             }
             let Helper { id, symbol } = Helper::deserialize(MapAccessDeserializer::new(map))?;
-            return Ok(IDSymbol { id, symbol });
+            Ok(IDSymbol { id, symbol })
         }
     }
 };

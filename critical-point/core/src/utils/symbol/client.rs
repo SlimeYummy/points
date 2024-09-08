@@ -22,7 +22,7 @@ struct SymbolNode {
 impl InnerNode for SymbolNode {
     #[inline(always)]
     fn hash(&self) -> u64 {
-        return self.hash;
+        self.hash
     }
 
     #[inline(always)]
@@ -36,19 +36,19 @@ impl InnerNode for SymbolNode {
 
     #[inline(always)]
     fn next(&mut self) -> &mut *mut Self {
-        return &mut self.next;
+        &mut self.next
     }
 
     #[inline(always)]
     fn ref_count(&self) -> u32 {
-        return self.ref_count.load(Ordering::Relaxed);
+        self.ref_count.load(Ordering::Relaxed)
     }
 }
 
 impl SymbolNode {
     #[inline(always)]
     fn size(str_size: usize) -> usize {
-        return mem::offset_of!(SymbolNode, chars) + str_size + 1;
+        (mem::offset_of!(SymbolNode, chars) + str_size + 1)
     }
 
     #[inline(always)]
@@ -63,12 +63,12 @@ impl SymbolNode {
 
     #[inline(always)]
     fn inc_ref(&self) -> u32 {
-        return self.ref_count.fetch_add(1, Ordering::Relaxed);
+        self.ref_count.fetch_add(1, Ordering::Relaxed)
     }
 
     #[inline(always)]
     fn dec_ref(&self) -> u32 {
-        return self.ref_count.fetch_sub(1, Ordering::Release);
+        self.ref_count.fetch_sub(1, Ordering::Release)
     }
 }
 
@@ -99,11 +99,11 @@ impl SymbolCache {
         };
         cache.default = cache.new_symbol_node("").unwrap().as_ptr();
         unsafe { (*cache.default).inc_ref() };
-        return cache;
+        cache
     }
 
     fn default_symbol_node(&self) -> NonNull<SymbolNode> {
-        return unsafe { NonNull::new_unchecked(self.default) };
+        unsafe { NonNull::new_unchecked(self.default) }
     }
 
     fn new_symbol_node(&mut self, string: &str) -> XResult<NonNull<SymbolNode>> {
@@ -124,7 +124,7 @@ impl SymbolCache {
             node.as_mut().initialize(hash, string);
         }
         self.nodes.insert(node);
-        return Ok(node);
+        Ok(node)
     }
 
     fn try_cleanup(&mut self) {
@@ -152,7 +152,7 @@ unsafe impl Sync for Symbol {}
 impl Symbol {
     #[inline]
     pub const fn max_size() -> usize {
-        return MAX_SYMBOL_SIZE;
+        MAX_SYMBOL_SIZE
     }
 
     #[inline]
@@ -171,7 +171,7 @@ impl Symbol {
             let mut cache = cache.borrow_mut();
             let node = cache.new_symbol_node(string)?;
             unsafe { node.as_ref().inc_ref() };
-            return Ok(Symbol(node));
+            Ok(Symbol(node))
         });
     }
 
@@ -196,7 +196,7 @@ impl Default for Symbol {
         return SYMBOL_CACHE.with(|cache| {
             let node = cache.borrow().default_symbol_node();
             unsafe { node.as_ref().inc_ref() };
-            return Symbol(node);
+            Symbol(node)
         });
     }
 }
@@ -205,7 +205,7 @@ impl Clone for Symbol {
     #[inline]
     fn clone(&self) -> Symbol {
         unsafe { self.0.as_ref().inc_ref() };
-        return Symbol(self.0);
+        Symbol(self.0)
     }
 }
 
@@ -225,13 +225,13 @@ impl Hash for Symbol {
 impl PartialEq for Symbol {
     #[inline]
     fn eq(&self, other: &Symbol) -> bool {
-        return self.0 == other.0;
+        self.0 == other.0
     }
 }
 
 impl fmt::Debug for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return write!(f, "s{:?}", self.as_str());
+        write!(f, "s{:?}", self.as_str())
     }
 }
 

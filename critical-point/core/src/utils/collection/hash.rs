@@ -36,7 +36,7 @@ pub struct DeterministicState(RandomState);
 
 impl DeterministicState {
     pub const fn new() -> DeterministicState {
-        return DeterministicState(RandomState::with_seeds(15668197, 11003, 94686217, 206347));
+        DeterministicState(RandomState::with_seeds(15668197, 11003, 94686217, 206347))
     }
 }
 
@@ -44,7 +44,7 @@ impl BuildHasher for DeterministicState {
     type Hasher = AHasher;
 
     fn build_hasher(&self) -> Self::Hasher {
-        return self.0.build_hasher();
+        self.0.build_hasher()
     }
 }
 
@@ -69,7 +69,7 @@ impl Hasher for IdentityHasher {
 
     #[inline]
     fn finish(&self) -> u64 {
-        return self.hash;
+        self.hash
     }
 }
 
@@ -78,7 +78,7 @@ pub struct IdentityState;
 
 impl IdentityState {
     pub const fn new() -> IdentityState {
-        return IdentityState;
+        IdentityState
     }
 }
 
@@ -86,6 +86,6 @@ impl BuildHasher for IdentityState {
     type Hasher = IdentityHasher;
 
     fn build_hasher(&self) -> IdentityHasher {
-        return IdentityHasher::default();
+        IdentityHasher::default()
     }
 }

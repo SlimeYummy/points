@@ -7,16 +7,17 @@ use crate::utils::{XError, XResult};
 
 #[inline]
 pub fn const_ptr<T, U>(val: &T) -> *const U {
-    return (val as *const T) as *const U;
+    (val as *const T) as *const U
 }
 
 #[inline]
 pub fn mut_ptr<T, U>(val: &mut T) -> *mut U {
-    return (val as *mut T) as *mut U;
+    (val as *mut T) as *mut U
 }
 
 #[inline]
-pub unsafe fn force_mut<'aa, T: ?Sized>(val: &'aa T) -> &'aa mut T {
+#[allow(clippy::all)]
+pub unsafe fn force_mut<T: ?Sized>(val: &T) -> &mut T {
     let ptr = mem::transmute::<&T, *const T>(val);
     return mem::transmute::<*const T, &mut T>(ptr);
 }
@@ -36,26 +37,26 @@ where
 {
     #[inline]
     fn cast_ref<T: 'static>(&self) -> XResult<&T> {
-        check_variant::<TO, T>(&self)?;
+        check_variant::<TO, T>(self)?;
         return Ok(unsafe { self.cast_ref_unchecked() });
     }
 
     #[inline]
     unsafe fn cast_ref_unchecked<T: 'static>(&self) -> &T {
         let (src_data, _) = (self as *const TO).to_raw_parts();
-        return &*(src_data as *const T);
+        &*(src_data as *const T)
     }
 
     #[inline]
     fn cast_mut<T: 'static>(&mut self) -> XResult<&mut T> {
-        check_variant::<TO, T>(&self)?;
+        check_variant::<TO, T>(self)?;
         return Ok(unsafe { self.cast_mut_unchecked() });
     }
 
     #[inline]
     unsafe fn cast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
         let (src_data, _) = (self as *mut TO).to_raw_parts();
-        return &mut *(src_data as *mut T);
+        &mut *(src_data as *mut T)
     }
 }
 
@@ -84,14 +85,14 @@ where
     #[inline]
     fn cast_as<T: 'static>(self) -> XResult<Box<T>> {
         check_variant::<TO, T>(self.as_ref())?;
-        return Ok(unsafe { self.cast_as_unchecked() });
+        Ok(unsafe { self.cast_as_unchecked() })
     }
 
     #[inline]
     unsafe fn cast_as_unchecked<T: 'static>(self) -> Box<T> {
         let (src_data, _) = (Box::leak(self) as *mut TO).to_raw_parts();
-        let dst_box = Box::from_raw(src_data as *mut T);
-        return dst_box;
+        
+        Box::from_raw(src_data as *mut T)
     }
 
     #[inline]
@@ -101,7 +102,7 @@ where
         Box<T>: Clone,
     {
         check_variant::<TO, T>(self.as_ref())?;
-        return Ok(unsafe { self.cast_to_unchecked() });
+        Ok(unsafe { self.cast_to_unchecked() })
     }
 
     #[inline]
@@ -114,7 +115,7 @@ where
         let dst_box = Box::from_raw(src_data as *mut T);
         let new_dst_box = dst_box.clone();
         mem::forget(dst_box);
-        return new_dst_box;
+        new_dst_box
     }
 }
 
@@ -127,24 +128,24 @@ where
     #[inline]
     fn cast_as<T: 'static>(self) -> XResult<Rc<T>> {
         check_variant::<TO, T>(self.as_ref())?;
-        return Ok(unsafe { self.cast_as_unchecked() });
+        Ok(unsafe { self.cast_as_unchecked() })
     }
 
     #[inline]
     unsafe fn cast_as_unchecked<T: 'static>(self) -> Rc<T> {
         let (src_data, _) = Rc::into_raw(self).to_raw_parts();
-        let dst_arc = unsafe { Rc::from_raw(src_data as *const T) };
-        return dst_arc;
+        
+        unsafe { Rc::from_raw(src_data as *const T) }
     }
 
     #[inline]
     fn cast_to<T: 'static>(&self) -> XResult<Rc<T>> {
-        return self.clone().cast_as();
+        self.clone().cast_as()
     }
 
     #[inline]
     unsafe fn cast_to_unchecked<T: 'static>(&self) -> Rc<T> {
-        return self.clone().cast_as_unchecked();
+        self.clone().cast_as_unchecked()
     }
 }
 
@@ -157,24 +158,24 @@ where
     #[inline]
     fn cast_as<T: 'static>(self) -> XResult<Arc<T>> {
         check_variant::<TO, T>(self.as_ref())?;
-        return Ok(unsafe { self.cast_as_unchecked() });
+        Ok(unsafe { self.cast_as_unchecked() })
     }
 
     #[inline]
     unsafe fn cast_as_unchecked<T: 'static>(self) -> Arc<T> {
         let (src_data, _) = Arc::into_raw(self).to_raw_parts();
-        let dst_arc = unsafe { Arc::from_raw(src_data as *const T) };
-        return dst_arc;
+        
+        unsafe { Arc::from_raw(src_data as *const T) }
     }
 
     #[inline]
     fn cast_to<T: 'static>(&self) -> XResult<Arc<T>> {
-        return self.clone().cast_as();
+        self.clone().cast_as()
     }
 
     #[inline]
     unsafe fn cast_to_unchecked<T: 'static>(&self) -> Arc<T> {
-        return self.clone().cast_as_unchecked();
+        self.clone().cast_as_unchecked()
     }
 }
 
@@ -194,7 +195,7 @@ where
     if src_drop != dst_drop {
         return Err(XError::BadType);
     }
-    return Ok(());
+    Ok(())
 }
 
 #[cfg(not(feature = "server-side"))]
@@ -229,7 +230,7 @@ mod tests {
 
     impl Trait for StructA {
         fn foo(&self) -> String {
-            return format!("{} {}", self.s1, self.s2);
+            format!("{} {}", self.s1, self.s2)
         }
     }
 
@@ -242,7 +243,7 @@ mod tests {
 
     impl Trait for StructB {
         fn foo(&self) -> String {
-            return format!("{} {} {}", self.s, self.i, self.f);
+            format!("{} {} {}", self.s, self.i, self.f)
         }
     }
 

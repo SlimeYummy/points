@@ -7,19 +7,19 @@ pub struct KvList<K, V>(List<(K, V)>);
 
 impl<K, V> Default for KvList<K, V> {
     fn default() -> Self {
-        return KvList(List::default());
+        KvList(List::default())
     }
 }
 
 impl<K, V> KvList<K, V> {
     #[inline]
     pub fn len(&self) -> usize {
-        return self.0.len();
+        self.0.len()
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        return self.0.is_empty();
+        self.0.is_empty()
     }
 
     #[inline]
@@ -64,12 +64,12 @@ impl<K, V> KvList<K, V> {
 
     #[inline]
     pub fn key_iter(&self) -> KvListKeyIter<'_, K, V> {
-        return KvListKeyIter { list: self, cursor: 0 };
+        KvListKeyIter { list: self, cursor: 0 }
     }
 
     #[inline]
     pub fn value_iter(&self) -> KvListValueIter<'_, K, V> {
-        return KvListValueIter { list: self, cursor: 0 };
+        KvListValueIter { list: self, cursor: 0 }
     }
 
     #[inline]
@@ -101,7 +101,7 @@ impl<'t, K, V> Iterator for KvListKeyIter<'t, K, V> {
     fn next(&mut self) -> Option<&'t K> {
         let value = self.list.key(self.cursor);
         self.cursor += 1;
-        return value;
+        value
     }
 }
 
@@ -116,7 +116,7 @@ impl<'t, K, V> Iterator for KvListValueIter<'t, K, V> {
     fn next(&mut self) -> Option<&'t V> {
         let value = self.list.value(self.cursor);
         self.cursor += 1;
-        return value;
+        value
     }
 }
 
@@ -126,7 +126,7 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for KvList<K, V> {
         for pair in self.iter() {
             out.entry(&pair);
         }
-        return out.finish();
+        out.finish()
     }
 }
 
@@ -160,7 +160,7 @@ const _: () = {
         type Value = KvList<K, V>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            return formatter.write_str(r#"expecting {"key":value} or [{"k":key,"v":value}]"#);
+            formatter.write_str(r#"expecting {"key":value} or [{"k":key,"v":value}]"#)
         }
 
         fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<KvList<K, V>, A::Error> {
@@ -173,7 +173,7 @@ const _: () = {
             for (i, elem) in vec.into_iter().enumerate() {
                 unsafe { list.init(i, elem) };
             }
-            return Ok(KvList(list));
+            Ok(KvList(list))
         }
 
         fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<KvList<K, V>, A::Error> {
@@ -192,7 +192,7 @@ const _: () = {
             for (i, elem) in vec.into_iter().enumerate() {
                 unsafe { list.init(i, elem) };
             }
-            return Ok(KvList(list));
+            Ok(KvList(list))
         }
     }
 };
@@ -212,10 +212,10 @@ mod tests {
         };
         assert_eq!(lt.len(), 3);
         assert_eq!(
-            lt.key_iter().map(|x| x.clone()).collect::<Vec<Symbol>>(),
+            lt.key_iter().cloned().collect::<Vec<Symbol>>(),
             vec![s!("xx"), s!("yy"), s!("zz")]
         );
-        assert_eq!(lt.value_iter().map(|x| *x).collect::<Vec<i32>>(), vec![10, 20, 30]);
+        assert_eq!(lt.value_iter().copied().collect::<Vec<i32>>(), vec![10, 20, 30]);
     }
 
     #[test]

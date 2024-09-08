@@ -18,7 +18,7 @@ pub struct Table<K, V> {
 
 impl<K, V> Default for Table<K, V> {
     fn default() -> Self {
-        return Table::alloc(0, 0);
+        Table::alloc(0, 0)
     }
 }
 
@@ -51,18 +51,18 @@ impl<K, V> Table<K, V> {
         let offset = (header_size + value_mask) & !(value_mask);
         let size = offset + value_size;
         let align = usize::max(header_align, value_align);
-        return (size, offset, align);
+        (size, offset, align)
     }
 
     fn alloc(header_len: usize, value_len: usize) -> Table<K, V> {
         let (size, offset, align) = Table::<K, V>::size(header_len, value_len);
         let data = unsafe { alloc::alloc(Layout::from_size_align(size, align).unwrap()) };
-        return Table {
+        Table {
             header_len: header_len as u32,
             value_len: value_len as u32,
             headers: data as *mut Header<K>,
             values: unsafe { data.add(offset) as *mut V },
-        };
+        }
     }
 
     #[inline]
@@ -90,12 +90,12 @@ impl<K, V> Table<K, V> {
 
     #[inline]
     pub fn len(&self) -> usize {
-        return self.header_len as usize;
+        self.header_len as usize
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        return self.len() == 0;
+        self.len() == 0
     }
 
     #[inline]
@@ -103,7 +103,7 @@ impl<K, V> Table<K, V> {
         if idx < self.len() {
             return Some(unsafe { &(*self.headers.add(idx)).key });
         }
-        return None;
+        None
     }
 
     #[inline]
@@ -123,7 +123,7 @@ impl<K, V> Table<K, V> {
             } as usize;
             return Some(unsafe { slice::from_raw_parts(self.values.add(start), end - start) });
         }
-        return None;
+        None
     }
 
     #[inline]
@@ -144,7 +144,7 @@ impl<K, V> Table<K, V> {
             let values = unsafe { slice::from_raw_parts(self.values.add(start), end - start) };
             return Some((&header.key, values));
         }
-        return None;
+        None
     }
 
     #[inline]
@@ -154,17 +154,17 @@ impl<K, V> Table<K, V> {
 
     #[inline]
     pub fn iter(&self) -> TableIter<'_, K, V> {
-        return TableIter { table: self, cursor: 0 };
+        TableIter { table: self, cursor: 0 }
     }
 
     #[inline]
     pub fn key_iter(&self) -> TableKeyIter<'_, K, V> {
-        return TableKeyIter { table: self, cursor: 0 };
+        TableKeyIter { table: self, cursor: 0 }
     }
 
     #[inline]
     pub fn values_iter(&self) -> TableValuesIter<'_, K, V> {
-        return TableValuesIter { table: self, cursor: 0 };
+        TableValuesIter { table: self, cursor: 0 }
     }
 
     #[inline]
@@ -196,7 +196,7 @@ impl<'t, K, V> Iterator for TableIter<'t, K, V> {
     fn next(&mut self) -> Option<(&'t K, &'t [V])> {
         let value = self.table.get(self.cursor);
         self.cursor += 1;
-        return value;
+        value
     }
 }
 
@@ -211,7 +211,7 @@ impl<'t, K, V> Iterator for TableKeyIter<'t, K, V> {
     fn next(&mut self) -> Option<&'t K> {
         let value = self.table.key(self.cursor);
         self.cursor += 1;
-        return value;
+        value
     }
 }
 
@@ -226,7 +226,7 @@ impl<'t, K, V> Iterator for TableValuesIter<'t, K, V> {
     fn next(&mut self) -> Option<&'t [V]> {
         let value = self.table.values(self.cursor);
         self.cursor += 1;
-        return value;
+        value
     }
 }
 
@@ -237,7 +237,7 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for Table<K, V> {
             out.key(key);
             out.value(&values);
         }
-        return out.finish();
+        out.finish()
     }
 }
 
@@ -271,7 +271,7 @@ const _: () = {
         type Value = Table<K, V>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            return formatter.write_str(r#"expecting {"key":[value, ...]} or [{"k":key,"v":[value, ...]}]"#);
+            formatter.write_str(r#"expecting {"key":[value, ...]} or [{"k":key,"v":[value, ...]}]"#)
         }
 
         fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Table<K, V>, A::Error> {
@@ -293,7 +293,7 @@ const _: () = {
             for (idx, value) in values.into_iter().enumerate() {
                 unsafe { table.init_value(idx, value) };
             }
-            return Ok(table);
+            Ok(table)
         }
 
         fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Table<K, V>, A::Error> {
@@ -322,7 +322,7 @@ const _: () = {
             for (idx, value) in values.into_iter().enumerate() {
                 unsafe { table.init_value(idx, value) };
             }
-            return Ok(table);
+            Ok(table)
         }
     }
 
@@ -340,14 +340,14 @@ const _: () = {
         type Value = ();
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            return formatter.write_str(r#"expecting [value, ...]"#);
+            formatter.write_str(r#"expecting [value, ...]"#)
         }
 
         fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<(), A::Error> {
             while let Some(elem) = seq.next_element::<T>()? {
                 self.0.push(elem);
             }
-            return Ok(());
+            Ok(())
         }
     }
 
@@ -368,7 +368,7 @@ const _: () = {
         type Value = K;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            return formatter.write_str(r#"expecting {"k":key, "v":[value, ...]}"#);
+            formatter.write_str(r#"expecting {"k":key, "v":[value, ...]}"#)
         }
 
         fn visit_map<A: MapAccess<'de>>(self, mut seq: A) -> Result<K, A::Error> {
@@ -380,7 +380,7 @@ const _: () = {
                     _ => {}
                 }
             }
-            return key.ok_or_else(|| Error::custom("missing key"));
+            key.ok_or_else(|| Error::custom("missing key"))
         }
     }
 };
@@ -420,7 +420,7 @@ const _: () = {
         fn serialize(&self, serializer: &mut S) -> Result<Self::Resolver, S::Error> {
             let hr = ArchivedVec::serialize_from_slice(self.headers_buf(), serializer);
             let vr = ArchivedVec::serialize_from_slice(self.values_buf(), serializer);
-            return Ok((hr?, vr?));
+            Ok((hr?, vr?))
         }
     }
 
@@ -442,7 +442,7 @@ const _: () = {
                 let value: V = archived.deserialize(deserializer)?;
                 unsafe { table.init_value(idx, value) };
             }
-            return Ok(table);
+            Ok(table)
         }
     }
 };
@@ -476,7 +476,7 @@ mod tests {
         assert_eq!(tb2.xkey(1), &456);
         assert_eq!(tb2.xvalues(0), &[10.0f32, 20.0f32, 30.0f32]);
         assert_eq!(tb2.xvalues(1), &[21.0f32, 22.0f32]);
-        assert_eq!(tb2.key_iter().map(|x| *x).collect::<Vec<u32>>(), vec![123, 456]);
+        assert_eq!(tb2.key_iter().copied().collect::<Vec<u32>>(), vec![123, 456]);
         assert_eq!(
             tb2.values_iter().map(|x| x.to_vec()).collect::<Vec<Vec<f32>>>(),
             vec![vec![10.0, 20.0, 30.0], vec![21.0, 22.0]]
@@ -526,7 +526,7 @@ mod tests {
         ]"#;
         let tb1: Table<u16, f64> = serde_json::from_str(json).unwrap();
         assert_eq!(tb1.len(), 2);
-        assert_eq!(tb1.key_iter().map(|x| *x).collect::<Vec<u16>>(), vec![123, 789]);
+        assert_eq!(tb1.key_iter().copied().collect::<Vec<u16>>(), vec![123, 789]);
         assert_eq!(
             tb1.values_iter().map(|x| x.to_vec()).collect::<Vec<Vec<f64>>>(),
             vec![vec![5.0, 6.0, 7.0], vec![12.0, 13.0]]
@@ -540,7 +540,7 @@ mod tests {
         let tb2: Table<Symbol, Symbol> = serde_json::from_str(json).unwrap();
         assert_eq!(tb2.len(), 3);
         assert_eq!(
-            tb2.key_iter().map(|x| x.clone()).collect::<Vec<Symbol>>(),
+            tb2.key_iter().cloned().collect::<Vec<Symbol>>(),
             vec![s!("k1"), s!("k2"), s!("k3")]
         );
         assert_eq!(
@@ -566,7 +566,7 @@ mod tests {
             serializer.serialize_value(&table)?;
             let buffer = serializer.into_serializer().into_inner();
             let archived = unsafe { rkyv::archived_root::<Table<K, V>>(&buffer) };
-            let mut deserializer = rkyv::Infallible::default();
+            let mut deserializer = rkyv::Infallible;
             let result: Table<K, V> = archived.deserialize(&mut deserializer)?;
             if table.headers_buf() != result.headers_buf() {
                 return Err(anyhow::anyhow!("rkyv test not equal"));
@@ -574,7 +574,7 @@ mod tests {
             if table.values_buf() != result.values_buf() {
                 return Err(anyhow::anyhow!("rkyv test not equal"));
             }
-            return Ok(());
+            Ok(())
         }
 
         let tb1: Table<u64, u8> = Table::alloc(0, 0);
