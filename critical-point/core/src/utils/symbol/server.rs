@@ -24,7 +24,7 @@ struct SymbolNode {
 impl InnerNode for SymbolNode {
     #[inline(always)]
     fn hash(&self) -> u64 {
-        return self.hash;
+        self.hash
     }
 
     #[inline(always)]
@@ -38,19 +38,19 @@ impl InnerNode for SymbolNode {
 
     #[inline(always)]
     fn next(&mut self) -> &mut *mut Self {
-        return &mut self.next;
+        &mut self.next
     }
 
     #[inline(always)]
     fn ref_count(&self) -> u32 {
-        return 1;
+        1
     }
 }
 
 impl SymbolNode {
     #[inline(always)]
     fn size(str_size: usize) -> usize {
-        return mem::offset_of!(SymbolNode, chars) + str_size + 1;
+        (mem::offset_of!(SymbolNode, chars) + str_size + 1)
     }
 
     #[inline(always)]
@@ -92,7 +92,7 @@ impl SymbolCache {
             default: ptr::null_mut(),
         };
         cache.default = cache.new_symbol_node("").unwrap().as_ptr();
-        return cache;
+        cache
     }
 
     fn preload_from_strings(&mut self, strings: &[&str]) -> anyhow::Result<()> {
@@ -100,7 +100,7 @@ impl SymbolCache {
             self.new_symbol_node(string)?;
         }
         self.new_symbol_node("")?;
-        return Ok(());
+        Ok(())
     }
 
     fn preload_from_json<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
@@ -116,7 +116,7 @@ impl SymbolCache {
             self.new_symbol_node(string)?;
         }
         self.new_symbol_node("")?;
-        return Ok(());
+        Ok(())
     }
 
     fn preload_from_rkyv<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
@@ -133,7 +133,7 @@ impl SymbolCache {
             self.new_symbol_node(string)?;
         }
         self.new_symbol_node("")?;
-        return Ok(());
+        Ok(())
     }
 
     fn new_symbol_node(&mut self, string: &str) -> XResult<NonNull<SymbolNode>> {
@@ -154,16 +154,16 @@ impl SymbolCache {
             node.as_mut().initialize(hash, string);
         }
         self.nodes.insert(node);
-        return Ok(node);
+        Ok(node)
     }
 
     fn find_symbol_node(&self, string: &str) -> XResult<NonNull<SymbolNode>> {
         let hash = self.nodes.hash(string);
-        return self.nodes.find(string, hash).ok_or(XError::SymbolNotFound);
+        self.nodes.find(string, hash).ok_or(XError::SymbolNotFound)
     }
 
     fn default_symbol_node(&self) -> NonNull<SymbolNode> {
-        return unsafe { NonNull::new_unchecked(self.default) };
+        unsafe { NonNull::new_unchecked(self.default) }
     }
 }
 
@@ -176,15 +176,15 @@ unsafe impl Sync for Symbol {}
 
 impl Symbol {
     pub fn preload_strings(strings: &[&str]) -> anyhow::Result<()> {
-        return Symbol::preload_impl(|cache| cache.preload_from_strings(strings));
+        Symbol::preload_impl(|cache| cache.preload_from_strings(strings))
     }
 
     pub fn preload_json<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
-        return Symbol::preload_impl(|cache| cache.preload_from_json(path));
+        Symbol::preload_impl(|cache| cache.preload_from_json(path))
     }
 
     pub fn preload_rkyv<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
-        return Symbol::preload_impl(|cache| cache.preload_from_rkyv(path));
+        Symbol::preload_impl(|cache| cache.preload_from_rkyv(path))
     }
 
     fn preload_impl<F>(preload: F) -> anyhow::Result<()>
@@ -196,7 +196,7 @@ impl Symbol {
         }
 
         let mut cache = Box::new(SymbolCache::new(1024 * 8));
-        preload(&mut *cache)?;
+        preload(&mut cache)?;
 
         let ok = SYMBOL_CACHE.compare_exchange(
             ptr::null_mut(),
@@ -204,11 +204,11 @@ impl Symbol {
             Ordering::SeqCst,
             Ordering::SeqCst,
         );
-        if !ok.is_ok() {
+        if ok.is_err() {
             return Err(anyhow!("Symbol cache already preloaded"));
         }
         mem::forget(cache);
-        return Ok(());
+        Ok(())
     }
 
     #[inline]
@@ -217,39 +217,39 @@ impl Symbol {
         if cache.is_null() {
             return None;
         }
-        return Some(unsafe { &*cache });
+        Some(unsafe { &*cache })
     }
 
     #[inline]
     pub const fn max_size() -> usize {
-        return MAX_SYMBOL_SIZE;
+        MAX_SYMBOL_SIZE
     }
 
     #[inline]
     pub fn node_count() -> usize {
-        return match Self::symbol_cache() {
+        match Self::symbol_cache() {
             Some(cache) => cache.nodes.count(),
             None => 0,
-        };
+        }
     }
 
     #[inline]
     pub fn node_capacity() -> usize {
-        return match Self::symbol_cache() {
+        match Self::symbol_cache() {
             Some(cache) => cache.nodes.capacity(),
             None => 0,
-        };
+        }
     }
 
     #[inline]
     pub fn new(string: &str) -> XResult<Symbol> {
-        return match Self::symbol_cache() {
+        match Self::symbol_cache() {
             Some(cache) => {
                 let node = cache.find_symbol_node(string)?;
                 Ok(Symbol(node))
             }
             None => Err(XError::SymbolNotPreloaded),
-        };
+        }
     }
 
     #[inline]
@@ -259,20 +259,20 @@ impl Symbol {
 
     #[inline]
     pub fn ref_count(&self) -> u32 {
-        return u32::MAX;
+        u32::MAX
     }
 }
 
 impl Default for Symbol {
     fn default() -> Symbol {
-        return Symbol(Self::symbol_cache().unwrap().default_symbol_node());
+        Symbol(Self::symbol_cache().unwrap().default_symbol_node())
     }
 }
 
 impl Clone for Symbol {
     #[inline]
     fn clone(&self) -> Symbol {
-        return Symbol(self.0);
+        Symbol(self.0)
     }
 }
 
@@ -286,13 +286,13 @@ impl Hash for Symbol {
 impl PartialEq for Symbol {
     #[inline]
     fn eq(&self, other: &Symbol) -> bool {
-        return self.0 == other.0;
+        self.0 == other.0
     }
 }
 
 impl fmt::Debug for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return write!(f, "s{:?}", self.as_str());
+        write!(f, "s{:?}", self.as_str())
     }
 }
 

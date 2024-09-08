@@ -10,7 +10,7 @@ pub struct List<V> {
 
 impl<V> Default for List<V> {
     fn default() -> Self {
-        return List::alloc(0);
+        List::alloc(0)
     }
 }
 
@@ -29,10 +29,10 @@ impl<V> List<V> {
     #[inline]
     pub(super) fn alloc(len: usize) -> List<V> {
         let data = unsafe { alloc::alloc(Layout::array::<V>(len).unwrap()) };
-        return List {
+        List {
             len: len as u32,
             data: data as *mut V,
-        };
+        }
     }
 
     #[inline]
@@ -42,12 +42,12 @@ impl<V> List<V> {
 
     #[inline]
     pub fn len(&self) -> usize {
-        return self.len as usize;
+        self.len as usize
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        return self.len() == 0;
+        self.len() == 0
     }
 
     #[inline]
@@ -55,7 +55,7 @@ impl<V> List<V> {
         if idx < self.len() {
             return Some(unsafe { &*self.data.add(idx) });
         }
-        return None;
+        None
     }
 
     #[inline]
@@ -70,7 +70,7 @@ impl<V> List<V> {
 
     #[inline]
     pub fn iter(&self) -> ListIter<'_, V> {
-        return ListIter { list: self, cursor: 0 };
+        ListIter { list: self, cursor: 0 }
     }
 
     #[inline]
@@ -102,7 +102,7 @@ impl<'t, V> Iterator for ListIter<'t, V> {
     fn next(&mut self) -> Option<&'t V> {
         let value = self.list.get(self.cursor);
         self.cursor += 1;
-        return value;
+        value
     }
 }
 
@@ -140,7 +140,7 @@ const _: () = {
         type Value = List<V>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            return formatter.write_str("expecting [...]");
+            formatter.write_str("expecting [...]")
         }
 
         fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<List<V>, A::Error> {
@@ -153,7 +153,7 @@ const _: () = {
             for (i, elem) in vec.into_iter().enumerate() {
                 unsafe { list.init(i, elem) };
             }
-            return Ok(list);
+            Ok(list)
         }
     }
 };
@@ -200,7 +200,7 @@ const _: () = {
                 let value: V = archived.deserialize(deserializer)?;
                 unsafe { list.init(idx, value) };
             }
-            return Ok(list);
+            Ok(list)
         }
     }
 };
@@ -234,7 +234,7 @@ mod tests {
         assert_eq!(lt2.get(2), Some(&30));
         assert_eq!(lt2.get(3), None);
         assert_eq!(lt2.as_slice(), &[10, 20, 30]);
-        assert_eq!(lt2.iter().map(|x| *x).collect::<Vec<i32>>(), vec![10, 20, 30]);
+        assert_eq!(lt2.iter().copied().collect::<Vec<i32>>(), vec![10, 20, 30]);
 
         let mut lt3 = List::alloc(2);
         let s1 = s!("abc");
@@ -277,12 +277,12 @@ mod tests {
             serializer.serialize_value(&list)?;
             let buffer = serializer.into_serializer().into_inner();
             let archived = unsafe { rkyv::archived_root::<List<V>>(&buffer) };
-            let mut deserializer = Infallible::default();
+            let mut deserializer = Infallible;
             let result: List<V> = archived.deserialize(&mut deserializer)?;
             if list.as_slice() != result.as_slice() {
                 return Err(anyhow::anyhow!("rkyv test not equal"));
             }
-            return Ok(());
+            Ok(())
         }
 
         let lt1: List<u32> = List::alloc(0);

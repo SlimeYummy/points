@@ -74,7 +74,7 @@ mod tests {
 
     unsafe impl Itf for Derived {
         fn sum(&self) -> u64 {
-            return self.b1 as u64 + self.b2 as u64;
+            self.b1 as u64 + self.b2 as u64
         }
     }
 

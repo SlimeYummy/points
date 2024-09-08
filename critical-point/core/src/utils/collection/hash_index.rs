@@ -36,7 +36,7 @@ where
     S: BuildHasher + Default,
 {
     fn default() -> HashIndex<K, V, S> {
-        return HashIndex::new();
+        HashIndex::new()
     }
 }
 
@@ -58,18 +58,18 @@ where
     S: BuildHasher + Default,
 {
     pub fn new() -> HashIndex<K, V, S> {
-        return HashIndex {
+        HashIndex {
             nodes: ptr::null_mut(),
             prime: 0,
             prime_pos: -1,
             capacity: 0,
             count: 0,
             state: S::default(),
-        };
+        }
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        return HashIndex::with_capacity_and_hasher(capacity, S::default());
+        HashIndex::with_capacity_and_hasher(capacity, S::default())
     }
 }
 
@@ -96,22 +96,22 @@ where
             unsafe { nodes.add(pos).write(None) };
         }
 
-        return HashIndex {
+        HashIndex {
             nodes,
             prime,
             prime_pos: prime_pos as i16,
             capacity: ((prime as f64) * OCCUPANCY).ceil() as u32,
             count: 0,
             state,
-        };
+        }
     }
 
     pub fn insert(&mut self, key: K, value: V) {
         self.try_grow();
 
-        let mut hasher = self.state.build_hasher();
-        key.hash(&mut hasher);
-        let hash = hasher.finish();
+        
+        
+        let hash = self.state.hash_one(&key);
 
         Self::insert_impl(
             self.nodes,
@@ -201,9 +201,9 @@ where
             return None;
         }
 
-        let mut hasher = self.state.build_hasher();
-        key.hash(&mut hasher);
-        let hash = hasher.finish();
+        
+        
+        let hash = self.state.hash_one(key);
 
         let mut pos = (hash % (self.prime as u64)) as usize;
         loop {
@@ -224,20 +224,20 @@ where
     #[inline]
     pub fn find_iter<'a, 'b>(&'a self, key: &'b K) -> IndexValueIter<'a, 'b, K, V, S> {
         match self.find(key) {
-            Some(iter) => return iter,
+            Some(iter) => iter,
             None => {
-                return IndexValueIter {
+                IndexValueIter {
                     map: self,
                     key,
                     pos: (u32::MAX as usize),
                 }
             }
-        };
+        }
     }
 
     #[inline]
-    pub fn find_first<'a, 'b>(&'a self, key: &'b K) -> Option<&'a V> {
-        return self.find(key)?.next();
+    pub fn find_first<'a>(&'a self, key: &K) -> Option<&'a V> {
+        self.find(key)?.next()
     }
 
     #[inline]
@@ -255,17 +255,17 @@ where
 
     #[inline]
     pub fn iter(&self) -> HashIndexIter<'_, K, V, S> {
-        return HashIndexIter { map: self, pos: 0 };
+        HashIndexIter { map: self, pos: 0 }
     }
 
     #[inline]
     pub fn len(&self) -> usize {
-        return self.count as usize;
+        self.count as usize
     }
 
     #[inline]
     pub fn capacity(&self) -> usize {
-        return self.capacity as usize;
+        self.capacity as usize
     }
 }
 
@@ -278,7 +278,7 @@ impl<K: Debug, V: Debug, S> fmt::Debug for HashIndex<K, V, S> {
                 map.entry(&node.key, &node.value);
             }
         }
-        return map.finish();
+        map.finish()
     }
 }
 
@@ -301,7 +301,7 @@ impl<'a, 'b, K: PartialEq, V, S> Iterator for IndexValueIter<'a, 'b, K, V, S> {
                 }
             }
         }
-        return None;
+        None
     }
 }
 
@@ -322,7 +322,7 @@ impl<'a, K, V, S> Iterator for HashIndexIter<'a, K, V, S> {
             }
             self.pos += 1;
         }
-        return None;
+        None
     }
 }
 
@@ -338,8 +338,8 @@ mod tests {
         hi.insert(s!("b"), 2);
         hi.insert(s!("a"), 3);
         assert_eq!(hi.len(), 3);
-        assert_eq!(hi.find(&s!("a")).unwrap().map(|x| *x).collect::<Vec<_>>(), vec![1, 3]);
-        assert_eq!(hi.find(&s!("b")).unwrap().map(|x| *x).collect::<Vec<_>>(), vec![2]);
+        assert_eq!(hi.find(&s!("a")).unwrap().copied().collect::<Vec<_>>(), vec![1, 3]);
+        assert_eq!(hi.find(&s!("b")).unwrap().copied().collect::<Vec<_>>(), vec![2]);
 
         let all = hi.iter().map(|(k, v)| (k.clone(), *v)).collect::<Vec<_>>();
         assert!(all.contains(&(s!("a"), 1)));
@@ -353,7 +353,7 @@ mod tests {
 
         impl Hasher for TestHasher {
             fn finish(&self) -> u64 {
-                return 0;
+                0
             }
 
             fn write(&mut self, _: &[u8]) {}
@@ -365,7 +365,7 @@ mod tests {
             type Hasher = TestHasher;
 
             fn build_hasher(&self) -> TestHasher {
-                return TestHasher;
+                TestHasher
             }
         }
 
@@ -379,11 +379,11 @@ mod tests {
         hi.insert(s!("xxx"), 6);
 
         assert_eq!(
-            hi.find(&s!("xxx")).unwrap().map(|x| *x).collect::<Vec<_>>(),
+            hi.find(&s!("xxx")).unwrap().copied().collect::<Vec<_>>(),
             vec![1, 4, 6]
         );
-        assert_eq!(hi.find(&s!("yyy")).unwrap().map(|x| *x).collect::<Vec<_>>(), vec![2, 3]);
-        assert_eq!(hi.find(&s!("zzz")).unwrap().map(|x| *x).collect::<Vec<_>>(), vec![5, 5]);
+        assert_eq!(hi.find(&s!("yyy")).unwrap().copied().collect::<Vec<_>>(), vec![2, 3]);
+        assert_eq!(hi.find(&s!("zzz")).unwrap().copied().collect::<Vec<_>>(), vec![5, 5]);
     }
 
     #[test]
@@ -408,7 +408,7 @@ mod tests {
         assert_eq!(hi.capacity(), 59);
         assert_eq!(hi.len(), 36);
         assert_eq!(
-            hi.find(&s!("a")).unwrap().map(|x| *x).collect::<Vec<_>>(),
+            hi.find(&s!("a")).unwrap().copied().collect::<Vec<_>>(),
             vec![999, 998, 997, 996, 999, 995]
         );
     }

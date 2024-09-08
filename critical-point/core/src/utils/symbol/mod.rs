@@ -30,14 +30,17 @@ macro_rules! s {
 pub use s;
 
 impl Symbol {
+    #[inline]
     pub fn len(&self) -> usize {
         return self.as_str().len();
     }
 
+    #[inline]
     pub fn is_empty(&self) -> bool {
         return self.as_str().is_empty();
     }
 
+    #[inline]
     pub fn to_owned(&self) -> String {
         return self.as_str().to_owned();
     }
@@ -46,24 +49,28 @@ impl Symbol {
 impl Eq for Symbol {}
 
 impl PartialEq<&str> for Symbol {
+    #[inline]
     fn eq(&self, other: &&str) -> bool {
         return self.as_str() == *other;
     }
 }
 
 impl PartialEq<String> for Symbol {
+    #[inline]
     fn eq(&self, other: &String) -> bool {
         return self.as_str() == other;
     }
 }
 
 impl PartialOrd for Symbol {
+    #[inline]
     fn partial_cmp(&self, other: &Symbol) -> Option<Ordering> {
         return self.as_str().partial_cmp(other.as_str());
     }
 }
 
 impl Ord for Symbol {
+    #[inline]
     fn cmp(&self, other: &Symbol) -> Ordering {
         return self.as_str().cmp(other.as_str());
     }
@@ -72,44 +79,50 @@ impl Ord for Symbol {
 impl FromStr for Symbol {
     type Err = XError;
 
+    #[inline]
     fn from_str(s: &str) -> XResult<Symbol> {
-        return Symbol::new(s);
+        Symbol::new(s)
     }
 }
 
 impl TryFrom<&str> for Symbol {
     type Error = XError;
 
+    #[inline]
     fn try_from(s: &str) -> XResult<Symbol> {
-        return Symbol::new(s);
+        Symbol::new(s)
     }
 }
 
 impl TryFrom<String> for Symbol {
     type Error = XError;
 
+    #[inline]
     fn try_from(s: String) -> XResult<Symbol> {
-        return Symbol::new(&s);
+        Symbol::new(&s)
     }
 }
 
 impl TryFrom<&String> for Symbol {
     type Error = XError;
 
+    #[inline]
     fn try_from(s: &String) -> XResult<Symbol> {
-        return Symbol::new(&s);
+        Symbol::new(s)
     }
 }
 
 impl From<Symbol> for String {
+    #[inline]
     fn from(s: Symbol) -> String {
-        return s.to_owned();
+        s.to_owned()
     }
 }
 
 impl Deref for Symbol {
     type Target = str;
 
+    #[inline]
     fn deref(&self) -> &str {
         return self.as_str();
     }
@@ -136,7 +149,7 @@ const _: () = {
 
     impl SymbolVisitor {
         pub fn new() -> Self {
-            return SymbolVisitor {};
+            SymbolVisitor {}
         }
     }
 
@@ -144,15 +157,15 @@ const _: () = {
         type Value = Symbol;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            return formatter.write_str("string");
+            formatter.write_str("string")
         }
 
         fn visit_str<E: Error>(self, s: &str) -> Result<Self::Value, E> {
-            return match Symbol::new(s) {
+            match Symbol::new(s) {
                 Ok(symbol) => Ok(symbol),
                 Err(XError::SymbolTooLong) => Err(E::custom("symbol is too long")),
                 Err(_) => Err(E::custom("invalid symbol")),
-            };
+            }
         }
     }
 };
@@ -173,7 +186,7 @@ const _: () = {
 
     impl<S: Serializer + ?Sized> Serialize<S> for Symbol {
         fn serialize(&self, serializer: &mut S) -> Result<Self::Resolver, S::Error> {
-            return Ok(ArchivedString::serialize_from_str(self.as_str(), serializer)?);
+            return ArchivedString::serialize_from_str(self.as_str(), serializer);
         }
     }
 
@@ -181,7 +194,7 @@ const _: () = {
         fn deserialize(&self, _: &mut D) -> Result<Symbol, D::Error> {
             // TODO: error handling
             let symbol = Symbol::new(self.as_str()).expect("invalid symbol");
-            return Ok(symbol);
+            Ok(symbol)
         }
     }
 };
@@ -210,7 +223,7 @@ mod tests {
         let archived = rkyv::check_archived_root::<Symbol>(&bytes[..]).unwrap();
         assert_eq!(s1.as_str(), archived.as_str());
 
-        let mut deserializer = rkyv::Infallible::default();
+        let mut deserializer = rkyv::Infallible;
         let s2: Symbol = archived.deserialize(&mut deserializer).unwrap();
         assert_eq!(s1, s2);
     }
