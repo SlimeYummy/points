@@ -50,23 +50,23 @@ impl ScriptBlocks {
         sb.blocks.extend(hooks);
         sb.timer_start = sb.blocks.len() as u8;
         sb.blocks.extend(timers);
-        return Ok(sb);
+        Ok(sb)
     }
 
     pub fn is_empty(&self) -> bool {
-        return self.blocks.is_empty();
+        self.blocks.is_empty()
     }
 
     pub fn blocks(&self) -> &[ScriptBlock] {
-        return &self.blocks;
+        &self.blocks
     }
 
     pub fn hook_indexes(&self) -> &[u8] {
-        return &self.hook_indexes;
+        &self.hook_indexes
     }
 
     pub fn timer_start(&self) -> u8 {
-        return self.timer_start;
+        self.timer_start
     }
 
     pub fn hook(&self, typ: ScriptBlockType) -> Option<&ScriptBlock> {
@@ -74,30 +74,30 @@ impl ScriptBlocks {
         if index == 255 {
             return None;
         }
-        return Some(&self.blocks[index as usize]);
+        Some(&self.blocks[index as usize])
     }
 
     pub fn timers(&self) -> &[ScriptBlock] {
         if self.timer_start == 255 {
             return &[];
         }
-        return &self.blocks[self.timer_start as usize..];
+        &self.blocks[self.timer_start as usize..]
     }
 
     pub fn constant_segment(&self) -> &[u64] {
-        return &self.constant_segment;
+        &self.constant_segment
     }
 
     pub fn string_segment(&self) -> &[Symbol] {
-        return &self.string_segment;
+        &self.string_segment
     }
 
     pub fn arguments(&self) -> &[Symbol] {
-        return &self.arguments;
+        &self.arguments
     }
 
     pub fn closure_inits(&self) -> &[Num] {
-        return &self.closure_inits;
+        &self.closure_inits
     }
 }
 
@@ -115,38 +115,38 @@ impl ScriptBlock {
         if !typ.is_hook() {
             return Err(anyhow!("Invalid hook type"));
         }
-        return Ok(ScriptBlock { typ, arg: None, code });
+        Ok(ScriptBlock { typ, arg: None, code })
     }
 
     pub fn new_timer(typ: ScriptBlockType, time: Num, code: ScriptByteCode) -> Result<ScriptBlock> {
         if !typ.is_timer() {
             return Err(anyhow!("Invalid timer type"));
         }
-        return Ok(ScriptBlock {
+        Ok(ScriptBlock {
             typ,
             arg: Some(time),
             code,
-        });
+        })
     }
 
     pub fn is_hook(&self) -> bool {
-        return self.typ.is_hook();
+        self.typ.is_hook()
     }
 
     pub fn is_timer(&self) -> bool {
-        return self.typ.is_timer();
+        self.typ.is_timer()
     }
 
     pub fn typ(&self) -> ScriptBlockType {
-        return self.typ;
+        self.typ
     }
 
     pub fn arg(&self) -> Option<Num> {
-        return self.arg;
+        self.arg
     }
 
     pub fn code(&self) -> &ScriptByteCode {
-        return &self.code;
+        &self.code
     }
 }
 
@@ -191,18 +191,18 @@ pub enum ScriptBlockType {
 
 impl ScriptBlockType {
     pub const fn count() -> usize {
-        return ScriptBlockType::OnTreat as usize + 1;
+        ScriptBlockType::OnTreat as usize + 1
     }
 
     pub fn is_hook(&self) -> bool {
-        return !self.is_timer();
+        !self.is_timer()
     }
 
     pub fn is_timer(&self) -> bool {
-        return match self {
+        match self {
             ScriptBlockType::OnTimeout | ScriptBlockType::OnInterval => true,
             _ => false,
-        };
+        }
     }
 }
 
@@ -211,89 +211,89 @@ pub struct ScriptByteCode(pub(crate) Vec<u16>);
 
 impl ScriptByteCode {
     pub fn len(&self) -> usize {
-        return self.0.len();
+        self.0.len()
     }
 
     pub(super) fn write<C: Command>(&mut self, cmd: &C) -> usize {
         cmd.write(&mut self.0);
-        return self.len() - 1;
+        self.len() - 1
     }
 
     #[inline(always)]
     pub(crate) fn peek_opt(&self, pc: usize) -> CmdOpt {
-        return unsafe { mem::transmute::<u16, CmdOpt>(self.0[pc]) };
+        unsafe { mem::transmute::<u16, CmdOpt>(self.0[pc]) }
     }
 
     #[inline(always)]
     pub(crate) fn jmp(&self, pc: usize) -> &CmdJmp {
-        return unsafe { &*(self.0.as_ptr().add(pc) as *const CmdJmp) };
+        unsafe { &*(self.0.as_ptr().add(pc) as *const CmdJmp) }
     }
 
     #[inline(always)]
     pub(crate) fn jmp_pc(&self, pc: &mut usize) -> &CmdJmp {
         let cmd = self.jmp(*pc);
         *pc += cmd.len();
-        return cmd;
+        cmd
     }
 
     #[inline(always)]
     pub(crate) fn jmp_cmp(&self, pc: usize) -> &CmdJmpCmp {
-        return unsafe { &*(self.0.as_ptr().add(pc) as *const CmdJmpCmp) };
+        unsafe { &*(self.0.as_ptr().add(pc) as *const CmdJmpCmp) }
     }
 
     #[inline(always)]
     pub(crate) fn jmp_cmp_pc(&self, pc: &mut usize) -> &CmdJmpCmp {
         let cmd = self.jmp_cmp(*pc);
         *pc += cmd.len();
-        return cmd;
+        cmd
     }
 
     #[inline(always)]
     pub(crate) fn jmp_set(&self, pc: usize) -> &CmdJmpSet {
-        return unsafe { &*(self.0.as_ptr().add(pc) as *const CmdJmpSet) };
+        unsafe { &*(self.0.as_ptr().add(pc) as *const CmdJmpSet) }
     }
 
     #[inline(always)]
     pub(crate) fn jmp_set_pc(&self, pc: &mut usize) -> &CmdJmpSet {
         let cmd = self.jmp_set(*pc);
         *pc += cmd.len();
-        return cmd;
+        cmd
     }
 
     #[inline(always)]
     pub(crate) fn jmp_cas(&self, pc: usize) -> &CmdJmpCas {
-        return unsafe { &*(self.0.as_ptr().add(pc) as *const CmdJmpCas) };
+        unsafe { &*(self.0.as_ptr().add(pc) as *const CmdJmpCas) }
     }
 
     #[inline(always)]
     pub(crate) fn jmp_cas_pc(&self, pc: &mut usize) -> &CmdJmpCas {
         let cmd = self.jmp_cas(*pc);
         *pc += cmd.len();
-        return cmd;
+        cmd
     }
 
     #[inline(always)]
     pub(crate) fn call<const N: usize>(&self, pc: usize) -> &CmdCall<N> {
-        return unsafe { &*(&self.0[pc] as *const _ as *const CmdCall<N>) };
+        unsafe { &*(&self.0[pc] as *const _ as *const CmdCall<N>) }
     }
 
     #[inline(always)]
     pub(crate) fn call_pc<const N: usize>(&self, pc: &mut usize) -> &CmdCall<N> {
         let cmd = self.call(*pc);
         *pc += cmd.len();
-        return cmd;
+        cmd
     }
 
     #[inline(always)]
     pub(crate) fn call_ext<const N: usize>(&self, pc: usize) -> &CmdCallExt<N> {
-        return unsafe { &*(&self.0[pc] as *const _ as *const CmdCallExt<N>) };
+        unsafe { &*(&self.0[pc] as *const _ as *const CmdCallExt<N>) }
     }
 
     #[inline(always)]
     pub(crate) fn call_ext_pc<const N: usize>(&self, pc: &mut usize) -> &CmdCallExt<N> {
         let cmd = self.call_ext(*pc);
         *pc += cmd.len();
-        return cmd;
+        cmd
     }
 
     pub fn as_slice(&self) -> &[u8] {
@@ -312,7 +312,7 @@ const _: () = {
 
     impl Serialize for ScriptByteCode {
         fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-            return serializer.serialize_str(&self.to_base64());
+            serializer.serialize_str(&self.to_base64())
         }
     }
 
@@ -328,7 +328,7 @@ const _: () = {
         type Value = ScriptByteCode;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            return formatter.write_str("a base64 string");
+            formatter.write_str("a base64 string")
         }
 
         fn visit_str<E: de::Error>(self, b64: &str) -> Result<Self::Value, E> {
@@ -340,7 +340,7 @@ const _: () = {
                 Err(err) => return Err(E::custom(format!("Decode base64 {:?}", err))),
             };
             unsafe { code.set_len((real_len + 1) / 2) };
-            return Ok(ScriptByteCode(code));
+            Ok(ScriptByteCode(code))
         }
     }
 };
@@ -385,12 +385,13 @@ impl fmt::Debug for ScriptByteCode {
             };
         }
 
-        return dl.finish();
+        dl.finish()
     }
 }
 
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Default)]
 pub enum CmdOpt {
     // jump
     Jmp,
@@ -472,21 +473,17 @@ pub enum CmdOpt {
     Ext7,
     Ext8,
 
+    #[default]
     Invalid,
 }
 
-impl Default for CmdOpt {
-    fn default() -> CmdOpt {
-        return CmdOpt::Invalid;
-    }
-}
 
 impl From<u16> for CmdOpt {
     fn from(val: u16) -> CmdOpt {
         if val > CmdOpt::Invalid as u16 {
             return CmdOpt::Invalid;
         }
-        return unsafe { mem::transmute(val) };
+        unsafe { mem::transmute(val) }
     }
 }
 
@@ -502,7 +499,7 @@ pub struct CmdAddr(u16);
 
 impl Default for CmdAddr {
     fn default() -> CmdAddr {
-        return CmdAddr(0xFFF);
+        CmdAddr(0xFFF)
     }
 }
 
@@ -519,20 +516,20 @@ impl fmt::Debug for CmdAddr {
 impl CmdAddr {
     pub fn new(segment: u8, offset: u16) -> CmdAddr {
         let segment = segment as u16;
-        let offset = offset.max(0).min(0xFFF) as u16;
-        return CmdAddr((segment << 12) | offset);
+        let offset = offset.min(0xFFF);
+        CmdAddr((segment << 12) | offset)
     }
 
     pub fn segment(&self) -> u8 {
-        return (self.0 >> 12) as u8;
+        (self.0 >> 12) as u8
     }
 
     pub fn offset(&self) -> u16 {
-        return (self.0 & 0xFFF) as u16;
+        self.0 & 0xFFF
     }
 
     pub const fn max_offset() -> u16 {
-        return 0xFFF;
+        0xFFF
     }
 }
 
@@ -551,7 +548,7 @@ pub struct CmdCall<const N: usize> {
 
 impl<const N: usize> CmdCall<N> {
     pub fn new(opt: CmdOpt, src: [CmdAddr; N], dst: CmdAddr) -> CmdCall<N> {
-        return CmdCall { opt, src, dst };
+        CmdCall { opt, src, dst }
     }
 }
 
@@ -568,7 +565,7 @@ impl<const N: usize> Command for CmdCall<N> {
 
     #[inline(always)]
     fn len(&self) -> usize {
-        return mem::size_of::<CmdCall<N>>() / mem::size_of::<u16>();
+        mem::size_of::<CmdCall<N>>() / mem::size_of::<u16>()
     }
 }
 
@@ -583,7 +580,7 @@ pub struct CmdCallExt<const N: usize> {
 
 impl<const N: usize> CmdCallExt<N> {
     pub fn new(opt: CmdOpt, ext: u16, src: [CmdAddr; N], dst: CmdAddr) -> CmdCallExt<N> {
-        return CmdCallExt { opt, ext, src, dst };
+        CmdCallExt { opt, ext, src, dst }
     }
 }
 
@@ -600,7 +597,7 @@ impl<const N: usize> Command for CmdCallExt<N> {
 
     #[inline(always)]
     fn len(&self) -> usize {
-        return mem::size_of::<CmdCallExt<N>>() / mem::size_of::<u16>();
+        mem::size_of::<CmdCallExt<N>>() / mem::size_of::<u16>()
     }
 }
 
@@ -613,7 +610,7 @@ pub struct CmdJmp {
 
 impl CmdJmp {
     pub fn new(pc: CmdAddr) -> CmdJmp {
-        return CmdJmp { opt: CmdOpt::Jmp, pc };
+        CmdJmp { opt: CmdOpt::Jmp, pc }
     }
 }
 
@@ -624,7 +621,7 @@ impl Command for CmdJmp {
 
     #[inline(always)]
     fn len(&self) -> usize {
-        return mem::size_of::<CmdJmp>() / mem::size_of::<u16>();
+        mem::size_of::<CmdJmp>() / mem::size_of::<u16>()
     }
 }
 
@@ -638,11 +635,11 @@ pub struct CmdJmpCmp {
 
 impl CmdJmpCmp {
     pub fn new(cond: CmdAddr, pc: CmdAddr) -> CmdJmpCmp {
-        return CmdJmpCmp {
+        CmdJmpCmp {
             opt: CmdOpt::JmpCmp,
             cond,
             pc,
-        };
+        }
     }
 }
 
@@ -653,7 +650,7 @@ impl Command for CmdJmpCmp {
 
     #[inline(always)]
     fn len(&self) -> usize {
-        return mem::size_of::<CmdJmpCmp>() / mem::size_of::<u16>();
+        mem::size_of::<CmdJmpCmp>() / mem::size_of::<u16>()
     }
 }
 
@@ -668,12 +665,12 @@ pub struct CmdJmpSet {
 
 impl CmdJmpSet {
     pub fn new(src: CmdAddr, dst: CmdAddr, pc: CmdAddr) -> CmdJmpSet {
-        return CmdJmpSet {
+        CmdJmpSet {
             opt: CmdOpt::JmpSet,
             src,
             dst,
             pc,
-        };
+        }
     }
 }
 
@@ -684,7 +681,7 @@ impl Command for CmdJmpSet {
 
     #[inline(always)]
     fn len(&self) -> usize {
-        return mem::size_of::<CmdJmpSet>() / mem::size_of::<u16>();
+        mem::size_of::<CmdJmpSet>() / mem::size_of::<u16>()
     }
 }
 
@@ -700,13 +697,13 @@ pub struct CmdJmpCas {
 
 impl CmdJmpCas {
     pub fn new(opt: CmdOpt, cond: CmdAddr, src: CmdAddr, dst: CmdAddr, pc: CmdAddr) -> CmdJmpCas {
-        return CmdJmpCas {
+        CmdJmpCas {
             opt,
             cond,
             src,
             dst,
             pc,
-        };
+        }
     }
 }
 
@@ -717,7 +714,7 @@ impl Command for CmdJmpCas {
 
     #[inline(always)]
     fn len(&self) -> usize {
-        return mem::size_of::<CmdJmpCas>() / mem::size_of::<u16>();
+        mem::size_of::<CmdJmpCas>() / mem::size_of::<u16>()
     }
 }
 
