@@ -70,15 +70,15 @@ impl ScriptParser {
             .add_funcs(&builtin::functions())
             .map_err(|msg| anyhow::anyhow!(msg))?;
         idmgr.add_consts(global_consts).map_err(|msg| anyhow::anyhow!(msg))?;
-        idmgr.add_inputs(&all_inputs).map_err(|msg| anyhow::anyhow!(msg))?;
-        idmgr.add_outputs(&all_outputs).map_err(|msg| anyhow::anyhow!(msg))?;
-        idmgr.add_func_exts(&all_funcs).map_err(|msg| anyhow::anyhow!(msg))?;
+        idmgr.add_inputs(all_inputs).map_err(|msg| anyhow::anyhow!(msg))?;
+        idmgr.add_outputs(all_outputs).map_err(|msg| anyhow::anyhow!(msg))?;
+        idmgr.add_func_exts(all_funcs).map_err(|msg| anyhow::anyhow!(msg))?;
         idmgr.sync_block_path().map_err(|msg| anyhow::anyhow!(msg))?;
 
-        return Ok(ScriptParser {
+        Ok(ScriptParser {
             pratt: Rc::new(pratt),
-            idmgr: idmgr,
-        });
+            idmgr,
+        })
     }
 
     pub fn run(&mut self, code: &str, args: &[&str]) -> Result<ParserResult> {
@@ -103,19 +103,17 @@ impl ScriptParser {
         let mut blocks = Vec::<AstBlock>::new();
         for pair in block_pairs {
             let block = self.parse_block(pair.clone())?;
-            if block.typ.is_hook() {
-                if blocks.iter().find(|item| item.typ == block.typ).is_some() {
-                    return Err(Self::err(&pair, "Duplicate hook block"));
-                }
+            if block.typ.is_hook() && blocks.iter().any(|item| item.typ == block.typ) {
+                return Err(Self::err(&pair, "Duplicate hook block"));
             }
             blocks.push(block);
         }
 
-        return Ok(ParserResult {
+        Ok(ParserResult {
             blocks,
             arguments: self.idmgr.arguments()?,
             closure_inits: self.idmgr.closure_inits(),
-        });
+        })
     }
 
     fn parse_const(&mut self, pair: Pair<'_, Rule>) -> Result<()> {
@@ -134,7 +132,7 @@ impl ScriptParser {
             }
             _ => return Err(Self::err(&val_pair, "Invalid token")),
         };
-        return Ok(());
+        Ok(())
     }
 
     fn parse_closure(&mut self, pair: Pair<'_, Rule>) -> Result<()> {
@@ -144,7 +142,7 @@ impl ScriptParser {
 
         let num = self.parse_number(num_pair)?.as_num().unwrap();
         Self::map_err(self.idmgr.add_closure(word_pair.as_str(), num), &word_pair)?;
-        return Ok(());
+        Ok(())
     }
 
     fn parse_block(&mut self, pair: Pair<'_, Rule>) -> Result<AstBlock> {
@@ -193,9 +191,9 @@ impl ScriptParser {
         self.idmgr.pop_scope();
 
         if let Some(time) = time {
-            return Ok(AstBlock::new_timer(typ, time, stats));
+            Ok(AstBlock::new_timer(typ, time, stats))
         } else {
-            return Ok(AstBlock::new_hook(typ, stats));
+            Ok(AstBlock::new_hook(typ, stats))
         }
     }
 
@@ -212,7 +210,7 @@ impl ScriptParser {
             Rule::Return => self.parse_return_stat(pair)?,
             _ => return Err(Self::err(&pair, "Invalid statment")),
         };
-        return Ok(Some(stat));
+        Ok(Some(stat))
     }
 
     fn parse_local(&mut self, pair: Pair<'_, Rule>) -> Result<AstStat> {
@@ -222,7 +220,7 @@ impl ScriptParser {
 
         let ident = word_pair.as_str();
         let id = Self::map_err(self.idmgr.add_local(ident), &word_pair)?;
-        return Ok(AstStat::new_assign(AstVar::new_local(id), self.parse_expr(num_pair)?));
+        Ok(AstStat::new_assign(AstVar::new_local(id), self.parse_expr(num_pair)?))
     }
 
     fn parse_assign(&mut self, pair: Pair<'_, Rule>) -> Result<AstStat> {
@@ -254,19 +252,19 @@ impl ScriptParser {
 
         let expr = self.parse_expr(expr_pair)?;
         if opt == CmdOpt::Mov {
-            return Ok(AstStat::new_assign(var, expr));
+            Ok(AstStat::new_assign(var, expr))
         } else {
             let val_expr = AstExpr::new_call(opt, vec![AstExpr::from_var(&var), expr]);
-            return Ok(AstStat::new_assign(var, val_expr));
+            Ok(AstStat::new_assign(var, val_expr))
         }
     }
 
     fn parse_call_stat(&mut self, pair: Pair<'_, Rule>) -> Result<AstStat> {
-        return match self.parse_call_impl(pair)? {
+        match self.parse_call_impl(pair)? {
             (Some(opt), None, args) => Ok(AstStat::new_call(opt, args)),
             (None, Some(ext), args) => Ok(AstStat::new_call_ext(ext, args)),
             _ => unreachable!(),
-        };
+        }
     }
 
     fn parse_if_stat(&mut self, pair: Pair<'_, Rule>) -> Result<AstStat> {
@@ -282,7 +280,7 @@ impl ScriptParser {
 
         let mut stats = Vec::new();
         let mut next_pair = None;
-        while let Some(iter_pair) = pairs.next() {
+        for iter_pair in pairs {
             match iter_pair.as_rule() {
                 Rule::InConst | Rule::InVar | Rule::Assign | Rule::CallStat | Rule::IfStat | Rule::Return => {
                     if let Some(stat) = self.parse_stat(iter_pair)? {
@@ -303,18 +301,18 @@ impl ScriptParser {
             next = self.parse_if_stat(next_pair)?.into_branch();
         }
 
-        return Ok(AstStat::new_branch(cond, stats, next));
+        Ok(AstStat::new_branch(cond, stats, next))
     }
 
     fn parse_return_stat(&mut self, _: Pair<'_, Rule>) -> Result<AstStat> {
-        return Ok(AstStat::new_return());
+        Ok(AstStat::new_return())
     }
 
     fn parse_expr(&mut self, pair: Pair<'_, Rule>) -> Result<AstExpr> {
         let pratt = self.pratt.clone();
         return pratt
             .map_primary(|primary| {
-                return match primary.as_rule() {
+                match primary.as_rule() {
                     Rule::Expr => self.parse_expr(primary),
                     Rule::Group => self.parse_expr(primary),
                     Rule::IfExpr => self.parse_if_expr(primary),
@@ -325,18 +323,18 @@ impl ScriptParser {
                     Rule::Time => self.parse_time(primary),
                     Rule::Percent => self.parse_percent(primary),
                     _ => Err(Self::err(&pair, "Invalid Expression")),
-                };
+                }
             })
             .map_prefix(|op, rsh| {
-                return match op.as_rule() {
+                match op.as_rule() {
                     Rule::Pos => rsh,
                     Rule::Neg => Ok(AstExpr::new_call(CmdOpt::Neg, vec![rsh?])),
                     Rule::Not => Ok(AstExpr::new_call(CmdOpt::Not, vec![rsh?])),
                     _ => Err(Self::err(&pair, "Invalid Expression")),
-                };
+                }
             })
             .map_infix(|lhs, op, rhs| {
-                return match op.as_rule() {
+                match op.as_rule() {
                     Rule::Add => Ok(AstExpr::new_call(CmdOpt::Add, vec![lhs?, rhs?])),
                     Rule::Sub => Ok(AstExpr::new_call(CmdOpt::Sub, vec![lhs?, rhs?])),
                     Rule::Mul => Ok(AstExpr::new_call(CmdOpt::Mul, vec![lhs?, rhs?])),
@@ -352,17 +350,17 @@ impl ScriptParser {
                     Rule::And => Ok(AstExpr::new_logic(AstLogicType::And, lhs?, rhs?)),
                     Rule::Or => Ok(AstExpr::new_logic(AstLogicType::Or, lhs?, rhs?)),
                     _ => Err(Self::err(&pair, "Invalid Expression")),
-                };
+                }
             })
             .parse(pair.clone().into_inner());
     }
 
     fn parse_call_expr(&mut self, pair: Pair<'_, Rule>) -> Result<AstExpr> {
-        return match self.parse_call_impl(pair)? {
+        match self.parse_call_impl(pair)? {
             (Some(opt), None, args) => Ok(AstExpr::new_call(opt, args)),
             (None, Some(ext), args) => Ok(AstExpr::new_call_ext(ext, args)),
             _ => unreachable!(),
-        };
+        }
     }
 
     fn parse_if_expr(&mut self, pair: Pair<'_, Rule>) -> Result<AstExpr> {
@@ -384,7 +382,7 @@ impl ScriptParser {
             right = self.parse_if_expr(next_pair)?;
         }
 
-        return Ok(AstExpr::new_branch(cond, left, right));
+        Ok(AstExpr::new_branch(cond, left, right))
     }
 
     fn parse_ident(&mut self, pair: Pair<'_, Rule>) -> Result<AstExpr> {
@@ -396,22 +394,22 @@ impl ScriptParser {
             Some(IdentType::Input(addr)) => AstExpr::new_input(*addr),
             _ => return Err(Self::err(&pair, "Ident not found")),
         };
-        return Ok(expr);
+        Ok(expr)
     }
 
     fn parse_number(&mut self, pair: Pair<'_, Rule>) -> Result<AstExpr> {
-        return match pair.as_rule() {
+        match pair.as_rule() {
             Rule::Hex => self.parse_hex(pair),
             Rule::Float => self.parse_float(pair),
             Rule::Time => self.parse_time(pair),
             Rule::Percent => self.parse_percent(pair),
             _ => Err(Self::err(&pair, "Invalid number")),
-        };
+        }
     }
 
     fn parse_hex(&mut self, pair: Pair<'_, Rule>) -> Result<AstExpr> {
         let num = i64::from_str_radix(&pair.as_str()[2..], 16).map_err(|_| Self::err(&pair, "Invalid number"))?;
-        return Ok(AstExpr::new_num(num as Num));
+        Ok(AstExpr::new_num(num as Num))
     }
 
     fn parse_float(&mut self, pair: Pair<'_, Rule>) -> Result<AstExpr> {
@@ -419,7 +417,7 @@ impl ScriptParser {
             .as_str()
             .parse::<f64>()
             .map_err(|_| Self::err(&pair, "Invalid number"))?;
-        return Ok(AstExpr::new_num(num));
+        Ok(AstExpr::new_num(num))
     }
 
     fn parse_time(&mut self, pair: Pair<'_, Rule>) -> Result<AstExpr> {
@@ -433,7 +431,7 @@ impl ScriptParser {
             _ => unreachable!(),
         }
         .map_err(|_| Self::err(&pair, "Invalid time"))?;
-        return Ok(AstExpr::new_num(num));
+        Ok(AstExpr::new_num(num))
     }
 
     fn parse_percent(&mut self, pair: Pair<'_, Rule>) -> Result<AstExpr> {
@@ -442,12 +440,12 @@ impl ScriptParser {
             .parse::<Num>()
             .map(|n| n / 100.0)
             .map_err(|_| Self::err(&pair, "Invalid percent"))?;
-        return Ok(AstExpr::new_num(num));
+        Ok(AstExpr::new_num(num))
     }
 
     fn parse_string(&mut self, pair: Pair<'_, Rule>) -> Result<AstExpr> {
         let str = pair.as_str();
-        return Ok(AstExpr::new_str(&str[1..str.len() - 1]));
+        Ok(AstExpr::new_str(&str[1..str.len() - 1]))
     }
 
     //
@@ -486,7 +484,7 @@ impl ScriptParser {
             };
         }
 
-        return Ok((opt, ext, exprs));
+        Ok((opt, ext, exprs))
     }
 
     //
@@ -495,18 +493,18 @@ impl ScriptParser {
 
     fn err(pair: &Pair<'_, Rule>, msg: &str) -> anyhow::Error {
         let rule_err = Error::<Rule>::new_from_span(ErrorVariant::CustomError { message: msg.into() }, pair.as_span());
-        return anyhow::Error::from(rule_err);
+        anyhow::Error::from(rule_err)
     }
 
     fn map_err<T>(err: Result<T, String>, pair: &Pair<'_, Rule>) -> Result<T> {
         return err.map_err(|message| {
             let rule_err = Error::<Rule>::new_from_span(ErrorVariant::CustomError { message }, pair.as_span());
-            return anyhow::Error::from(rule_err);
+            anyhow::Error::from(rule_err)
         });
     }
 
     fn next<'t>(pairs: &mut Pairs<'t, Rule>, pair: &Pair<'_, Rule>) -> Result<Pair<'t, Rule>> {
-        return pairs.next().ok_or(Self::err(pair, "Invalid token end"));
+        pairs.next().ok_or(Self::err(pair, "Invalid token end"))
     }
 }
 
@@ -551,7 +549,7 @@ impl IdentManager {
             imgr.block_idents.insert(typ, IdentMap::default());
         }
         imgr.idents.add_paths("A").unwrap();
-        return imgr;
+        imgr
     }
 
     fn add_consts(&mut self, consts: &HashMap<String, Num>) -> Result<(), String> {
@@ -560,9 +558,9 @@ impl IdentManager {
                 return Err(format!("Invaild ident: {}", ident));
             }
             self.idents.add_paths(ident)?;
-            self.idents.add_ident(&ident, IdentType::Number(*value))?;
+            self.idents.add_ident(ident, IdentType::Number(*value))?;
         }
-        return Ok(());
+        Ok(())
     }
 
     fn add_funcs(&mut self, funcs: &HashMap<String, (CmdOpt, Vec<CmdType>)>) -> Result<(), String> {
@@ -574,9 +572,9 @@ impl IdentManager {
                 return Err(format!("Too many function arguments: {}", ident));
             }
             self.idents.add_paths(ident)?;
-            self.idents.add_ident(&ident, IdentType::Function(*opt, args.clone()))?;
+            self.idents.add_ident(ident, IdentType::Function(*opt, args.clone()))?;
         }
-        return Ok(());
+        Ok(())
     }
 
     fn add_inputs(&mut self, all_inputs: &HashMap<(ScriptBlockType, u8), ScriptInputMap>) -> Result<(), String> {
@@ -595,10 +593,10 @@ impl IdentManager {
                     return Err(format!("Ident conflict: {}", ident));
                 }
                 block_idents.add_paths(ident)?;
-                block_idents.add_ident(&ident, IdentType::Input(CmdAddr::new(*segment, *offset)))?;
+                block_idents.add_ident(ident, IdentType::Input(CmdAddr::new(*segment, *offset)))?;
             }
         }
-        return Ok(());
+        Ok(())
     }
 
     fn add_outputs(&mut self, all_outputs: &HashMap<(ScriptBlockType, u8), ScriptOutputMap>) -> Result<(), String> {
@@ -617,10 +615,10 @@ impl IdentManager {
                     return Err(format!("Ident conflict: {}", ident));
                 }
                 block_idents.add_paths(ident)?;
-                block_idents.add_ident(&ident, IdentType::Output(CmdAddr::new(*segment, *offset), *out_type))?;
+                block_idents.add_ident(ident, IdentType::Output(CmdAddr::new(*segment, *offset), *out_type))?;
             }
         }
-        return Ok(());
+        Ok(())
     }
 
     fn add_func_exts(
@@ -641,10 +639,10 @@ impl IdentManager {
                     return Err(format!("Too many arguments: {}", ident));
                 }
                 block_idents.add_paths(ident)?;
-                block_idents.add_ident(&ident, IdentType::FunctionExt(*ext, args.clone()))?;
+                block_idents.add_ident(ident, IdentType::FunctionExt(*ext, args.clone()))?;
             }
         }
-        return Ok(());
+        Ok(())
     }
 
     fn sync_block_path(&mut self) -> Result<(), String> {
@@ -657,19 +655,19 @@ impl IdentManager {
                 }
             }
         }
-        return Ok(());
+        Ok(())
     }
 
     fn add_number(&mut self, ident: &str, value: Num) -> Result<(), String> {
         self.idents.add_ident(ident, IdentType::Number(value))?;
         self.temp_consts.push((ident.into(), self.scope_depth));
-        return Ok(());
+        Ok(())
     }
 
     fn add_string(&mut self, ident: &str, value: String) -> Result<(), String> {
         self.idents.add_ident(ident, IdentType::String(value))?;
         self.temp_consts.push((ident.into(), self.scope_depth));
-        return Ok(());
+        Ok(())
     }
 
     fn add_arguments(&mut self, args: &[&str]) -> Result<(), String> {
@@ -686,7 +684,7 @@ impl IdentManager {
             self.idents.add_ident(&arg_ident, IdentType::Argument(addr))?;
             self.arguments.push(arg_ident.clone());
         }
-        return Ok(());
+        Ok(())
     }
 
     fn add_closure(&mut self, ident: &str, init: Num) -> Result<(), String> {
@@ -694,9 +692,9 @@ impl IdentManager {
             return Err("Too many arguments and closures".to_string());
         }
         let addr = CmdAddr::new(SEGMENT_CLOSURE, (self.arguments.len() + self.closures.len()) as u16);
-        self.idents.add_ident(&ident, IdentType::Closure(addr))?;
+        self.idents.add_ident(ident, IdentType::Closure(addr))?;
         self.closures.push((ident.into(), init));
-        return Ok(());
+        Ok(())
     }
 
     fn add_local(&mut self, ident: &str) -> Result<u32, String> {
@@ -704,9 +702,9 @@ impl IdentManager {
             return Err("Too many locals".to_string());
         }
         self.local_counter += 1;
-        self.idents.add_ident(&ident, IdentType::Local(self.local_counter))?;
+        self.idents.add_ident(ident, IdentType::Local(self.local_counter))?;
         self.locals.push((ident.into(), self.scope_depth));
-        return Ok(self.local_counter);
+        Ok(self.local_counter)
     }
 
     fn get(&self, ident: &str) -> Option<&IdentType> {
@@ -813,7 +811,7 @@ impl IdentMap {
         if KEYWORDS.contains(&ident[last..]) {
             return Err("Unexpected keyword".to_string());
         }
-        return Ok(());
+        Ok(())
     }
 
     fn add_ident(&mut self, ident: &str, meta: IdentType) -> Result<(), String> {
@@ -824,7 +822,7 @@ impl IdentMap {
             return Err(format!("Ident conflict: {}", ident));
         }
         self.idents.insert(ident.into(), meta);
-        return Ok(());
+        Ok(())
     }
 
     fn get(&self, ident: &str) -> Option<&IdentType> {
@@ -841,7 +839,7 @@ impl IdentMap {
                 _ => return false,
             }
         }
-        return !self.idents.contains_key(ident);
+        !self.idents.contains_key(ident)
     }
 
     fn remove(&mut self, ident: &str) {
@@ -975,8 +973,8 @@ mod tests {
         idmgr.add_inputs(&inputs).unwrap();
         idmgr.sync_block_path().unwrap();
 
-        assert!(idmgr.add_arguments(&vec!["a".into(), "b".into()]).is_ok());
-        assert!(idmgr.add_arguments(&vec!["a".into()]).is_err());
+        assert!(idmgr.add_arguments(&["a".into(), "b".into()]).is_ok());
+        assert!(idmgr.add_arguments(&["a".into()]).is_err());
         assert!(idmgr.get("a").is_none());
         assert!(idmgr.get("A.a").is_some());
 
@@ -1012,7 +1010,7 @@ mod tests {
         assert_eq!(idmgr.locals.len(), 0);
 
         idmgr.reset();
-        assert!(idmgr.add_arguments(&vec!["a".into(), "b".into()]).is_ok());
+        assert!(idmgr.add_arguments(&["a".into(), "b".into()]).is_ok());
         for idx in 2..MAX_CLOSURE {
             assert!(idmgr.add_closure(&format!("closure_{}", idx), 1.0).is_ok());
         }
@@ -1162,7 +1160,7 @@ mod tests {
                 }
             }
         ";
-        let res = parser.run(code, &["a1".into(), "a2".into()]).unwrap();
+        let res = parser.run(code, &["a1", "a2"]).unwrap();
         assert_eq!(
             res.blocks,
             vec![AstBlock::new_hook(
@@ -1207,7 +1205,7 @@ mod tests {
                 out.xx = (-1.0 != 0) ** 2
             }
         ";
-        let res = parser.run(code, &["arg".into()]).unwrap();
+        let res = parser.run(code, &["arg"]).unwrap();
         assert_eq!(
             res.blocks,
             vec![AstBlock::new_hook(
@@ -1263,7 +1261,7 @@ mod tests {
                 res = (math.max(((math.round(A.arg))), 5.0))
             }
         ";
-        let res = parser.run(code, &["arg".into()]).unwrap();
+        let res = parser.run(code, &["arg"]).unwrap();
         assert_eq!(
             res.blocks,
             vec![AstBlock::new_hook(
@@ -1312,7 +1310,7 @@ mod tests {
                 res = if res { 1 } else { if A.arg { -10 } else { -20 } }
             }
         ";
-        let res = parser.run(code, &["arg".into(), "_".into()]).unwrap();
+        let res = parser.run(code, &["arg", "_"]).unwrap();
         assert_eq!(
             res.blocks,
             vec![AstBlock::new_hook(

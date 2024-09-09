@@ -10,15 +10,15 @@ pub struct AstBlock {
 
 impl AstBlock {
     pub fn new_hook(typ: ScriptBlockType, stats: Vec<AstStat>) -> AstBlock {
-        return AstBlock { typ, arg: None, stats };
+        AstBlock { typ, arg: None, stats }
     }
 
     pub fn new_timer(typ: ScriptBlockType, arg: Num, stats: Vec<AstStat>) -> AstBlock {
-        return AstBlock {
+        AstBlock {
             typ,
             arg: Some(arg),
             stats,
-        };
+        }
     }
 }
 
@@ -33,30 +33,30 @@ pub enum AstStat {
 
 impl AstStat {
     pub fn new_assign(var: AstVar, expr: AstExpr) -> AstStat {
-        return AstStat::Assign(AstStatAssign::new(var, expr));
+        AstStat::Assign(AstStatAssign::new(var, expr))
     }
 
     pub fn new_call(opt: CmdOpt, args: Vec<AstExpr>) -> AstStat {
-        return AstStat::Call(AstStatCall::new(opt, args));
+        AstStat::Call(AstStatCall::new(opt, args))
     }
 
     pub fn new_call_ext(ext: u16, args: Vec<AstExpr>) -> AstStat {
-        return AstStat::CallExt(AstStatCallExt::new(ext, args));
+        AstStat::CallExt(AstStatCallExt::new(ext, args))
     }
 
     pub fn new_branch(cond: Option<AstExpr>, stats: Vec<AstStat>, next: Option<AstStatBranch>) -> AstStat {
-        return AstStat::Branch(AstStatBranch::new(cond, stats, next));
+        AstStat::Branch(AstStatBranch::new(cond, stats, next))
     }
 
     pub fn new_return() -> AstStat {
-        return AstStat::Return(AstStatReturn::new());
+        AstStat::Return(AstStatReturn::new())
     }
 
     pub fn into_branch(self) -> Option<AstStatBranch> {
-        return match self {
+        match self {
             AstStat::Branch(branch) => Some(branch),
             _ => None,
-        };
+        }
     }
 }
 
@@ -68,10 +68,10 @@ pub struct AstStatAssign {
 
 impl AstStatAssign {
     pub fn new(var: AstVar, expr: AstExpr) -> AstStatAssign {
-        return AstStatAssign {
+        AstStatAssign {
             var,
             expr: Box::new(expr),
-        };
+        }
     }
 }
 
@@ -83,7 +83,7 @@ pub struct AstStatCall {
 
 impl AstStatCall {
     pub fn new(opt: CmdOpt, args: Vec<AstExpr>) -> AstStatCall {
-        return AstStatCall { opt, args };
+        AstStatCall { opt, args }
     }
 }
 
@@ -95,7 +95,7 @@ pub struct AstStatCallExt {
 
 impl AstStatCallExt {
     pub fn new(ext: u16, args: Vec<AstExpr>) -> AstStatCallExt {
-        return AstStatCallExt { ext, args };
+        AstStatCallExt { ext, args }
     }
 }
 
@@ -108,11 +108,11 @@ pub struct AstStatBranch {
 
 impl AstStatBranch {
     pub fn new(cond: Option<AstExpr>, stats: Vec<AstStat>, next: Option<AstStatBranch>) -> AstStatBranch {
-        return AstStatBranch {
-            cond: cond.map(|c| Box::new(c)),
+        AstStatBranch {
+            cond: cond.map(Box::new),
             stats,
-            next: next.map(|n| Box::new(n)),
-        };
+            next: next.map(Box::new),
+        }
     }
 }
 
@@ -121,7 +121,7 @@ pub struct AstStatReturn {}
 
 impl AstStatReturn {
     pub fn new() -> AstStatReturn {
-        return AstStatReturn {};
+        AstStatReturn {}
     }
 }
 
@@ -134,15 +134,15 @@ pub enum AstVar {
 
 impl AstVar {
     pub fn new_local(id: u32) -> AstVar {
-        return AstVar::Local(id);
+        AstVar::Local(id)
     }
 
     pub fn new_output(addr: CmdAddr) -> AstVar {
-        return AstVar::Output(addr);
+        AstVar::Output(addr)
     }
 
     pub fn new_closure(addr: CmdAddr) -> AstVar {
-        return AstVar::Closure(addr);
+        AstVar::Closure(addr)
     }
 }
 
@@ -163,73 +163,73 @@ pub enum AstExpr {
 
 impl AstExpr {
     pub fn new_num(num: Num) -> AstExpr {
-        return AstExpr::Num(num);
+        AstExpr::Num(num)
     }
 
     pub fn new_str(val: &str) -> AstExpr {
-        return AstExpr::Str(val.into());
+        AstExpr::Str(val.into())
     }
 
     pub fn new_local(ident: u32) -> AstExpr {
-        return AstExpr::Local(ident);
+        AstExpr::Local(ident)
     }
 
     pub fn new_closure(addr: CmdAddr) -> AstExpr {
-        return AstExpr::Closure(addr);
+        AstExpr::Closure(addr)
     }
 
     pub fn new_argument(addr: CmdAddr) -> AstExpr {
-        return AstExpr::Argument(addr);
+        AstExpr::Argument(addr)
     }
 
     pub fn new_input(addr: CmdAddr) -> AstExpr {
-        return AstExpr::Input(addr);
+        AstExpr::Input(addr)
     }
 
     pub fn new_output(addr: CmdAddr) -> AstExpr {
-        return AstExpr::Output(addr);
+        AstExpr::Output(addr)
     }
 
     pub fn new_call(opt: CmdOpt, args: Vec<AstExpr>) -> AstExpr {
-        return AstExpr::Call(AstExprCall::new(opt, args));
+        AstExpr::Call(AstExprCall::new(opt, args))
     }
 
     pub fn new_call_ext(ext: u16, args: Vec<AstExpr>) -> AstExpr {
-        return AstExpr::CallExt(AstExprCallExt::new(ext, args));
+        AstExpr::CallExt(AstExprCallExt::new(ext, args))
     }
 
     pub fn new_branch(cond: AstExpr, left: AstExpr, right: AstExpr) -> AstExpr {
-        return AstExpr::Branch(AstExprBranch::new(cond, left, right));
+        AstExpr::Branch(AstExprBranch::new(cond, left, right))
     }
 
     pub fn new_logic(typ: AstLogicType, left: AstExpr, right: AstExpr) -> AstExpr {
-        return AstExpr::Logic(AstExprLogic::new(typ, left, right));
+        AstExpr::Logic(AstExprLogic::new(typ, left, right))
     }
 
     pub fn from_var(var: &AstVar) -> AstExpr {
-        return match var {
-            AstVar::Local(ident) => AstExpr::new_local(ident.clone()),
-            AstVar::Closure(ident) => AstExpr::new_closure(ident.clone()),
-            AstVar::Output(ident) => AstExpr::new_output(ident.clone()),
-        };
+        match var {
+            AstVar::Local(ident) => AstExpr::new_local(*ident),
+            AstVar::Closure(ident) => AstExpr::new_closure(*ident),
+            AstVar::Output(ident) => AstExpr::new_output(*ident),
+        }
     }
 
     pub fn as_num(&self) -> Option<Num> {
-        return match self {
+        match self {
             &AstExpr::Num(num) => Some(num),
             _ => None,
-        };
+        }
     }
 
     pub fn as_str(&self) -> Option<&String> {
-        return match self {
-            &AstExpr::Str(ref str) => Some(str),
+        match self {
+            AstExpr::Str(str) => Some(str),
             _ => None,
-        };
+        }
     }
 
     pub fn is_value(&self) -> bool {
-        return matches!(
+        matches!(
             self,
             &AstExpr::Num(_)
                 | &AstExpr::Str(_)
@@ -238,7 +238,7 @@ impl AstExpr {
                 | &AstExpr::Argument(_)
                 | &AstExpr::Input(_)
                 | &AstExpr::Output(_)
-        );
+        )
     }
 }
 
@@ -250,7 +250,7 @@ pub struct AstExprCall {
 
 impl AstExprCall {
     pub fn new(opt: CmdOpt, args: Vec<AstExpr>) -> AstExprCall {
-        return AstExprCall { opt, args };
+        AstExprCall { opt, args }
     }
 }
 
@@ -262,7 +262,7 @@ pub struct AstExprCallExt {
 
 impl AstExprCallExt {
     pub fn new(ext: u16, args: Vec<AstExpr>) -> AstExprCallExt {
-        return AstExprCallExt { ext, args };
+        AstExprCallExt { ext, args }
     }
 }
 
@@ -275,11 +275,11 @@ pub struct AstExprBranch {
 
 impl AstExprBranch {
     pub fn new(cond: AstExpr, left: AstExpr, right: AstExpr) -> AstExprBranch {
-        return AstExprBranch {
+        AstExprBranch {
             cond: Box::new(cond),
             left: Box::new(left),
             right: Box::new(right),
-        };
+        }
     }
 }
 
@@ -298,10 +298,10 @@ pub struct AstExprLogic {
 
 impl AstExprLogic {
     pub fn new(typ: AstLogicType, left: AstExpr, right: AstExpr) -> AstExprLogic {
-        return AstExprLogic {
+        AstExprLogic {
             typ,
             left: Box::new(left),
             right: Box::new(right),
-        };
+        }
     }
 }

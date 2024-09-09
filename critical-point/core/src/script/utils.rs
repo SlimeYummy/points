@@ -22,7 +22,7 @@ pub fn script_in(prefix: &str, fields: Vec<(&str, usize)>) -> ScriptInputMap {
         }
         ins.insert(format!("{}.{}", prefix, field_name), (field_offset / 8) as u16);
     }
-    return ins;
+    ins
 }
 
 // pub fn script_ins(children: &[(usize, &ScriptInputMap)]) -> ScriptInputMap {
@@ -53,14 +53,14 @@ pub enum ScriptOutType {
 impl ScriptOutType {
     pub fn check_opt(&self, opt: CmdOpt) -> bool {
         use ScriptOutType::*;
-        return match opt {
+        match opt {
             CmdOpt::Mov => *self == Mov || *self == All,
             CmdOpt::Add => *self == Add || *self == All,
             CmdOpt::Sub => *self == Add || *self == All,
             CmdOpt::Mul => *self == Mul || *self == All,
             CmdOpt::Div => *self == Mul || *self == All,
             _ => false,
-        };
+        }
     }
 }
 
@@ -110,5 +110,5 @@ pub fn script_out(prefix: &str, fields: Vec<(&str, usize, ScriptOutType)>) -> Sc
             ((field_offset / 8) as u16, field_opts),
         );
     }
-    return ins;
+    ins
 }

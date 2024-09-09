@@ -15,7 +15,7 @@ pub const MUT_SEGMENT_COUNT: usize = 6;
 pub const IN_SEGMENT_COUNT: usize = (SEGMENT_OUT_MAX - SEGMENT_OUT_MIN + 1) as usize;
 pub const OUT_SEGMENT_COUNT: usize = (SEGMENT_IN_MAX - SEGMENT_IN_MIN + 1) as usize;
 
-pub const SEGMENT_NAMES: [&'static str; SEGMENT_COUNT] = [
+pub const SEGMENT_NAMES: [&str; SEGMENT_COUNT] = [
     "register", "closure", "out_0", "out_1", "out_2", "out_3", "out_4", "constant", "in_0", "in_1", "in_2", "in_3",
     "in_4", "in_5", "in_6", "string",
 ];

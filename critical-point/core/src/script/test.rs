@@ -3,13 +3,13 @@ use std::{mem, slice, vec};
 
 use crate::script::command::{CmdAddr, CmdType, ScriptBlockType};
 use crate::script::config::{MAX_CLOSURE, SEGMENT_IN_MIN, SEGMENT_OUT_MIN};
+use crate::script::executor::{ScriptCallExt, ScriptEnv};
 use crate::script::parser::ScriptParser;
-use crate::script::runner::{ScriptCallExt, ScriptEnv};
 use crate::script::utils::ScriptOutType;
 use crate::utils::{Num, SymbolMap, XResult};
 
 pub fn f64_u64(num: f64) -> u64 {
-    return unsafe { mem::transmute::<f64, u64>(num) };
+    unsafe { mem::transmute::<f64, u64>(num) }
 }
 
 #[repr(C)]
@@ -79,7 +79,7 @@ impl ScriptEnv<2, 1> for TestEnv {
     }
 
     fn global(&mut self) -> &mut SymbolMap<Num> {
-        return &mut self.global;
+        &mut self.global
     }
 
     fn call_ext<'t>(&'t mut self, _ce: ScriptCallExt<'t>, _opt: u16, _args: &[CmdAddr]) -> XResult<Num> {
@@ -139,7 +139,7 @@ pub fn new_parser() -> ScriptParser {
         );
     }
 
-    return ScriptParser::new(&HashMap::new(), &inputs, &outputs, &expr_funcs).unwrap();
+    ScriptParser::new(&HashMap::new(), &inputs, &outputs, &expr_funcs).unwrap()
 }
 
 // use super::ast::{AstBlock, AstExpr, AstLogicType, AstStat, AstStatBranch};

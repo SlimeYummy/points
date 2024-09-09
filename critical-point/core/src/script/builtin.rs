@@ -4,7 +4,7 @@ use crate::script::command::{CmdOpt, CmdType};
 use crate::utils::Num;
 
 pub fn consts() -> HashMap<String, Num> {
-    return HashMap::from([
+    HashMap::from([
         ("math.PI".into(), core::f64::consts::PI),
         ("math.E".into(), core::f64::consts::E),
         ("math.TAU".into(), core::f64::consts::TAU),
@@ -12,13 +12,13 @@ pub fn consts() -> HashMap<String, Num> {
         ("math.MIN".into(), core::f64::MIN),
         ("math.POS_INF".into(), core::f64::INFINITY),
         ("math.NEG_INF".into(), core::f64::NEG_INFINITY),
-    ]);
+    ])
 }
 
 pub fn functions() -> HashMap<String, (CmdOpt, Vec<CmdType>)> {
     use CmdOpt::*;
     use CmdType::*;
-    return HashMap::from([
+    HashMap::from([
         ("G.init".into(), (XInit, vec![Str, Num])),
         ("G.get".into(), (XGet, vec![Str])),
         ("G.set".into(), (XSet, vec![Str, Num])),
@@ -41,5 +41,5 @@ pub fn functions() -> HashMap<String, (CmdOpt, Vec<CmdType>)> {
         ("math.sin".into(), (Sin, vec![Num])),
         ("math.cos".into(), (Cos, vec![Num])),
         ("math.tan".into(), (Tan, vec![Num])),
-    ]);
+    ])
 }

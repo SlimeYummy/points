@@ -21,12 +21,12 @@ pub struct ScriptGenerator {
 
 impl ScriptGenerator {
     pub fn new() -> ScriptGenerator {
-        return ScriptGenerator {
+        ScriptGenerator {
             reg_manager: RegisterManager::default(),
             byte_code: ScriptByteCode::default(),
             constant_writer: ConstantWriter::default(),
             string_writer: StringWriter::default(),
-        };
+        }
     }
 
     pub fn run(&mut self, pres: ParserResult) -> Result<ScriptBlocks> {
@@ -38,7 +38,7 @@ impl ScriptGenerator {
             self.reg_manager.reset();
             self.byte_code = ScriptByteCode::default();
 
-            self.visit_block(&ast_block)?;
+            self.visit_block(ast_block)?;
 
             if ast_block.typ.is_hook() {
                 let block = ScriptBlock::new_hook(ast_block.typ, mem::take(&mut self.byte_code))?;
@@ -58,24 +58,24 @@ impl ScriptGenerator {
         bs.closure_inits = pres.closure_inits;
         bs.constant_segment = self.constant_writer.take();
         bs.string_segment = self.string_writer.take()?;
-        return Ok(bs);
+        Ok(bs)
     }
 
     fn visit_block(&mut self, block: &AstBlock) -> Result<()> {
         for stat in &block.stats {
             self.visit_stat(stat, NO_CTX)?;
         }
-        return Ok(());
+        Ok(())
     }
 
     fn visit_stat(&mut self, stat: &AstStat, ctx: Context) -> Result<()> {
-        return match stat {
+        match stat {
             AstStat::Assign(assign) => self.visit_stat_assign(assign, ctx),
             AstStat::Call(call) => self.visit_stat_call(call, ctx),
             AstStat::CallExt(call_ext) => self.visit_stat_call_ext(call_ext, ctx),
             AstStat::Branch(branch) => self.visit_stat_branch(branch, ctx),
             AstStat::Return(_) => self.visit_stat_return(),
-        };
+        }
     }
 
     fn visit_stat_assign(&mut self, assign: &AstStatAssign, ctx: Context) -> Result<()> {
@@ -91,7 +91,7 @@ impl ScriptGenerator {
             self.reg_manager.free_register(expr_addr);
         }
 
-        return Ok(());
+        Ok(())
     }
 
     fn visit_stat_call(&mut self, call: &AstStatCall, ctx: Context) -> Result<()> {
@@ -107,7 +107,7 @@ impl ScriptGenerator {
             8 => self.visit_stat_call_impl::<8>(call, ctx),
             _ => return Err(anyhow!("Too many arguments {:?}", call.opt)),
         };
-        return Ok(());
+        Ok(())
     }
 
     fn visit_stat_call_impl<const N: usize>(&mut self, call: &AstStatCall, ctx: Context) -> Result<()> {
@@ -124,7 +124,7 @@ impl ScriptGenerator {
         self.reg_manager.free_registers(&cmd.src);
 
         self.byte_code.write(&cmd);
-        return Ok(());
+        Ok(())
     }
 
     fn visit_stat_call_ext(&mut self, call_ext: &AstStatCallExt, ctx: Context) -> Result<()> {
@@ -140,7 +140,7 @@ impl ScriptGenerator {
             8 => self.visit_stat_call_ext_impl::<8>(CmdOpt::Ext8, call_ext, ctx),
             _ => return Err(anyhow!("Too many arguments {:?}", call_ext.ext)),
         };
-        return Ok(());
+        Ok(())
     }
 
     fn visit_stat_call_ext_impl<const N: usize>(
@@ -163,7 +163,7 @@ impl ScriptGenerator {
         self.reg_manager.free_registers(&cmd.src);
 
         self.byte_code.write(&cmd);
-        return Ok(());
+        Ok(())
     }
 
     fn visit_stat_branch(&mut self, branch: &AstStatBranch, ctx: Context) -> Result<()> {
@@ -172,7 +172,7 @@ impl ScriptGenerator {
         match (&branch.cond, &branch.next) {
             // if/elsif condition with next branch
             (Some(cond), Some(next)) => {
-                let cmd_if = CmdJmpCmp::new(self.visit_expr(&cond, NO_CTX)?, self.constant_writer.write_pc(0)?);
+                let cmd_if = CmdJmpCmp::new(self.visit_expr(cond, NO_CTX)?, self.constant_writer.write_pc(0)?);
                 self.reg_manager.free_register(cmd_if.cond);
                 self.byte_code.write(&cmd_if);
 
@@ -192,7 +192,7 @@ impl ScriptGenerator {
             }
             // if/elsif condition without next branch
             (Some(cond), None) => {
-                let cmd_if = CmdJmpCmp::new(self.visit_expr(&cond, NO_CTX)?, self.use_or_alloc_pc(ctx.end)?);
+                let cmd_if = CmdJmpCmp::new(self.visit_expr(cond, NO_CTX)?, self.use_or_alloc_pc(ctx.end)?);
                 self.reg_manager.free_register(cmd_if.cond);
                 self.byte_code.write(&cmd_if);
 
@@ -225,7 +225,7 @@ impl ScriptGenerator {
         }
 
         self.reg_manager.pop_scope();
-        return Ok(());
+        Ok(())
     }
 
     fn visit_stat_return(&mut self) -> Result<()> {
@@ -236,11 +236,11 @@ impl ScriptGenerator {
         );
 
         self.byte_code.write(&cmd);
-        return Ok(());
+        Ok(())
     }
 
     fn visit_expr(&mut self, expr: &AstExpr, ctx: Context) -> Result<CmdAddr> {
-        return match expr {
+        match expr {
             AstExpr::Num(num) => self.constant_writer.write_num(*num),
             AstExpr::Str(str) => self.string_writer.write(str),
             AstExpr::Local(id) => self.reg_manager.find_local(*id),
@@ -252,11 +252,11 @@ impl ScriptGenerator {
             AstExpr::CallExt(call_ext) => self.visit_expr_call_ext(call_ext, ctx),
             AstExpr::Branch(branch) => self.visit_expr_branch(branch, ctx),
             AstExpr::Logic(logic) => self.visit_expr_logic(logic, ctx),
-        };
+        }
     }
 
     fn visit_expr_call(&mut self, call: &AstExprCall, ctx: Context) -> Result<CmdAddr> {
-        return match call.args.len() {
+        match call.args.len() {
             0 => self.visit_expr_call_impl::<0>(call, ctx),
             1 => self.visit_expr_call_impl::<1>(call, ctx),
             2 => self.visit_expr_call_impl::<2>(call, ctx),
@@ -267,7 +267,7 @@ impl ScriptGenerator {
             7 => self.visit_expr_call_impl::<7>(call, ctx),
             8 => self.visit_expr_call_impl::<8>(call, ctx),
             _ => Err(anyhow!("Too many arguments {:?}", call.opt)),
-        };
+        }
     }
 
     fn visit_expr_call_impl<const N: usize>(&mut self, call: &AstExprCall, ctx: Context) -> Result<CmdAddr> {
@@ -285,11 +285,11 @@ impl ScriptGenerator {
 
         cmd.dst = self.use_or_alloc_register(ctx.dst)?;
         self.byte_code.write(&cmd);
-        return Ok(cmd.dst);
+        Ok(cmd.dst)
     }
 
     fn visit_expr_call_ext(&mut self, call_ext: &AstExprCallExt, ctx: Context) -> Result<CmdAddr> {
-        return match call_ext.args.len() {
+        match call_ext.args.len() {
             0 => self.visit_expr_call_ext_impl::<0>(CmdOpt::Ext0, call_ext, ctx),
             1 => self.visit_expr_call_ext_impl::<1>(CmdOpt::Ext1, call_ext, ctx),
             2 => self.visit_expr_call_ext_impl::<2>(CmdOpt::Ext2, call_ext, ctx),
@@ -300,7 +300,7 @@ impl ScriptGenerator {
             7 => self.visit_expr_call_ext_impl::<7>(CmdOpt::Ext7, call_ext, ctx),
             8 => self.visit_expr_call_ext_impl::<8>(CmdOpt::Ext8, call_ext, ctx),
             _ => Err(anyhow!("Too many arguments {:?}", call_ext.ext)),
-        };
+        }
     }
 
     fn visit_expr_call_ext_impl<const N: usize>(
@@ -324,7 +324,7 @@ impl ScriptGenerator {
 
         cmd.dst = self.use_or_alloc_register(ctx.dst)?;
         self.byte_code.write(&cmd);
-        return Ok(cmd.dst);
+        Ok(cmd.dst)
     }
 
     fn visit_expr_branch(&mut self, branch: &AstExprBranch, ctx: Context) -> Result<CmdAddr> {
@@ -343,7 +343,7 @@ impl ScriptGenerator {
 
             cmd.dst = self.use_or_alloc_register(ctx.dst)?;
             self.byte_code.write(&cmd);
-            return Ok(cmd.dst);
+            Ok(cmd.dst)
 
         // 1 value
         } else if branch.left.is_value() || branch.right.is_value() {
@@ -421,7 +421,7 @@ impl ScriptGenerator {
 
             cmd.dst = self.use_or_alloc_register(ctx.dst)?;
             self.byte_code.write(&cmd);
-            return Ok(cmd.dst);
+            Ok(cmd.dst)
 
         // * || expr
         } else {
@@ -445,22 +445,22 @@ impl ScriptGenerator {
             self.visit_expr(&logic.right, Context::new(Some(cmd.dst), None))?;
             self.constant_writer.update_pc(cmd.pc, self.byte_code.len() as u64)?; // to end
 
-            return Ok(cmd.dst);
+            Ok(cmd.dst)
         }
     }
 
     fn use_or_alloc_register(&mut self, dst: Option<CmdAddr>) -> Result<CmdAddr> {
-        return match dst {
+        match dst {
             Some(dst) => Ok(dst),
             None => self.reg_manager.alloc_register(),
-        };
+        }
     }
 
     fn use_or_alloc_pc(&mut self, dst: Option<CmdAddr>) -> Result<CmdAddr> {
-        return match dst {
+        match dst {
             Some(dst) => Ok(dst),
             None => self.constant_writer.write_pc(0),
-        };
+        }
     }
 }
 
@@ -474,7 +474,7 @@ const NO_CTX: Context = Context { dst: None, end: None };
 
 impl Context {
     fn new(dst: Option<CmdAddr>, end: Option<CmdAddr>) -> Context {
-        return Context { dst, end };
+        Context { dst, end }
     }
 }
 
@@ -500,7 +500,7 @@ impl RegisterManager {
             self.register_max += 1;
         }
         self.registers.insert(addr);
-        return Ok(addr);
+        Ok(addr)
     }
 
     fn free_register(&mut self, addr: CmdAddr) {
@@ -537,14 +537,14 @@ impl RegisterManager {
 
         self.register_max += 1;
         self.locals.insert(id, (addr, self.scope_depth));
-        return Ok(addr);
+        Ok(addr)
     }
 
     fn find_local(&mut self, id: u32) -> Result<CmdAddr> {
         if let Some((addr, _)) = self.locals.get(&id) {
             return Ok(*addr);
         }
-        return Err(anyhow!("Local variable not found"));
+        Err(anyhow!("Local variable not found"))
     }
 
     fn push_scope(&mut self) {
@@ -588,7 +588,7 @@ impl ConstantWriter {
         self.buffer.push(num);
         let offset = self.buffer.len() as u16 - 1;
         self.nums.insert(num, offset);
-        return Ok(CmdAddr::new(SEGMENT_CONSTANT, offset));
+        Ok(CmdAddr::new(SEGMENT_CONSTANT, offset))
     }
 
     fn write_pc(&mut self, pc: u64) -> Result<CmdAddr> {
@@ -597,7 +597,7 @@ impl ConstantWriter {
         }
         self.buffer.push(pc);
         let offset = self.buffer.len() as u16 - 1;
-        return Ok(CmdAddr::new(SEGMENT_CONSTANT, offset));
+        Ok(CmdAddr::new(SEGMENT_CONSTANT, offset))
     }
 
     fn update_pc(&mut self, addr: CmdAddr, pc: u64) -> Result<()> {
@@ -605,14 +605,14 @@ impl ConstantWriter {
             return Err(anyhow!("Invalid constant segment"));
         }
         self.buffer[addr.offset() as usize] = pc;
-        return Ok(());
+        Ok(())
     }
 
     fn take(&mut self) -> Vec<u64> {
         let buffer = self.buffer.clone();
         self.buffer.clear();
         self.nums.clear();
-        return buffer;
+        buffer
     }
 
     fn clear(&mut self) {
@@ -638,14 +638,14 @@ impl StringWriter {
         self.buffer.push(str.into());
         let offset = self.buffer.len() as u16 - 1;
         self.strs.insert(str.into(), offset);
-        return Ok(CmdAddr::new(SEGMENT_STRING, offset));
+        Ok(CmdAddr::new(SEGMENT_STRING, offset))
     }
 
     fn take(&mut self) -> XResult<Vec<Symbol>> {
-        let symbols = self.buffer.iter().map(|s| Symbol::try_from(s)).collect();
+        let symbols = self.buffer.iter().map(Symbol::try_from).collect();
         self.buffer.clear();
         self.strs.clear();
-        return symbols;
+        symbols
     }
 
     fn clear(&mut self) {
