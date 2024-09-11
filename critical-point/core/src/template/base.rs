@@ -38,10 +38,10 @@ pub enum TmplClass {
     Stage,
 }
 
-impl Into<u16> for TmplClass {
+impl From<TmplClass> for u16 {
     #[inline]
-    fn into(self) -> u16 {
-        return unsafe { mem::transmute::<TmplClass, u16>(self) };
+    fn from(val: TmplClass) -> Self {
+        unsafe { mem::transmute::<TmplClass, u16>(val) }
     }
 }
 
@@ -53,7 +53,7 @@ impl TryFrom<u16> for TmplClass {
         if value as usize >= cardinality::<TmplClass>() {
             return Err(XError::overflow("TmplClass::try_from()"));
         }
-        return Ok(unsafe { mem::transmute::<u16, TmplClass>(value) });
+        Ok(unsafe { mem::transmute::<u16, TmplClass>(value) })
     }
 }
 
@@ -95,37 +95,37 @@ pub struct TmplLevelRange {
 
 impl TmplLevelRange {
     pub fn new(min: u32, max: u32) -> TmplLevelRange {
-        return TmplLevelRange { min, max };
+        TmplLevelRange { min, max }
     }
 }
 
 impl From<[u32; 2]> for TmplLevelRange {
     fn from(range: [u32; 2]) -> TmplLevelRange {
-        return TmplLevelRange::new(range[0], range[1]);
+        TmplLevelRange::new(range[0], range[1])
     }
 }
 
-impl Into<[u32; 2]> for TmplLevelRange {
-    fn into(self) -> [u32; 2] {
-        return [self.min, self.max];
+impl From<TmplLevelRange> for [u32; 2] {
+    fn from(val: TmplLevelRange) -> Self {
+        [val.min, val.max]
     }
 }
 
 impl From<(u32, u32)> for TmplLevelRange {
     fn from(range: (u32, u32)) -> TmplLevelRange {
-        return TmplLevelRange::new(range.0, range.1);
+        TmplLevelRange::new(range.0, range.1)
     }
 }
 
-impl Into<(u32, u32)> for TmplLevelRange {
-    fn into(self) -> (u32, u32) {
-        return (self.min, self.max);
+impl From<TmplLevelRange> for (u32, u32) {
+    fn from(val: TmplLevelRange) -> Self {
+        (val.min, val.max)
     }
 }
 
 impl<'de> serde::Deserialize<'de> for TmplLevelRange {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<TmplLevelRange, D::Error> {
         let range: [u32; 2] = serde::Deserialize::deserialize(deserializer)?;
-        return Ok(TmplLevelRange::new(range[0], range[1]));
+        Ok(TmplLevelRange::new(range[0], range[1]))
     }
 }
