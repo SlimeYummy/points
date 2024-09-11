@@ -17,19 +17,19 @@ pub struct TmplSlotValue {
 
 impl TmplSlotValue {
     pub fn new(special: u8, attack: u8, defense: u8) -> TmplSlotValue {
-        return TmplSlotValue {
+        TmplSlotValue {
             special,
             attack,
             defense,
-        };
+        }
     }
 
     pub fn merge(&self, other: &TmplSlotValue) -> TmplSlotValue {
-        return TmplSlotValue {
+        TmplSlotValue {
             special: self.special + other.special,
             attack: self.attack + other.attack,
             defense: self.defense + other.defense,
-        };
+        }
     }
 
     pub fn append(&mut self, other: &TmplSlotValue) {
@@ -39,33 +39,33 @@ impl TmplSlotValue {
 
 impl From<(u8, u8, u8)> for TmplSlotValue {
     fn from((special, attack, defense): (u8, u8, u8)) -> Self {
-        return TmplSlotValue {
+        TmplSlotValue {
             special,
             attack,
             defense,
-        };
+        }
     }
 }
 
-impl Into<(u8, u8, u8)> for TmplSlotValue {
-    fn into(self) -> (u8, u8, u8) {
-        return (self.special, self.attack, self.defense);
+impl From<TmplSlotValue> for (u8, u8, u8) {
+    fn from(val: TmplSlotValue) -> Self {
+        (val.special, val.attack, val.defense)
     }
 }
 
 impl From<[u8; 3]> for TmplSlotValue {
     fn from([special, attack, defense]: [u8; 3]) -> Self {
-        return TmplSlotValue {
+        TmplSlotValue {
             special,
             attack,
             defense,
-        };
+        }
     }
 }
 
-impl Into<[u8; 3]> for TmplSlotValue {
-    fn into(self) -> [u8; 3] {
-        return [self.special, self.attack, self.defense];
+impl From<TmplSlotValue> for [u8; 3] {
+    fn from(val: TmplSlotValue) -> Self {
+        [val.special, val.attack, val.defense]
     }
 }
 
@@ -76,7 +76,7 @@ const _: () = {
     impl<'de> Deserialize<'de> for TmplSlotValue {
         fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<TmplSlotValue, D::Error> {
             let arr: [u8; 3] = Deserialize::deserialize(deserializer)?;
-            return Ok(TmplSlotValue::from(arr));
+            Ok(TmplSlotValue::from(arr))
         }
     }
 };
