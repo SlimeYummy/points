@@ -4,11 +4,11 @@ import json
 import re
 from typing import Any, Callable, Literal, Mapping, Sequence, Type, TypeVar, cast, get_args
 
-from lib.base.builtin import (
+from turning_point.base.builtin import (
     _serialize_float,
 )
-from lib.config import MAX_SYMBOL_LEN
-from lib.writer import FileWriter
+from turning_point.config import MAX_SYMBOL_LEN
+from turning_point.writer import FileWriter
 
 
 ResID = str

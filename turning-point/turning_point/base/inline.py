@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Generic, Mapping, Sequence, TypeVar
 
-from lib.base.builtin import (
+from turning_point.base.builtin import (
     _serialize_bool,
     _serialize_time,
     _serialize_float,

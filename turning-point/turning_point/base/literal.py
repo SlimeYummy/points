@@ -1,4 +1,4 @@
-from lib.config import FPS
+from turning_point.config import FPS
 
 
 Plus = "+"
