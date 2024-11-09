@@ -1,8 +1,9 @@
 from __future__ import annotations
+import os.path
 import re
 from typing import Any, Sequence
 
-from lib.config import FPS, MAX_SYMBOL_LEN
+from turning_point.config import FPS, MAX_SYMBOL_LEN
 
 
 def cleanup(target: Any, whites: Sequence[Any] = [], ignores: Sequence[str] = []):
@@ -307,6 +308,7 @@ def _serialize_file(
     where: str = "?",
     optional: bool = False,
     ext: str | None = None,
+    can_abs: bool = False,
 ):
     if optional and val is None:
         return None
@@ -315,4 +317,7 @@ def _serialize_file(
         raise Exception(f"{where}: must be a str")
     if ext and not val.endswith(ext):
         raise Exception(f"{where}: must have extension {ext}")
-    return val
+    
+    if not can_abs and os.path.isabs(val):
+        raise Exception(f"{where}: must be a relative path")
+    return os.path.normpath(val).replace(os.path.sep, '/')
