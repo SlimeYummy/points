@@ -1,4 +1,5 @@
-use cirtical_point_csgen::CsGen;
+use cirtical_point_csgen::{CsEnum, CsIn};
+use glam::Vec2;
 use static_assertions::const_assert;
 use std::mem;
 
@@ -16,7 +17,7 @@ use crate::utils::{XError, XResult};
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsGen,
+    CsEnum,
 )]
 pub enum KeyCode {
     Run,
@@ -24,35 +25,45 @@ pub enum KeyCode {
     Walk,
     View,
     Dodge,
+    Jump,
     Guard,
+    Interact,
     Lock,
     LockSwitch,
-    Interact,
 
-    A1,
-    A2,
-    A3,
-    A4,
-    A5,
-    B1,
-    B2,
-    B3,
-    C1,
-    C2,
-    C3,
-    D1,
-    D2,
+    Attack1,
+    Attack2,
+    Attack3,
+    Attack4,
+    Attack5,
+    Attack6,
+
+    Shot1,
+    Shot2,
     Aim,
-    Shoot,
     Reload,
 
-    Move,
-    X1,
-    X2,
-    X3,
-    X4,
-    X12,
-    X34,
+    Skill1,
+    Skill2,
+    Skill3,
+    Skill4,
+    Skill5,
+    Skill6,
+    Skill7,
+    Skill8,
+
+    Derive1,
+    Derive2,
+    Derive3,
+
+    Item1,
+    Item2,
+    Item3,
+    Item4,
+    Item5,
+    Item6,
+    Item7,
+    Item8,
 
     Idle,
     Break1,
@@ -88,13 +99,30 @@ impl KeyCode {
         use KeyCode::*;
         matches!(
             self,
-            A1 | A2 | A3 | A4 | A5 | B1 | B2 | B3 | C1 | C2 | C3 | D1 | D2 | Shoot | Aim | Reload
+            Attack1
+                | Attack2
+                | Attack3
+                | Attack4
+                | Attack5
+                | Attack6
+                | Shot1
+                | Shot2
+                | Aim
+                | Reload
+                | Skill1
+                | Skill2
+                | Skill3
+                | Skill4
+                | Skill5
+                | Skill6
+                | Skill7
+                | Skill8
         )
     }
 
     pub fn is_derive(&self) -> bool {
         use KeyCode::*;
-        matches!(self, Move | X1 | X2 | X3 | X4 | X12 | X34)
+        matches!(self, Derive1 | Derive2 | Derive3)
     }
 
     pub fn is_virtual(&self) -> bool {
@@ -103,19 +131,17 @@ impl KeyCode {
     }
 
     pub fn is_non_virtual(&self) -> bool {
-        use KeyCode::*;
-        !matches!(self, Idle | Break1 | Break2 | Break3)
+        !self.is_virtual()
     }
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsGen,
+    Debug, Clone, Copy, PartialEq, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsIn,
 )]
-#[cs_attr(Cs, Class)]
 pub struct KeyEvent {
     pub key: KeyCode,
     pub pressed: bool,
-    pub motion: [f32; 2],
+    pub motion: Vec2,
 }
 
 impl KeyEvent {
@@ -124,12 +150,12 @@ impl KeyEvent {
         KeyEvent {
             key,
             pressed,
-            motion: [0.0, 0.0],
+            motion: Vec2::ZERO,
         }
     }
 
     #[inline]
-    pub fn new_motion(key: KeyCode, motion: [f32; 2]) -> KeyEvent {
+    pub fn new_motion(key: KeyCode, motion: Vec2) -> KeyEvent {
         KeyEvent {
             key,
             pressed: true,

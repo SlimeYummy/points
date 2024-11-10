@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsGen;
+use cirtical_point_csgen::CsIn;
 use std::fmt;
 
 use crate::utils::Symbol;
@@ -38,9 +38,8 @@ pub fn is_invalid_num_id(id: NumID) -> bool {
     rkyv::Serialize,
     rkyv::Deserialize,
     serde::Serialize,
-    CsGen,
+    CsIn,
 )]
-#[cs_attr(Cs, Struct)]
 pub struct IDLevel {
     pub id: StrID,
     pub level: u32,
@@ -124,9 +123,8 @@ const _: () = {
     rkyv::Serialize,
     rkyv::Deserialize,
     serde::Serialize,
-    CsGen,
+    CsIn,
 )]
-#[cs_attr(Cs, Struct)]
 pub struct IDPlus {
     pub id: StrID,
     pub plus: u32,
@@ -210,9 +208,8 @@ const _: () = {
     rkyv::Serialize,
     rkyv::Deserialize,
     serde::Serialize,
-    CsGen,
+    CsIn,
 )]
-#[cs_attr(Cs, Struct)]
 pub struct IDSymbol {
     pub id: StrID,
     pub symbol: Symbol,

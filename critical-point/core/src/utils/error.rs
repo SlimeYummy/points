@@ -1,5 +1,8 @@
+use jolt_physics_rs::JoltError;
 use ozz_animation_rs::OzzError;
 use std::fmt;
+use std::path::Path;
+use std::str::Utf8Error;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -47,16 +50,22 @@ pub enum XError {
     #[error("Script stack overflow")]
     ScriptStackOverflow,
 
-    #[error("Physic body failed")]
-    PhysicBodyFailed,
+    // #[error("Physic body failed")]
+    // PhysicBodyFailed,
     #[error("Physic shape not found")]
     PhysicShapeNotFound,
 
-    #[error("IO error {0}")]
-    IO(#[from] std::io::Error),
+    #[error("IO error \"{file}\" {source}")]
+    IO { source: std::io::Error, file: Box<String> },
+    #[error("UTF8 {0}")]
+    UTF8(#[from] Utf8Error),
     #[error("JSON error {0}")]
     JSON(#[from] serde_json::Error),
-    #[error("Ozz {0}")]
+    #[error("Zip error {0}")]
+    Zip(#[from] zip::result::ZipError),
+    #[error("JoltPhysics {0}")]
+    Jolt(#[from] JoltError),
+    #[error("OzzAnimation {0}")]
     Ozz(#[from] OzzError),
 }
 
@@ -124,3 +133,16 @@ impl XError {
 }
 
 pub type XResult<T> = Result<T, XError>;
+
+pub trait AsXResultIO<T> {
+    fn xerr_with<P: AsRef<Path>>(self, path: P) -> XResult<T>;
+}
+
+impl<T> AsXResultIO<T> for Result<T, std::io::Error> {
+    fn xerr_with<P: AsRef<Path>>(self, path: P) -> XResult<T> {
+        self.map_err(|e| XError::IO {
+            source: e,
+            file: Box::new(path.as_ref().to_string_lossy().to_string()),
+        })
+    }
+}
