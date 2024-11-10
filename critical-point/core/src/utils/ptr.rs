@@ -91,7 +91,7 @@ where
     #[inline]
     unsafe fn cast_as_unchecked<T: 'static>(self) -> Box<T> {
         let (src_data, _) = (Box::leak(self) as *mut TO).to_raw_parts();
-        
+
         Box::from_raw(src_data as *mut T)
     }
 
@@ -134,7 +134,7 @@ where
     #[inline]
     unsafe fn cast_as_unchecked<T: 'static>(self) -> Rc<T> {
         let (src_data, _) = Rc::into_raw(self).to_raw_parts();
-        
+
         unsafe { Rc::from_raw(src_data as *const T) }
     }
 
@@ -164,7 +164,6 @@ where
     #[inline]
     unsafe fn cast_as_unchecked<T: 'static>(self) -> Arc<T> {
         let (src_data, _) = Arc::into_raw(self).to_raw_parts();
-        
         unsafe { Arc::from_raw(src_data as *const T) }
     }
 
