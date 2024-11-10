@@ -16,7 +16,7 @@ pub fn default_scale() -> Vec3A {
 }
 
 #[inline(always)]
-pub fn to_ratio(a: u32, b: u32) -> f32 {
+pub fn calc_ratio(a: u32, b: u32) -> f32 {
     if b == 0 {
         1.0
     } else {
@@ -25,9 +25,9 @@ pub fn to_ratio(a: u32, b: u32) -> f32 {
 }
 
 #[inline(always)]
-pub fn to_ratio_clamp(a: u32, b: u32) -> f32 {
+pub fn calc_ratio_clamp(a: u32, b: u32) -> f32 {
     if a >= b {
         return 1.0;
     }
-    to_ratio(a, b)
+    calc_ratio(a, b)
 }
