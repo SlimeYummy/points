@@ -381,7 +381,6 @@ struct StringSegment {
     str_seg: &'static [Symbol],
 }
 
-
 impl StringSegment {
     #[inline(always)]
     fn set_segment(&mut self, segment: &[Symbol]) {

@@ -311,46 +311,40 @@ impl ScriptParser {
     fn parse_expr(&mut self, pair: Pair<'_, Rule>) -> Result<AstExpr> {
         let pratt = self.pratt.clone();
         return pratt
-            .map_primary(|primary| {
-                match primary.as_rule() {
-                    Rule::Expr => self.parse_expr(primary),
-                    Rule::Group => self.parse_expr(primary),
-                    Rule::IfExpr => self.parse_if_expr(primary),
-                    Rule::CallExpr => self.parse_call_expr(primary),
-                    Rule::Ident => self.parse_ident(primary),
-                    Rule::Hex => self.parse_hex(primary),
-                    Rule::Float => self.parse_float(primary),
-                    Rule::Time => self.parse_time(primary),
-                    Rule::Percent => self.parse_percent(primary),
-                    _ => Err(Self::err(&pair, "Invalid Expression")),
-                }
+            .map_primary(|primary| match primary.as_rule() {
+                Rule::Expr => self.parse_expr(primary),
+                Rule::Group => self.parse_expr(primary),
+                Rule::IfExpr => self.parse_if_expr(primary),
+                Rule::CallExpr => self.parse_call_expr(primary),
+                Rule::Ident => self.parse_ident(primary),
+                Rule::Hex => self.parse_hex(primary),
+                Rule::Float => self.parse_float(primary),
+                Rule::Time => self.parse_time(primary),
+                Rule::Percent => self.parse_percent(primary),
+                _ => Err(Self::err(&pair, "Invalid Expression")),
             })
-            .map_prefix(|op, rsh| {
-                match op.as_rule() {
-                    Rule::Pos => rsh,
-                    Rule::Neg => Ok(AstExpr::new_call(CmdOpt::Neg, vec![rsh?])),
-                    Rule::Not => Ok(AstExpr::new_call(CmdOpt::Not, vec![rsh?])),
-                    _ => Err(Self::err(&pair, "Invalid Expression")),
-                }
+            .map_prefix(|op, rsh| match op.as_rule() {
+                Rule::Pos => rsh,
+                Rule::Neg => Ok(AstExpr::new_call(CmdOpt::Neg, vec![rsh?])),
+                Rule::Not => Ok(AstExpr::new_call(CmdOpt::Not, vec![rsh?])),
+                _ => Err(Self::err(&pair, "Invalid Expression")),
             })
-            .map_infix(|lhs, op, rhs| {
-                match op.as_rule() {
-                    Rule::Add => Ok(AstExpr::new_call(CmdOpt::Add, vec![lhs?, rhs?])),
-                    Rule::Sub => Ok(AstExpr::new_call(CmdOpt::Sub, vec![lhs?, rhs?])),
-                    Rule::Mul => Ok(AstExpr::new_call(CmdOpt::Mul, vec![lhs?, rhs?])),
-                    Rule::Pow => Ok(AstExpr::new_call(CmdOpt::Pow, vec![lhs?, rhs?])),
-                    Rule::Div => Ok(AstExpr::new_call(CmdOpt::Div, vec![lhs?, rhs?])),
-                    Rule::Mod => Ok(AstExpr::new_call(CmdOpt::Mod, vec![lhs?, rhs?])),
-                    Rule::Le => Ok(AstExpr::new_call(CmdOpt::Le, vec![lhs?, rhs?])),
-                    Rule::Lt => Ok(AstExpr::new_call(CmdOpt::Lt, vec![lhs?, rhs?])),
-                    Rule::Ge => Ok(AstExpr::new_call(CmdOpt::Ge, vec![lhs?, rhs?])),
-                    Rule::Gt => Ok(AstExpr::new_call(CmdOpt::Gt, vec![lhs?, rhs?])),
-                    Rule::Eq => Ok(AstExpr::new_call(CmdOpt::Eq, vec![lhs?, rhs?])),
-                    Rule::Ne => Ok(AstExpr::new_call(CmdOpt::Ne, vec![lhs?, rhs?])),
-                    Rule::And => Ok(AstExpr::new_logic(AstLogicType::And, lhs?, rhs?)),
-                    Rule::Or => Ok(AstExpr::new_logic(AstLogicType::Or, lhs?, rhs?)),
-                    _ => Err(Self::err(&pair, "Invalid Expression")),
-                }
+            .map_infix(|lhs, op, rhs| match op.as_rule() {
+                Rule::Add => Ok(AstExpr::new_call(CmdOpt::Add, vec![lhs?, rhs?])),
+                Rule::Sub => Ok(AstExpr::new_call(CmdOpt::Sub, vec![lhs?, rhs?])),
+                Rule::Mul => Ok(AstExpr::new_call(CmdOpt::Mul, vec![lhs?, rhs?])),
+                Rule::Pow => Ok(AstExpr::new_call(CmdOpt::Pow, vec![lhs?, rhs?])),
+                Rule::Div => Ok(AstExpr::new_call(CmdOpt::Div, vec![lhs?, rhs?])),
+                Rule::Mod => Ok(AstExpr::new_call(CmdOpt::Mod, vec![lhs?, rhs?])),
+                Rule::Le => Ok(AstExpr::new_call(CmdOpt::Le, vec![lhs?, rhs?])),
+                Rule::Lt => Ok(AstExpr::new_call(CmdOpt::Lt, vec![lhs?, rhs?])),
+                Rule::Ge => Ok(AstExpr::new_call(CmdOpt::Ge, vec![lhs?, rhs?])),
+                Rule::Gt => Ok(AstExpr::new_call(CmdOpt::Gt, vec![lhs?, rhs?])),
+                Rule::Eq => Ok(AstExpr::new_call(CmdOpt::Eq, vec![lhs?, rhs?])),
+                Rule::Ne => Ok(AstExpr::new_call(CmdOpt::Ne, vec![lhs?, rhs?])),
+                Rule::And => Ok(AstExpr::new_logic(AstLogicType::And, lhs?, rhs?)),
+                Rule::Or => Ok(AstExpr::new_logic(AstLogicType::Or, lhs?, rhs?)),
+                _ => Err(Self::err(&pair, "Invalid Expression")),
             })
             .parse(pair.clone().into_inner());
     }

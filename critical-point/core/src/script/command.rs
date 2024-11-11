@@ -390,8 +390,7 @@ impl fmt::Debug for ScriptByteCode {
 }
 
 #[repr(u16)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum CmdOpt {
     // jump
     Jmp,
@@ -476,7 +475,6 @@ pub enum CmdOpt {
     #[default]
     Invalid,
 }
-
 
 impl From<u16> for CmdOpt {
     fn from(val: u16) -> CmdOpt {
