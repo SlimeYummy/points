@@ -109,8 +109,6 @@ where
     pub fn insert(&mut self, key: K, value: V) {
         self.try_grow();
 
-        
-        
         let hash = self.state.hash_one(&key);
 
         Self::insert_impl(
@@ -201,8 +199,6 @@ where
             return None;
         }
 
-        
-        
         let hash = self.state.hash_one(key);
 
         let mut pos = (hash % (self.prime as u64)) as usize;
@@ -225,13 +221,11 @@ where
     pub fn find_iter<'a, 'b>(&'a self, key: &'b K) -> IndexValueIter<'a, 'b, K, V, S> {
         match self.find(key) {
             Some(iter) => iter,
-            None => {
-                IndexValueIter {
-                    map: self,
-                    key,
-                    pos: (u32::MAX as usize),
-                }
-            }
+            None => IndexValueIter {
+                map: self,
+                key,
+                pos: (u32::MAX as usize),
+            },
         }
     }
 
@@ -378,10 +372,7 @@ mod tests {
         hi.insert(s!("zzz"), 5);
         hi.insert(s!("xxx"), 6);
 
-        assert_eq!(
-            hi.find(&s!("xxx")).unwrap().copied().collect::<Vec<_>>(),
-            vec![1, 4, 6]
-        );
+        assert_eq!(hi.find(&s!("xxx")).unwrap().copied().collect::<Vec<_>>(), vec![1, 4, 6]);
         assert_eq!(hi.find(&s!("yyy")).unwrap().copied().collect::<Vec<_>>(), vec![2, 3]);
         assert_eq!(hi.find(&s!("zzz")).unwrap().copied().collect::<Vec<_>>(), vec![5, 5]);
     }
