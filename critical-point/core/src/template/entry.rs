@@ -1,9 +1,8 @@
+use crate::consts::MAX_ENTRY_PLUS;
 use crate::template::attribute::TmplAttributeType;
-use crate::template::base::{TmplAny, TmplClass};
+use crate::template::base::{TmplAny, TmplType};
 use crate::template::script::TmplScript;
 use crate::utils::{Num, StrID, Symbol, Table};
-
-pub const MAX_ENTRY_PLUS: u32 = 3;
 
 pub type TmplIsPlus = bool;
 
@@ -29,8 +28,8 @@ impl TmplAny for TmplEntry {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::Entry
+    fn typ(&self) -> TmplType {
+        TmplType::Entry
     }
 }
 
@@ -118,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_load_entry() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let e1 = db.find_as::<TmplEntry>(&s!("Entry.Empty")).unwrap();
         assert_eq!(e1.id, "Entry.Empty");

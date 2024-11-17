@@ -1,3 +1,4 @@
+use cirtical_point_csgen::CsEnum;
 use enum_iterator::{cardinality, Sequence};
 use std::fmt::Debug;
 use std::mem;
@@ -17,8 +18,10 @@ use crate::utils::{Castable, StrID, Symbol, XError};
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
+    CsEnum,
 )]
-pub enum TmplClass {
+#[archive_attr(derive(Debug))]
+pub enum TmplType {
     Character,
     Style,
     Equipment,
@@ -38,29 +41,29 @@ pub enum TmplClass {
     Stage,
 }
 
-impl From<TmplClass> for u16 {
+impl From<TmplType> for u16 {
     #[inline]
-    fn from(val: TmplClass) -> Self {
-        unsafe { mem::transmute::<TmplClass, u16>(val) }
+    fn from(val: TmplType) -> Self {
+        unsafe { mem::transmute::<TmplType, u16>(val) }
     }
 }
 
-impl TryFrom<u16> for TmplClass {
+impl TryFrom<u16> for TmplType {
     type Error = XError;
 
     #[inline]
     fn try_from(value: u16) -> Result<Self, XError> {
-        if value as usize >= cardinality::<TmplClass>() {
-            return Err(XError::overflow("TmplClass::try_from()"));
+        if value as usize >= cardinality::<TmplType>() {
+            return Err(XError::overflow("TmplType::try_from()"));
         }
-        Ok(unsafe { mem::transmute::<u16, TmplClass>(value) })
+        Ok(unsafe { mem::transmute::<u16, TmplType>(value) })
     }
 }
 
 #[typetag::deserialize(tag = "T")]
 pub trait TmplAny: Debug {
     fn id(&self) -> StrID;
-    fn class(&self) -> TmplClass;
+    fn typ(&self) -> TmplType;
 }
 
 impl Castable for dyn TmplAny {}
