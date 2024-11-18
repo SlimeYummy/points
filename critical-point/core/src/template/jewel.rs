@@ -1,5 +1,6 @@
-use crate::template::base::{TmplAny, TmplClass, TmplRare};
-use crate::template::entry::{TmplEntryPair, MAX_ENTRY_PLUS};
+use crate::consts::MAX_ENTRY_PLUS;
+use crate::template::base::{TmplAny, TmplRare, TmplType};
+use crate::template::entry::TmplEntryPair;
 use crate::template::slot::TmplSlotType;
 use crate::utils::StrID;
 
@@ -20,8 +21,8 @@ impl TmplAny for TmplJewel {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::Jewel
+    fn typ(&self) -> TmplType {
+        TmplType::Jewel
     }
 }
 
@@ -52,7 +53,7 @@ mod tests {
 
     #[test]
     fn test_load_jewel() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let j1 = db.find_as::<TmplJewel>(&s!("Jewel.DefenseUp.Variant1")).unwrap();
         assert_eq!(j1.id, "Jewel.DefenseUp.Variant1");

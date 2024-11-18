@@ -5,7 +5,7 @@ use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
 
 use crate::template::base::TmplAny;
-use crate::utils::{IdentityState, StrID, SymbolMap, XError, XResult, Xrc};
+use crate::utils::{AsXResultIO, IdentityState, StrID, SymbolMap, XError, XResult, Xrc};
 
 #[cfg(not(feature = "server-side"))]
 mod client {
@@ -79,6 +79,7 @@ pub use server::*;
 #[derive(Debug)]
 struct TmplDatabaseInner {
     indexes: SymbolMap<TmplDbIndex>,
+    data_path: PathBuf,
     data_file: File,
     data_buf: Vec<u8>,
     cache_map: SymbolMap<Xrc<dyn TmplAny>>,
@@ -100,11 +101,10 @@ impl TmplDatabaseInner {
     pub fn new<P: AsRef<Path>>(path: P) -> XResult<TmplDatabaseInner> {
         let mut path = PathBuf::from(path.as_ref());
         path.push("index.json");
-        let json = fs::read_to_string(&path)?;
+        let json = fs::read_to_string(&path).xerr_with(&path)?;
 
         let raw: RawIndexes = serde_json::from_str(&json)?;
-        let mut indexes: SymbolMap<TmplDbIndex> =
-            SymbolMap::with_capacity_and_hasher(raw.0.len(), IdentityState);
+        let mut indexes: SymbolMap<TmplDbIndex> = SymbolMap::with_capacity_and_hasher(raw.0.len(), IdentityState);
         for (id, (ptr, len, cache)) in raw.0 {
             indexes.insert(
                 id,
@@ -122,10 +122,12 @@ impl TmplDatabaseInner {
             .read(true)
             .write(false)
             .create_new(false)
-            .open(path)?;
+            .open(&path)
+            .xerr_with(&path)?;
 
         Ok(TmplDatabaseInner {
             indexes,
+            data_path: path,
             data_file,
             data_buf: Vec::with_capacity(1024 * 10),
             cache_map: SymbolMap::with_capacity_and_hasher(256, IdentityState),
@@ -152,13 +154,17 @@ impl TmplDatabaseInner {
                     None => return Err(XError::not_found(id)),
                 };
 
-                self.data_file.seek(SeekFrom::Start(index.ptr as u64))?;
+                self.data_file
+                    .seek(SeekFrom::Start(index.ptr as u64))
+                    .xerr_with(&self.data_path)?;
                 if self.data_buf.capacity() < index.len as usize {
                     self.data_buf.resize(index.len as usize, 0);
                 } else {
                     unsafe { self.data_buf.set_len(index.len as usize) };
                 }
-                self.data_file.read_exact(&mut self.data_buf)?;
+                self.data_file
+                    .read_exact(&mut self.data_buf)
+                    .xerr_with(&self.data_path)?;
 
                 let tmpl: Xrc<dyn TmplAny> = serde_json::from_slice(&self.data_buf)?;
                 return Ok(entry.insert(tmpl));
