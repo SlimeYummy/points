@@ -1,16 +1,38 @@
 use crate::template::attribute::TmplAttributeType;
-use crate::template::base::{TmplAny, TmplClass, TmplLevelRange};
+use crate::template::base::{TmplAny, TmplLevelRange, TmplType};
 use crate::template::slot::TmplSlotValue;
-use crate::utils::{List, Num, StrID, Symbol, Table};
+use crate::utils::{List, Num, ShapeCapsule, StrID, Symbol, Table};
+use cirtical_point_csgen::CsEnum;
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    CsEnum,
+)]
+#[repr(u8)]
+pub enum CharacterType {
+    Melee,
+    Magic,
+    Shot,
+}
 
 #[derive(Debug, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct TmplCharacter {
     pub id: StrID,
     pub name: String,
-    // pub asset_id: String,
     pub level: TmplLevelRange,
     pub styles: List<StrID>,
     pub equipments: List<StrID>,
+    pub bounding_capsule: ShapeCapsule,
+    pub skeleton: Symbol,
 }
 
 #[typetag::deserialize(name = "Character")]
@@ -19,8 +41,8 @@ impl TmplAny for TmplCharacter {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::Character
+    fn typ(&self) -> TmplType {
+        TmplType::Character
     }
 }
 
@@ -35,7 +57,6 @@ impl TmplCharacter {
 pub struct TmplStyle {
     pub id: StrID,
     pub name: String,
-    pub icon: String,
     pub character: String,
     pub attributes: Table<TmplAttributeType, Num>,
     pub slots: List<TmplSlotValue>,
@@ -43,8 +64,9 @@ pub struct TmplStyle {
     pub perks: List<StrID>,
     #[serde(default)]
     pub usable_perks: List<StrID>,
-    pub skeleton: Symbol,
     pub actions: List<StrID>,
+    pub icon: String,
+    pub view_model: String,
 }
 
 #[typetag::deserialize(name = "Style")]
@@ -53,8 +75,8 @@ impl TmplAny for TmplStyle {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::Style
+    fn typ(&self) -> TmplType {
+        TmplType::Style
     }
 }
 
@@ -77,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_load_character() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let character = db.find_as::<TmplCharacter>(&s!("Character.No1")).unwrap();
         assert_eq!(character.id(), "Character.No1");
@@ -92,14 +114,10 @@ mod tests {
         let style = db.find_as::<TmplStyle>(&s!("Style.No1-1")).unwrap();
         assert_eq!(style.id(), "Style.No1-1");
         assert_eq!(style.name, "No1-1");
-        assert_eq!(style.icon, "icon");
         assert_eq!(style.character, "Character.No1");
 
         assert_eq!(
-            style
-                .attributes
-                .key_iter().copied()
-                .collect::<Vec<TmplAttributeType>>(),
+            style.attributes.key_iter().copied().collect::<Vec<TmplAttributeType>>(),
             &[
                 TmplAttributeType::MaxHealth,
                 TmplAttributeType::MaxPosture,
@@ -165,5 +183,8 @@ mod tests {
         );
         // assert_eq!(style.skeleton, "*.ozz");
         // assert_eq!(style.actions.as_slice(), &[]);
+
+        assert_eq!(style.icon, "icon");
+        assert_eq!(style.view_model, "No1-1.vrm");
     }
 }

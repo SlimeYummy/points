@@ -1,5 +1,5 @@
 use crate::template::attribute::TmplAttributeType;
-use crate::template::base::{TmplAny, TmplClass};
+use crate::template::base::{TmplAny, TmplType};
 use crate::template::entry::TmplEntryPair;
 use crate::template::script::TmplScript;
 use crate::template::slot::TmplSlotValue;
@@ -35,8 +35,8 @@ impl TmplAny for TmplPerk {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::Perk
+    fn typ(&self) -> TmplType {
+        TmplType::Perk
     }
 }
 
@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn test_load_perk() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let perk = db.find_as::<TmplPerk>(&s!("Perk.No1.AttackUp")).unwrap();
         assert_eq!(perk.id, s!("Perk.No1.AttackUp"));
@@ -58,9 +58,7 @@ mod tests {
         assert_eq!(perk.usable_styles.as_slice(), &[s!("Style.No1-2")]);
 
         assert_eq!(
-            perk.attributes
-                .key_iter().copied()
-                .collect::<Vec<TmplAttributeType>>(),
+            perk.attributes.key_iter().copied().collect::<Vec<TmplAttributeType>>(),
             &[TmplAttributeType::AttackUp,]
         );
         assert_eq!(perk.attributes.value_iter().copied().collect::<Vec<f64>>(), &[0.1]);

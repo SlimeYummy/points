@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
-use crate::template::base::{TmplAny, TmplClass, TmplRare};
-use crate::template::entry::MAX_ENTRY_PLUS;
+use crate::consts::{MAX_ACCESSORY_COUNT, MAX_ENTRY_PLUS};
+use crate::template::base::{TmplAny, TmplRare, TmplType};
 use crate::utils::StrID;
-
-pub const MAX_ACCESSORY_COUNT: usize = 4;
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
@@ -30,8 +28,8 @@ impl TmplAny for TmplAccessoryPattern {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::AccessoryPattern
+    fn typ(&self) -> TmplType {
+        TmplType::AccessoryPattern
     }
 }
 
@@ -66,8 +64,8 @@ impl TmplAny for TmplAccessory {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::Accessory
+    fn typ(&self) -> TmplType {
+        TmplType::Accessory
     }
 }
 
@@ -79,7 +77,7 @@ mod tests {
 
     #[test]
     fn test_load_accessory() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let p1 = db
             .find_as::<TmplAccessoryPattern>(&s!("AccessoryPattern.Rare1"))
