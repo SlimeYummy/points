@@ -1,11 +1,9 @@
 use crate::template::attribute::TmplAttributeType;
-use crate::template::base::{TmplAny, TmplClass, TmplLevelRange};
+use crate::template::base::{TmplAny, TmplLevelRange, TmplType};
 use crate::template::entry::TmplEntryPair;
 use crate::template::script::TmplScript;
 use crate::template::slot::TmplSlotValue;
 use crate::utils::{IDLevel, List, Num, StrID, Symbol, Table};
-
-pub const MAX_EQUIPMENT_COUNT: usize = 3;
 
 #[repr(u8)]
 #[derive(
@@ -48,8 +46,8 @@ impl TmplAny for TmplEquipment {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::Equipment
+    fn typ(&self) -> TmplType {
+        TmplType::Equipment
     }
 }
 
@@ -68,7 +66,7 @@ mod tests {
 
     #[test]
     fn test_load_equipment() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let equipment = db.find_as::<TmplEquipment>(&s!("Equipment.No1")).unwrap();
         assert_eq!(equipment.id(), "Equipment.No1");
@@ -81,7 +79,8 @@ mod tests {
         assert_eq!(
             equipment
                 .attributes
-                .key_iter().copied()
+                .key_iter()
+                .copied()
                 .collect::<Vec<TmplAttributeType>>(),
             &[
                 TmplAttributeType::PhysicalAttack,
@@ -128,10 +127,7 @@ mod tests {
         );
 
         assert_eq!(
-            equipment
-                .script_args
-                .key_iter().cloned()
-                .collect::<Vec<Symbol>>(),
+            equipment.script_args.key_iter().cloned().collect::<Vec<Symbol>>(),
             &[s!("extra_def"),]
         );
         assert_eq!(
