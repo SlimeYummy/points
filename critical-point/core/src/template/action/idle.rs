@@ -1,5 +1,5 @@
 use super::base::*;
-use crate::template::base::{TmplAny, TmplClass, TmplLevelRange, TmplSwitch};
+use crate::template::base::{TmplAny, TmplLevelRange, TmplSwitch, TmplType};
 use crate::utils::{KeyCode, KvList, List, StrID, Symbol};
 
 #[derive(Debug, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -24,8 +24,8 @@ impl TmplAny for TmplActionIdle {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::ActionIdle
+    fn typ(&self) -> TmplType {
+        TmplType::ActionIdle
     }
 }
 
@@ -72,12 +72,13 @@ impl<'t> Iterator for TmplActionIdleIter<'t> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::FPS;
     use crate::template::database::TmplDatabase;
-    use crate::utils::{s, FPS};
+    use crate::utils::s;
 
     #[test]
     fn test_load_action_idle() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let act = db.find_as::<TmplActionIdle>(&s!("Action.No1.Idle")).unwrap();
         assert_eq!(act.id, s!("Action.No1.Idle"));

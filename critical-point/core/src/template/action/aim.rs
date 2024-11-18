@@ -1,5 +1,5 @@
 use super::base::*;
-use crate::template::base::{TmplAny, TmplClass, TmplSwitch};
+use crate::template::base::{TmplAny, TmplSwitch, TmplType};
 use crate::utils::{KeyCode, List, StrID, Symbol, Table};
 
 #[repr(u8)]
@@ -37,8 +37,8 @@ impl TmplAny for TmplActionAim {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::ActionAim
+    fn typ(&self) -> TmplType {
+        TmplType::ActionAim
     }
 }
 
