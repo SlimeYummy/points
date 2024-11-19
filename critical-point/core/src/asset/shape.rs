@@ -10,9 +10,9 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 
 use crate::asset::loader::AssetLoader;
-use crate::utils::{NumID, XError, XResult};
+use crate::utils::{NumID, ShapeBox, ShapeCapsule, ShapeSphere, XError, XResult};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShapeKey {
     Box(ShapeKeyBox),
     Sphere(ShapeKeySphere),
@@ -48,6 +48,16 @@ impl Hash for ShapeKeyBox {
     }
 }
 
+impl From<ShapeBox> for ShapeKeyBox {
+    fn from(shape: ShapeBox) -> ShapeKeyBox {
+        ShapeKeyBox {
+            half_x: shape.half_x,
+            half_y: shape.half_y,
+            half_z: shape.half_z,
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, Deserialize)]
 pub struct ShapeKeySphere {
     pub radius: f32,
@@ -67,7 +77,13 @@ impl Hash for ShapeKeySphere {
     }
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+impl From<ShapeSphere> for ShapeKeySphere {
+    fn from(shape: ShapeSphere) -> ShapeKeySphere {
+        ShapeKeySphere { radius: shape.radius }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, Deserialize)]
 pub struct ShapeKeyCapsule {
     pub half_height: f32,
     pub radius: f32,
@@ -88,7 +104,16 @@ impl Hash for ShapeKeyCapsule {
     }
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+impl From<ShapeCapsule> for ShapeKeyCapsule {
+    fn from(shape: ShapeCapsule) -> ShapeKeyCapsule {
+        ShapeKeyCapsule {
+            half_height: shape.half_height,
+            radius: shape.radius,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, Deserialize)]
 pub struct ShapeKeyTaperedCapsule {
     pub half_height: f32,
     pub top_radius: f32,
@@ -113,7 +138,7 @@ impl Hash for ShapeKeyTaperedCapsule {
     }
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Deserialize)]
 pub struct ShapeKeyCylinder {
     pub half_height: f32,
     pub radius: f32,
@@ -134,7 +159,7 @@ impl Hash for ShapeKeyCylinder {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct ShapeKeyScale {
     pub scale: Vec3A,
 }
@@ -159,7 +184,7 @@ impl Default for ShapeKeyScale {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct ShapeKeyIsometry {
     #[serde(default = "crate::utils::default_position")]
     pub position: Vec3A,
@@ -305,7 +330,7 @@ impl AssetLoader {
     fn load_shape_box(&mut self, shape: AssetShapeBox) -> XResult<RefShape> {
         let ref_shape = self.get_or_create_shape(ShapeKey::Box(shape.shape), || {
             let settings = BoxSettings::new(shape.shape.half_x, shape.shape.half_y, shape.shape.half_z);
-            Ok(jolt::create_shape_box(&settings))
+            Ok(jolt::create_shape_box(&settings)?)
         })?;
         self.apply_shape_transform(ref_shape, &shape.scale, &shape.isometry)
     }
@@ -313,7 +338,7 @@ impl AssetLoader {
     fn load_shape_sphere(&mut self, shape: AssetShapeSphere) -> XResult<RefShape> {
         let ref_shape = self.get_or_create_shape(ShapeKey::Sphere(shape.shape), || {
             let settings = SphereSettings::new(shape.shape.radius);
-            Ok(jolt::create_shape_sphere(&settings))
+            Ok(jolt::create_shape_sphere(&settings)?)
         })?;
         self.apply_shape_transform(ref_shape, &shape.scale, &shape.isometry)
     }
@@ -321,7 +346,7 @@ impl AssetLoader {
     fn load_shape_capsule(&mut self, shape: AssetShapeCapsule) -> XResult<RefShape> {
         let ref_shape = self.get_or_create_shape(ShapeKey::Capsule(shape.shape.clone()), || {
             let settings = CapsuleSettings::new(shape.shape.half_height, shape.shape.radius);
-            Ok(jolt::create_shape_capsule(&settings))
+            Ok(jolt::create_shape_capsule(&settings)?)
         })?;
         self.apply_shape_transform(ref_shape, &shape.scale, &shape.isometry)
     }
@@ -333,7 +358,7 @@ impl AssetLoader {
                 shape.shape.top_radius,
                 shape.shape.bottom_radius,
             );
-            Ok(jolt::create_shape_tapered_capsule(&settings))
+            Ok(jolt::create_shape_tapered_capsule(&settings)?)
         })?;
         self.apply_shape_transform(ref_shape, &shape.scale, &shape.isometry)
     }
@@ -341,7 +366,7 @@ impl AssetLoader {
     fn load_shape_cylinder(&mut self, shape: AssetShapeCylinder) -> XResult<RefShape> {
         let ref_shape = self.get_or_create_shape(ShapeKey::Cylinder(shape.shape.clone()), || {
             let settings = CylinderSettings::new(shape.shape.half_height, shape.shape.radius);
-            Ok(jolt::create_shape_cylinder(&settings))
+            Ok(jolt::create_shape_cylinder(&settings)?)
         })?;
         self.apply_shape_transform(ref_shape, &shape.scale, &shape.isometry)
     }
@@ -356,13 +381,13 @@ impl AssetLoader {
         if let Some(scale) = scale {
             new_shape = self.get_or_create_shape(ShapeKey::Scale(new_shape.as_usize(), scale.clone()), || {
                 let settings = ScaledSettings::new(new_shape, scale.scale);
-                Ok(jolt::create_shape_scaled(&settings))
+                Ok(jolt::create_shape_scaled(&settings)?)
             })?;
         }
         if let Some(isometry) = isometry {
             new_shape = self.get_or_create_shape(ShapeKey::Isometry(new_shape.as_usize(), isometry.clone()), || {
                 let settings = RotatedTranslatedSettings::new(new_shape, isometry.position, isometry.rotation);
-                Ok(jolt::create_shape_rotated_translated(&settings))
+                Ok(jolt::create_shape_rotated_translated(&settings)?)
             })?;
         }
         Ok(new_shape)
@@ -486,6 +511,7 @@ pub struct AssetShapeExHeightField {
 
 impl AssetLoader {
     pub fn get_shape_ex(&mut self, shape_id: NumID) -> XResult<RefShape> {
+        println!("{:?}", self.shape_ex_cache);
         match self.shape_ex_cache.get(&shape_id) {
             Some(ref_shape) => Ok(ref_shape.clone()),
             None => Err(XError::PhysicShapeNotFound),
@@ -509,56 +535,56 @@ impl AssetLoader {
 
     fn load_shape_ex_box(&mut self, shape: &AssetShapeExBox) -> XResult<(NumID, RefShape)> {
         let settings = BoxSettings::new(shape.half_x, shape.half_y, shape.half_z);
-        let mut ref_shape = jolt::create_shape_box(&settings);
+        let mut ref_shape = jolt::create_shape_box(&settings)?;
         ref_shape = self.apply_shape_ex_transform(ref_shape, &shape.scale, &shape.isometry)?;
         Ok((shape.shape_id, ref_shape))
     }
 
     fn load_shape_ex_sphere(&mut self, shape: &AssetShapeExSphere) -> XResult<(NumID, RefShape)> {
         let settings = SphereSettings::new(shape.radius);
-        let mut ref_shape = jolt::create_shape_sphere(&settings);
+        let mut ref_shape = jolt::create_shape_sphere(&settings)?;
         ref_shape = self.apply_shape_ex_transform(ref_shape, &shape.scale, &shape.isometry)?;
         Ok((shape.shape_id, ref_shape))
     }
 
     fn load_shape_ex_capsule(&mut self, shape: &AssetShapeExCapsule) -> XResult<(NumID, RefShape)> {
         let settings = CapsuleSettings::new(shape.half_height, shape.radius);
-        let mut ref_shape = jolt::create_shape_capsule(&settings);
+        let mut ref_shape = jolt::create_shape_capsule(&settings)?;
         ref_shape = self.apply_shape_ex_transform(ref_shape, &shape.scale, &shape.isometry)?;
         Ok((shape.shape_id, ref_shape))
     }
 
     fn load_shape_ex_tapered_capsule(&mut self, shape: &AssetShapeExTaperedCapsule) -> XResult<(NumID, RefShape)> {
         let settings = TaperedCapsuleSettings::new(shape.half_height, shape.top_radius, shape.bottom_radius);
-        let mut ref_shape = jolt::create_shape_tapered_capsule(&settings);
+        let mut ref_shape = jolt::create_shape_tapered_capsule(&settings)?;
         ref_shape = self.apply_shape_ex_transform(ref_shape, &shape.scale, &shape.isometry)?;
         Ok((shape.shape_id, ref_shape))
     }
 
     fn load_shape_ex_cylinder(&mut self, shape: &AssetShapeExCylinder) -> XResult<(NumID, RefShape)> {
         let settings = CylinderSettings::new(shape.half_height, shape.radius);
-        let mut ref_shape = jolt::create_shape_cylinder(&settings);
+        let mut ref_shape = jolt::create_shape_cylinder(&settings)?;
         ref_shape = self.apply_shape_ex_transform(ref_shape, &shape.scale, &shape.isometry)?;
         Ok((shape.shape_id, ref_shape))
     }
 
     fn load_shape_ex_convex_hull(&mut self, shape: &AssetShapeExConvexHull) -> XResult<(NumID, RefShape)> {
         let settings = ConvexHullSettings::new(shape.vertices.as_slice());
-        let mut ref_shape = jolt::create_shape_convex_hull(&settings);
+        let mut ref_shape = jolt::create_shape_convex_hull(&settings)?;
         ref_shape = self.apply_shape_ex_transform(ref_shape, &shape.scale, &shape.isometry)?;
         Ok((shape.shape_id, ref_shape))
     }
 
     fn load_shape_ex_mesh(&mut self, shape: &AssetShapeExMesh) -> XResult<(NumID, RefShape)> {
         let settings = MeshSettings::new(shape.vertices.as_slice(), shape.indices.as_slice());
-        let mut ref_shape = jolt::create_shape_mesh(&settings);
+        let mut ref_shape = jolt::create_shape_mesh(&settings)?;
         ref_shape = self.apply_shape_ex_transform(ref_shape, &shape.scale, &shape.isometry)?;
         Ok((shape.shape_id, ref_shape))
     }
 
     fn load_shape_ex_height_field(&mut self, shape: &AssetShapeExHeightField) -> XResult<(NumID, RefShape)> {
         let settings = HeightFieldSettings::new(shape.samples.as_slice(), shape.sample_count);
-        let mut ref_shape = jolt::create_shape_height_field(&settings);
+        let mut ref_shape = jolt::create_shape_height_field(&settings)?;
         ref_shape = self.apply_shape_ex_transform(ref_shape, &shape.scale, &shape.isometry)?;
         Ok((shape.shape_id, ref_shape))
     }
@@ -572,11 +598,11 @@ impl AssetLoader {
         let mut new_shape = ref_shape;
         if let Some(scale) = scale {
             let settings = ScaledSettings::new(new_shape, scale.scale);
-            new_shape = jolt::create_shape_scaled(&settings);
+            new_shape = jolt::create_shape_scaled(&settings)?;
         }
         if let Some(isometry) = isometry {
             let settings = RotatedTranslatedSettings::new(new_shape, isometry.position, isometry.rotation);
-            new_shape = jolt::create_shape_rotated_translated(&settings);
+            new_shape = jolt::create_shape_rotated_translated(&settings)?;
         }
         Ok(new_shape)
     }
