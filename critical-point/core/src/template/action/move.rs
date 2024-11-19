@@ -1,5 +1,5 @@
 use super::base::*;
-use crate::template::base::{TmplAny, TmplClass, TmplLevelRange, TmplSwitch};
+use crate::template::base::{TmplAny, TmplLevelRange, TmplSwitch, TmplType};
 use crate::utils::{KeyCode, KvList, List, StrID, Symbol};
 
 #[derive(Debug, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -19,6 +19,10 @@ pub struct TmplActionMove {
     pub anime_yam_left: Option<TmplAnimation>,
     pub anime_yam_right: Option<TmplAnimation>,
     pub anime_stop: Option<TmplAnimation>,
+    pub enter_time: u32,
+    pub turn_switch_time: u32,
+    pub yam_switch_time: u32,
+    pub stop_switch_time: u32,
 }
 
 #[typetag::deserialize(name = "ActionMove")]
@@ -27,8 +31,8 @@ impl TmplAny for TmplActionMove {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::ActionMove
+    fn typ(&self) -> TmplType {
+        TmplType::ActionMove
     }
 }
 
@@ -94,7 +98,7 @@ mod tests {
 
     #[test]
     fn test_load_action_move() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let act = db.find_as::<TmplActionMove>(&s!("Action.No1.Run")).unwrap();
         assert_eq!(act.id, s!("Action.No1.Run"));

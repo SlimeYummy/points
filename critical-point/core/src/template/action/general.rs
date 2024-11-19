@@ -1,5 +1,5 @@
 use super::base::*;
-use crate::template::base::{TmplAny, TmplClass, TmplLevelRange, TmplSwitch};
+use crate::template::base::{TmplAny, TmplLevelRange, TmplSwitch, TmplType};
 use crate::utils::{KeyCode, KvList, List, StrID, Symbol, Table};
 
 #[repr(u8)]
@@ -50,8 +50,8 @@ impl TmplAny for TmplActionGeneral {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::ActionGeneral
+    fn typ(&self) -> TmplType {
+        TmplType::ActionGeneral
     }
 }
 
@@ -87,7 +87,7 @@ mod tests {
 
     #[test]
     fn test_load_action_general_empty() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let act = db.find_as::<TmplActionGeneral>(&s!("Action.GeneralEmpty")).unwrap();
         assert_eq!(act.id, s!("Action.GeneralEmpty"));
@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_load_action_general() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let skill = db.find_as::<TmplActionGeneral>(&s!("Action.No1.Skill")).unwrap();
         assert_eq!(skill.id, s!("Action.No1.Skill"));
@@ -131,19 +131,16 @@ mod tests {
             ]
         );
         assert_eq!(skill.enabled, TmplSwitch::Bool(true));
-        assert_eq!(skill.enter_key, Some(KeyCode::B1));
+        assert_eq!(skill.enter_key, Some(KeyCode::Skill1));
         assert_eq!(skill.enter_level, 0);
         assert_eq!(skill.base_derive_level, LEVEL_PROGRESSING);
         assert_eq!(skill.derive_level, LEVEL_SKILL);
         assert_eq!(skill.derive_start, 15 * 6);
         assert_eq!(skill.derive_duration, 15 * 4);
         assert_eq!(
-            skill
-                .derives
-                .iter().cloned()
-                .collect::<Vec<TmplDeriveAction>>(),
+            skill.derives.iter().cloned().collect::<Vec<TmplDeriveAction>>(),
             vec![TmplDeriveAction {
-                key: KeyCode::X1,
+                key: KeyCode::Derive1,
                 enabled: TmplSwitch::Bool(true),
                 action: s!("Action.No1.Atk2"),
             },]

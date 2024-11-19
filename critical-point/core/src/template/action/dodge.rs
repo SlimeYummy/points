@@ -1,5 +1,5 @@
 use super::base::*;
-use crate::template::base::{TmplAny, TmplClass, TmplLevelRange, TmplSwitch};
+use crate::template::base::{TmplAny, TmplLevelRange, TmplSwitch, TmplType};
 use crate::utils::{KeyCode, KvList, List, StrID, Symbol, Table};
 
 #[repr(u8)]
@@ -44,8 +44,8 @@ impl TmplAny for TmplActionDodge {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::ActionDodge
+    fn typ(&self) -> TmplType {
+        TmplType::ActionDodge
     }
 }
 
@@ -84,7 +84,7 @@ mod tests {
 
     #[test]
     fn test_load_action_dodge_empty() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let act = db.find_as::<TmplActionDodge>(&s!("Action.DodgeEmpty")).unwrap();
         assert_eq!(act.id, s!("Action.DodgeEmpty"));

@@ -1,5 +1,5 @@
 use super::base::*;
-use crate::template::base::{TmplAny, TmplClass, TmplLevelRange, TmplSwitch};
+use crate::template::base::{TmplAny, TmplLevelRange, TmplSwitch, TmplType};
 use crate::utils::{KeyCode, KvList, List, StrID, Symbol, Table};
 
 #[repr(u8)]
@@ -46,8 +46,8 @@ impl TmplAny for TmplActionGuard {
         self.id.clone()
     }
 
-    fn class(&self) -> TmplClass {
-        TmplClass::ActionGuard
+    fn typ(&self) -> TmplType {
+        TmplType::ActionGuard
     }
 }
 
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn test_load_action_guard_empty() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let act = db.find_as::<TmplActionGuard>(&s!("Action.GuardEmpty")).unwrap();
         assert_eq!(act.id(), s!("Action.GuardEmpty"));
