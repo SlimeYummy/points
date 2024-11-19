@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use crate::asset::shape::ShapeKey;
-use crate::utils::{DtHashMap, NumID, SymbolMap, XError, XResult};
+use crate::utils::{AsXResultIO, DtHashMap, NumID, SymbolMap, XError, XResult};
 
 pub struct AssetLoader {
     asset_path: PathBuf,
@@ -40,13 +40,15 @@ impl AssetLoader {
     }
 
     pub(super) fn load_buffer(&mut self, path: &str) -> XResult<Vec<u8>> {
+        let full_path = self.asset_path.join(path);
         let mut file = OpenOptions::new()
             .read(true)
             .write(false)
             .create_new(false)
-            .open(self.asset_path.join(path))?;
+            .open(&full_path)
+            .xerr_with(&full_path)?;
         let mut data_buf = Vec::new();
-        file.read_to_end(&mut data_buf)?;
+        file.read_to_end(&mut data_buf).xerr_with(full_path)?;
         Ok(data_buf)
     }
 
@@ -57,9 +59,6 @@ impl AssetLoader {
     }
 
     pub(super) fn create_body(&mut self, settings: &BodySettings) -> XResult<BodyID> {
-        match self.body_itf.create_body(settings) {
-            Some(body) => Ok(body),
-            None => Err(XError::PhysicBodyFailed),
-        }
+        Ok(self.body_itf.create_body(settings)?)
     }
 }
