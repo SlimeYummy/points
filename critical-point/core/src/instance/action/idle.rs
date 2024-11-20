@@ -1,5 +1,5 @@
 use crate::instance::action::base::{query_switch, ContextActionAssemble, InstAction, InstActionBase};
-use crate::template::{TmplActionIdle, TmplAnimation, TmplClass};
+use crate::template::{TmplActionIdle, TmplAnimation, TmplType};
 use crate::utils::{extend, KeyCode, Xrc};
 
 #[derive(Debug)]
@@ -13,11 +13,11 @@ pub struct InstActionIdle {
 extend!(InstActionIdle, InstActionBase);
 
 unsafe impl InstAction for InstActionIdle {
-    fn class(&self) -> TmplClass {
-        TmplClass::ActionIdle
+    fn typ(&self) -> TmplType {
+        TmplType::ActionIdle
     }
 
-    fn get_animations<'a>(&'a self, animations: &mut Vec<&'a TmplAnimation>) {
+    fn animations<'a>(&'a self, animations: &mut Vec<&'a TmplAnimation>) {
         self.tmpl.animations().for_each(|anime| animations.push(anime));
     }
 }
@@ -54,7 +54,7 @@ mod tests {
 
     #[test]
     fn test_inst_idle_assemble() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
 
         let mut args = DtHashMap::default();
         let mut primary_keys = DtHashIndex::new();

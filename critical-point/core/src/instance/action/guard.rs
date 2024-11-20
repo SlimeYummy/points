@@ -1,5 +1,5 @@
 use crate::instance::action::base::{query_index, query_switch, ContextActionAssemble, InstAction, InstActionBase};
-use crate::template::{TmplActionGuard, TmplActionGuardAttribute, TmplAnimation, TmplClass};
+use crate::template::{TmplActionGuard, TmplActionGuardAttribute, TmplAnimation, TmplType};
 use crate::utils::{extend, Xrc};
 
 #[derive(Debug)]
@@ -16,11 +16,11 @@ pub struct InstActionGuard {
 extend!(InstActionGuard, InstActionBase);
 
 unsafe impl InstAction for InstActionGuard {
-    fn class(&self) -> TmplClass {
-        TmplClass::ActionGuard
+    fn typ(&self) -> TmplType {
+        TmplType::ActionGuard
     }
 
-    fn get_animations<'a>(&'a self, animations: &mut Vec<&'a TmplAnimation>) {
+    fn animations<'a>(&'a self, animations: &mut Vec<&'a TmplAnimation>) {
         self.tmpl.animations().for_each(|anime| animations.push(anime));
     }
 }
