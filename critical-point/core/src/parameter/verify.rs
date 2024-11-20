@@ -1,7 +1,8 @@
+use crate::consts::{MAX_ACCESSORY_COUNT, MAX_ENTRY_PLUS, MAX_EQUIPMENT_COUNT};
 use crate::parameter::ParamPlayer;
 use crate::template::{
     TmplAccessory, TmplAccessoryPattern, TmplAccessoryPool, TmplCharacter, TmplDatabase, TmplEquipment, TmplJewel,
-    TmplPerk, TmplSlotType, TmplSlotValue, TmplStyle, MAX_ACCESSORY_COUNT, MAX_ENTRY_PLUS, MAX_EQUIPMENT_COUNT,
+    TmplPerk, TmplSlotType, TmplSlotValue, TmplStyle,
 };
 use crate::utils::{IDLevel, IDPlus, XError, XResult};
 
@@ -154,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_verify_style() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
@@ -179,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_verify_equipments() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
@@ -215,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_verify_perks() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
@@ -231,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_verify_accessories() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
@@ -280,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_verify_jewels() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
