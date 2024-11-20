@@ -1,41 +1,30 @@
-use cirtical_point_csgen::CsGen;
+use cirtical_point_csgen::CsIn;
 
 use crate::utils::{IDLevel, IDPlus, StrID};
 
 #[derive(
-    Debug,
-    Default,
-    Clone,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    serde::Serialize,
-    serde::Deserialize,
-    CsGen,
+    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, CsIn,
 )]
-#[cs_attr(Cs, Class)]
+#[cs_attr(Class)]
 pub struct ParamPlayer {
     pub character: StrID,
     pub style: StrID,
+    #[serde(default)]
     pub level: u32,
+    #[serde(default)]
     pub equipments: Vec<IDLevel>,
-    pub accessories: Vec<ParamAccessory>,
-    pub jewels: Vec<IDPlus>,
+    #[serde(default)]
     pub perks: Vec<StrID>,
+    #[serde(default)]
+    pub accessories: Vec<ParamAccessory>,
+    #[serde(default)]
+    pub jewels: Vec<IDPlus>,
 }
 
 #[derive(
-    Debug,
-    Default,
-    Clone,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    serde::Serialize,
-    serde::Deserialize,
-    CsGen,
+    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, CsIn,
 )]
-#[cs_attr(Cs, Class)]
+#[cs_attr(Class)]
 pub struct ParamAccessory {
     pub id: StrID,
     pub level: u32,
@@ -43,17 +32,9 @@ pub struct ParamAccessory {
 }
 
 #[derive(
-    Debug,
-    Default,
-    Clone,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    serde::Serialize,
-    serde::Deserialize,
-    CsGen,
+    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, CsIn,
 )]
-#[cs_attr(Cs, Class)]
+#[cs_attr(Class)]
 pub struct ParamStage {
     pub stage: StrID,
 }
