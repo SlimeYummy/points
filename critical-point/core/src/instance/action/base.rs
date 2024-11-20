@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::template::{TmplAnimation, TmplClass, TmplSwitch};
+use crate::template::{TmplAnimation, TmplSwitch, TmplType};
 use crate::utils::{interface, DtHashIndex, DtHashMap, IDSymbol, KeyCode, StrID, Symbol};
 
 #[derive(Debug)]
@@ -11,8 +11,8 @@ pub struct InstActionBase {
 }
 
 pub unsafe trait InstAction: Debug {
-    fn class(&self) -> TmplClass;
-    fn get_animations<'a>(&'a self, animations: &mut Vec<&'a TmplAnimation>);
+    fn typ(&self) -> TmplType;
+    fn animations<'a>(&'a self, animations: &mut Vec<&'a TmplAnimation>);
 }
 
 interface!(InstAction, InstActionBase);

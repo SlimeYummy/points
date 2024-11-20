@@ -21,7 +21,6 @@ pub struct InstPlayer {
     pub global: SymbolMap<Num>,
     pub scripts: Vec<InstScript>,
 
-    pub skeleton: Symbol,
     pub action_args: DtHashMap<IDSymbol, u32>,
     pub actions: DtHashMap<StrID, Rc<dyn InstAction>>,
     pub primary_keys: DtHashIndex<KeyCode, StrID>,
@@ -45,7 +44,8 @@ impl InstPlayer {
         return self
             .primary_keys
             .find_iter(key)
-            .filter_map(|id| self.actions.get(id)).cloned();
+            .filter_map(|id| self.actions.get(id))
+            .cloned();
     }
 
     pub fn find_first_primary_action<T: 'static>(&self, key: &KeyCode) -> Option<Rc<T>> {
@@ -65,7 +65,8 @@ impl InstPlayer {
         return self
             .derive_keys
             .find_iter(key)
-            .filter_map(|id| self.actions.get(id)).cloned();
+            .filter_map(|id| self.actions.get(id))
+            .cloned();
     }
 
     pub fn find_first_derive_action<T: 'static>(&self, key: &(Symbol, KeyCode)) -> Option<Rc<T>> {

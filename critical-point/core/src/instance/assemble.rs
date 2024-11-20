@@ -1,5 +1,6 @@
 use std::collections::hash_map::Entry;
 
+use crate::consts::MAX_ENTRY_PLUS;
 use crate::instance::action::{try_assemble_action, ContextActionAssemble};
 use crate::instance::base::InstEntryPair;
 use crate::instance::player::InstPlayer;
@@ -10,7 +11,7 @@ use crate::parameter::{ParamPlayer, ParamStage};
 use crate::script::{ScriptBlockType, ScriptExecutor};
 use crate::template::{
     TmplAccessory, TmplAccessoryPattern, TmplCharacter, TmplDatabase, TmplEntry, TmplEquipment, TmplJewel, TmplPerk,
-    TmplStage, TmplStyle, MAX_ENTRY_PLUS,
+    TmplStage, TmplStyle,
 };
 use crate::utils::{IDLevel, IDPlus, XError, XResult};
 
@@ -175,15 +176,13 @@ fn handle_entries(ctx: &mut ContextAssemble<'_>, inst: &mut InstPlayer) -> XResu
 }
 
 fn collect_actions(ctx: &mut ContextAssemble<'_>, param: &ParamPlayer, inst: &mut InstPlayer) -> XResult<()> {
-    let style = ctx.tmpl_db.find_as::<TmplStyle>(&param.style)?;
-    inst.skeleton = style.skeleton.clone();
-
     let mut action_ctx = ContextActionAssemble {
         args: &inst.action_args,
         primary_keys: &mut inst.primary_keys,
         derive_keys: &mut inst.derive_keys,
     };
 
+    let style = ctx.tmpl_db.find_as::<TmplStyle>(&param.style)?;
     for id in style.actions.iter() {
         let action = ctx.tmpl_db.find(id)?;
         if let Some(action) = try_assemble_action(&mut action_ctx, action)? {
@@ -243,10 +242,9 @@ fn trigger_after_assemble(ctx: &mut ContextAssemble<'_>, inst: &mut InstPlayer) 
 }
 
 pub fn assemble_stage(ctx: &mut ContextAssemble<'_>, param: &ParamStage) -> XResult<InstStage> {
-    let tmpl = ctx.tmpl_db.find_as::<TmplStage>(&param.stage)?;
+    let _ = ctx.tmpl_db.find_as::<TmplStage>(&param.stage)?;
     Ok(InstStage {
         tmpl_stage: param.stage.clone(),
-        asset_id: tmpl.asset_id.clone(),
     })
 }
 
@@ -260,7 +258,7 @@ mod tests {
 
     #[test]
     fn test_collect_style() {
-        let db: TmplDatabase = TmplDatabase::new("../test_res").unwrap();
+        let db: TmplDatabase = TmplDatabase::new("../test-res").unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
@@ -282,7 +280,7 @@ mod tests {
 
     #[test]
     fn test_collect_equipments() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
@@ -313,7 +311,7 @@ mod tests {
 
     #[test]
     fn test_collect_perks() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
@@ -335,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_collect_accessories() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
@@ -379,7 +377,7 @@ mod tests {
 
     #[test]
     fn test_collect_jewels() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
@@ -407,7 +405,7 @@ mod tests {
 
     #[test]
     fn test_handle_entries() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut inst = InstPlayer::default();
@@ -423,7 +421,7 @@ mod tests {
 
     #[test]
     fn test_trigger_script() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
@@ -448,7 +446,7 @@ mod tests {
 
     #[test]
     fn test_assemble_player() {
-        let db = TmplDatabase::new("../test_res").unwrap();
+        let db = TmplDatabase::new("../test-res").unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let param = ParamPlayer {
