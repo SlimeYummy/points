@@ -1,55 +1,143 @@
-use cirtical_point_csgen::CsGen;
+use cirtical_point_csgen::{CsEnum, CsOut};
+use enum_iterator::{cardinality, Sequence};
 use std::fmt::Debug;
+use std::mem;
 use std::rc::Rc;
-use std::u32;
 
+use crate::consts::{MAX_ACTION_ANIMATION, WEIGHT_THRESHOLD};
 use crate::instance::{InstAction, InstPlayer};
-use crate::logic::game::ContextUpdate;
-use crate::template::TmplClass;
-use crate::utils::{interface, Castable, NumID, StrID, Symbol, XResult};
-
-pub const MAX_ACTION_ANIMATION: usize = 4;
-pub const WEIGHT_THRESHOLD: f32 = 0.01;
+use crate::logic::character::LogicCharaPhysics;
+use crate::logic::game::{ContextUpdate, LogicSystems};
+use crate::template::TmplType;
+use crate::utils::{calc_ratio_clamp, interface, Castable, NumID, StrID, Symbol, XError, XResult};
 
 //
 // StateAction & StateActionBase
 //
 
+#[repr(u16)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Hash,
+    Sequence,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    CsEnum,
+)]
+#[archive_attr(derive(Debug))]
+pub enum StateActionType {
+    Idle,
+    Move,
+}
+
+impl StateActionType {
+    fn tmpl_typ(&self) -> TmplType {
+        match self {
+            StateActionType::Idle => TmplType::ActionIdle,
+            StateActionType::Move => TmplType::ActionMove,
+        }
+    }
+}
+
+impl From<StateActionType> for u16 {
+    #[inline]
+    fn from(val: StateActionType) -> Self {
+        unsafe { mem::transmute::<StateActionType, u16>(val) }
+    }
+}
+
+impl TryFrom<u16> for StateActionType {
+    type Error = XError;
+
+    #[inline]
+    fn try_from(value: u16) -> Result<Self, XError> {
+        if value as usize >= cardinality::<StateActionType>() {
+            return Err(XError::overflow("StateActionType::try_from()"));
+        }
+        Ok(unsafe { mem::transmute::<u16, StateActionType>(value) })
+    }
+}
+
 pub unsafe trait StateAction
 where
     Self: Debug + Send + Sync,
 {
-    fn class(&self) -> TmplClass;
+    fn typ(&self) -> StateActionType;
+    fn tmpl_typ(&self) -> TmplType;
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsGen)]
+#[derive(Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
 #[archive_attr(derive(Debug))]
-#[cs_attr(Rs, Ref)]
+#[cs_attr(Ref)]
 pub struct StateActionBase {
     pub id: NumID,
     pub tmpl_id: StrID,
+    pub typ: StateActionType,
+    pub tmpl_typ: TmplType,
+
     pub spawn_frame: u32,
-    pub dead_frame: u32,
+    pub death_frame: u32,
+    pub enter_progress: u32,
+    pub is_leaving: bool,
+
+    pub event_idx: u64,
     pub derive_level: u16,
     pub antibreak_level: u16,
-    pub blend_weight: f32,
+
     pub body_ratio: f32,
     pub animations: [StateActionAnimation; MAX_ACTION_ANIMATION],
 }
 
 interface!(StateAction, StateActionBase);
 
+#[cfg(debug_assertions)]
+impl Drop for StateActionBase {
+    fn drop(&mut self) {
+        println!("StateActionBase drop() {} {}", self.id, self.tmpl_id);
+    }
+}
+
+impl StateActionBase {
+    pub fn new(typ: StateActionType, tmpl_typ: TmplType) -> StateActionBase {
+        StateActionBase {
+            id: 0,
+            tmpl_id: StrID::default(),
+            typ,
+            tmpl_typ,
+
+            spawn_frame: 0,
+            death_frame: 0,
+            enter_progress: 0,
+            is_leaving: false,
+
+            event_idx: 0,
+            derive_level: 0,
+            antibreak_level: 0,
+
+            body_ratio: 0.0,
+            animations: Default::default(),
+        }
+    }
+}
+
 pub trait ArchivedStateAction: Debug {
-    fn class(&self) -> TmplClass;
+    fn typ(&self) -> StateActionType;
+    fn tmpl_typ(&self) -> TmplType;
 }
 
 impl Castable for dyn ArchivedStateAction {}
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsGen)]
+#[derive(Debug, Default, Clone, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
 #[archive_attr(derive(Debug))]
-#[cs_attr(Rs)]
 pub struct StateActionAnimation {
     pub file: Symbol,
     pub animation_id: u32,
@@ -66,7 +154,7 @@ impl StateActionAnimation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StateActionMetadata {
-    pub class: rkyv::Archived<u16>,
+    pub typ: rkyv::Archived<u16>,
 }
 
 const _: () = {
@@ -82,7 +170,7 @@ const _: () = {
 
     use crate::logic::action::idle::{ArchivedStateActionIdle, StateActionIdle};
     use crate::utils::CastRef;
-    use TmplClass::*;
+    use StateActionType::*;
 
     impl Pointee for dyn StateAction {
         type Metadata = DynMetadata<dyn StateAction>;
@@ -96,11 +184,11 @@ const _: () = {
         type ArchivedMetadata = StateActionMetadata;
 
         fn pointer_metadata(archived: &Self::ArchivedMetadata) -> <Self as Pointee>::Metadata {
-            let class = TmplClass::try_from(archived.class).expect("Invalid TmplClass");
+            let typ = StateActionType::try_from(archived.typ).expect("Invalid StateActionType");
             let archived_ref: &Self = unsafe {
-                match class {
-                    ActionIdle => mem::transmute_copy::<usize, &ArchivedStateActionIdle>(&0),
-                    _ => panic!("Invalid TmplClass"),
+                match typ {
+                    Idle => mem::transmute_copy::<usize, &ArchivedStateActionIdle>(&0),
+                    _ => panic!("Invalid StateActionType"),
                 }
             };
             ptr::metadata(archived_ref)
@@ -117,8 +205,8 @@ const _: () = {
             _resolver: Self::MetadataResolver,
             out: *mut ArchivedMetadata<Self>,
         ) {
-            let class = to_archived!(self.class().into());
-            out.write(StateActionMetadata { class });
+            let typ = to_archived!(self.typ().into());
+            out.write(StateActionMetadata { typ });
         }
     }
 
@@ -139,9 +227,9 @@ const _: () = {
                 Ok(unsafe { serializer.resolve_aligned(state_ref, resolver)? })
             }
 
-            match self.class() {
-                ActionIdle => serialize::<StateActionIdle, _>(self, serializer),
-                _ => panic!("Invalid TmplClass"),
+            match self.typ() {
+                Idle => serialize::<StateActionIdle, _>(self, serializer),
+                _ => panic!("Invalid StateActionType"),
             }
         }
 
@@ -177,17 +265,17 @@ const _: () = {
                 Ok(pointer as *mut ())
             }
 
-            match self.class() {
-                ActionIdle => deserialize::<StateActionIdle, _>(self, deserializer, alloc),
-                _ => panic!("Invalid TmplClass"),
+            match self.typ() {
+                Idle => deserialize::<StateActionIdle, _>(self, deserializer, alloc),
+                _ => panic!("Invalid TmplType"),
             }
         }
 
         fn deserialize_metadata(&self, _deserializer: &mut D) -> Result<DynMetadata<dyn StateAction>, D::Error> {
             let value_ref: &dyn StateAction = unsafe {
-                match self.class() {
-                    ActionIdle => mem::transmute_copy::<usize, &StateActionIdle>(&0),
-                    _ => panic!("Invalid TmplClass"),
+                match self.typ() {
+                    Idle => mem::transmute_copy::<usize, &StateActionIdle>(&0),
+                    _ => panic!("Invalid TmplType"),
                 }
             };
             Ok(ptr::metadata(value_ref))
@@ -203,7 +291,8 @@ pub unsafe trait LogicAction
 where
     Self: Debug,
 {
-    fn class(&self) -> TmplClass;
+    fn typ(&self) -> StateActionType;
+    fn tmpl_typ(&self) -> TmplType;
     fn restore(&mut self, state: &(dyn StateAction + 'static)) -> XResult<()>;
     fn next(&mut self, ctx: &mut ContextUpdate<'_>, ctx_an: &ContextActionNext) -> XResult<Option<Rc<dyn InstAction>>>;
     fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctx_au: &mut ContextActionUpdate<'_>) -> XResult<()>;
@@ -213,11 +302,16 @@ where
 pub struct LogicActionBase {
     pub id: NumID,
     pub tmpl_id: StrID,
+
     pub spawn_frame: u32,
-    pub dead_frame: u32,
+    pub death_frame: u32,
+    pub enter_progress: u32,
+    pub is_leaving: bool,
+
+    pub event_idx: u64,
     pub derive_level: u16,
     pub antibreak_level: u16,
-    pub blend_weight: f32,
+
     pub body_ratio: f32,
 }
 
@@ -229,10 +323,12 @@ impl LogicActionBase {
             id,
             tmpl_id,
             spawn_frame,
-            dead_frame: u32::MAX,
+            death_frame: u32::MAX,
+            enter_progress: 0,
+            is_leaving: false,
+            event_idx: 0,
             derive_level: 0,
             antibreak_level: 0,
-            blend_weight: 0.0,
             body_ratio: 0.0,
         }
     }
@@ -240,24 +336,35 @@ impl LogicActionBase {
     pub fn reuse(&mut self, id: NumID, tmpl_id: StrID, spawn_frame: u32) -> XResult<()> {
         self.id = id;
         self.tmpl_id = tmpl_id;
+
         self.spawn_frame = spawn_frame;
-        self.dead_frame = u32::MAX;
+        self.death_frame = u32::MAX;
+        self.enter_progress = 0;
+        self.is_leaving = false;
+
         self.derive_level = 0;
         self.antibreak_level = 0;
-        self.blend_weight = 0.0;
+
         self.body_ratio = 0.0;
         Ok(())
     }
 
-    pub fn save(&self) -> StateActionBase {
+    pub fn save(&self, typ: StateActionType, tmpl_typ: TmplType) -> StateActionBase {
         StateActionBase {
             id: self.id,
             tmpl_id: self.tmpl_id.clone(),
+            typ,
+            tmpl_typ,
+
             spawn_frame: self.spawn_frame,
-            dead_frame: self.dead_frame,
+            death_frame: self.death_frame,
+            enter_progress: self.enter_progress,
+            is_leaving: self.is_leaving,
+
+            event_idx: self.event_idx,
             derive_level: self.derive_level,
             antibreak_level: self.antibreak_level,
-            blend_weight: self.blend_weight,
+
             body_ratio: self.body_ratio,
             animations: Default::default(),
         }
@@ -265,11 +372,74 @@ impl LogicActionBase {
 
     pub fn restore(&mut self, state: &StateActionBase) {
         self.spawn_frame = state.spawn_frame;
-        self.dead_frame = state.dead_frame;
+        self.death_frame = state.death_frame;
+        self.enter_progress = state.enter_progress;
+        self.is_leaving = state.is_leaving;
+
+        self.event_idx = state.event_idx;
         self.derive_level = state.derive_level;
         self.antibreak_level = state.antibreak_level;
-        self.blend_weight = state.blend_weight;
+
         self.body_ratio = state.body_ratio;
+    }
+
+    // Return None if self action finished
+    pub fn handle_enter_leave(
+        &mut self,
+        ctx: &mut ContextUpdate<'_>,
+        ctx_au: &mut ContextActionUpdate<'_>,
+        enter_time: u32,
+    ) -> Option<f32> {
+        let local_weight = match ctx_au.prev_action {
+            None => 1.0,
+            Some(_) => {
+                self.enter_progress += 1;
+                calc_ratio_clamp(self.enter_progress, enter_time)
+            }
+        };
+        let real_weight = ctx_au.apply_weight(local_weight);
+        if self.is_leaving && real_weight < WEIGHT_THRESHOLD {
+            self.death_frame = ctx.frame; // action finished
+            return None;
+        }
+        Some(real_weight)
+    }
+
+    pub fn handle_next(
+        &mut self,
+        ctx: &mut ContextUpdate<'_>,
+        ctx_an: &ContextActionNext,
+        quick_event_idx: bool,
+    ) -> XResult<Option<Rc<dyn InstAction>>> {
+        let frame = ctx.frame;
+        let mut inst_next: Option<Rc<dyn InstAction>> = None;
+        let mut enter_event_idx = 0;
+        let mut events = ctx.input.player_events(ctx_an.player_id, frame)?;
+        for event in events.iter(self.event_idx) {
+            let new_next = ctx_an
+                .inst_player
+                .search_next_action(&self.tmpl_id, self.derive_level, event.key());
+            if let Some(new_next) = new_next {
+                if let Some(inst_next) = &mut inst_next {
+                    if new_next.enter_level >= inst_next.enter_level {
+                        *inst_next = new_next;
+                        enter_event_idx = event.idx;
+                    }
+                } else {
+                    inst_next = Some(new_next);
+                    enter_event_idx = event.idx;
+                }
+            }
+        }
+
+        if inst_next.is_some() {
+            self.is_leaving = true;
+            self.event_idx = enter_event_idx;
+            events.consume(self.event_idx, Some(enter_event_idx))?;
+        } else if quick_event_idx {
+            self.event_idx = events.future_idx();
+        }
+        Ok(inst_next)
     }
 }
 
@@ -295,21 +465,26 @@ impl ContextActionNext {
 pub struct ContextActionUpdate<'t> {
     pub player_id: NumID,
     pub inst_player: Rc<InstPlayer>,
+    pub chara_physics: &'t mut LogicCharaPhysics,
     pub next_action: Option<&'t (dyn LogicAction + 'static)>,
     pub prev_action: Option<&'t (dyn LogicAction + 'static)>,
-    pub is_idle: bool,
     pub unused_weight: f32,
     pub states: Vec<Box<dyn StateAction>>,
 }
 
 impl<'t> ContextActionUpdate<'t> {
-    pub fn new(player_id: NumID, inst_player: Rc<InstPlayer>, states_cap: usize) -> ContextActionUpdate<'t> {
+    pub fn new(
+        player_id: NumID,
+        inst_player: Rc<InstPlayer>,
+        chara_physics: &'t mut LogicCharaPhysics,
+        states_cap: usize,
+    ) -> ContextActionUpdate<'t> {
         ContextActionUpdate {
             player_id,
             inst_player,
+            chara_physics,
             next_action: None,
             prev_action: None,
-            is_idle: true,
             unused_weight: 1.0,
             states: Vec::with_capacity(states_cap),
         }
@@ -340,16 +515,16 @@ mod tests {
     use rkyv::ser::Serializer;
     use rkyv::{Deserialize, Infallible};
 
-    fn test_rkyv(state: Box<dyn StateAction>, class: TmplClass) -> Result<Box<dyn StateAction>> {
+    fn test_rkyv(state: Box<dyn StateAction>, typ: StateActionType) -> Result<Box<dyn StateAction>> {
         let mut serializer = AllocSerializer::<0>::default();
         serializer.serialize_value(&state)?;
         let buffer = serializer.into_serializer().into_inner();
         let archived = unsafe { rkyv::archived_root::<Box<dyn StateAction>>(&buffer) };
-        assert_eq!(archived.class(), class);
+        assert_eq!(archived.typ(), typ);
 
         let mut deserializer = Infallible;
         let result: Box<dyn StateAction> = archived.deserialize(&mut deserializer)?;
-        assert_eq!(result.class(), class);
+        assert_eq!(result.typ(), typ);
 
         Ok(result)
     }
@@ -357,11 +532,8 @@ mod tests {
     #[test]
     fn test_rkyv_state_tmpl_idle() {
         let mut raw_state = Box::new(StateActionIdle {
-            _base: StateActionBase::default(),
-            event_idx: 0,
+            _base: StateActionBase::new(StateActionType::Idle, TmplType::ActionIdle),
             mode: ActionIdleMode::IdleToReady,
-            is_dying: false,
-            enter_progress: 57,
             idle_progress: 10,
             ready_progress: 20,
             idle_timer: 12,
@@ -370,10 +542,12 @@ mod tests {
         raw_state.id = 123;
         raw_state.tmpl_id = s!("idle");
         raw_state.spawn_frame = 99;
-        raw_state.dead_frame = 1100;
+        raw_state.death_frame = 1100;
+        raw_state.is_leaving = false;
+        raw_state.enter_progress = 57;
+        raw_state.event_idx = 0;
         raw_state.derive_level = 1;
         raw_state.antibreak_level = 2;
-        raw_state.blend_weight = 0.5;
         raw_state.body_ratio = 0.8;
         raw_state.animations[0] = StateActionAnimation {
             animation_id: 1,
@@ -382,16 +556,15 @@ mod tests {
             weight: 0.5,
         };
 
-        let state = test_rkyv(raw_state, TmplClass::ActionIdle).unwrap();
+        let state = test_rkyv(raw_state, StateActionType::Idle).unwrap();
         let state = state.cast_as::<StateActionIdle>().unwrap();
 
         assert_eq!(state.id, 123);
         assert_eq!(state.tmpl_id, s!("idle"));
         assert_eq!(state.spawn_frame, 99);
-        assert_eq!(state.dead_frame, 1100);
+        assert_eq!(state.death_frame, 1100);
         assert_eq!(state.derive_level, 1);
         assert_eq!(state.antibreak_level, 2);
-        assert_eq!(state.blend_weight, 0.5);
         assert_eq!(state.body_ratio, 0.8);
         assert_eq!(state.animations[0].animation_id, 1);
         assert_eq!(state.animations[0].file, s!("idle.ozz"));
@@ -402,7 +575,7 @@ mod tests {
         assert_eq!(state.animations[3], StateActionAnimation::default());
         assert_eq!(state.event_idx, 0);
         assert_eq!(state.mode, ActionIdleMode::IdleToReady);
-        assert!(!state.is_dying);
+        assert!(!state.is_leaving);
         assert_eq!(state.enter_progress, 57);
         assert_eq!(state.idle_progress, 10);
         assert_eq!(state.ready_progress, 20);
