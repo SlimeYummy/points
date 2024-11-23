@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsGen;
+use cirtical_point_csgen::{CsEnum, CsOut};
 use enum_iterator::{cardinality, Sequence};
 use std::fmt::Debug;
 use std::mem;
@@ -7,10 +7,10 @@ use crate::logic::game::{ContextRestore, ContextUpdate};
 use crate::utils::{interface, Castable, NumID, XError, XResult};
 
 //
-// LogicClass & LogicAny
+// LogicType & LogicAny
 //
 
-#[repr(u8)]
+#[repr(u16)]
 #[derive(
     Debug,
     Clone,
@@ -24,47 +24,47 @@ use crate::utils::{interface, Castable, NumID, XError, XResult};
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsGen
+    CsEnum,
 )]
 #[archive_attr(derive(Debug))]
-pub enum LogicClass {
+pub enum LogicType {
     Game,
     Stage,
     Player,
-    Enemy,
+    Npc,
 }
 
-impl From<LogicClass> for u8 {
+impl From<LogicType> for u16 {
     #[inline]
-    fn from(val: LogicClass) -> Self {
-        unsafe { mem::transmute::<LogicClass, u8>(val) }
+    fn from(val: LogicType) -> Self {
+        unsafe { mem::transmute::<LogicType, u16>(val) }
     }
 }
 
-impl TryFrom<u8> for LogicClass {
+impl TryFrom<u16> for LogicType {
     type Error = XError;
 
     #[inline]
-    fn try_from(value: u8) -> Result<Self, XError> {
-        if value as usize >= cardinality::<LogicClass>() {
-            return Err(XError::overflow("LogicClass::try_from()"));
+    fn try_from(value: u16) -> Result<Self, XError> {
+        if value as usize >= cardinality::<LogicType>() {
+            return Err(XError::overflow("LogicType::try_from()"));
         }
-        Ok(unsafe { mem::transmute::<u8, LogicClass>(value) })
+        Ok(unsafe { mem::transmute::<u16, LogicType>(value) })
     }
 }
 
 pub trait LogicAny: Debug {
-    fn class(&self) -> LogicClass;
+    fn typ(&self) -> LogicType;
     fn id(&self) -> NumID;
     fn spawn_frame(&self) -> u32;
-    fn dead_frame(&self) -> u32;
+    fn death_frame(&self) -> u32;
 
     fn update(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<()>;
     fn restore(&mut self, ctx: &ContextRestore) -> XResult<()>;
 
     #[inline]
     fn is_alive(&self) -> bool {
-        self.dead_frame() == u32::MAX
+        self.death_frame() == u32::MAX
     }
 }
 
@@ -72,7 +72,7 @@ pub trait LogicAny: Debug {
 // StateAny
 //
 
-#[repr(u8)]
+#[repr(u16)]
 #[derive(
     Debug,
     Clone,
@@ -86,48 +86,48 @@ pub trait LogicAny: Debug {
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsGen,
+    CsEnum,
 )]
 #[archive_attr(derive(Debug))]
-pub enum StateClass {
+pub enum StateType {
     GameInit,
     GameUpdate,
     StageInit,
     StageUpdate,
     PlayerInit,
     PlayerUpdate,
-    EnemyInit,
-    EnemyUpdate,
+    NpcInit,
+    NpcUpdate,
 }
 
-impl StateClass {
+impl StateType {
     #[inline]
-    pub fn logic_class(&self) -> LogicClass {
+    pub fn logic_typ(&self) -> LogicType {
         match self {
-            StateClass::GameInit | StateClass::GameUpdate => LogicClass::Game,
-            StateClass::StageInit | StateClass::StageUpdate => LogicClass::Stage,
-            StateClass::PlayerInit | StateClass::PlayerUpdate => LogicClass::Player,
-            StateClass::EnemyInit | StateClass::EnemyUpdate => LogicClass::Enemy,
+            StateType::GameInit | StateType::GameUpdate => LogicType::Game,
+            StateType::StageInit | StateType::StageUpdate => LogicType::Stage,
+            StateType::PlayerInit | StateType::PlayerUpdate => LogicType::Player,
+            StateType::NpcInit | StateType::NpcUpdate => LogicType::Npc,
         }
     }
 }
 
-impl From<StateClass> for u8 {
+impl From<StateType> for u16 {
     #[inline]
-    fn from(val: StateClass) -> Self {
-        unsafe { mem::transmute::<StateClass, u8>(val) }
+    fn from(val: StateType) -> Self {
+        unsafe { mem::transmute::<StateType, u16>(val) }
     }
 }
 
-impl TryFrom<u8> for StateClass {
+impl TryFrom<u16> for StateType {
     type Error = XError;
 
     #[inline]
-    fn try_from(value: u8) -> Result<Self, XError> {
-        if value as usize >= cardinality::<StateClass>() {
-            return Err(XError::overflow("StateClass::try_from()"));
+    fn try_from(value: u16) -> Result<Self, XError> {
+        if value as usize >= cardinality::<StateType>() {
+            return Err(XError::overflow("StateType::try_from()"));
         }
-        Ok(unsafe { mem::transmute::<u8, StateClass>(value) })
+        Ok(unsafe { mem::transmute::<u16, StateType>(value) })
     }
 }
 
@@ -135,41 +135,44 @@ pub unsafe trait StateAny
 where
     Self: Debug + Send + Sync,
 {
-    fn class(&self) -> StateClass;
+    fn typ(&self) -> StateType;
     fn id(&self) -> NumID;
 
-    fn logic_class(&self) -> LogicClass {
-        self.class().logic_class()
+    fn logic_typ(&self) -> LogicType {
+        self.typ().logic_typ()
     }
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsGen)]
+#[derive(Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
 #[archive_attr(derive(Debug))]
-#[cs_attr(Rs, Ref)]
+#[cs_attr(Ref)]
 pub struct StateAnyBase {
     pub id: NumID,
-    pub class: StateClass,
-    pub logic_class: LogicClass,
+    pub typ: StateType,
+    pub logic_typ: LogicType,
+}
+
+#[cfg(debug_assertions)]
+impl Drop for StateAnyBase {
+    fn drop(&mut self) {
+        println!("StateAnyBase drop() {} {:?}", self.id, self.typ);
+    }
 }
 
 interface!(StateAny, StateAnyBase);
 
 impl StateAnyBase {
-    pub fn new(id: NumID, class: StateClass, logic_class: LogicClass) -> Self {
-        Self {
-            id,
-            class,
-            logic_class,
-        }
+    pub fn new(id: NumID, typ: StateType, logic_typ: LogicType) -> Self {
+        Self { id, typ, logic_typ }
     }
 }
 
 pub trait ArchivedStateAny: Debug {
-    fn class(&self) -> StateClass;
+    fn typ(&self) -> StateType;
 
-    fn logic_class(&self) -> LogicClass {
-        self.class().logic_class()
+    fn logic_typ(&self) -> LogicType {
+        self.typ().logic_typ()
     }
 }
 
@@ -177,7 +180,7 @@ impl Castable for dyn ArchivedStateAny {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StateAnyMetadata {
-    pub class: rkyv::Archived<u8>,
+    pub typ: rkyv::Archived<u16>,
 }
 
 const _: () = {
@@ -191,14 +194,14 @@ const _: () = {
     use std::ptr::DynMetadata;
     use std::{mem, ptr};
 
-    use crate::logic::enemy::{ArchivedStateEnemyInit, ArchivedStateEnemyUpdate, StateEnemyInit, StateEnemyUpdate};
-    use crate::logic::game::{ArchivedStateGameInit, ArchivedStateGameUpdate, StateGameInit, StateGameUpdate};
-    use crate::logic::player::{
-        ArchivedStatePlayerInit, ArchivedStatePlayerUpdate, StatePlayerInit, StatePlayerUpdate,
+    use crate::logic::character::{
+        ArchivedStateNpcInit, ArchivedStateNpcUpdate, ArchivedStatePlayerInit, ArchivedStatePlayerUpdate,
+        StateCharaPhysics, StateNpcInit, StateNpcUpdate, StatePlayerInit, StatePlayerUpdate,
     };
+    use crate::logic::game::{ArchivedStateGameInit, ArchivedStateGameUpdate, StateGameInit, StateGameUpdate};
     use crate::logic::stage::{ArchivedStateStageInit, ArchivedStateStageUpdate, StateStageInit, StateStageUpdate};
     use crate::utils::CastRef;
-    use StateClass::*;
+    use StateType::*;
 
     impl Pointee for dyn StateAny {
         type Metadata = DynMetadata<dyn StateAny>;
@@ -212,17 +215,17 @@ const _: () = {
         type ArchivedMetadata = StateAnyMetadata;
 
         fn pointer_metadata(archived: &Self::ArchivedMetadata) -> <Self as Pointee>::Metadata {
-            let class = StateClass::try_from(archived.class).expect("Invalid StateClass");
+            let typ = StateType::try_from(archived.typ).expect("Invalid StateType");
             let archived_ref: &dyn ArchivedStateAny = unsafe {
-                match class {
+                match typ {
                     GameInit => mem::transmute_copy::<usize, &ArchivedStateGameInit>(&0),
                     GameUpdate => mem::transmute_copy::<usize, &ArchivedStateGameUpdate>(&0),
                     StageInit => mem::transmute_copy::<usize, &ArchivedStateStageInit>(&0),
                     StageUpdate => mem::transmute_copy::<usize, &ArchivedStateStageUpdate>(&0),
                     PlayerInit => mem::transmute_copy::<usize, &ArchivedStatePlayerInit>(&0),
                     PlayerUpdate => mem::transmute_copy::<usize, &ArchivedStatePlayerUpdate>(&0),
-                    EnemyInit => mem::transmute_copy::<usize, &ArchivedStateEnemyInit>(&0),
-                    EnemyUpdate => mem::transmute_copy::<usize, &ArchivedStateEnemyUpdate>(&0),
+                    NpcInit => mem::transmute_copy::<usize, &ArchivedStateNpcInit>(&0),
+                    NpcUpdate => mem::transmute_copy::<usize, &ArchivedStateNpcUpdate>(&0),
                 }
             };
             ptr::metadata(archived_ref)
@@ -239,8 +242,8 @@ const _: () = {
             _resolver: Self::MetadataResolver,
             out: *mut ArchivedMetadata<Self>,
         ) {
-            let class = to_archived!(self.class().into());
-            out.write(StateAnyMetadata { class });
+            let typ = to_archived!(self.typ().into());
+            out.write(StateAnyMetadata { typ });
         }
     }
 
@@ -261,15 +264,15 @@ const _: () = {
                 Ok(unsafe { serializer.resolve_aligned(state_ref, resolver)? })
             }
 
-            match self.class() {
+            match self.typ() {
                 GameInit => serialize::<StateGameInit, _>(self, serializer),
                 GameUpdate => serialize::<StateGameUpdate, _>(self, serializer),
                 StageInit => serialize::<StateStageInit, _>(self, serializer),
                 StageUpdate => serialize::<StateStageUpdate, _>(self, serializer),
                 PlayerInit => serialize::<StatePlayerInit, _>(self, serializer),
                 PlayerUpdate => serialize::<StatePlayerUpdate, _>(self, serializer),
-                EnemyInit => serialize::<StateEnemyInit, _>(self, serializer),
-                EnemyUpdate => serialize::<StateEnemyUpdate, _>(self, serializer),
+                NpcInit => serialize::<StateNpcInit, _>(self, serializer),
+                NpcUpdate => serialize::<StateNpcUpdate, _>(self, serializer),
             }
         }
 
@@ -305,29 +308,29 @@ const _: () = {
                 Ok(pointer as *mut ())
             }
 
-            match self.class() {
+            match self.typ() {
                 GameInit => deserialize::<StateGameInit, _>(self, deserializer, alloc),
                 GameUpdate => deserialize::<StateGameUpdate, _>(self, deserializer, alloc),
                 StageInit => deserialize::<StateStageInit, _>(self, deserializer, alloc),
                 StageUpdate => deserialize::<StateStageUpdate, _>(self, deserializer, alloc),
                 PlayerInit => deserialize::<StatePlayerInit, _>(self, deserializer, alloc),
                 PlayerUpdate => deserialize::<StatePlayerUpdate, _>(self, deserializer, alloc),
-                EnemyInit => deserialize::<StateEnemyInit, _>(self, deserializer, alloc),
-                EnemyUpdate => deserialize::<StateEnemyUpdate, _>(self, deserializer, alloc),
+                NpcInit => deserialize::<StateNpcInit, _>(self, deserializer, alloc),
+                NpcUpdate => deserialize::<StateNpcUpdate, _>(self, deserializer, alloc),
             }
         }
 
         fn deserialize_metadata(&self, _deserializer: &mut D) -> Result<DynMetadata<dyn StateAny>, D::Error> {
             let value_ref: &dyn StateAny = unsafe {
-                match self.class() {
+                match self.typ() {
                     GameInit => mem::transmute_copy::<usize, &StateGameInit>(&0),
                     GameUpdate => mem::transmute_copy::<usize, &StateGameUpdate>(&0),
                     StageInit => mem::transmute_copy::<usize, &StateStageInit>(&0),
                     StageUpdate => mem::transmute_copy::<usize, &StateStageUpdate>(&0),
                     PlayerInit => mem::transmute_copy::<usize, &StatePlayerInit>(&0),
                     PlayerUpdate => mem::transmute_copy::<usize, &StatePlayerUpdate>(&0),
-                    EnemyInit => mem::transmute_copy::<usize, &StateEnemyInit>(&0),
-                    EnemyUpdate => mem::transmute_copy::<usize, &StateEnemyUpdate>(&0),
+                    NpcInit => mem::transmute_copy::<usize, &StateNpcInit>(&0),
+                    NpcUpdate => mem::transmute_copy::<usize, &StateNpcUpdate>(&0),
                 }
             };
             Ok(ptr::metadata(value_ref))
@@ -338,29 +341,30 @@ const _: () = {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::logic::enemy::{StateEnemyInit, StateEnemyUpdate};
+    use crate::logic::character::{
+        StateCharaPhysics, StateNpcInit, StateNpcUpdate, StatePlayerInit, StatePlayerUpdate,
+    };
     use crate::logic::game::{StateGameInit, StateGameUpdate};
-    use crate::logic::player::{StatePlayerInit, StatePlayerUpdate};
     use crate::logic::stage::{StateStageInit, StateStageUpdate};
     use crate::utils::{s, CastPtr};
     use anyhow::Result;
-    use glam::Vec3;
+    use glam::{Quat, Vec3};
     use rkyv::ser::serializers::AllocSerializer;
     use rkyv::ser::Serializer;
     use rkyv::{Deserialize, Infallible};
 
-    fn test_rkyv(state: Box<dyn StateAny>, class: StateClass, logic_class: LogicClass) -> Result<Box<dyn StateAny>> {
+    fn test_rkyv(state: Box<dyn StateAny>, typ: StateType, logic_typ: LogicType) -> Result<Box<dyn StateAny>> {
         let mut serializer = AllocSerializer::<0>::default();
         serializer.serialize_value(&state)?;
         let buffer = serializer.into_serializer().into_inner();
         let archived = unsafe { rkyv::archived_root::<Box<dyn StateAny>>(&buffer) };
-        assert_eq!(archived.class(), class);
-        assert_eq!(archived.logic_class(), logic_class);
+        assert_eq!(archived.typ(), typ);
+        assert_eq!(archived.logic_typ(), logic_typ);
 
         let mut deserializer = Infallible;
         let result: Box<dyn StateAny> = archived.deserialize(&mut deserializer)?;
-        assert_eq!(result.class(), class);
-        assert_eq!(result.logic_class(), logic_class);
+        assert_eq!(result.typ(), typ);
+        assert_eq!(result.logic_typ(), logic_typ);
 
         Ok(result)
     }
@@ -369,26 +373,26 @@ mod tests {
     fn test_rkyv_state_game() {
         let state_game_new = test_rkyv(
             Box::new(StateGameInit {
-                _base: StateAnyBase::new(123, StateClass::GameInit, LogicClass::Game),
+                _base: StateAnyBase::new(123, StateType::GameInit, LogicType::Game),
             }),
-            StateClass::GameInit,
-            LogicClass::Game,
+            StateType::GameInit,
+            LogicType::Game,
         )
         .unwrap();
         assert_eq!(state_game_new.id(), 123);
         let state_game_new = state_game_new.cast_as::<StateGameInit>().unwrap();
         assert_eq!(state_game_new.id, 123);
-        assert_eq!(state_game_new.class, StateClass::GameInit);
-        assert_eq!(state_game_new.logic_class, LogicClass::Game);
+        assert_eq!(state_game_new.typ, StateType::GameInit);
+        assert_eq!(state_game_new.logic_typ, LogicType::Game);
 
         let state_game_update = test_rkyv(
             Box::new(StateGameUpdate {
-                _base: StateAnyBase::new(456, StateClass::GameUpdate, LogicClass::Game),
+                _base: StateAnyBase::new(456, StateType::GameUpdate, LogicType::Game),
                 frame: 90,
                 id_gen_counter: 1,
             }),
-            StateClass::GameUpdate,
-            LogicClass::Game,
+            StateType::GameUpdate,
+            LogicType::Game,
         )
         .unwrap();
         assert_eq!(state_game_update.id(), 456);
@@ -396,113 +400,119 @@ mod tests {
         assert_eq!(state_game_update.id, 456);
         assert_eq!(state_game_update.frame, 90);
         assert_eq!(state_game_update.id_gen_counter, 1);
-        assert_eq!(state_game_update.class, StateClass::GameUpdate);
-        assert_eq!(state_game_update.logic_class, LogicClass::Game);
+        assert_eq!(state_game_update.typ, StateType::GameUpdate);
+        assert_eq!(state_game_update.logic_typ, LogicType::Game);
     }
 
     #[test]
     fn test_rkyv_state_stage() {
         let state_stage_new = test_rkyv(
             Box::new(StateStageInit {
-                _base: StateAnyBase::new(4321, StateClass::StageInit, LogicClass::Stage),
+                _base: StateAnyBase::new(4321, StateType::StageInit, LogicType::Stage),
+                view_stage_file: "stage_file.tscn".to_string(),
             }),
-            StateClass::StageInit,
-            LogicClass::Stage,
+            StateType::StageInit,
+            LogicType::Stage,
         )
         .unwrap();
         assert_eq!(state_stage_new.id(), 4321);
         let state_stage_new = state_stage_new.cast_as::<StateStageInit>().unwrap();
         assert_eq!(state_stage_new.id, 4321);
-        assert_eq!(state_stage_new.class, StateClass::StageInit);
-        assert_eq!(state_stage_new.logic_class, LogicClass::Stage);
+        assert_eq!(state_stage_new.typ, StateType::StageInit);
+        assert_eq!(state_stage_new.logic_typ, LogicType::Stage);
+        assert_eq!(state_stage_new.view_stage_file, "stage_file.tscn");
 
         let state_stage_update = test_rkyv(
             Box::new(StateStageUpdate {
-                _base: StateAnyBase::new(8765, StateClass::StageUpdate, LogicClass::Stage),
+                _base: StateAnyBase::new(8765, StateType::StageUpdate, LogicType::Stage),
             }),
-            StateClass::StageUpdate,
-            LogicClass::Stage,
+            StateType::StageUpdate,
+            LogicType::Stage,
         )
         .unwrap();
         assert_eq!(state_stage_update.id(), 8765);
         let state_stage_update = state_stage_update.cast_as::<StateStageUpdate>().unwrap();
         assert_eq!(state_stage_update.id, 8765);
-        assert_eq!(state_stage_update.class, StateClass::StageUpdate);
-        assert_eq!(state_stage_update.logic_class, LogicClass::Stage);
+        assert_eq!(state_stage_update.typ, StateType::StageUpdate);
+        assert_eq!(state_stage_update.logic_typ, LogicType::Stage);
     }
 
     #[test]
     fn test_rkyv_state_player() {
         let state_player_new = test_rkyv(
             Box::new(StatePlayerInit {
-                _base: StateAnyBase::new(1110, StateClass::PlayerInit, LogicClass::Player),
+                _base: StateAnyBase::new(1110, StateType::PlayerInit, LogicType::Player),
                 skeleton_file: s!("skeleton_file.ozz"),
                 animation_files: vec![s!("animation_file_1.ozz"), s!("animation_file_2.ozz")],
+                view_model: "model.vrm".to_string(),
             }),
-            StateClass::PlayerInit,
-            LogicClass::Player,
+            StateType::PlayerInit,
+            LogicType::Player,
         )
         .unwrap();
         assert_eq!(state_player_new.id(), 1110);
         let state_player_new = state_player_new.cast_as::<StatePlayerInit>().unwrap();
         assert_eq!(state_player_new.id, 1110);
-        assert_eq!(state_player_new.class, StateClass::PlayerInit);
-        assert_eq!(state_player_new.logic_class, LogicClass::Player);
+        assert_eq!(state_player_new.typ, StateType::PlayerInit);
+        assert_eq!(state_player_new.logic_typ, LogicType::Player);
         assert_eq!(state_player_new.skeleton_file, s!("skeleton_file.ozz"));
         assert_eq!(
             state_player_new.animation_files,
             vec![s!("animation_file_1.ozz"), s!("animation_file_2.ozz")]
         );
+        assert_eq!(state_player_new.view_model, "model.vrm");
 
         let state_player_update = test_rkyv(
             Box::new(StatePlayerUpdate {
-                _base: StateAnyBase::new(2220, StateClass::PlayerUpdate, LogicClass::Player),
-                position: Vec3::new(1.0, 2.0, 3.0),
-                direction: Vec3::new(-1.0, 1.0, 1.0),
+                _base: StateAnyBase::new(2220, StateType::PlayerUpdate, LogicType::Player),
+                physics: StateCharaPhysics {
+                    position: Vec3::new(1.0, 2.0, 3.0),
+                    rotation: Quat::IDENTITY,
+                },
                 actions: Vec::new(),
             }),
-            StateClass::PlayerUpdate,
-            LogicClass::Player,
+            StateType::PlayerUpdate,
+            LogicType::Player,
         )
         .unwrap();
         assert_eq!(state_player_update.id(), 2220);
         let state_player_update = state_player_update.cast_as::<StatePlayerUpdate>().unwrap();
         assert_eq!(state_player_update.id, 2220);
-        assert_eq!(state_player_update.class, StateClass::PlayerUpdate);
-        assert_eq!(state_player_update.logic_class, LogicClass::Player);
-        assert_eq!(state_player_update.position, Vec3::new(1.0, 2.0, 3.0));
-        assert_eq!(state_player_update.direction, Vec3::new(-1.0, 1.0, 1.0));
+        assert_eq!(state_player_update.typ, StateType::PlayerUpdate);
+        assert_eq!(state_player_update.logic_typ, LogicType::Player);
+        assert_eq!(state_player_update.physics.position, Vec3::new(1.0, 2.0, 3.0));
+        assert_eq!(state_player_update.physics.rotation, Quat::IDENTITY);
         assert_eq!(state_player_update.actions.len(), 0);
     }
 
     #[test]
     fn test_rkyv_state_enemy() {
         let state_enemy_new = test_rkyv(
-            Box::new(StateEnemyInit {
-                _base: StateAnyBase::new(1111, StateClass::EnemyInit, LogicClass::Enemy),
+            Box::new(StateNpcInit {
+                _base: StateAnyBase::new(1111, StateType::NpcInit, LogicType::Npc),
             }),
-            StateClass::EnemyInit,
-            LogicClass::Enemy,
+            StateType::NpcInit,
+            LogicType::Npc,
         )
         .unwrap();
         assert_eq!(state_enemy_new.id(), 1111);
-        let state_enemy_new = state_enemy_new.cast_as::<StateEnemyInit>().unwrap();
+        let state_enemy_new = state_enemy_new.cast_as::<StateNpcInit>().unwrap();
         assert_eq!(state_enemy_new.id, 1111);
-        assert_eq!(state_enemy_new.class, StateClass::EnemyInit);
-        assert_eq!(state_enemy_new.logic_class, LogicClass::Enemy);
+        assert_eq!(state_enemy_new.typ, StateType::NpcInit);
+        assert_eq!(state_enemy_new.logic_typ, LogicType::Npc);
 
         let state_enemy_update = test_rkyv(
-            Box::new(StateEnemyUpdate {
-                _base: StateAnyBase::new(2222, StateClass::EnemyUpdate, LogicClass::Enemy),
+            Box::new(StateNpcUpdate {
+                _base: StateAnyBase::new(2222, StateType::NpcUpdate, LogicType::Npc),
             }),
-            StateClass::EnemyUpdate,
-            LogicClass::Enemy,
+            StateType::NpcUpdate,
+            LogicType::Npc,
         )
         .unwrap();
         assert_eq!(state_enemy_update.id(), 2222);
-        let state_enemy_update = state_enemy_update.cast_as::<StateEnemyUpdate>().unwrap();
+        let state_enemy_update = state_enemy_update.cast_as::<StateNpcUpdate>().unwrap();
         assert_eq!(state_enemy_update.id, 2222);
-        assert_eq!(state_enemy_update.class, StateClass::EnemyUpdate);
-        assert_eq!(state_enemy_update.logic_class, LogicClass::Enemy);
+        assert_eq!(state_enemy_update.typ, StateType::NpcUpdate);
+        assert_eq!(state_enemy_update.logic_typ, LogicType::Npc);
     }
 }
