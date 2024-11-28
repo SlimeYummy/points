@@ -1,0 +1,16 @@
+[package]
+name = "cirtical-point-csgen"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+proc-macro = true
+
+[dependencies]
+anyhow = "1.0"
+case = "1.0"
+libc = "0.2"
+quote = "1.0"
+regex = "1.10"
+syn = { version = "2.0", features = ["full"] }
