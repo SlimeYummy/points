@@ -397,3 +397,155 @@ impl ArchivedStateAny for rkyv::Archived<StateGameUpdate> {
         LogicType::Game
     }
 }
+
+#[derive(Debug)]
+pub struct LogicGame {
+    id: NumID,
+    frame: u32,
+    stage: Box<LogicStage>,
+    players: HistoryVec<Box<LogicPlayer>>,
+    npces: HistoryVec<Box<LogicNpc>>,
+}
+
+impl LogicAny for LogicGame {
+    #[inline]
+    fn id(&self) -> NumID {
+        self.id
+    }
+
+    #[inline]
+    fn typ(&self) -> LogicType {
+        LogicType::Game
+    }
+
+    #[inline]
+    fn spawn_frame(&self) -> u32 {
+        0
+    }
+
+    #[inline]
+    fn death_frame(&self) -> u32 {
+        u32::MAX
+    }
+
+    #[inline]
+    fn update(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<()> {
+        self.update_impl(ctx)
+    }
+
+    #[inline]
+    fn restore(&mut self, ctx: &ContextRestore) -> XResult<()> {
+        self.restore_impl(ctx)
+    }
+}
+
+impl LogicGame {
+    pub fn new(
+        ctx: &mut ContextUpdate<'_>,
+        param_stage: ParamStage,
+        param_players: Vec<ParamPlayer>,
+    ) -> XResult<Box<LogicGame>> {
+        let game_id = ctx.gene.gen_id();
+        ctx.state_init(Arc::new(StateGameInit {
+            _base: StateAnyBase::new(game_id, StateType::GameInit, LogicType::Game),
+        }));
+
+        // new stage
+        let stage = LogicStage::new(ctx, &param_stage)?;
+
+        // new players
+        let mut logic_players = HistoryVec::with_capacity(param_players.len());
+        for param_player in param_players {
+            let logic_player = LogicPlayer::new(ctx, &param_player)?;
+            logic_players.append_new(logic_player);
+        }
+
+        // TODO: new ememies
+        let logic_enemies = HistoryVec::new();
+
+        let game = Box::new(LogicGame {
+            id: game_id,
+            frame: 0,
+            stage,
+            players: logic_players,
+            npces: logic_enemies,
+        });
+
+        ctx.state_update(Box::new(StateGameUpdate {
+            _base: StateAnyBase::new(game.id, StateType::GameUpdate, LogicType::Game),
+            frame: game.frame,
+            id_gen_counter: ctx.gene.counter(),
+        }));
+        Ok(game)
+    }
+
+    pub fn update_impl(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<()> {
+        self.frame = ctx.frame;
+
+        self.stage.update(ctx)?;
+
+        for player in self.players.iter_mut_by(|p| p.is_alive()) {
+            player.update(ctx)?;
+        }
+
+        for npc in self.npces.iter_mut_by(|p| p.is_alive()) {
+            npc.update(ctx)?;
+        }
+
+        ctx.state_update(Box::new(StateGameUpdate {
+            _base: StateAnyBase::new(self.id, StateType::GameUpdate, LogicType::Game),
+            frame: self.frame,
+            id_gen_counter: ctx.gene.counter(),
+        }));
+        Ok(())
+    }
+
+    pub fn restore_impl(&mut self, ctx: &ContextRestore) -> XResult<()> {
+        self.frame = ctx.frame;
+        self.stage.restore(ctx)?;
+
+        self.players.restore_when(|player| {
+            if player.death_frame() < self.frame {
+                Ok(-1)
+            } else if player.spawn_frame() > self.frame {
+                return Ok(1);
+            } else {
+                player.restore(ctx)?;
+                return Ok(0);
+            }
+        })?;
+        // self.npces.restore(self.frame, |npc| {
+        //     return npc.restore(ctx);
+        // })?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logic::test_utils::*;
+    use crate::utils::{s, CastPtr, CastRef, KeyCode, KeyEvent};
+
+    #[test]
+    fn test_logic_loop_common() {
+        let tmpl_db = TmplDatabase::new("../test-res").unwrap();
+        let param_stage = ParamStage {
+            stage: s!("Stage.Demo"),
+        };
+        let param_player = ParamPlayer {
+            character: s!("Character.No1"),
+            style: s!("Style.No1-1"),
+            level: 4,
+            ..Default::default()
+        };
+        let (mut ll, _) = LogicLoop::new(tmpl_db, "../test-asset", param_stage, vec![param_player], None).unwrap();
+        ll.update(vec![PlayerKeyEvents {
+            frame: 1,
+            player_id: 3,
+            events: vec![KeyEvent::new_button(KeyCode::Attack1, true)],
+        }])
+        .unwrap();
+        ll.stop().unwrap();
+    }
+}
