@@ -3,33 +3,34 @@ name = "cirtical-point-core"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 ahash = "0.8"
 anyhow = "1.0"
 base64 = "0.22"
 bytecheck = { version = "0.6", default-features = false }
 byteorder = "1.5.0"
+cirtical-point-csgen = { path = "../csgen" }
 educe = { version = "0.6", features = ["Debug", "Default"] }
 enum-iterator = "2.1"
-glam = { version = "0.25", features = ["approx", "serde", "rkyv"] }
-jolt-physics-rs = { path = "../../../jolt-physics-rs", features = ["deterministic", "profile", "debug-renderer"] }
+float-cmp = "0.9.0"
+glam = { version = "0.27", features = ["approx", "serde", "rkyv"] }
+jolt-physics-rs = { path = "../../../jolt-physics-rs", features = ["deterministic", "profile"] }
 lazy_static = "1.4"
 libc = "0.2"
 mimalloc = "0.1.42"
 ozz-animation-rs = { path = "../../../ozz-animation-rs" }
 pest = "2.7"
 pest_derive = "2.7"
+ptr_meta = "0.1"
 recastnavigation-rs = { path = "../../../recastnavigation-rs" }
 regex = "1.10"
-rkyv = { version = "0.7", features = [ "validation" ] }
-rkyv_dyn = "0.7"
+rkyv = { version = "0.7", features = [ "strict", "validation" ] }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 static_assertions = "1.1"
 thiserror = "1.0"
 typetag = "0.2"
+zip = { version = "2.2", default-features = false, features = [ "zstd" ] }
 
 [features]
 #default = ["server-side"]
