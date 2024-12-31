@@ -1,0 +1,14 @@
+[package]
+name = "critical-point-csbridge"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+cirtical-point-core = { path = "../core" }
+glam = { version = "0.27", features = ["approx", "serde", "rkyv"] }
+libc = "0.2"
+ozz-animation-rs = { path = "../../../ozz-animation-rs" }
+rmp-serde = "1.3"
