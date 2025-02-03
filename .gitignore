@@ -8,6 +8,8 @@
 
 .ruff_cache
 __pycache__/
+build/
+turning_point.egg-info/
 
 #
 # rust
@@ -24,6 +26,27 @@ target/
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
 
+#
+# C#
+#
+
+# User-specific files
+*.suo
+*.user
+*.sln.docstates
+
+# Build results
+
+[Dd]ebug/
+[Rr]elease/
+x64/
+[Bb]in/
+[Oo]bj/
+
+# MSTest test Results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
 ##############################
 
 *.exe
@@ -31,7 +54,8 @@ target/
 
 res/
 output/
-test_res/
+test-res/
+test-asset/
 -src/
 
 Assets/
