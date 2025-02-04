@@ -330,4 +330,216 @@ namespace CriticalPoint {
             public bool MoveNext() => ++_index < _index;
         }
     }
+
+    //
+    // Rust String wrapper
+    //
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal unsafe struct RsString {
+        internal UIntPtr len;
+        internal IntPtr ptr;
+        internal UIntPtr cap;
+
+        internal bool IsNull => ptr == IntPtr.Zero;
+
+        internal void Clear() {
+            len = UIntPtr.Zero;
+            ptr = IntPtr.Zero;
+            cap = UIntPtr.Zero;
+        }
+    }
+
+    public ref struct RefString {
+        private RsString _str;
+
+        internal RefString(RsString str) => _str = str;
+
+        public int Length { get => (int)_str.len; }
+        public bool IsEmpty { get => _str.len == UIntPtr.Zero; }
+
+        public override string ToString() {
+            if (_str.ptr == IntPtr.Zero) {
+                return "";
+            }
+            return Marshal.PtrToStringUTF8(_str.ptr, (int)_str.len) ?? "";
+        }
+    }
+
+    //
+    // Rust Vec<T> wrapper
+    //
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal unsafe struct RsVec<T> where T : unmanaged {
+        internal UIntPtr cap;
+        internal T* ptr;
+        internal UIntPtr len;
+
+        internal bool IsNull => ptr == null;
+
+        internal void Clear() {
+            cap = UIntPtr.Zero;
+            ptr = null;
+            len = UIntPtr.Zero;
+        }
+    }
+
+    public ref struct RefVecVal<T> where T : unmanaged {
+        private RsVec<T> _vec;
+
+        internal RefVecVal(RsVec<T> vec) => _vec = vec;
+
+        public int Length { get => (int)_vec.len; }
+        public bool IsEmpty { get => _vec.len == UIntPtr.Zero; }
+
+        public readonly T this[int index] {
+            get {
+                if ((uint)index >= (uint)_vec.len) {
+                    string msg = string.Format("index:{0} len:{1}", index, _vec.len);
+                    throw new IndexOutOfRangeException(msg);
+                }
+                unsafe {
+                    return Unsafe.Add(ref *_vec.ptr, (nint)(uint)index);
+                }
+            }
+        }
+
+        internal RsSlice<T> AsSlice() {
+            unsafe { return new RsSlice<T>(_vec.ptr, _vec.len); }
+        }
+
+        public Enumerator GetEnumerator() => new Enumerator(this);
+
+        public ref struct Enumerator {
+            private RefVecVal<T> _vec;
+            private int _index;
+
+            public Enumerator(RefVecVal<T> vec) {
+                _vec = vec;
+                _index = -1;
+            }
+
+            public T Current { get => _vec[_index]; }
+
+            public bool MoveNext() => ++_index < _vec.Length;
+        }
+    }
+
+    public ref struct RefVecBoxStateAny {
+        private RsVec<RsBoxDynStateAny> _vec;
+
+        internal RefVecBoxStateAny(RsVec<RsBoxDynStateAny> vec) => _vec = vec;
+
+        public int Length { get => (int)_vec.len; }
+        public bool IsEmpty { get => _vec.len == UIntPtr.Zero; }
+
+        public RefDynStateAny this[int index] {
+            get {
+                if ((uint)index >= (uint)_vec.len) {
+                    string msg = string.Format("index:{0} len:{1}", index, _vec.len);
+                    throw new IndexOutOfRangeException(msg);
+                }
+                unsafe {
+                    return Unsafe.Add(ref *_vec.ptr, (nint)(uint)index).MakeRef();
+                }
+            }
+        }
+
+        internal RsSlice<RsBoxDynStateAny> AsSlice() => new RsSlice<RsBoxDynStateAny>(_vec);
+
+        public Enumerator GetEnumerator() => new Enumerator(this);
+
+        public ref struct Enumerator {
+            private RefVecBoxStateAny _vec;
+            private int _index;
+
+            public Enumerator(RefVecBoxStateAny vec) {
+                _vec = vec;
+                _index = -1;
+            }
+
+            public RefDynStateAny Current { get => _vec[_index]; }
+
+            public bool MoveNext() => ++_index < _vec.Length;
+        }
+    }
+
+    public ref struct RefVecArcStateAny {
+        private RsVec<RsArcDynStateAny> _vec;
+
+        internal RefVecArcStateAny(RsVec<RsArcDynStateAny> vec) => _vec = vec;
+
+        public int Length { get => (int)_vec.len; }
+        public bool IsEmpty { get => _vec.len == UIntPtr.Zero; }
+
+        public WeakDynStateAny this[int index] {
+            get {
+                if ((uint)index >= (uint)_vec.len) {
+                    string msg = string.Format("index:{0} len:{1}", index, _vec.len);
+                    throw new IndexOutOfRangeException(msg);
+                }
+                unsafe {
+                    return Unsafe.Add(ref *_vec.ptr, (nint)(uint)index).MakeWeak();
+                }
+            }
+        }
+
+        internal RsSlice<RsArcDynStateAny> AsSlice() => new RsSlice<RsArcDynStateAny>(_vec);
+
+        public Enumerator GetEnumerator() => new Enumerator(this);
+
+        public ref struct Enumerator {
+            private RefVecArcStateAny _vec;
+            private int _index;
+
+            public Enumerator(RefVecArcStateAny vec) {
+                _vec = vec;
+                _index = -1;
+            }
+
+            public WeakDynStateAny Current { get => _vec[_index]; }
+
+            public bool MoveNext() => ++_index < _vec.Length;
+        }
+    }
+
+    public ref struct RefVecBoxStateAction {
+        private RsVec<RsBoxDynStateAction> _vec;
+
+        internal RefVecBoxStateAction(RsVec<RsBoxDynStateAction> vec) => _vec = vec;
+
+        public int Length { get => (int)_vec.len; }
+        public bool IsEmpty { get => _vec.len == UIntPtr.Zero; }
+
+        public RefDynStateAction this[int index] {
+            get {
+                if ((uint)index >= (uint)_vec.len) {
+                    string msg = string.Format("index:{0} len:{1}", index, _vec.len);
+                    throw new IndexOutOfRangeException(msg);
+                }
+                unsafe {
+                    return Unsafe.Add(ref *_vec.ptr, (nint)(uint)index).MakeRef();
+                }
+            }
+        }
+
+        internal RsSlice<RsBoxDynStateAction> AsSlice() => new RsSlice<RsBoxDynStateAction>(_vec);
+
+        public Enumerator GetEnumerator() => new Enumerator(this);
+
+        public ref struct Enumerator {
+            private RefVecBoxStateAction _vec;
+            private int _index;
+
+            public Enumerator(RefVecBoxStateAction vec) {
+                _vec = vec;
+                _index = -1;
+            }
+
+            public RefDynStateAction Current { get => _vec[_index]; }
+
+            public bool MoveNext() => ++_index < _vec.Length;
+        }
+    }
 }
