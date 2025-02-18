@@ -1,6 +1,0 @@
-line-length = 120
-extend-exclude = ["res", "test"]
-
-[lint]
-select = ["E", "F", "Q"]
-fixable = ["ALL"]
