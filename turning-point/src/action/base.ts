@@ -255,3 +255,153 @@ export function parseVarActionInserts(
 ): ReadonlyArray<ActionInsert> | Var<ReadonlyArray<ActionInsert>> {
     return parseVarValueArgs(raw, where, opts, parseActionInserts, parseActionInsertsArray);
 }
+
+export type ActionArgs = {
+    /** 动作配置文件 */
+    config: string;
+
+    /** 是否启用 */
+    enabled?: boolean | int | VarValueArgs<boolean | int>;
+
+    /** 所属角色ID Action关联的Style应当属于该Character */
+    character: ID;
+
+    /** 可以使用该动作的角色风格 */
+    styles: ReadonlyArray<ID>;
+};
+
+/**
+ * 所有动作的抽象基类
+ */
+export abstract class Action extends Resource {
+    public static override prefix: IDPrefix = 'Action';
+
+    public static override find(id: string, where: string): Action {
+        const res = Resource.find(id, where);
+        if (!(res instanceof Action)) {
+            throw new Error(`${where}: Resource type miss match`);
+        }
+        return res;
+    }
+
+    /** 动作配置文件 */
+    public readonly config: string;
+
+    /** 是否启用 */
+    public readonly enabled?: boolean | Var<boolean>;
+
+    /** 所属角色ID Action关联的Style应当属于该Character */
+    public readonly character: ID;
+
+    /** 可以使用该动作的角色风格 */
+    public readonly styles: ReadonlyArray<ID>;
+
+    public constructor(id: ID, args: ActionArgs) {
+        super(id);
+        this.config = parseFile(args.config, this.w('config'), { extension: '.json' });
+        this.enabled = parseVarBool(args.enabled || true, this.w('enabled'));
+        this.character = parseID(args.character, 'Character', this.w('character'));
+        this.styles = parseIDArray(args.styles, 'Style', this.w('styles'));
+    }
+
+    public override verify() {
+        verifyVarValue(this.enabled, { styles: this.styles }, this.w('enabled'));
+
+        Character.find(this.character, this.w('character'));
+
+        if (this.styles) {
+            for (const [idx, id] of this.styles.entries()) {
+                const usableStyle = Style.find(id, this.w(`styles[${idx}]`));
+                if (this.character !== usableStyle.character) {
+                    throw this.e(`styles[${idx}]`, 'character mismatch with styles');
+                }
+            }
+        }
+    }
+}
+
+export type ActionPhaseArgs = {
+    /** 派生等级 */
+    derive_level?: int | VarValueArgs<int>;
+
+    /** 伤害减免 */
+    damage_rdc?: float | VarValueArgs<float>;
+
+    /** 护盾伤害减免 */
+    shield_dmg_rdc?: float | VarValueArgs<float>;
+
+    /** 韧性等级 */
+    poise_level?: int | VarValueArgs<int>;
+};
+
+export class ActionPhase {
+    /** 派生等级 */
+    public readonly derive_level: int | Var<int>;
+
+    /** 伤害减免 */
+    public readonly damage_rdc: float | Var<float>;
+
+    /** 护盾伤害减免 */
+    public readonly shield_dmg_rdc: float | Var<float>;
+
+    /** 韧性等级 */
+    public readonly poise_level: int | Var<int>;
+
+    public constructor(args: ActionPhaseArgs, where: string) {
+        this.derive_level = parseVarInt(args.derive_level || 100, `${where}.derive_level`);
+        this.damage_rdc = parseVarFloat(args.damage_rdc || 0, `${where}.damage_rdc`);
+        this.shield_dmg_rdc = parseVarFloat(args.shield_dmg_rdc || 0, `${where}.shield_dmg_rdc`);
+        this.poise_level = parseVarInt(args.poise_level || 0, `${where}.poise_level`);
+    }
+}
+
+export function parseActionPhase(raw: ActionPhaseArgs, where: string): ActionPhase {
+    return new ActionPhase(raw, where);
+}
+
+export function parseActionPhaseArray(
+    raw: ReadonlyArray<ActionPhaseArgs>,
+    where: string,
+    opts: {
+        len?: int;
+        min_len?: int;
+        max_len?: int;
+    } = {},
+): ReadonlyArray<ActionPhase> {
+    checkArray(raw, where, opts);
+    const res = [];
+    for (const [idx, item] of raw.entries()) {
+        res.push(parseActionPhase(item, `${where}[${idx}]`));
+    }
+    return res;
+}
+
+export function parseActionDeriveVarTable(
+    raw: Readonly<Partial<Record<VirtualKey, ID | VarValueArgs<ID>>>>,
+    where: string,
+): Readonly<Partial<Record<VirtualKey, ID | Var<ID>>>> {
+    if (typeof raw !== 'object' || raw === null) {
+        throw new Error(`${where}: must be a object`);
+    }
+    const res: Partial<Record<VirtualKey, ID | Var<ID>>> = {};
+    for (const [raw_key, raw_level] of Object.entries(raw)) {
+        const key = parseVirtualKey(raw_key, `${where}[${raw_key}]`);
+        res[key] = parseVarID(raw_level, 'Action', `${where}[${raw_key}]`);
+    }
+    return res;
+}
+
+export function verifyActionDeriveVarTable(
+    derives: Readonly<Partial<Record<VirtualKey, ID | Var<ID>>>>,
+    consumers: {
+        character?: ID;
+        styles?: ReadonlyArray<ID>;
+    },
+    where: string,
+): void {
+    for (const derive of Object.values(derives)) {
+        verifyVarValue(derive, consumers, where, (id: ID, where: string) => {
+            Action.find(id, where);
+        });
+    }
+}
