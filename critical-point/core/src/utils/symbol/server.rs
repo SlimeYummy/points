@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::{alloc, fmt, mem, slice, str};
 
 use super::base::{InnerMap, InnerNode, MAX_SYMBOL_SIZE};
-use crate::utils::{XError, XResult};
+use crate::utils::{xerr, xres, XResult};
 
 #[repr(C)]
 struct SymbolNode {
@@ -59,7 +59,10 @@ impl SymbolNode {
         self.hash = hash;
         self.length = string.len() as u16;
         let ptr = self.chars.as_mut_ptr();
-        unsafe { ptr.copy_from(string.as_ptr(), self.length as usize) };
+        unsafe {
+            ptr.copy_from(string.as_ptr(), self.length as usize);
+            ptr.add(self.length as usize).write(0);
+        }
     }
 }
 
@@ -138,7 +141,7 @@ impl SymbolCache {
 
     fn new_symbol_node(&mut self, string: &str) -> XResult<NonNull<SymbolNode>> {
         if string.len() > MAX_SYMBOL_SIZE {
-            return Err(XError::SymbolTooLong);
+            return xres!(SymbolTooLong);
         }
 
         let hash = self.nodes.hash(string);
@@ -159,7 +162,7 @@ impl SymbolCache {
 
     fn find_symbol_node(&self, string: &str) -> XResult<NonNull<SymbolNode>> {
         let hash = self.nodes.hash(string);
-        self.nodes.find(string, hash).ok_or(XError::SymbolNotFound)
+        self.nodes.find(string, hash).ok_or_else(|| xerr!(SymbolNotFound))
     }
 
     fn default_symbol_node(&self) -> NonNull<SymbolNode> {
@@ -248,7 +251,7 @@ impl Symbol {
                 let node = cache.find_symbol_node(string)?;
                 Ok(Symbol(node))
             }
-            None => Err(XError::SymbolNotPreloaded),
+            None => xres!(SymbolNotPreloaded),
         }
     }
 
@@ -305,11 +308,12 @@ impl fmt::Display for Symbol {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::XError;
 
     #[test]
     fn test_server_symbol() {
         let err = Symbol::new("123").unwrap_err();
-        assert!(matches!(err, XError::SymbolNotPreloaded));
+        assert!(matches!(err, XError::SymbolNotPreloaded(_)));
 
         let res = Symbol::preload_strings(&[&"x".repeat((1 << 16) + 1)]);
         assert!(res.is_err());
