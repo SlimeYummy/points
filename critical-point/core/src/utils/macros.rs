@@ -1,3 +1,7 @@
+//
+// Rust derive
+//
+
 macro_rules! extend {
     ($cls:ident, $base:ty) => {
         static_assertions::const_assert!(std::mem::offset_of!($cls, _base) == 0);
@@ -46,6 +50,69 @@ macro_rules! interface {
 }
 pub(crate) use interface;
 
+//
+// serde & rkyv
+//
+
+macro_rules! rkyv_self {
+    ($type:ty) => {
+        const _: () = {
+            use rkyv::{Archive, Archived, Deserialize, Fallible, Serialize};
+
+            impl Archive for $type {
+                type Archived = $type;
+                type Resolver = ();
+
+                #[inline]
+                unsafe fn resolve(&self, _: usize, _: Self::Resolver, out: *mut Self::Archived) {
+                    out.write(*self);
+                }
+            }
+
+            impl<S: Fallible + ?Sized> Serialize<S> for $type {
+                #[inline]
+                fn serialize(&self, _: &mut S) -> Result<Self::Resolver, S::Error> {
+                    Ok(())
+                }
+            }
+
+            impl<D: Fallible + ?Sized> Deserialize<$type, D> for Archived<$type> {
+                #[inline]
+                fn deserialize(&self, _: &mut D) -> Result<$type, D::Error> {
+                    Ok(*self)
+                }
+            }
+        };
+    };
+}
+pub(crate) use rkyv_self;
+
+macro_rules! serde_by {
+    ($type:ty, $tuple:ty, $from:expr, $to:expr) => {
+        const _: () = {
+            use serde::de::{Deserialize, Deserializer};
+            use serde::ser::{Serialize, Serializer};
+
+            impl<'de> Deserialize<'de> for $type {
+                fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                    <$tuple>::deserialize(deserializer).map(|by| $from(by))
+                }
+            }
+
+            impl Serialize for $type {
+                fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+                where
+                    S: Serializer,
+                {
+                    let by: $tuple = $to(self);
+                    by.serialize(serializer)
+                }
+            }
+        };
+    };
+}
+pub(crate) use serde_by;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -84,11 +151,11 @@ mod tests {
             _base: Base {
                 b1: 1,
                 b2: 2,
-                b3: "aaa".to_string(),
+                b3: "aaa".into(),
             },
             d1: 40,
             d2: 50,
-            d3: "bbb".to_string(),
+            d3: "bbb".into(),
         };
 
         assert_eq!(d.d1, 40);
