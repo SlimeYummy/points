@@ -9,6 +9,7 @@ pub struct HistoryVec<T> {
 }
 
 impl<T> Default for HistoryVec<T> {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
@@ -212,12 +213,14 @@ impl<T> HistoryVec<T> {
 impl<T> Index<usize> for HistoryVec<T> {
     type Output = T;
 
+    #[inline]
     fn index(&self, index: usize) -> &T {
         return self.get(index).unwrap();
     }
 }
 
 impl<T> IndexMut<usize> for HistoryVec<T> {
+    #[inline]
     fn index_mut(&mut self, index: usize) -> &mut T {
         return self.get_mut(index).unwrap();
     }
@@ -292,7 +295,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::XError;
+    use crate::utils::xres;
 
     #[derive(Debug, PartialEq)]
     struct Payload {
@@ -304,7 +307,7 @@ mod tests {
         fn new(key: i32, value: &str) -> Payload {
             Payload {
                 key: key,
-                value: value.to_string(),
+                value: value.into(),
             }
         }
     }
@@ -380,7 +383,7 @@ mod tests {
 
         hv.append_reuse(|p| {
             if p.key == 3 {
-                p.value = "three-three".to_string();
+                p.value = "three-three".into();
             }
             Ok(p.key == 3)
         })
@@ -392,11 +395,11 @@ mod tests {
         hv.append(
             |p| {
                 if p.key == 4 {
-                    p.value = "four-four".to_string();
+                    p.value = "four-four".into();
                 }
                 Ok(p.key == 4)
             },
-            || Err(XError::unexpected("")),
+            || xres!(Unexpected),
         )
         .unwrap();
         assert_eq!(hv.current_end, 4);
