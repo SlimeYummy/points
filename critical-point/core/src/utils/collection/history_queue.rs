@@ -2,7 +2,7 @@ use std::collections::{vec_deque, VecDeque};
 use std::fmt;
 use std::ops::{Index, IndexMut};
 
-use crate::utils::{XError, XResult};
+use crate::utils::{xres, XError, XResult};
 
 pub struct HistoryQueue<T> {
     queue: VecDeque<T>,
@@ -61,7 +61,7 @@ impl<T> HistoryQueue<T> {
 
     #[inline]
     pub fn get(&self, index: usize) -> Option<&T> {
-        if index < (self.current_end - self.current_start) as usize {
+        if index < self.len() {
             return Some(&self.queue[(self.current_start as usize) + index]);
         }
         None
@@ -69,8 +69,40 @@ impl<T> HistoryQueue<T> {
 
     #[inline]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
-        if index < (self.current_end - self.current_start) as usize {
+        if index < self.len() {
             return Some(&mut self.queue[(self.current_start as usize) + index]);
+        }
+        None
+    }
+
+    #[inline]
+    pub fn first(&self) -> Option<&T> {
+        if self.len() > 0 {
+            return Some(&self.queue[self.current_start as usize]);
+        }
+        None
+    }
+
+    #[inline]
+    pub fn first_mut(&mut self) -> Option<&mut T> {
+        if self.len() > 0 {
+            return Some(&mut self.queue[self.current_start as usize]);
+        }
+        None
+    }
+
+    #[inline]
+    pub fn last(&self) -> Option<&T> {
+        if self.len() > 0 {
+            return Some(&self.queue[(self.current_end as usize) - 1]);
+        }
+        None
+    }
+
+    #[inline]
+    pub fn last_mut(&mut self) -> Option<&mut T> {
+        if self.len() > 0 {
+            return Some(&mut self.queue[(self.current_end as usize) - 1]);
         }
         None
     }
@@ -194,9 +226,7 @@ impl<T> HistoryQueue<T> {
             } else if res == 0 {
                 break;
             } else {
-                return Err(XError::invalid_operation(
-                    "HistoryQueue::restore_when() Invalid `func` return value",
-                ));
+                return xres!(BadOperation; "start");
             }
         }
         while new_end < self.current_end {
@@ -206,9 +236,7 @@ impl<T> HistoryQueue<T> {
             } else if res > 0 {
                 break;
             } else {
-                return Err(XError::invalid_operation(
-                    "HistoryQueue::restore_when() Invalid `func` return value",
-                ));
+                return xres!(BadOperation; "end");
             }
         }
         self.current_start = new_start;
@@ -248,6 +276,7 @@ impl<T> HistoryQueue<T> {
 }
 
 impl<T> Default for HistoryQueue<T> {
+    #[inline]
     fn default() -> Self {
         HistoryQueue::new()
     }
@@ -256,12 +285,14 @@ impl<T> Default for HistoryQueue<T> {
 impl<T> Index<usize> for HistoryQueue<T> {
     type Output = T;
 
+    #[inline]
     fn index(&self, index: usize) -> &T {
         return self.get(index).unwrap();
     }
 }
 
 impl<T> IndexMut<usize> for HistoryQueue<T> {
+    #[inline]
     fn index_mut(&mut self, index: usize) -> &mut T {
         return self.get_mut(index).unwrap();
     }
@@ -292,7 +323,7 @@ mod tests {
         fn new(key: i32, value: &str) -> Payload {
             Payload {
                 key: key,
-                value: value.to_string(),
+                value: value.into(),
             }
         }
     }
@@ -373,11 +404,11 @@ mod tests {
         hq.restore(|p| match p.key {
             1 => -1,
             2 => {
-                p.value = "two-two".to_string();
+                p.value = "two-two".into();
                 0
             }
             3 => {
-                p.value = "three-three".to_string();
+                p.value = "three-three".into();
                 0
             }
             _ => 1,
@@ -391,7 +422,7 @@ mod tests {
 
         hq.enqueue_reuse(|p| {
             if p.key == 4 {
-                p.value = "four-four".to_string();
+                p.value = "four-four".into();
             }
             Ok(p.key == 4)
         })
@@ -402,11 +433,11 @@ mod tests {
         hq.enqueue(
             |p| {
                 if p.key == 5 {
-                    p.value = "five-five".to_string();
+                    p.value = "five-five".into();
                 }
                 Ok(p.key == 5)
             },
-            || Err(XError::unexpected("")),
+            || xres!(BadOperation),
         )
         .unwrap();
         assert_eq!(hq[3], Payload::new(5, "five-five"));

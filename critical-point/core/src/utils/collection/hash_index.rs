@@ -68,6 +68,7 @@ where
         }
     }
 
+    #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         HashIndex::with_capacity_and_hasher(capacity, S::default())
     }
@@ -323,22 +324,22 @@ impl<'a, K, V, S> Iterator for HashIndexIter<'a, K, V, S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::{s, Symbol};
+    use crate::utils::{sb, Symbol};
 
     #[test]
     fn test_insert_find() {
         let mut hi: DtHashIndex<Symbol, u32> = DtHashIndex::new();
-        hi.insert(s!("a"), 1);
-        hi.insert(s!("b"), 2);
-        hi.insert(s!("a"), 3);
+        hi.insert(sb!("a"), 1);
+        hi.insert(sb!("b"), 2);
+        hi.insert(sb!("a"), 3);
         assert_eq!(hi.len(), 3);
-        assert_eq!(hi.find(&s!("a")).unwrap().copied().collect::<Vec<_>>(), vec![1, 3]);
-        assert_eq!(hi.find(&s!("b")).unwrap().copied().collect::<Vec<_>>(), vec![2]);
+        assert_eq!(hi.find(&sb!("a")).unwrap().copied().collect::<Vec<_>>(), vec![1, 3]);
+        assert_eq!(hi.find(&sb!("b")).unwrap().copied().collect::<Vec<_>>(), vec![2]);
 
         let all = hi.iter().map(|(k, v)| (k.clone(), *v)).collect::<Vec<_>>();
-        assert!(all.contains(&(s!("a"), 1)));
-        assert!(all.contains(&(s!("b"), 2)));
-        assert!(all.contains(&(s!("a"), 3)));
+        assert!(all.contains(&(sb!("a"), 1)));
+        assert!(all.contains(&(sb!("b"), 2)));
+        assert!(all.contains(&(sb!("a"), 3)));
     }
 
     #[test]
@@ -364,17 +365,20 @@ mod tests {
         }
 
         let mut hi: HashIndex<Symbol, u32, TestState> = HashIndex::with_capacity_and_hasher(1, TestState);
-        hi.insert(s!("xxx"), 1);
-        hi.insert(s!("yyy"), 2);
-        hi.insert(s!("yyy"), 3);
-        hi.insert(s!("xxx"), 4);
-        hi.insert(s!("zzz"), 5);
-        hi.insert(s!("zzz"), 5);
-        hi.insert(s!("xxx"), 6);
+        hi.insert(sb!("xxx"), 1);
+        hi.insert(sb!("yyy"), 2);
+        hi.insert(sb!("yyy"), 3);
+        hi.insert(sb!("xxx"), 4);
+        hi.insert(sb!("zzz"), 5);
+        hi.insert(sb!("zzz"), 5);
+        hi.insert(sb!("xxx"), 6);
 
-        assert_eq!(hi.find(&s!("xxx")).unwrap().copied().collect::<Vec<_>>(), vec![1, 4, 6]);
-        assert_eq!(hi.find(&s!("yyy")).unwrap().copied().collect::<Vec<_>>(), vec![2, 3]);
-        assert_eq!(hi.find(&s!("zzz")).unwrap().copied().collect::<Vec<_>>(), vec![5, 5]);
+        assert_eq!(
+            hi.find(&sb!("xxx")).unwrap().copied().collect::<Vec<_>>(),
+            vec![1, 4, 6]
+        );
+        assert_eq!(hi.find(&sb!("yyy")).unwrap().copied().collect::<Vec<_>>(), vec![2, 3]);
+        assert_eq!(hi.find(&sb!("zzz")).unwrap().copied().collect::<Vec<_>>(), vec![5, 5]);
     }
 
     #[test]
@@ -383,23 +387,23 @@ mod tests {
         assert_eq!(hi.capacity(), 0);
         assert_eq!(hi.len(), 0);
 
-        hi.insert(s!("a"), 999);
-        hi.insert(s!("a"), 998);
-        hi.insert(s!("a"), 997);
-        hi.insert(s!("a"), 996);
+        hi.insert(sb!("a"), 999);
+        hi.insert(sb!("a"), 998);
+        hi.insert(sb!("a"), 997);
+        hi.insert(sb!("a"), 996);
         assert_eq!(hi.capacity(), 32);
         assert_eq!(hi.len(), 4);
 
         for i in 0..30 {
-            hi.insert(s!("n{}", i), i);
+            hi.insert(sb!("n{}", i), i);
         }
-        hi.insert(s!("a"), 999);
-        hi.insert(s!("a"), 995);
+        hi.insert(sb!("a"), 999);
+        hi.insert(sb!("a"), 995);
 
         assert_eq!(hi.capacity(), 59);
         assert_eq!(hi.len(), 36);
         assert_eq!(
-            hi.find(&s!("a")).unwrap().copied().collect::<Vec<_>>(),
+            hi.find(&sb!("a")).unwrap().copied().collect::<Vec<_>>(),
             vec![999, 998, 997, 996, 999, 995]
         );
     }
