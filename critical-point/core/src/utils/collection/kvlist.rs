@@ -6,6 +6,7 @@ use std::ops::Index;
 pub struct KvList<K, V>(List<(K, V)>);
 
 impl<K, V> Default for KvList<K, V> {
+    #[inline]
     fn default() -> Self {
         KvList(List::default())
     }
@@ -200,20 +201,20 @@ const _: () = {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::{s, Symbol};
+    use crate::utils::{sb, Symbol};
 
     #[test]
     fn test_kvlist_basic() {
         let mut lt = KvList(List::alloc(3));
         unsafe {
-            lt.0.init(0, (s!("xx"), 10));
-            lt.0.init(1, (s!("yy"), 20));
-            lt.0.init(2, (s!("zz"), 30));
+            lt.0.init(0, (sb!("xx"), 10));
+            lt.0.init(1, (sb!("yy"), 20));
+            lt.0.init(2, (sb!("zz"), 30));
         };
         assert_eq!(lt.len(), 3);
         assert_eq!(
             lt.key_iter().cloned().collect::<Vec<Symbol>>(),
-            vec![s!("xx"), s!("yy"), s!("zz")]
+            vec![sb!("xx"), sb!("yy"), sb!("zz")]
         );
         assert_eq!(lt.value_iter().copied().collect::<Vec<i32>>(), vec![10, 20, 30]);
     }
@@ -232,7 +233,7 @@ mod tests {
         let lt2: KvList<Symbol, [u8; 3]> = serde_json::from_str(json).unwrap();
         assert_eq!(
             lt2.as_slice(),
-            &[(s!("k1"), [1u8, 2u8, 3u8]), (s!("k2"), [4u8, 5u8, 6u8])]
+            &[(sb!("k1"), [1u8, 2u8, 3u8]), (sb!("k2"), [4u8, 5u8, 6u8])]
         );
 
         let json = r#"[
@@ -241,6 +242,9 @@ mod tests {
             {"k":987, "v":"def"}
         ]"#;
         let lt3: KvList<u32, Symbol> = serde_json::from_str(json).unwrap();
-        assert_eq!(lt3.as_slice(), &[(234, s!("abc")), (345, s!("def")), (987, s!("def"))]);
+        assert_eq!(
+            lt3.as_slice(),
+            &[(234, sb!("abc")), (345, sb!("def")), (987, sb!("def"))]
+        );
     }
 }

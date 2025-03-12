@@ -9,6 +9,7 @@ pub struct List<V> {
 }
 
 impl<V> Default for List<V> {
+    #[inline]
     fn default() -> Self {
         List::alloc(0)
     }
@@ -208,7 +209,7 @@ const _: () = {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::{s, Symbol};
+    use crate::utils::{sb, Symbol};
     use anyhow::Result;
     use rkyv::ser::serializers::AllocSerializer;
     use rkyv::ser::Serializer;
@@ -237,8 +238,8 @@ mod tests {
         assert_eq!(lt2.iter().copied().collect::<Vec<i32>>(), vec![10, 20, 30]);
 
         let mut lt3 = List::alloc(2);
-        let s1 = s!("abc");
-        let s2 = s!("def");
+        let s1 = sb!("abc");
+        let s2 = sb!("def");
         unsafe {
             lt3.init(0, s1.clone());
             lt3.init(1, s2.clone());
@@ -263,7 +264,7 @@ mod tests {
         assert_eq!(lt2.as_slice(), &[[1u8, 2u8, 3u8], [4u8, 5u8, 6u8]]);
 
         let lt3: List<Symbol> = serde_json::from_str(r#"["abc","def","def"]"#).unwrap();
-        assert_eq!(lt3.as_slice(), &[s!("abc"), s!("def"), s!("def")]);
+        assert_eq!(lt3.as_slice(), &[sb!("abc"), sb!("def"), sb!("def")]);
     }
 
     #[test]
@@ -298,8 +299,8 @@ mod tests {
 
         let mut lt3 = List::alloc(2);
         unsafe {
-            lt3.init(0, s!("abc"));
-            lt3.init(1, s!("def"));
+            lt3.init(0, sb!("abc"));
+            lt3.init(1, sb!("def"));
         }
         test_rkyv(lt3).unwrap();
     }
