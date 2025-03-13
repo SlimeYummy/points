@@ -1,14 +1,19 @@
 use cirtical_point_csgen::CsIn;
 use std::fmt;
 
-use crate::utils::Symbol;
+use crate::consts::MAX_PLAYER;
+use crate::utils::{ASymbol, Symbol};
+
+use super::rkyv_self;
 
 //
 // StrID
 //
 
 pub type StrID = Symbol;
+pub type AStrID = ASymbol;
 
+#[inline]
 pub fn is_invalid_str_id(id: StrID) -> bool {
     id.is_empty()
 }
@@ -19,8 +24,24 @@ pub fn is_invalid_str_id(id: StrID) -> bool {
 
 pub type NumID = u64;
 
+#[inline]
 pub fn is_invalid_num_id(id: NumID) -> bool {
     id == u64::MAX
+}
+
+pub const GAME_ID: NumID = 1;
+pub const STAGE_ID: NumID = 2;
+pub const MIN_PLAYER_ID: NumID = 100;
+pub const MAX_PLAYER_ID: NumID = MIN_PLAYER_ID + (MAX_PLAYER as u64);
+
+#[inline]
+pub fn is_valid_player_id(id: NumID) -> bool {
+    id >= MIN_PLAYER_ID && id <= MAX_PLAYER_ID
+}
+
+#[inline]
+pub fn is_invalid_player_id(id: NumID) -> bool {
+    id < MIN_PLAYER_ID || id > MAX_PLAYER_ID
 }
 
 //
@@ -40,25 +61,28 @@ pub fn is_invalid_num_id(id: NumID) -> bool {
     serde::Serialize,
     CsIn,
 )]
-pub struct IDLevel {
+pub struct IDLevel2 {
     pub id: StrID,
     pub level: u32,
 }
 
-impl IDLevel {
-    pub fn new(id: &StrID, level: u32) -> IDLevel {
-        IDLevel { id: id.clone(), level }
+impl IDLevel2 {
+    #[inline]
+    pub fn new(id: &StrID, level: u32) -> IDLevel2 {
+        IDLevel2 { id: id.clone(), level }
     }
 }
 
-impl From<(StrID, u32)> for IDLevel {
+impl From<(StrID, u32)> for IDLevel2 {
+    #[inline]
     fn from((id, level): (StrID, u32)) -> Self {
-        IDLevel { id, level }
+        IDLevel2 { id, level }
     }
 }
 
-impl From<IDLevel> for (StrID, u32) {
-    fn from(val: IDLevel) -> Self {
+impl From<IDLevel2> for (StrID, u32) {
+    #[inline]
+    fn from(val: IDLevel2) -> Self {
         (val.id, val.level)
     }
 }
@@ -68,22 +92,22 @@ const _: () = {
     use serde::de::{Deserializer, MapAccess, SeqAccess, Visitor};
     use serde::Deserialize;
 
-    impl<'de> Deserialize<'de> for IDLevel {
-        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<IDLevel, D::Error> {
-            return deserializer.deserialize_any(TmplIDLevelVisitor::new());
+    impl<'de> Deserialize<'de> for IDLevel2 {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<IDLevel2, D::Error> {
+            return deserializer.deserialize_any(IDLevelVisitor::new());
         }
     }
 
-    pub struct TmplIDLevelVisitor {}
+    pub struct IDLevelVisitor {}
 
-    impl TmplIDLevelVisitor {
+    impl IDLevelVisitor {
         pub fn new() -> Self {
-            TmplIDLevelVisitor {}
+            IDLevelVisitor {}
         }
     }
 
-    impl<'de> Visitor<'de> for TmplIDLevelVisitor {
-        type Value = IDLevel;
+    impl<'de> Visitor<'de> for IDLevelVisitor {
+        type Value = IDLevel2;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             formatter.write_str(r#"[id, level] or {"id": id, "level": level}"#)
@@ -93,7 +117,7 @@ const _: () = {
             #[derive(Deserialize)]
             struct Helper(StrID, u32);
             let Helper(id, level) = Helper::deserialize(SeqAccessDeserializer::new(&mut seq))?;
-            Ok(IDLevel { id, level })
+            Ok(IDLevel2 { id, level })
         }
 
         fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
@@ -103,7 +127,7 @@ const _: () = {
                 level: u32,
             }
             let Helper { id, level } = Helper::deserialize(MapAccessDeserializer::new(map))?;
-            Ok(IDLevel { id, level })
+            Ok(IDLevel2 { id, level })
         }
     }
 };
@@ -125,25 +149,28 @@ const _: () = {
     serde::Serialize,
     CsIn,
 )]
-pub struct IDPlus {
+pub struct IDPlus2 {
     pub id: StrID,
     pub plus: u32,
 }
 
-impl IDPlus {
-    pub fn new(id: &StrID, plus: u32) -> IDPlus {
-        IDPlus { id: id.clone(), plus }
+impl IDPlus2 {
+    #[inline]
+    pub fn new(id: &StrID, plus: u32) -> IDPlus2 {
+        IDPlus2 { id: id.clone(), plus }
     }
 }
 
-impl From<(StrID, u32)> for IDPlus {
+impl From<(StrID, u32)> for IDPlus2 {
+    #[inline]
     fn from((id, plus): (StrID, u32)) -> Self {
-        IDPlus { id, plus }
+        IDPlus2 { id, plus }
     }
 }
 
-impl From<IDPlus> for (StrID, u32) {
-    fn from(val: IDPlus) -> Self {
+impl From<IDPlus2> for (StrID, u32) {
+    #[inline]
+    fn from(val: IDPlus2) -> Self {
         (val.id, val.plus)
     }
 }
@@ -153,22 +180,22 @@ const _: () = {
     use serde::de::{Deserializer, MapAccess, SeqAccess, Visitor};
     use serde::Deserialize;
 
-    impl<'de> Deserialize<'de> for IDPlus {
-        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<IDPlus, D::Error> {
-            return deserializer.deserialize_any(TmplIDCountVisitor::new());
+    impl<'de> Deserialize<'de> for IDPlus2 {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<IDPlus2, D::Error> {
+            return deserializer.deserialize_any(IDCountVisitor::new());
         }
     }
 
-    pub struct TmplIDCountVisitor {}
+    pub struct IDCountVisitor {}
 
-    impl TmplIDCountVisitor {
+    impl IDCountVisitor {
         pub fn new() -> Self {
-            TmplIDCountVisitor {}
+            IDCountVisitor {}
         }
     }
 
-    impl<'de> Visitor<'de> for TmplIDCountVisitor {
-        type Value = IDPlus;
+    impl<'de> Visitor<'de> for IDCountVisitor {
+        type Value = IDPlus2;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             formatter.write_str(r#"[id, plus] or {"id": id, "plus": plus}"#)
@@ -178,7 +205,7 @@ const _: () = {
             #[derive(Deserialize)]
             struct Helper(StrID, u32);
             let Helper(id, plus) = Helper::deserialize(SeqAccessDeserializer::new(&mut seq))?;
-            Ok(IDPlus { id, plus })
+            Ok(IDPlus2 { id, plus })
         }
 
         fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
@@ -188,7 +215,7 @@ const _: () = {
                 plus: u32,
             }
             let Helper { id, plus } = Helper::deserialize(MapAccessDeserializer::new(map))?;
-            Ok(IDPlus { id, plus })
+            Ok(IDPlus2 { id, plus })
         }
     }
 };
@@ -198,17 +225,7 @@ const _: () = {
 //
 
 #[derive(
-    Debug,
-    Default,
-    Clone,
-    PartialEq,
-    Eq,
-    Hash,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    serde::Serialize,
-    CsIn,
+    Debug, Default, Clone, PartialEq, Eq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize,
 )]
 pub struct IDSymbol {
     pub id: StrID,
@@ -216,6 +233,7 @@ pub struct IDSymbol {
 }
 
 impl IDSymbol {
+    #[inline]
     pub fn new(id: &StrID, symbol: &Symbol) -> IDSymbol {
         IDSymbol {
             id: id.clone(),
@@ -225,12 +243,14 @@ impl IDSymbol {
 }
 
 impl From<(StrID, Symbol)> for IDSymbol {
+    #[inline]
     fn from((id, symbol): (StrID, Symbol)) -> Self {
         IDSymbol { id, symbol }
     }
 }
 
 impl From<IDSymbol> for (StrID, Symbol) {
+    #[inline]
     fn from(val: IDSymbol) -> Self {
         (val.id, val.symbol)
     }
@@ -243,19 +263,19 @@ const _: () = {
 
     impl<'de> Deserialize<'de> for IDSymbol {
         fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<IDSymbol, D::Error> {
-            return deserializer.deserialize_any(TmplIDLevelVisitor::new());
+            return deserializer.deserialize_any(IDSymbolVisitor::new());
         }
     }
 
-    pub struct TmplIDLevelVisitor {}
+    pub struct IDSymbolVisitor {}
 
-    impl TmplIDLevelVisitor {
+    impl IDSymbolVisitor {
         pub fn new() -> Self {
-            TmplIDLevelVisitor {}
+            IDSymbolVisitor {}
         }
     }
 
-    impl<'de> Visitor<'de> for TmplIDLevelVisitor {
+    impl<'de> Visitor<'de> for IDSymbolVisitor {
         type Value = IDSymbol;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
