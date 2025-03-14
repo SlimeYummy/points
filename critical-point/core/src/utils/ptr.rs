@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::{mem, ptr};
 
-use crate::utils::{XError, XResult};
+use crate::utils::XResult;
 
 #[inline]
 pub fn const_ptr<T, U>(val: &T) -> *const U {
@@ -192,7 +192,7 @@ where
     let dst_drop = unsafe { *mem::transmute_copy::<_, *mut *mut u8>(&dst_meta) };
 
     if src_drop != dst_drop {
-        return Err(XError::BadType);
+        return xres!(BadType; "check variant");
     }
     Ok(())
 }
@@ -210,6 +210,8 @@ mod x {
 }
 
 pub use x::*;
+
+use super::xres;
 
 #[cfg(test)]
 mod tests {
@@ -249,13 +251,13 @@ mod tests {
     #[test]
     fn test_cast_ref() {
         let mut a = StructA {
-            s1: "AA".to_string(),
-            s2: "BB".to_string(),
+            s1: "AA".into(),
+            s2: "BB".into(),
         };
         let mut b = StructB {
             i: -99,
             f: 2.5,
-            s: "CC".to_string(),
+            s: "CC".into(),
         };
 
         {
@@ -282,8 +284,8 @@ mod tests {
             assert!(dyn_a.cast_mut::<StructB>().is_err());
             assert!(dyn_a.cast_mut::<()>().is_err());
             let aa = dyn_a.cast_mut::<StructA>().unwrap();
-            aa.s1 = "XXX".to_string();
-            aa.s2 = "YYY".to_string();
+            aa.s1 = "XXX".into();
+            aa.s2 = "YYY".into();
             assert_eq!(aa.s1, "XXX");
             assert_eq!(aa.s2, "YYY");
             assert_eq!(aa.foo(), "XXX YYY");
@@ -294,7 +296,7 @@ mod tests {
             let bb = dyn_b.cast_mut::<StructB>().unwrap();
             bb.i = 123;
             bb.f = 3.5;
-            bb.s = "Z!!!".to_string();
+            bb.s = "Z!!!".into();
             assert_eq!(bb.i, 123);
             assert_eq!(bb.f, 3.5);
             assert_eq!(bb.s, "Z!!!");
@@ -315,8 +317,8 @@ mod tests {
     fn test_box_cast_ptr() {
         {
             let a = Box::new(StructA {
-                s1: "AA".to_string(),
-                s2: "BB".to_string(),
+                s1: "AA".into(),
+                s2: "BB".into(),
             });
             assert!((a.clone() as Box<dyn Trait>).cast_as::<StructB>().is_err());
             assert!((a.clone() as Box<dyn Trait>).cast_as::<String>().is_err());
@@ -328,7 +330,7 @@ mod tests {
             let b = Box::new(StructB {
                 i: -99,
                 f: 2.5,
-                s: "CC".to_string(),
+                s: "CC".into(),
             });
             assert!((b.clone() as Box<dyn Trait>).cast_as::<StructA>().is_err());
             assert!((b.clone() as Box<dyn Trait>).cast_as::<String>().is_err());
@@ -341,22 +343,22 @@ mod tests {
 
         {
             let a = Box::new(StructA {
-                s1: "AA".to_string(),
-                s2: "BB".to_string(),
+                s1: "AA".into(),
+                s2: "BB".into(),
             });
             let dyn_a = a as Box<dyn Trait>;
             assert!(dyn_a.cast_to::<StructB>().is_err());
             assert!(dyn_a.cast_to::<String>().is_err());
             let mut aa = dyn_a.cast_to::<StructA>().unwrap();
             assert_eq!(aa.foo(), "AA BB");
-            aa.s2 = "YYY".to_string();
+            aa.s2 = "YYY".into();
             assert_eq!(aa.foo(), "AA YYY");
             assert_eq!(dyn_a.foo(), "AA BB");
 
             let b = Box::new(StructB {
                 i: -99,
                 f: 2.5,
-                s: "CC".to_string(),
+                s: "CC".into(),
             });
             let dyn_b = b as Box<dyn Trait>;
             assert!(dyn_b.cast_to::<StructA>().is_err());
@@ -372,8 +374,8 @@ mod tests {
     #[test]
     fn test_rc_cast_ptr() {
         let dyn_a = Rc::new(StructA {
-            s1: "AA".to_string(),
-            s2: "BB".to_string(),
+            s1: "AA".into(),
+            s2: "BB".into(),
         }) as Rc<dyn Trait>;
         assert!(dyn_a.cast_to::<StructB>().is_err());
         assert!(dyn_a.cast_to::<String>().is_err());
@@ -392,7 +394,7 @@ mod tests {
         let dyn_b = Rc::new(StructB {
             i: -99,
             f: 2.5,
-            s: "CC".to_string(),
+            s: "CC".into(),
         }) as Rc<dyn Trait>;
         assert!(dyn_b.cast_to::<StructA>().is_err());
         assert!(dyn_b.cast_to::<String>().is_err());
@@ -413,8 +415,8 @@ mod tests {
     #[test]
     fn test_arc_cast_ptr() {
         let dyn_a = Arc::new(StructA {
-            s1: "PPP".to_string(),
-            s2: "QQ".to_string(),
+            s1: "PPP".into(),
+            s2: "QQ".into(),
         }) as Arc<dyn Trait>;
         assert!(dyn_a.cast_to::<StructB>().is_err());
         assert!(dyn_a.cast_to::<String>().is_err());
@@ -433,7 +435,7 @@ mod tests {
         let dyn_b = Arc::new(StructB {
             i: -99,
             f: 2.5,
-            s: "$$".to_string(),
+            s: "$$".into(),
         }) as Arc<dyn Trait>;
         assert!(dyn_b.cast_to::<StructA>().is_err());
         assert!(dyn_b.cast_to::<String>().is_err());
