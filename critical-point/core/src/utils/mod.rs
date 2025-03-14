@@ -1,8 +1,8 @@
 mod collection;
 mod error;
-mod extend;
 mod id;
 mod key;
+mod macros;
 mod math;
 mod ptr;
 mod shape;
@@ -17,6 +17,7 @@ pub use ptr::*;
 pub use shape::*;
 pub use symbol::*;
 
-pub(crate) use extend::{extend, interface};
+pub(crate) use macros::{extend, interface, rkyv_self, serde_by};
+pub(crate) use math::near;
 
 pub type Num = f64;
