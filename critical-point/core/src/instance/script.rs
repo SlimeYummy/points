@@ -4,7 +4,7 @@ use std::{mem, slice};
 use crate::instance::values::{ExtraValues, PanelValues, PrimaryValues, SecondaryValues};
 use crate::script::{ScriptEnv, ScriptInputMap, ScriptOutputMap, SEGMENT_IN_MIN, SEGMENT_OUT_MIN};
 use crate::template::{TmplIsPlus, TmplScript};
-use crate::utils::{KvList, Num, Symbol, SymbolMap, Table, XError, XResult};
+use crate::utils::{xres, KvList, Num, Symbol, SymbolMap, Table2, XResult};
 
 #[derive(Debug)]
 pub struct InstScript {
@@ -15,7 +15,7 @@ pub struct InstScript {
 impl InstScript {
     pub fn new_kvlist(script: &TmplScript, list: &KvList<Symbol, Num>) -> XResult<InstScript> {
         if list.len() != script.arguments.len() {
-            return Err(XError::bad_script("argument count"));
+            return xres!(BadScript; "arguments count");
         }
 
         let cap = script.arguments.len() + script.closure_inits.len();
@@ -34,9 +34,9 @@ impl InstScript {
         })
     }
 
-    pub fn new_table(script: &TmplScript, norm_level: u32, table: &Table<Symbol, Num>) -> XResult<InstScript> {
+    pub fn new_table(script: &TmplScript, norm_level: u32, table: &Table2<Symbol, Num>) -> XResult<InstScript> {
         if table.len() != script.arguments.len() {
-            return Err(XError::bad_script("argument count"));
+            return xres!(BadScript; "arguments count");
         }
 
         let cap = script.arguments.len() + script.closure_inits.len();
@@ -59,7 +59,7 @@ impl InstScript {
         script: &TmplScript,
         piece: u32,
         plus: u32,
-        arguments: &Table<(Symbol, TmplIsPlus), Num>,
+        arguments: &Table2<(Symbol, TmplIsPlus), Num>,
     ) -> XResult<InstScript> {
         let cap = script.arguments.len() + script.closure_inits.len();
         let mut closure = Vec::with_capacity(cap);
@@ -86,7 +86,7 @@ impl InstScript {
                     continue 'out;
                 }
             }
-            return Err(XError::bad_script(format!("invalid argument \"{}\"", argument)));
+            return xres!(BadScript; "invalid argument");
         }
         Ok(())
     }
@@ -95,7 +95,7 @@ impl InstScript {
         script: &TmplScript,
         closure: &mut [Num],
         norm_level: u32,
-        table: &&Table<Symbol, Num>,
+        table: &&Table2<Symbol, Num>,
     ) -> XResult<()> {
         'out: for (offset, (argument, values)) in table.iter().enumerate() {
             for idx in 0..script.arguments.len() {
@@ -105,7 +105,7 @@ impl InstScript {
                     continue 'out;
                 }
             }
-            return Err(XError::bad_script(format!("invalid argument \"{}\"", argument)));
+            return xres!(BadScript; "invalid argument");
         }
         Ok(())
     }
@@ -115,7 +115,7 @@ impl InstScript {
         closure: &mut [Num],
         piece: u32,
         plus: u32,
-        table: &&Table<(Symbol, TmplIsPlus), Num>,
+        table: &&Table2<(Symbol, TmplIsPlus), Num>,
     ) -> XResult<()> {
         'out: for (offset, ((argument, is_plus), values)) in table.iter().enumerate() {
             let pp = if *is_plus { plus } else { piece };
@@ -126,7 +126,7 @@ impl InstScript {
                     continue 'out;
                 }
             }
-            return Err(XError::bad_script(format!("invalid argument \"{}\"", argument)));
+            return xres!(BadScript; "invalid argument");
         }
         Ok(())
     }

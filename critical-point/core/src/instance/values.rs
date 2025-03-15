@@ -3,7 +3,7 @@ use std::vec;
 
 use crate::script::{script_in, script_out, sin, sout, ScriptInputMap, ScriptOutType, ScriptOutputMap};
 use crate::template::{TmplAttributeType, TmplIsPlus};
-use crate::utils::{Num, Table, XError, XResult};
+use crate::utils::{xresf, Num, Table2, XResult};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PrimaryValues {
@@ -41,7 +41,7 @@ impl PrimaryValues {
         }
     }
 
-    pub fn append_table(&mut self, level: u32, attributes: &Table<TmplAttributeType, Num>) -> XResult<()> {
+    pub fn append_table(&mut self, level: u32, attributes: &Table2<TmplAttributeType, Num>) -> XResult<()> {
         if level == 0 {
             return Ok(());
         }
@@ -49,7 +49,7 @@ impl PrimaryValues {
         for (attr, values) in attributes.iter() {
             match values.get(level as usize) {
                 Some(value) => self.append_attribute(*attr, *value),
-                None => return Err(XError::bad_attribute(format!("{:?} at level {}", attr, level))),
+                None => return xresf!(BadAttribute; "attr={:?} level={}", attr, level),
             }
         }
         Ok(())
@@ -245,11 +245,11 @@ impl SecondaryValues {
         }
     }
 
-    pub fn append_table(&mut self, level: u32, attributes: &Table<TmplAttributeType, Num>) -> XResult<()> {
+    pub fn append_table(&mut self, level: u32, attributes: &Table2<TmplAttributeType, Num>) -> XResult<()> {
         for (attr, values) in attributes.iter() {
             match values.get(level as usize) {
                 Some(value) => self.append_attribute(*attr, *value),
-                None => return Err(XError::bad_attribute(format!("{:?} at level {}", attr, level))),
+                None => return xresf!(BadAttribute; "attr={:?} level={}", attr, level),
             }
         }
         Ok(())
@@ -259,13 +259,13 @@ impl SecondaryValues {
         &mut self,
         piece: u32,
         plus: u32,
-        attributes: &Table<(TmplAttributeType, TmplIsPlus), Num>,
+        attributes: &Table2<(TmplAttributeType, TmplIsPlus), Num>,
     ) -> XResult<()> {
         for ((attr, is_plus), values) in attributes.iter() {
             let level = if *is_plus { plus } else { piece };
             match values.get(level as usize) {
                 Some(value) => self.append_attribute(*attr, *value),
-                None => return Err(XError::bad_attribute(format!("{:?} at level {}", attr, level))),
+                None => return xresf!(BadAttribute; "attr={:?} level={}", attr, level),
             }
         }
         Ok(())
