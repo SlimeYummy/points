@@ -48,6 +48,7 @@ impl InstActionGuard {
             _base: InstActionBase {
                 id: tmpl.id.clone(),
                 enter_key: tmpl.enter_key,
+                enter_direction: None,
                 enter_level: tmpl.enter_level,
             },
             tmpl: tmpl.clone(),

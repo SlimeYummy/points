@@ -16,7 +16,7 @@ pub use r#move::*;
 use std::rc::Rc;
 
 use crate::template::{TmplAny, TmplType};
-use crate::utils::{CastPtr, KeyCode, XError, XResult, Xrc};
+use crate::utils::{xres, CastPtr, VirtualKey, XResult, Xrc};
 
 pub(crate) fn try_assemble_action(
     ctx: &mut ContextActionAssemble<'_>,
@@ -43,38 +43,38 @@ pub(crate) fn try_assemble_action(
             Some(ax) => Rc::new(ax),
             None => return Ok(None),
         },
-        _ => return Err(XError::BadType),
+        _ => return xres!(BadType),
     };
     Ok(Some(ax))
 }
 
 pub(crate) fn check_builtin_actions(ctx: &mut ContextActionAssemble<'_>) -> XResult<()> {
-    let idle_count = ctx.primary_keys.count(&KeyCode::Idle);
+    let idle_count = ctx.primary_keys.count(&VirtualKey::Idle);
     if idle_count < 1 {
-        return Err(XError::bad_action("builtin idle < 1"));
+        return xres!(BadAction; "idle");
     } else if idle_count >= 2 {
-        return Err(XError::bad_action("builtin idle >= 2"));
+        return xres!(BadAction; "idle");
     }
 
-    let run_count = ctx.primary_keys.count(&KeyCode::Run);
+    let run_count = ctx.primary_keys.count(&VirtualKey::Run);
     if run_count < 1 {
-        return Err(XError::bad_action("builtin run < 1"));
+        return xres!(BadAction; "run");
     } else if run_count >= 2 {
-        return Err(XError::bad_action("builtin run >= 2"));
+        return xres!(BadAction; "run");
     }
 
-    let dodge_count = ctx.primary_keys.count(&KeyCode::Dodge);
+    let dodge_count = ctx.primary_keys.count(&VirtualKey::Dodge);
     if dodge_count < 1 {
-        return Err(XError::bad_action("builtin dodge < 1"));
+        return xres!(BadAction; "dodge");
     } else if dodge_count >= 2 {
-        return Err(XError::bad_action("builtin dodge >= 2"));
+        return xres!(BadAction; "dodge");
     }
 
-    let guard_count = ctx.primary_keys.count(&KeyCode::Guard);
+    let guard_count = ctx.primary_keys.count(&VirtualKey::Guard);
     if guard_count < 1 {
-        return Err(XError::bad_action("builtin guard < 1"));
+        return xres!(BadAction; "guard");
     } else if guard_count >= 2 {
-        return Err(XError::bad_action("builtin guard >= 2"));
+        return xres!(BadAction; "guard");
     }
 
     Ok(())

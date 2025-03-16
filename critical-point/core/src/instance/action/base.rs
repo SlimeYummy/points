@@ -1,12 +1,13 @@
 use std::fmt::Debug;
 
 use crate::template::{TmplAnimation, TmplSwitch, TmplType};
-use crate::utils::{interface, DtHashIndex, DtHashMap, IDSymbol, KeyCode, StrID, Symbol};
+use crate::utils::{interface, DtHashIndex, DtHashMap, IDSymbol, StrID, Symbol, VirtualDirection, VirtualKey};
 
 #[derive(Debug)]
 pub struct InstActionBase {
     pub id: StrID,
-    pub enter_key: Option<KeyCode>,
+    pub enter_key: Option<VirtualKey>,
+    pub enter_direction: Option<VirtualDirection>,
     pub enter_level: u16,
 }
 
@@ -19,8 +20,8 @@ interface!(InstAction, InstActionBase);
 
 pub(crate) struct ContextActionAssemble<'t> {
     pub args: &'t DtHashMap<IDSymbol, u32>,
-    pub primary_keys: &'t mut DtHashIndex<KeyCode, StrID>,
-    pub derive_keys: &'t mut DtHashIndex<(StrID, KeyCode), StrID>,
+    pub primary_keys: &'t mut DtHashIndex<VirtualKey, StrID>,
+    pub derive_keys: &'t mut DtHashIndex<(StrID, VirtualKey), StrID>,
 }
 
 pub(crate) fn query_switch(args: &DtHashMap<IDSymbol, u32>, id: &StrID, switch: &TmplSwitch) -> bool {
