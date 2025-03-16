@@ -1,6 +1,6 @@
 use crate::instance::action::base::{query_switch, ContextActionAssemble, InstAction, InstActionBase};
 use crate::template::{TmplActionIdle, TmplAnimation, TmplType};
-use crate::utils::{extend, KeyCode, Xrc};
+use crate::utils::{extend, VirtualKey, Xrc};
 
 #[derive(Debug)]
 pub struct InstActionIdle {
@@ -31,12 +31,13 @@ impl InstActionIdle {
             return None;
         }
 
-        ctx.primary_keys.insert(KeyCode::Idle, tmpl.id.clone());
+        ctx.primary_keys.insert(VirtualKey::Idle, tmpl.id.clone());
 
         Some(InstActionIdle {
             _base: InstActionBase {
                 id: tmpl.id.clone(),
-                enter_key: Some(KeyCode::Idle),
+                enter_key: Some(VirtualKey::Idle),
+                enter_direction: None,
                 enter_level: tmpl.enter_level(),
             },
             tmpl: tmpl.clone(),
@@ -49,34 +50,35 @@ impl InstActionIdle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::TEST_TEMPLATE_PATH;
     use crate::template::TmplDatabase;
-    use crate::utils::{s, DtHashIndex, DtHashMap, IDSymbol};
+    use crate::utils::{sb, DtHashIndex, DtHashMap, IDSymbol};
 
     #[test]
     fn test_inst_idle_assemble() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
 
         let mut args = DtHashMap::default();
         let mut primary_keys = DtHashIndex::new();
         let mut derive_keys = DtHashIndex::new();
 
         {
-            let tmpl_act = db.find_as::<TmplActionIdle>(&s!("Action.No1.Idle")).unwrap();
+            let tmpl_act = db.find_as::<TmplActionIdle>(&sb!("Action.No1.Idle")).unwrap();
             let mut ctx = ContextActionAssemble {
                 args: &args,
                 primary_keys: &mut primary_keys,
                 derive_keys: &mut derive_keys,
             };
             let inst_act = InstActionIdle::try_assemble(&mut ctx, tmpl_act).unwrap();
-            assert_eq!(inst_act.id, s!("Action.No1.Idle"));
-            assert_eq!(inst_act.enter_key, Some(KeyCode::Idle));
+            assert_eq!(inst_act.id, sb!("Action.No1.Idle"));
+            assert_eq!(inst_act.enter_key, Some(VirtualKey::Idle));
             assert_eq!(inst_act.enter_level, 0);
             assert_eq!(inst_act.derive_level, 0);
             assert_eq!(inst_act.antibreak_level, 0);
         }
 
         {
-            let tmpl_act = db.find_as::<TmplActionIdle>(&s!("Action.No1.Idle2")).unwrap();
+            let tmpl_act = db.find_as::<TmplActionIdle>(&sb!("Action.No1.Idle2")).unwrap();
             let mut ctx = ContextActionAssemble {
                 args: &args,
                 primary_keys: &mut primary_keys,
@@ -87,15 +89,15 @@ mod tests {
         }
 
         {
-            let tmpl_act = db.find_as::<TmplActionIdle>(&s!("Action.No1.Idle2")).unwrap();
-            args.insert(IDSymbol::new(&s!("Action.No1.Idle2"), &s!("flag")), 1);
+            let tmpl_act = db.find_as::<TmplActionIdle>(&sb!("Action.No1.Idle2")).unwrap();
+            args.insert(IDSymbol::new(&sb!("Action.No1.Idle2"), &sb!("flag")), 1);
             let mut ctx = ContextActionAssemble {
                 args: &args,
                 primary_keys: &mut primary_keys,
                 derive_keys: &mut derive_keys,
             };
             let inst_act = InstActionIdle::try_assemble(&mut ctx, tmpl_act).unwrap();
-            assert_eq!(inst_act.id, s!("Action.No1.Idle2"));
+            assert_eq!(inst_act.id, sb!("Action.No1.Idle2"));
         }
     }
 }
