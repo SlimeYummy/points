@@ -11,9 +11,9 @@ use crate::parameter::{ParamPlayer, ParamStage};
 use crate::script::{ScriptBlockType, ScriptExecutor};
 use crate::template::{
     TmplAccessory, TmplAccessoryPattern, TmplCharacter, TmplDatabase, TmplEntry, TmplEquipment, TmplJewel, TmplPerk,
-    TmplStage, TmplStyle,
+    TmplZone, TmplStyle,
 };
-use crate::utils::{IDLevel, IDPlus, XError, XResult};
+use crate::utils::{IDLevel2, IDPlus2, XError, XResult};
 
 pub struct ContextAssemble<'t> {
     pub tmpl_db: &'t TmplDatabase,
@@ -62,7 +62,7 @@ fn collect_style(ctx: &mut ContextAssemble<'_>, param: &ParamPlayer, inst: &mut 
 }
 
 fn collect_equipments(ctx: &mut ContextAssemble<'_>, param: &ParamPlayer, inst: &mut InstPlayer) -> XResult<()> {
-    for IDLevel { id, level } in param.equipments.iter() {
+    for IDLevel2 { id, level } in param.equipments.iter() {
         let equipment = ctx.tmpl_db.find_as::<TmplEquipment>(id)?;
         let norm_level = equipment.norm_level(*level);
 
@@ -140,7 +140,7 @@ fn collect_accessories(ctx: &mut ContextAssemble<'_>, param: &ParamPlayer, inst:
 }
 
 fn collect_jewels(ctx: &mut ContextAssemble<'_>, param: &ParamPlayer, inst: &mut InstPlayer) -> XResult<()> {
-    for IDPlus { id, plus } in param.jewels.iter() {
+    for IDPlus2 { id, plus } in param.jewels.iter() {
         let jewel = ctx.tmpl_db.find_as::<TmplJewel>(id)?;
 
         inst.entries
@@ -208,7 +208,7 @@ fn trigger_on_assemble(ctx: &mut ContextAssemble<'_>, inst: &mut InstPlayer) -> 
             .executor
             .run_hook(&script.script, ScriptBlockType::OnAssemble, &mut env)
         {
-            Ok(_) | Err(XError::ScriptNoHook) => continue,
+            Ok(_) | Err(XError::ScriptNoHook(_)) => continue,
             Err(err) => return Err(err),
         }
     }
@@ -232,7 +232,7 @@ fn trigger_after_assemble(ctx: &mut ContextAssemble<'_>, inst: &mut InstPlayer) 
             .executor
             .run_hook(&script.script, ScriptBlockType::AfterAssemble, &mut env)
         {
-            Ok(_) | Err(XError::ScriptNoHook) => continue,
+            Ok(_) | Err(XError::ScriptNoHook(_)) => continue,
             Err(err) => return Err(err),
         }
     }
@@ -242,7 +242,7 @@ fn trigger_after_assemble(ctx: &mut ContextAssemble<'_>, inst: &mut InstPlayer) 
 }
 
 pub fn assemble_stage(ctx: &mut ContextAssemble<'_>, param: &ParamStage) -> XResult<InstStage> {
-    let _ = ctx.tmpl_db.find_as::<TmplStage>(&param.stage)?;
+    let _ = ctx.tmpl_db.find_as::<TmplZone>(&param.stage)?;
     Ok(InstStage {
         tmpl_stage: param.stage.clone(),
     })
@@ -251,19 +251,20 @@ pub fn assemble_stage(ctx: &mut ContextAssemble<'_>, param: &ParamStage) -> XRes
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::TEST_TEMPLATE_PATH;
     use crate::instance::player::InstEntreis;
     use crate::parameter::ParamAccessory;
     use crate::template::TmplSlotValue;
-    use crate::utils::s;
+    use crate::utils::sb;
 
     #[test]
     fn test_collect_style() {
-        let db: TmplDatabase = TmplDatabase::new("../test-res").unwrap();
+        let db: TmplDatabase = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
-        param.character = s!("Character.No1");
-        param.style = s!("Style.No1-1");
+        param.character = sb!("Character.No1");
+        param.style = sb!("Style.No1-1");
         param.level = 6;
         let mut inst = InstPlayer::default();
         collect_style(&mut ctx, &param, &mut inst).unwrap();
@@ -280,14 +281,14 @@ mod tests {
 
     #[test]
     fn test_collect_equipments() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
         param.level = 1;
         param.equipments = vec![
-            IDLevel::new(&s!("Equipment.No1"), 1),
-            IDLevel::new(&s!("Equipment.No2"), 3),
+            IDLevel2::new(&sb!("Equipment.No1"), 1),
+            IDLevel2::new(&sb!("Equipment.No2"), 3),
         ];
         let mut inst = InstPlayer::default();
         collect_equipments(&mut ctx, &param, &mut inst).unwrap();
@@ -299,11 +300,11 @@ mod tests {
         assert_eq!(inst.slots, TmplSlotValue::new(1, 2, 0));
         assert_eq!(inst.entries.len(), 2);
         assert_eq!(
-            *inst.entries.get(s!("Entry.AttackUp")).unwrap(),
+            *inst.entries.get(sb!("Entry.AttackUp")).unwrap(),
             InstEntryPair::new(1, 0)
         );
         assert_eq!(
-            *inst.entries.get(s!("Entry.DefenseUp")).unwrap(),
+            *inst.entries.get(sb!("Entry.DefenseUp")).unwrap(),
             InstEntryPair::new(2, 3)
         );
         assert_eq!(inst.scripts.len(), 1)
@@ -311,14 +312,14 @@ mod tests {
 
     #[test]
     fn test_collect_perks() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
         param.perks = vec![
-            s!("Perk.No1.AttackUp"),
-            s!("Perk.No1.CriticalChance"),
-            s!("Perk.No1.Slot"),
+            sb!("Perk.No1.AttackUp"),
+            sb!("Perk.No1.CriticalChance"),
+            sb!("Perk.No1.Slot"),
         ];
         let mut inst = InstPlayer::default();
         collect_perks(&mut ctx, &param, &mut inst).unwrap();
@@ -326,31 +327,31 @@ mod tests {
         assert_eq!(inst.slots, TmplSlotValue::new(0, 2, 2));
         assert_eq!(inst.entries.len(), 1);
         assert_eq!(
-            *inst.entries.get(s!("Entry.CriticalChance")).unwrap(),
+            *inst.entries.get(sb!("Entry.CriticalChance")).unwrap(),
             InstEntryPair::new(1, 3)
         );
     }
 
     #[test]
     fn test_collect_accessories() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
         param.accessories = vec![
             ParamAccessory {
-                id: s!("Accessory.AttackUp.Variant1"),
+                id: sb!("Accessory.AttackUp.Variant1"),
                 level: 0,
-                entries: vec![s!("Entry.DefenseUp"), s!("Entry.DefenseUp")],
+                entries: vec![sb!("Entry.DefenseUp"), sb!("Entry.DefenseUp")],
             },
             ParamAccessory {
-                id: s!("Accessory.AttackUp.Variant3"),
+                id: sb!("Accessory.AttackUp.Variant3"),
                 level: 12,
                 entries: vec![
-                    s!("Entry.CriticalChance"),
-                    s!("Entry.CriticalChance"),
-                    s!("Entry.DefenseUp"),
-                    s!("Entry.MaxHealthUp"),
+                    sb!("Entry.CriticalChance"),
+                    sb!("Entry.CriticalChance"),
+                    sb!("Entry.DefenseUp"),
+                    sb!("Entry.MaxHealthUp"),
                 ],
             },
         ];
@@ -358,61 +359,61 @@ mod tests {
         collect_accessories(&mut ctx, &param, &mut inst).unwrap();
         assert_eq!(inst.entries.len(), 4);
         assert_eq!(
-            *inst.entries.get(s!("Entry.AttackUp")).unwrap(),
+            *inst.entries.get(sb!("Entry.AttackUp")).unwrap(),
             InstEntryPair::new(4, 6)
         );
         assert_eq!(
-            *inst.entries.get(s!("Entry.DefenseUp")).unwrap(),
+            *inst.entries.get(sb!("Entry.DefenseUp")).unwrap(),
             InstEntryPair::new(3, 2)
         );
         assert_eq!(
-            *inst.entries.get(s!("Entry.CriticalChance")).unwrap(),
+            *inst.entries.get(sb!("Entry.CriticalChance")).unwrap(),
             InstEntryPair::new(2, 6)
         );
         assert_eq!(
-            *inst.entries.get(s!("Entry.MaxHealthUp")).unwrap(),
+            *inst.entries.get(sb!("Entry.MaxHealthUp")).unwrap(),
             InstEntryPair::new(1, 2)
         );
     }
 
     #[test]
     fn test_collect_jewels() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
         param.jewels = vec![
-            IDPlus::new(&s!("Jewel.DefenseUp.Variant1"), 3),
-            IDPlus::new(&s!("Jewel.AttackUp.Variant1"), 2),
-            IDPlus::new(&s!("Jewel.AttackUp.VariantX"), 0),
+            IDPlus2::new(&sb!("Jewel.DefenseUp.Variant1"), 3),
+            IDPlus2::new(&sb!("Jewel.AttackUp.Variant1"), 2),
+            IDPlus2::new(&sb!("Jewel.AttackUp.VariantX"), 0),
         ];
         let mut inst = InstPlayer::default();
         collect_jewels(&mut ctx, &param, &mut inst).unwrap();
         assert_eq!(inst.entries.len(), 3);
         assert_eq!(
-            *inst.entries.get(s!("Entry.AttackUp")).unwrap(),
+            *inst.entries.get(sb!("Entry.AttackUp")).unwrap(),
             InstEntryPair::new(3, 2)
         );
         assert_eq!(
-            *inst.entries.get(s!("Entry.MaxHealthUp")).unwrap(),
+            *inst.entries.get(sb!("Entry.MaxHealthUp")).unwrap(),
             InstEntryPair::new(1, 1)
         );
         assert_eq!(
-            *inst.entries.get(s!("Entry.DefenseUp")).unwrap(),
+            *inst.entries.get(sb!("Entry.DefenseUp")).unwrap(),
             InstEntryPair::new(1, 3)
         );
     }
 
     #[test]
     fn test_handle_entries() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut inst = InstPlayer::default();
         inst.entries = InstEntreis::default();
-        inst.entries.append(&s!("Entry.AttackUp"), InstEntryPair::new(3, 6));
-        inst.entries.append(&s!("Entry.MaxHealthUp"), InstEntryPair::new(2, 5));
-        inst.entries.append(&s!("Entry.DefenseUp"), InstEntryPair::new(10, 0));
+        inst.entries.append(&sb!("Entry.AttackUp"), InstEntryPair::new(3, 6));
+        inst.entries.append(&sb!("Entry.MaxHealthUp"), InstEntryPair::new(2, 5));
+        inst.entries.append(&sb!("Entry.DefenseUp"), InstEntryPair::new(10, 0));
         handle_entries(&mut ctx, &mut inst).unwrap();
         assert_eq!(inst.secondary.attack_up, 0.3 + 0.04);
         assert_eq!(inst.secondary.max_health_up, 0.2);
@@ -421,12 +422,12 @@ mod tests {
 
     #[test]
     fn test_trigger_script() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let mut param = ParamPlayer::default();
-        param.equipments = vec![IDLevel::new(&s!("Equipment.No1"), 1)];
-        param.perks = vec![s!("Perk.No1.AttackUp"), s!("Perk.No1.CriticalChance")];
+        param.equipments = vec![IDLevel2::new(&sb!("Equipment.No1"), 1)];
+        param.perks = vec![sb!("Perk.No1.AttackUp"), sb!("Perk.No1.CriticalChance")];
 
         let mut inst = InstPlayer::default();
         collect_equipments(&mut ctx, &param, &mut inst).unwrap();
@@ -446,28 +447,28 @@ mod tests {
 
     #[test]
     fn test_assemble_player() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut executor = ScriptExecutor::new();
         let mut ctx = ContextAssemble::new(&db, &mut executor);
         let param = ParamPlayer {
-            character: s!("Character.No1"),
-            style: s!("Style.No1-1"),
+            character: sb!("Character.No1"),
+            style: sb!("Style.No1-1"),
             level: 4,
             equipments: vec![
-                IDLevel::new(&s!("Equipment.No1"), 2),
-                IDLevel::new(&s!("Equipment.No2"), 2),
+                IDLevel2::new(&sb!("Equipment.No1"), 2),
+                IDLevel2::new(&sb!("Equipment.No2"), 2),
             ],
             accessories: vec![ParamAccessory {
-                id: s!("Accessory.AttackUp.Variant1"),
+                id: sb!("Accessory.AttackUp.Variant1"),
                 level: 0,
-                entries: vec![s!("Entry.DefenseUp"), s!("Entry.DefenseUp")],
+                entries: vec![sb!("Entry.DefenseUp"), sb!("Entry.DefenseUp")],
             }],
             jewels: vec![
-                IDPlus::new(&s!("Jewel.DefenseUp.Variant1"), 3),
-                IDPlus::new(&s!("Jewel.AttackUp.Variant1"), 2),
-                IDPlus::new(&s!("Jewel.AttackUp.VariantX"), 0),
+                IDPlus2::new(&sb!("Jewel.DefenseUp.Variant1"), 3),
+                IDPlus2::new(&sb!("Jewel.AttackUp.Variant1"), 2),
+                IDPlus2::new(&sb!("Jewel.AttackUp.VariantX"), 0),
             ],
-            perks: vec![s!("Perk.No1.AttackUp"), s!("Perk.No1.CriticalChance")],
+            perks: vec![sb!("Perk.No1.AttackUp"), sb!("Perk.No1.CriticalChance")],
         };
         let inst = assemble_player(&mut ctx, &param).unwrap();
 
@@ -481,19 +482,19 @@ mod tests {
         assert_eq!(inst.primary.arcane_attack, 21.0 + 18.0 + 16.0); // style + equip1 + equip2
         assert_eq!(inst.entries.len(), 4); // equip1 + equip2 + access
         assert_eq!(
-            *inst.entries.get(s!("Entry.DefenseUp")).unwrap(),
+            *inst.entries.get(sb!("Entry.DefenseUp")).unwrap(),
             InstEntryPair::new(5, 5)
         );
         assert_eq!(
-            *inst.entries.get(s!("Entry.CriticalChance")).unwrap(),
+            *inst.entries.get(sb!("Entry.CriticalChance")).unwrap(),
             InstEntryPair::new(1, 3)
         );
         assert_eq!(
-            *inst.entries.get(s!("Entry.MaxHealthUp")).unwrap(),
+            *inst.entries.get(sb!("Entry.MaxHealthUp")).unwrap(),
             InstEntryPair::new(1, 1)
         );
         assert_eq!(
-            *inst.entries.get(s!("Entry.AttackUp")).unwrap(),
+            *inst.entries.get(sb!("Entry.AttackUp")).unwrap(),
             InstEntryPair::new(5, 3)
         );
         assert_eq!(inst.scripts.len(), 3); // equip1 + perk1 + perk2
