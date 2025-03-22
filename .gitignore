@@ -6,10 +6,14 @@
 # python
 #
 
-.ruff_cache
-__pycache__/
-build/
-turning_point.egg-info/
+turning-point-py
+
+#
+# nodejs
+#
+
+node_modules/
+bin/
 
 #
 # rust
@@ -54,8 +58,14 @@ x64/
 
 res/
 output/
-test-res/
-test-asset/
--src/
+test-templates/
 
 Assets/
+
+test-save-input/
+test-save-input.zip
+test-save-state/
+test-save-state.zip
+
+save/
+test-tmp/
