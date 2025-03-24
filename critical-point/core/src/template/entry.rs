@@ -2,7 +2,7 @@ use crate::consts::MAX_ENTRY_PLUS;
 use crate::template::attribute::TmplAttributeType;
 use crate::template::base::{TmplAny, TmplType};
 use crate::template::script::TmplScript;
-use crate::utils::{Num, StrID, Symbol, Table};
+use crate::utils::{Num, StrID, Symbol, Table2};
 
 pub type TmplIsPlus = bool;
 
@@ -15,11 +15,11 @@ pub struct TmplEntry {
     pub color: String,
     pub max_piece: u32,
     #[serde(default)]
-    pub attributes: Table<(TmplAttributeType, TmplIsPlus), Num>,
+    pub attributes: Table2<(TmplAttributeType, TmplIsPlus), Num>,
     #[serde(default)]
     pub script: Option<TmplScript>,
     #[serde(default)]
-    pub script_args: Table<(Symbol, TmplIsPlus), Num>,
+    pub script_args: Table2<(Symbol, TmplIsPlus), Num>,
 }
 
 #[typetag::deserialize(name = "Entry")]
@@ -112,14 +112,15 @@ const _: () = {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::TEST_TEMPLATE_PATH;
     use crate::template::database::TmplDatabase;
-    use crate::utils::s;
+    use crate::utils::sb;
 
     #[test]
     fn test_load_entry() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
 
-        let e1 = db.find_as::<TmplEntry>(&s!("Entry.Empty")).unwrap();
+        let e1 = db.find_as::<TmplEntry>(&sb!("Entry.Empty")).unwrap();
         assert_eq!(e1.id, "Entry.Empty");
         assert_eq!(e1.name, "");
         assert_eq!(e1.icon, "");
@@ -130,7 +131,7 @@ mod tests {
         assert!(e1.script.is_none());
         assert!(e1.script_args.is_empty());
 
-        let e2 = db.find_as::<TmplEntry>(&s!("Entry.MaxHealthUp")).unwrap();
+        let e2 = db.find_as::<TmplEntry>(&sb!("Entry.MaxHealthUp")).unwrap();
         assert_eq!(e2.id, "Entry.MaxHealthUp");
         assert_eq!(e2.name, "MaxHealthUp");
         assert_eq!(e2.max_piece, 4);

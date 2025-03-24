@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::consts::{MAX_ACCESSORY_COUNT, MAX_ENTRY_PLUS};
+use crate::consts::MAX_ENTRY_PLUS;
 use crate::template::base::{TmplAny, TmplRare, TmplType};
 use crate::utils::StrID;
 
@@ -72,25 +72,26 @@ impl TmplAny for TmplAccessory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::TEST_TEMPLATE_PATH;
     use crate::template::database::TmplDatabase;
-    use crate::utils::s;
+    use crate::utils::sb;
 
     #[test]
     fn test_load_accessory() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
 
         let p1 = db
-            .find_as::<TmplAccessoryPattern>(&s!("AccessoryPattern.Rare1"))
+            .find_as::<TmplAccessoryPattern>(&sb!("AccessoryPattern.Rare1"))
             .unwrap();
         assert_eq!(p1.id, "AccessoryPattern.Rare1");
         assert_eq!(p1.pattern, &[TmplAccessoryPool::B, TmplAccessoryPool::B]);
         assert!(p1.a_pool.is_empty());
         assert_eq!(p1.b_pool.len(), 2);
-        assert_eq!(*p1.b_pool.get(&s!("Entry.DefenseUp")).unwrap(), 10);
-        assert_eq!(*p1.b_pool.get(&s!("Entry.CutDefenseUp")).unwrap(), 10);
+        assert_eq!(*p1.b_pool.get(&sb!("Entry.DefenseUp")).unwrap(), 10);
+        assert_eq!(*p1.b_pool.get(&sb!("Entry.CutDefenseUp")).unwrap(), 10);
 
         let p2 = db
-            .find_as::<TmplAccessoryPattern>(&s!("AccessoryPattern.Rare3"))
+            .find_as::<TmplAccessoryPattern>(&sb!("AccessoryPattern.Rare3"))
             .unwrap();
         assert_eq!(p2.id, "AccessoryPattern.Rare3");
         assert_eq!(
@@ -103,19 +104,21 @@ mod tests {
             ]
         );
         assert_eq!(p2.a_pool.len(), 2);
-        assert_eq!(*p2.a_pool.get(&s!("Entry.AttackUp")).unwrap(), 10);
-        assert_eq!(*p2.a_pool.get(&s!("Entry.CriticalChance")).unwrap(), 10);
+        assert_eq!(*p2.a_pool.get(&sb!("Entry.AttackUp")).unwrap(), 10);
+        assert_eq!(*p2.a_pool.get(&sb!("Entry.CriticalChance")).unwrap(), 10);
         assert_eq!(p2.b_pool.len(), 3);
 
         let a1 = db
-            .find_as::<TmplAccessory>(&s!("Accessory.CriticalChance.Variant2"))
+            .find_as::<TmplAccessory>(&sb!("Accessory.CriticalChance.Variant2"))
             .unwrap();
         assert_eq!(a1.pattern, "AccessoryPattern.Rare2");
         assert_eq!(a1.rare, TmplRare::Rare2);
         assert_eq!(a1.entry, "Entry.CriticalChance");
         assert_eq!(a1.piece, 2);
 
-        let a1 = db.find_as::<TmplAccessory>(&s!("Accessory.AttackUp.Variant3")).unwrap();
+        let a1 = db
+            .find_as::<TmplAccessory>(&sb!("Accessory.AttackUp.Variant3"))
+            .unwrap();
         assert_eq!(a1.pattern, "AccessoryPattern.Rare3");
         assert_eq!(a1.rare, TmplRare::Rare3);
         assert_eq!(a1.entry, "Entry.AttackUp");

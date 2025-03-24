@@ -5,7 +5,7 @@ use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
 
 use crate::template::base::TmplAny;
-use crate::utils::{AsXResultIO, IdentityState, StrID, SymbolMap, XError, XResult, Xrc};
+use crate::utils::{xfrom, xres, IdentityState, StrID, SymbolMap, XResult, Xrc};
 
 #[cfg(not(feature = "server-side"))]
 mod client {
@@ -101,9 +101,9 @@ impl TmplDatabaseInner {
     pub fn new<P: AsRef<Path>>(path: P) -> XResult<TmplDatabaseInner> {
         let mut path = PathBuf::from(path.as_ref());
         path.push("index.json");
-        let json = fs::read_to_string(&path).xerr_with(&path)?;
+        let json = fs::read_to_string(&path).map_err(xfrom!())?;
 
-        let raw: RawIndexes = serde_json::from_str(&json)?;
+        let raw: RawIndexes = serde_json::from_str(&json).map_err(xfrom!())?;
         let mut indexes: SymbolMap<TmplDbIndex> = SymbolMap::with_capacity_and_hasher(raw.0.len(), IdentityState);
         for (id, (ptr, len, cache)) in raw.0 {
             indexes.insert(
@@ -123,7 +123,7 @@ impl TmplDatabaseInner {
             .write(false)
             .create_new(false)
             .open(&path)
-            .xerr_with(&path)?;
+            .map_err(xfrom!())?;
 
         Ok(TmplDatabaseInner {
             indexes,
@@ -141,7 +141,7 @@ impl TmplDatabaseInner {
     pub fn find(&self, id: &StrID) -> XResult<&Xrc<dyn TmplAny>> {
         return match self.cache_map.get(id) {
             Some(tmpl) => Ok(tmpl),
-            None => Err(XError::not_found(id)),
+            None => xres!(NotFound),
         };
     }
 
@@ -151,22 +151,20 @@ impl TmplDatabaseInner {
             Entry::Vacant(entry) => {
                 let index = match self.indexes.get(id) {
                     Some(index) => index,
-                    None => return Err(XError::not_found(id)),
+                    None => return xres!(NotFound),
                 };
 
                 self.data_file
                     .seek(SeekFrom::Start(index.ptr as u64))
-                    .xerr_with(&self.data_path)?;
+                    .map_err(xfrom!())?;
                 if self.data_buf.capacity() < index.len as usize {
                     self.data_buf.resize(index.len as usize, 0);
                 } else {
                     unsafe { self.data_buf.set_len(index.len as usize) };
                 }
-                self.data_file
-                    .read_exact(&mut self.data_buf)
-                    .xerr_with(&self.data_path)?;
+                self.data_file.read_exact(&mut self.data_buf).map_err(xfrom!())?;
 
-                let tmpl: Xrc<dyn TmplAny> = serde_json::from_slice(&self.data_buf)?;
+                let tmpl: Xrc<dyn TmplAny> = serde_json::from_slice(&self.data_buf).map_err(xfrom!())?;
                 return Ok(entry.insert(tmpl));
             }
         };

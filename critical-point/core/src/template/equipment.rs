@@ -3,7 +3,7 @@ use crate::template::base::{TmplAny, TmplLevelRange, TmplType};
 use crate::template::entry::TmplEntryPair;
 use crate::template::script::TmplScript;
 use crate::template::slot::TmplSlotValue;
-use crate::utils::{IDLevel, List, Num, StrID, Symbol, Table};
+use crate::utils::{IDLevel2, List, Num, StrID, Symbol, Table2};
 
 #[repr(u8)]
 #[derive(
@@ -25,19 +25,19 @@ pub struct TmplEquipment {
     pub character: StrID,
     pub position: TmplEquipmentPosition,
     #[serde(default)]
-    pub parents: List<IDLevel>,
+    pub parents: List<IDLevel2>,
     pub level: TmplLevelRange,
     #[serde(default)]
-    pub materials: Table<StrID, Num>,
-    pub attributes: Table<TmplAttributeType, Num>,
+    pub materials: Table2<StrID, Num>,
+    pub attributes: Table2<TmplAttributeType, Num>,
     #[serde(default)]
     pub slots: List<TmplSlotValue>,
     #[serde(default)]
-    pub entries: Table<StrID, TmplEntryPair>,
+    pub entries: Table2<StrID, TmplEntryPair>,
     #[serde(default)]
     pub script: Option<TmplScript>,
     #[serde(default)]
-    pub script_args: Table<Symbol, Num>,
+    pub script_args: Table2<Symbol, Num>,
 }
 
 #[typetag::deserialize(name = "Equipment")]
@@ -61,14 +61,15 @@ impl TmplEquipment {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::TEST_TEMPLATE_PATH;
     use crate::template::database::TmplDatabase;
-    use crate::utils::s;
+    use crate::utils::sb;
 
     #[test]
     fn test_load_equipment() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
 
-        let equipment = db.find_as::<TmplEquipment>(&s!("Equipment.No1")).unwrap();
+        let equipment = db.find_as::<TmplEquipment>(&sb!("Equipment.No1")).unwrap();
         assert_eq!(equipment.id(), "Equipment.No1");
         assert_eq!(equipment.name, "No1");
         assert_eq!(equipment.icon, "icon");
@@ -115,7 +116,7 @@ mod tests {
 
         assert_eq!(
             equipment.entries.key_iter().cloned().collect::<Vec<StrID>>(),
-            &[s!("Entry.AttackUp"),]
+            &[sb!("Entry.AttackUp"),]
         );
         assert_eq!(
             equipment
@@ -128,7 +129,7 @@ mod tests {
 
         assert_eq!(
             equipment.script_args.key_iter().cloned().collect::<Vec<Symbol>>(),
-            &[s!("extra_def"),]
+            &[sb!("extra_def"),]
         );
         assert_eq!(
             equipment

@@ -1,9 +1,12 @@
 use cirtical_point_csgen::CsEnum;
 use enum_iterator::{cardinality, Sequence};
 use std::fmt::Debug;
-use std::mem;
+use std::ops::Deref;
+use std::ptr::NonNull;
+use std::{alloc, fmt, mem, slice};
 
-use crate::utils::{Castable, StrID, Symbol, XError};
+use crate::sb;
+use crate::utils::{xres, Castable, StrID, Symbol, XError, XResult};
 
 #[repr(u16)]
 #[derive(
@@ -52,9 +55,9 @@ impl TryFrom<u16> for TmplType {
     type Error = XError;
 
     #[inline]
-    fn try_from(value: u16) -> Result<Self, XError> {
+    fn try_from(value: u16) -> XResult<Self> {
         if value as usize >= cardinality::<TmplType>() {
-            return Err(XError::overflow("TmplType::try_from()"));
+            return xres!(Overflow);
         }
         Ok(unsafe { mem::transmute::<u16, TmplType>(value) })
     }

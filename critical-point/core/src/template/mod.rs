@@ -24,4 +24,4 @@ pub use jewel::*;
 pub use perk::*;
 pub use script::*;
 pub use slot::*;
-pub use stage::TmplStage;
+pub use stage::TmplZone;

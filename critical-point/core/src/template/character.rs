@@ -1,7 +1,7 @@
 use crate::template::attribute::TmplAttributeType;
 use crate::template::base::{TmplAny, TmplLevelRange, TmplType};
 use crate::template::slot::TmplSlotValue;
-use crate::utils::{List, Num, ShapeCapsule, StrID, Symbol, Table};
+use crate::utils::{List, Num, ShapeCapsule, StrID, Symbol, Table2};
 use cirtical_point_csgen::CsEnum;
 
 #[derive(
@@ -33,6 +33,7 @@ pub struct TmplCharacter {
     pub equipments: List<StrID>,
     pub bounding_capsule: ShapeCapsule,
     pub skeleton: Symbol,
+    pub target_box: Symbol,
 }
 
 #[typetag::deserialize(name = "Character")]
@@ -58,7 +59,7 @@ pub struct TmplStyle {
     pub id: StrID,
     pub name: String,
     pub character: String,
-    pub attributes: Table<TmplAttributeType, Num>,
+    pub attributes: Table2<TmplAttributeType, Num>,
     pub slots: List<TmplSlotValue>,
     pub fixed_attributes: TmplFixedAttributes,
     pub perks: List<StrID>,
@@ -94,24 +95,27 @@ pub struct TmplFixedAttributes {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::TEST_TEMPLATE_PATH;
     use crate::template::database::TmplDatabase;
-    use crate::utils::s;
+    use crate::utils::sb;
 
     #[test]
     fn test_load_character() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
 
-        let character = db.find_as::<TmplCharacter>(&s!("Character.No1")).unwrap();
+        let character = db.find_as::<TmplCharacter>(&sb!("Character.No1")).unwrap();
         assert_eq!(character.id(), "Character.No1");
         assert_eq!(character.name, "No1");
         assert_eq!(character.level, [1, 6].into());
-        assert_eq!(&character.styles.as_slice(), &[s!("Style.No1-1"), s!("Style.No1-2")]);
+        assert_eq!(&character.styles.as_slice(), &[sb!("Style.No1-1"), sb!("Style.No1-2")]);
         assert_eq!(
             &character.equipments.as_slice(),
-            &[s!("Equipment.No1"), s!("Equipment.No2"), s!("Equipment.No3")]
+            &[sb!("Equipment.No1"), sb!("Equipment.No2"), sb!("Equipment.No3")]
         );
+        assert_eq!(character.bounding_capsule, ShapeCapsule::new(0.5 * 1.35, 0.3));
+        assert_eq!(character.skeleton, "skel.ozz");
 
-        let style = db.find_as::<TmplStyle>(&s!("Style.No1-1")).unwrap();
+        let style = db.find_as::<TmplStyle>(&sb!("Style.No1-1")).unwrap();
         assert_eq!(style.id(), "Style.No1-1");
         assert_eq!(style.name, "No1-1");
         assert_eq!(style.character, "Character.No1");
@@ -175,11 +179,11 @@ mod tests {
 
         assert_eq!(
             style.perks.as_slice(),
-            &[s!("Perk.No1.AttackUp"), s!("Perk.No1.CriticalChance"),]
+            &[sb!("Perk.No1.AttackUp"), sb!("Perk.No1.CriticalChance"),]
         );
         assert_eq!(
             style.usable_perks.as_slice(),
-            &[s!("Perk.No1.Slot"), s!("Perk.No1.Empty"),]
+            &[sb!("Perk.No1.Slot"), sb!("Perk.No1.Empty"),]
         );
         // assert_eq!(style.skeleton, "*.ozz");
         // assert_eq!(style.actions.as_slice(), &[]);

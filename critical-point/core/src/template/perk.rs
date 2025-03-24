@@ -3,7 +3,7 @@ use crate::template::base::{TmplAny, TmplType};
 use crate::template::entry::TmplEntryPair;
 use crate::template::script::TmplScript;
 use crate::template::slot::TmplSlotValue;
-use crate::utils::{IDLevel, IDSymbol, KvList, List, Num, StrID, Symbol};
+use crate::utils::{IDLevel2, IDSymbol, KvList, List, Num, StrID, Symbol};
 
 #[derive(Debug, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct TmplPerk {
@@ -14,7 +14,7 @@ pub struct TmplPerk {
     #[serde(default)]
     pub usable_styles: List<StrID>,
     #[serde(default)]
-    pub parents: List<IDLevel>,
+    pub parents: List<IDLevel2>,
     #[serde(default)]
     pub attributes: KvList<TmplAttributeType, Num>,
     #[serde(default)]
@@ -43,19 +43,20 @@ impl TmplAny for TmplPerk {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::TEST_TEMPLATE_PATH;
     use crate::template::database::TmplDatabase;
-    use crate::utils::s;
+    use crate::utils::sb;
 
     #[test]
     fn test_load_perk() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
 
-        let perk = db.find_as::<TmplPerk>(&s!("Perk.No1.AttackUp")).unwrap();
-        assert_eq!(perk.id, s!("Perk.No1.AttackUp"));
+        let perk = db.find_as::<TmplPerk>(&sb!("Perk.No1.AttackUp")).unwrap();
+        assert_eq!(perk.id, sb!("Perk.No1.AttackUp"));
         assert_eq!(perk.name, "AttackUp");
         assert_eq!(perk.icon, "icon");
-        assert_eq!(perk.style, s!("Style.No1-1"));
-        assert_eq!(perk.usable_styles.as_slice(), &[s!("Style.No1-2")]);
+        assert_eq!(perk.style, sb!("Style.No1-1"));
+        assert_eq!(perk.usable_styles.as_slice(), &[sb!("Style.No1-2")]);
 
         assert_eq!(
             perk.attributes.key_iter().copied().collect::<Vec<TmplAttributeType>>(),
@@ -69,7 +70,7 @@ mod tests {
 
         assert_eq!(
             perk.script_args.key_iter().cloned().collect::<Vec<Symbol>>(),
-            &[s!("physical_attack"), s!("elemental_attack"), s!("arcane_attack"),]
+            &[sb!("physical_attack"), sb!("elemental_attack"), sb!("arcane_attack"),]
         );
         assert_eq!(
             perk.script_args.value_iter().copied().collect::<Vec<f64>>(),

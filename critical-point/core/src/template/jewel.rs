@@ -48,14 +48,15 @@ impl TmplJewel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::TEST_TEMPLATE_PATH;
     use crate::template::database::TmplDatabase;
-    use crate::utils::s;
+    use crate::utils::sb;
 
     #[test]
     fn test_load_jewel() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
 
-        let j1 = db.find_as::<TmplJewel>(&s!("Jewel.DefenseUp.Variant1")).unwrap();
+        let j1 = db.find_as::<TmplJewel>(&sb!("Jewel.DefenseUp.Variant1")).unwrap();
         assert_eq!(j1.id, "Jewel.DefenseUp.Variant1");
         assert_eq!(j1.slot_type, TmplSlotType::Defense);
         assert_eq!(j1.rare, TmplRare::Rare1);
@@ -64,7 +65,7 @@ mod tests {
         assert_eq!(j1.sub_entry, None);
         assert_eq!(j1.sub_piece, None);
 
-        let j1 = db.find_as::<TmplJewel>(&s!("Jewel.AttackUp.VariantX")).unwrap();
+        let j1 = db.find_as::<TmplJewel>(&sb!("Jewel.AttackUp.VariantX")).unwrap();
         assert_eq!(j1.id, "Jewel.AttackUp.VariantX");
         assert_eq!(j1.slot_type, TmplSlotType::Special);
         assert_eq!(j1.rare, TmplRare::Rare3);
