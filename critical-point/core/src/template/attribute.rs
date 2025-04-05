@@ -1,8 +1,8 @@
+use crate::utils::rkyv_self;
+
 #[repr(u16)]
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
-pub enum TmplAttributeType {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum TmplAttribute {
     //
     // primary attributes
     //
@@ -162,3 +162,5 @@ pub enum TmplAttributeType {
     SuperArmor,
     BreakArmor,
 }
+
+rkyv_self!(TmplAttribute);
