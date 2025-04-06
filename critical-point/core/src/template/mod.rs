@@ -1,27 +1,19 @@
 mod accessory;
-mod action;
 mod attribute;
 mod base;
 mod character;
 mod database;
 mod entry;
 mod equipment;
+pub mod id;
 mod jewel;
-mod perk;
-mod script;
-mod slot;
-mod stage;
+mod zone;
+mod variable;
 
-pub use accessory::*;
-pub use action::*;
-pub use attribute::*;
-pub use base::*;
-pub use character::*;
-pub use database::*;
-pub use entry::*;
-pub use equipment::*;
-pub use jewel::*;
-pub use perk::*;
-pub use script::*;
-pub use slot::*;
-pub use stage::TmplStage;
+#[cfg(test)]
+pub(super) mod test_utils;
+
+pub use attribute::TmplAttribute;
+pub use base::{ArchivedTmplAny, TmplAny, TmplLevelRange, TmplRare, TmplType};
+pub use database::{At, TmplDatabase};
+pub use id::{id, TmplID, TmplHashMap, TmplHashSet};
