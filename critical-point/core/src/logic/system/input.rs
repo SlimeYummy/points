@@ -1,349 +1,534 @@
 use cirtical_point_csgen::CsIn;
-use glam::Vec2;
+use glam::{Vec2, Vec3A};
+use std::cell::RefCell;
 use std::collections::{vec_deque, VecDeque};
+use std::f32::consts::{FRAC_PI_2, PI};
+use std::rc::Rc;
 
 use crate::consts::{FPS, MAX_PLAYER};
-use crate::utils::{KeyCode, KeyEvent, NumID, XError, XResult};
+use crate::near;
+use crate::utils::{xerrf, xres, xresf, NumID, RawEvent, RawKey, VirtualEvent, XResult, MIN_PLAYER_ID};
 
-#[derive(Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Deserialize, CsIn)]
+const FIRST_EVENT_ID: u64 = 1;
+
+//
+// Input events collections
+//
+
+#[derive(
+    Debug, Default, Clone, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Deserialize, CsIn,
+)]
 #[cs_attr(Class)]
-pub struct PlayerKeyEvents {
+pub struct InputPlayerEvents {
     pub player_id: NumID,
     pub frame: u32,
-    pub events: Vec<KeyEvent>,
+    pub events: Vec<RawEvent>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Deserialize)]
-pub struct InputEvent {
-    pub idx: u64,
+impl InputPlayerEvents {
+    #[inline]
+    pub fn new(player_id: NumID, frame: u32, events: Vec<RawEvent>) -> InputPlayerEvents {
+        InputPlayerEvents {
+            player_id,
+            frame,
+            events,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Deserialize)]
+pub struct InputFrameEvents {
     pub frame: u32,
-    pub event: KeyEvent,
+    pub player_events: Vec<InputPlayerEvents>,
 }
 
-impl InputEvent {
+impl InputFrameEvents {
     #[inline]
-    pub fn new(idx: u64, frame: u32, event: KeyEvent) -> InputEvent {
-        InputEvent { idx, frame, event }
-    }
-
-    #[inline]
-    pub fn key(&self) -> KeyCode {
-        self.event.key
-    }
-
-    #[inline]
-    pub fn pressed(&self) -> bool {
-        self.event.pressed
-    }
-
-    #[inline]
-    pub fn motion(&self) -> Vec2 {
-        self.event.motion
+    pub fn new(frame: u32, player_events: &[InputPlayerEvents]) -> InputFrameEvents {
+        InputFrameEvents {
+            frame,
+            player_events: player_events.to_vec(),
+        }
     }
 }
+
+//
+// Input system
+//
 
 #[derive(Debug)]
 pub struct SystemInput {
-    queues: Vec<InputEventQueue>,
+    // Input event queue for all players, including local player and network remote players.
+    queues: Vec<Rc<RefCell<InputEventQueue>>>,
+
+    // Pre-input window in frame.
     input_window: u32,
-    latest_frame: u32,
+
+    // The frame that have been synchronized with other network remote players.
+    // This means:
+    //   1. The all players' current_frame >= synced_frame.
+    //   2. The local player's game has been running for at least synced_frame.
+    //   3. Input events for all remote players that occurred prior to synced_frame have been successfully received.
     synced_frame: u32,
+
+    current_frames: Vec<u32>,
 }
 
 impl SystemInput {
-    pub fn new(input_window: u32) -> XResult<SystemInput> {
-        if input_window <= 0 {
-            return Err(XError::bad_argument("SystemInput::new() input_window"));
-        }
-        Ok(SystemInput {
-            queues: Vec::with_capacity(MAX_PLAYER),
+    pub fn new(input_window: u32) -> SystemInput {
+        SystemInput {
+            queues: vec![],
             input_window,
-            latest_frame: 0,
             synced_frame: 0,
-        })
+            current_frames: vec![],
+        }
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn player_count(&self) -> u32 {
         self.queues.len() as u32
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn input_window(&self) -> u32 {
         self.input_window
     }
 
     #[inline]
-    pub fn latest_frame(&self) -> u32 {
-        self.latest_frame
-    }
-
-    #[inline]
+    #[allow(dead_code)]
     pub fn synced_frame(&self) -> u32 {
         self.synced_frame
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn unsynced_frame(&self) -> u32 {
         self.synced_frame + 1
     }
 
-    pub fn init(&mut self, player_ids: &[NumID]) -> XResult<()> {
+    pub fn init(&mut self, player_count: usize) -> XResult<()> {
         if !self.queues.is_empty() {
-            return Err(XError::invalid_operation("SystemInput::init() inited"));
+            return xres!(BadOperation; "queue empty");
         }
-        if player_ids.len() > MAX_PLAYER {
-            return Err(XError::bad_argument("SystemInput::init() player_ids"));
+        if player_count <= 0 || player_count > MAX_PLAYER {
+            return xres!(BadArgument; "player count");
         }
 
-        let mut normalized_ids = Vec::with_capacity(player_ids.len());
-        for player_id in player_ids {
-            if normalized_ids.contains(player_id) {
-                return Err(XError::bad_argument("SystemInput::init() player_ids"));
-            }
-            normalized_ids.push(*player_id);
+        self.queues = Vec::with_capacity(player_count);
+        for player_idx in 0..player_count {
+            let player_id = (player_idx as u64) + MIN_PLAYER_ID;
+            let queue = Rc::new(RefCell::new(InputEventQueue::new(player_id, self.input_window)));
+            self.queues.push(queue);
         }
-        normalized_ids.sort_unstable();
-
-        for player_id in normalized_ids {
-            self.queues.push(InputEventQueue::new(player_id, self.input_window)?);
-        }
+        self.current_frames = vec![0; player_count];
         Ok(())
     }
 
     // Returns the frame which the game should restore to.
-    pub fn produce(&mut self, player_events: &[PlayerKeyEvents]) -> XResult<Option<u32>> {
-        let base_frame = player_events.iter().map(|e| e.frame.wrapping_sub(1)).min();
+    pub fn produce(&mut self, player_events: &[InputPlayerEvents]) -> XResult<u32> {
+        let base_frame = player_events.iter().map(|e| e.frame.wrapping_sub(1)).min().unwrap_or(0);
 
         for events in player_events {
-            self.queues
-                .iter_mut()
-                .find(|q| q.player_id == events.player_id)
-                .ok_or_else(|| XError::bad_argument(format!("player_id not found ({})", events.player_id)))?
-                .produce(events.frame, &events.events)?;
+            let player_idx = events.player_id.wrapping_sub(MIN_PLAYER_ID);
+            match self.queues.get(player_idx as usize) {
+                Some(queue) => {
+                    let mut queue = queue.borrow_mut();
+                    queue.produce(events.frame, &events.events)?;
+                    self.current_frames[player_idx as usize] = queue.current_frame;
+                }
+                None => {
+                    return xresf!(NotFound; "player_id={}", events.player_id);
+                }
+            };
         }
 
-        self.latest_frame = 0;
-        self.synced_frame = u32::MAX;
-        for queue in &mut self.queues {
-            self.latest_frame = self.latest_frame.max(queue.current_frame);
-            self.synced_frame = self.synced_frame.min(queue.current_frame);
-            queue.clear_enter_event();
-        }
+        self.synced_frame = *self.current_frames[0..self.queues.len()].iter().min().unwrap_or(&0);
         Ok(base_frame)
     }
 
     pub fn confirm(&mut self) -> XResult<()> {
         for queue in &mut self.queues {
-            queue.confirm(self.synced_frame, self.input_window)?;
+            queue.borrow_mut().confirm(self.synced_frame)?;
         }
         Ok(())
     }
 
-    pub fn player_events(&mut self, player_id: NumID, frame: u32) -> XResult<InputQueueAgent<'_>> {
-        let queue = match self.queues.iter_mut().find(|q| q.player_id == player_id) {
-            Some(queue) => queue,
-            None => return Err(XError::not_found(format!("SystemInput::player_events() {}", player_id))),
-        };
-        return Ok(queue.events(frame, self.input_window));
+    #[inline]
+    pub fn player_events(&mut self, player_id: NumID) -> XResult<Rc<RefCell<InputEventQueue>>> {
+        let player_idx = player_id.wrapping_sub(MIN_PLAYER_ID);
+        match self.queues.get(player_idx as usize) {
+            Some(queue) => Ok(queue.clone()),
+            None => xresf!(NotFound; "player_id={}", player_id),
+        }
     }
+}
 
-    pub fn player_enter_event(&self, player_id: NumID) -> XResult<Option<KeyEvent>> {
-        let queue = match self.queues.iter().find(|q| q.player_id == player_id) {
-            Some(queue) => queue,
-            None => {
-                return Err(XError::not_found(format!(
-                    "SystemInput::player_enter_event() {}",
-                    player_id
-                )))
+//
+// Input variables
+//
+
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Deserialize,
+)]
+pub struct InputMoveState {
+    pub moving: bool,
+    pub slow: bool,
+    pub direction: Vec2, // device direction
+}
+
+impl InputMoveState {
+    const EMPTY: InputMoveState = InputMoveState {
+        moving: false,
+        slow: false,
+        direction: Vec2::ZERO,
+    };
+
+    #[inline]
+    pub fn new(direction: Vec2) -> InputMoveState {
+        if !near!(direction, Vec2::ZERO) {
+            InputMoveState {
+                moving: true,
+                slow: direction.length_squared() < 0.25,
+                direction: direction.normalize(),
             }
-        };
-        return Ok(queue.enter_event());
+        } else {
+            InputMoveState {
+                moving: false,
+                slow: false,
+                direction: Vec2::ZERO,
+            }
+        }
+    }
+
+    #[inline]
+    pub fn move_dir(&self) -> Option<Vec2> {
+        match self.moving {
+            true => Some(self.direction),
+            false => None,
+        }
+    }
+}
+
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Deserialize,
+)]
+pub struct InputVariables {
+    pub view_rads: Vec2,
+    pub view_dir_2d: Vec2,
+    pub view_dir_3d: Vec3A,
+    device_move: InputMoveState,
+    optimized_device_move: InputMoveState,
+}
+
+impl InputVariables {
+    const EMPTY: InputVariables = InputVariables {
+        view_rads: Vec2::ZERO,
+        view_dir_2d: Vec2::ZERO,
+        view_dir_3d: Vec3A::ZERO,
+        device_move: InputMoveState::EMPTY,
+        optimized_device_move: InputMoveState::EMPTY,
+    };
+
+    #[inline]
+    pub fn device_move(&self) -> InputMoveState {
+        self.device_move
+    }
+
+    #[inline]
+    pub fn optimized_device_move(&self) -> InputMoveState {
+        self.optimized_device_move
+    }
+
+    pub fn world_move(&self) -> InputMoveState {
+        if !self.device_move.moving {
+            self.device_move
+        } else {
+            let angle = -self.device_move.direction.perp(); // Adjust angle dir, +Y -> 0°
+            let direction = angle.rotate(self.view_dir_2d);
+            InputMoveState {
+                moving: true,
+                slow: self.device_move.slow,
+                direction,
+            }
+        }
+    }
+
+    pub fn optimized_world_move(&self) -> InputMoveState {
+        if !self.optimized_device_move.moving {
+            self.optimized_device_move
+        } else {
+            let angle = -self.optimized_device_move.direction.perp(); // Adjust angle dir, +Y -> 0°
+            let direction = angle.rotate(self.view_dir_2d);
+            InputMoveState {
+                moving: true,
+                slow: self.optimized_device_move.slow,
+                direction,
+            }
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+struct InputFrameMeta {
+    frame: u32,
+    start_event_id: u64,
+    xend_event_id: u64, // end_event_idx + 1
+    variables: InputVariables,
+}
+
+impl InputFrameMeta {
+    const EMPTY: InputFrameMeta = InputFrameMeta {
+        frame: 0,
+        start_event_id: FIRST_EVENT_ID,
+        xend_event_id: FIRST_EVENT_ID,
+        variables: InputVariables::EMPTY,
+    };
+
+    #[inline]
+    #[allow(dead_code)]
+    fn events_count(&self) -> usize {
+        (self.xend_event_id - self.start_event_id) as usize
     }
 }
 
 #[derive(Debug)]
-struct FrameMeta {
-    offset: usize,   // event counts from events[0] to the first event of this frame
-    unconsumed: u64, // the first unconsumed event index in this frame
-}
-
-impl FrameMeta {
-    fn new(offset: usize, unconsumed: u64) -> FrameMeta {
-        FrameMeta { offset, unconsumed }
-    }
-}
-
-#[derive(Debug)]
-struct InputEventQueue {
+pub struct InputEventQueue {
     player_id: NumID,
-    idx_counter: u64,
-    events: VecDeque<InputEvent>,
-    metas: VecDeque<FrameMeta>,
-    current_frame: u32,
-    unsynced_frame: u32,
-    base_frame: u32,
-    unconsumed_idx: u64,
-    enter_event: Option<KeyEvent>,
+    input_window: u32,
+    id_counter: u64, // Event id counter, starts from 1
+    events: VecDeque<VirtualEvent>,
+    metas: VecDeque<InputFrameMeta>,
+    current_frame: u32, // The lastest frame which events has been produced (reached) currently.
+    synced_frame: u32,  // The frame that have been synchronized with other players.
+    base_frame: u32,    // The smallest frame saved in self.events. Previous frames have been discarded.
+    base_id: u64,       // The smallest id saved in self.events. Previous events have been discarded.
+    variables: InputVariables,
 }
 
 impl InputEventQueue {
-    fn new(player_id: NumID, input_window: u32) -> XResult<InputEventQueue> {
-        if input_window <= 0 {
-            return Err(XError::bad_argument("InputEventQueue::new() input_window"));
-        }
-
-        let mut iq = InputEventQueue {
+    fn new(player_id: NumID, input_window: u32) -> InputEventQueue {
+        InputEventQueue {
             player_id,
-            idx_counter: 0,
+            input_window,
+            id_counter: FIRST_EVENT_ID,
             events: VecDeque::with_capacity(256),
             metas: VecDeque::with_capacity((2 * FPS as usize) + (input_window as usize)),
             current_frame: 0,
-            unsynced_frame: 1,
+            synced_frame: 0,
             base_frame: 1,
-            unconsumed_idx: 0,
-            enter_event: None,
-        };
-        iq.metas.push_back(FrameMeta::new(0, 0));
-        Ok(iq)
-    }
-
-    // The next unproduced future event index.
-    #[inline]
-    fn future_idx(&self) -> u64 {
-        self.idx_counter
+            base_id: FIRST_EVENT_ID,
+            variables: InputVariables::default(),
+        }
     }
 
     #[inline]
-    fn unconsumed_idx(&self) -> u64 {
-        self.unconsumed_idx
+    #[allow(dead_code)]
+    pub fn player_id(&self) -> NumID {
+        self.player_id
+    }
+
+    // The next unproduced future event id.
+    #[inline]
+    #[allow(dead_code)]
+    pub fn future_id(&self) -> u64 {
+        self.id_counter
     }
 
     #[inline]
-    fn enter_event(&self) -> Option<KeyEvent> {
-        self.enter_event
+    #[allow(dead_code)]
+    pub fn current_frame(&self) -> u32 {
+        self.current_frame
     }
 
-    fn produce(&mut self, current_frame: u32, events: &[KeyEvent]) -> XResult<()> {
+    #[inline]
+    #[allow(dead_code)]
+    pub fn synced_frame(&self) -> u32 {
+        self.synced_frame
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn unsynced_frame(&self) -> u32 {
+        self.synced_frame() + 1
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn base_frame(&self) -> u32 {
+        self.base_frame
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    pub fn base_id(&self) -> u64 {
+        self.base_id
+    }
+
+    fn produce(&mut self, current_frame: u32, events: &[RawEvent]) -> XResult<()> {
         if current_frame != self.current_frame + 1 {
-            return Err(XError::bad_argument("InputEventQueue::produce() current_frame"));
+            return xresf!(BadArgument; "current_frame={} self.current_frame={}", current_frame, self.current_frame);
         }
         self.current_frame += 1;
-        for event in events {
-            self.events
-                .push_back(InputEvent::new(self.idx_counter, self.current_frame, *event));
-            self.idx_counter += 1;
+
+        self.variables.optimized_device_move = self.variables.device_move;
+        let start_event_id = self.id_counter;
+
+        for (n, event) in events.iter().enumerate() {
+            // View
+            if event.key == RawKey::View {
+                self.variables.view_rads = Vec2::new(event.motion.x % PI, event.motion.y % FRAC_PI_2);
+                let cos_x = libm::cosf(self.variables.view_rads.x);
+                let sin_x = libm::sinf(self.variables.view_rads.x);
+                let cos_y = libm::cosf(self.variables.view_rads.y);
+                let sin_y = libm::sinf(self.variables.view_rads.y);
+                self.variables.view_dir_2d = Vec2::new(cos_x, sin_x);
+                self.variables.view_dir_3d = Vec3A::new(cos_y * cos_x, sin_y, cos_y * sin_x);
+
+            // Move
+            } else if event.key == RawKey::Move {
+                if event.pressed {
+                    self.variables.device_move = InputMoveState::new(event.motion);
+                    self.variables.optimized_device_move = self.variables.device_move;
+                } else {
+                    self.variables.device_move = InputMoveState::default();
+                    // Ignore Up event, if a Down-Up pair is the last operation.
+                    let ignore = (n == events.len() - 1)
+                        && (n >= 1)
+                        && events[n - 1].key == RawKey::Move
+                        && events[n - 1].pressed;
+                    if !ignore {
+                        self.variables.optimized_device_move = InputMoveState::default();
+                    }
+                }
+
+            // Other events
+            } else {
+                self.events.push_back(VirtualEvent::new_ex(
+                    self.id_counter,
+                    current_frame,
+                    event.key.into(),
+                    event.pressed,
+                    self.variables.view_dir_2d,
+                    self.variables.view_dir_3d,
+                    self.variables.world_move().direction,
+                ));
+                self.id_counter += 1;
+            }
         }
-        self.metas
-            .push_back(FrameMeta::new(self.events.len(), self.unconsumed_idx));
+
+        self.metas.push_back(InputFrameMeta {
+            frame: current_frame,
+            start_event_id,
+            xend_event_id: self.id_counter,
+            variables: self.variables,
+        });
         Ok(())
     }
 
-    fn consume(&mut self, event_idx: u64) -> XResult<()> {
-        if event_idx >= self.future_idx() || event_idx < self.unconsumed_idx {
-            return Err(XError::overflow("InputEventQueue::consume() event_idx"));
-        }
-        self.unconsumed_idx = event_idx + 1;
-        Ok(())
-    }
-
-    fn confirm(&mut self, synced_frame: u32, input_window: u32) -> XResult<()> {
+    fn confirm(&mut self, synced_frame: u32) -> XResult<()> {
         if synced_frame > self.current_frame {
-            return Err(XError::bad_argument("InputEventQueue::confirm() synced_frame"));
+            return xresf!(BadArgument; "synced_frame={} self.current_frame={}", synced_frame, self.current_frame);
         }
-        if synced_frame < self.unsynced_frame {
+        if synced_frame <= self.synced_frame {
             return Ok(());
         }
 
-        let base_frame = synced_frame.saturating_sub(input_window - 1).max(self.base_frame); // keep one more frame before unsynced_frame
-        for _ in self.base_frame..base_frame {
-            self.metas.pop_front();
+        self.synced_frame = synced_frame;
+
+        let base_frame = synced_frame.saturating_sub(self.input_window).max(self.base_frame);
+        if base_frame <= self.base_frame {
+            return Ok(());
         }
-        let discard_count = match self.metas.front() {
-            Some(meta) => meta.offset,
-            None => return Err(XError::unexpected("InputEventQueue::confirm() self.metas")),
+
+        for frame in self.base_frame..base_frame {
+            let meta = self.metas.pop_front();
+            assert!(meta.map(|m| m.frame == frame) == Some(true));
+        }
+
+        let new_base_id = match self.metas.front() {
+            Some(meta) => meta.start_event_id,
+            None => return xres!(Unexpected; "metas empty"),
         };
-        self.metas.iter_mut().for_each(|meta| meta.offset -= discard_count);
-
-        for _ in 0..discard_count {
-            let event = self.events.pop_front();
-            assert!(event.is_some());
+        while let Some(event) = self.events.front() {
+            if event.id < new_base_id {
+                assert!(event.frame >= self.base_frame && event.frame < base_frame);
+                self.events.pop_front();
+            } else {
+                break;
+            }
         }
 
-        self.unsynced_frame = synced_frame + 1;
         self.base_frame = base_frame;
+        self.base_id = new_base_id;
         Ok(())
     }
 
-    fn events(&mut self, frame: u32, input_window: u32) -> InputQueueAgent<'_> {
-        let start_frame = frame.saturating_sub(input_window - 1).max(self.base_frame);
-        let endx_frame = frame.min(self.current_frame) + 1; // end frame + 1
-        if start_frame >= endx_frame {
-            return InputQueueAgent {
-                queue: self,
-                start_pos: 0,
-                end_pos: 0,
+    pub fn iter_current(&self, frame: u32) -> XResult<vec_deque::Iter<'_, VirtualEvent>> {
+        if frame > self.current_frame {
+            return Ok(self.events.range(0..0));
+        }
+        let meta = self
+            .index_meta(frame) // Checked frame < self.base_frame
+            .ok_or_else(
+                || xerrf!(Overflow; "frame={} base_frame={} metas.len={}", frame, self.base_frame, self.metas.len()),
+            )?;
+        let start = (meta.start_event_id - self.base_id) as usize;
+        let end = (meta.xend_event_id - self.base_id) as usize;
+        Ok(self.events.range(start..end))
+    }
+
+    pub fn iter_preinput(&self, frame: u32, cursor_id: u64) -> XResult<vec_deque::Iter<'_, VirtualEvent>> {
+        if cursor_id >= self.future_id() {
+            return xresf!(BadArgument; "cursor_id={} self.future_id={}", cursor_id, self.future_id());
+        }
+        let current_meta = self.index_or_last_meta(frame)?; // Checked frame < self.base_frame
+
+        let end_id = if frame > self.current_frame {
+            current_meta.xend_event_id
+        } else {
+            current_meta.start_event_id
+        };
+
+        let mut start_id;
+        if let Some(window_start_meta) = self.index_meta(frame.wrapping_sub(self.input_window)) {
+            start_id = window_start_meta.start_event_id
+        } else if frame < self.base_frame + self.input_window {
+            // frame - input_window < base_frame
+            start_id = match self.metas.front() {
+                Some(meta) => meta.start_event_id,
+                None => FIRST_EVENT_ID,
             };
-        }
-
-        let start_pos = match self.metas.get((start_frame - self.base_frame) as usize) {
-            Some(meta) => meta.offset,
-            None => 0,
+        } else {
+            // frame - input_window > current_frame
+            return Ok(self.events.range(0..0));
         };
-        let end_pos = match self.metas.get((endx_frame - self.base_frame) as usize) {
-            Some(meta) => meta.offset,
-            None => 0,
-        };
-        InputQueueAgent {
-            queue: self,
-            start_pos,
-            end_pos,
+        start_id = start_id.max(cursor_id).min(end_id);
+
+        let start = (start_id - self.base_id) as usize;
+        let end = (end_id - self.base_id) as usize;
+        Ok(self.events.range(start..end))
+    }
+
+    #[inline]
+    pub fn variables(&self, frame: u32) -> XResult<InputVariables> {
+        self.index_or_last_meta(frame).map(|meta| meta.variables)
+    }
+
+    #[inline]
+    fn index_meta(&self, frame: u32) -> Option<&InputFrameMeta> {
+        self.metas.get((frame.wrapping_sub(self.base_frame)) as usize)
+    }
+
+    #[inline]
+    fn index_or_last_meta(&self, frame: u32) -> XResult<&InputFrameMeta> {
+        if frame > self.current_frame {
+            return Ok(self.metas.back().unwrap_or(&InputFrameMeta::EMPTY));
         }
-    }
-
-    fn set_enter_event(&mut self, event_idx: u64) -> XResult<()> {
-        let idx_offset = match self.events.front() {
-            Some(event) => event.idx,
-            None => return Err(XError::unexpected("InputEventQueue::set_enter_event() self.events")),
-        };
-        if event_idx < idx_offset || event_idx >= self.future_idx() {
-            return Err(XError::overflow("InputEventQueue::set_enter_event() event_idx"));
-        }
-        self.enter_event = Some(self.events[(event_idx - idx_offset) as usize].event);
-        Ok(())
-    }
-
-    fn clear_enter_event(&mut self) {
-        self.enter_event = None;
-    }
-}
-
-#[derive(Debug)]
-pub struct InputQueueAgent<'t> {
-    queue: &'t mut InputEventQueue,
-    start_pos: usize,
-    end_pos: usize,
-}
-
-impl<'t> InputQueueAgent<'t> {
-    pub fn iter(&'t self, start_idx: u64) -> vec_deque::Iter<'t, InputEvent> {
-        let mut start_pos = self.start_pos;
-        if let Some(event) = self.queue.events.get(start_pos) {
-            start_pos += start_idx.max(self.queue.unconsumed_idx()).saturating_sub(event.idx) as usize;
-            start_pos = start_pos.min(self.end_pos);
-        }
-        return self.queue.events.range(start_pos..self.end_pos);
-    }
-
-    pub fn future_idx(&self) -> u64 {
-        self.queue.future_idx()
-    }
-
-    pub fn consume(&mut self, event_idx: u64, enter_event_idx: Option<u64>) -> XResult<()> {
-        if let Some(enter_idx) = enter_event_idx {
-            self.queue.set_enter_event(enter_idx)?;
-        }
-        self.queue.consume(event_idx)
+        self.index_meta(frame).ok_or_else(
+            || xerrf!(Overflow; "frame={} base_frame={} metas.len={}", frame, self.base_frame, self.metas.len()),
+        )
     }
 }
 
@@ -351,350 +536,508 @@ impl<'t> InputQueueAgent<'t> {
 mod tests {
     use super::*;
 
-    const WINDOW: u32 = 3;
-
-    fn collect_offsets(iq: &InputEventQueue) -> Vec<usize> {
-        return iq.metas.iter().map(|m| m.offset).collect();
+    fn collect_frame(iq: &InputEventQueue) -> Vec<u32> {
+        iq.metas.iter().map(|m| m.frame).collect()
     }
 
-    fn collect_unconsumed(iq: &InputEventQueue) -> Vec<u64> {
-        return iq.metas.iter().map(|m| m.unconsumed).collect();
+    fn collect_start_event_id(iq: &InputEventQueue) -> Vec<u64> {
+        iq.metas.iter().map(|m| m.start_event_id).collect()
+    }
+
+    fn collect_xend_event_id(iq: &InputEventQueue) -> Vec<u64> {
+        iq.metas.iter().map(|m| m.xend_event_id).collect()
+    }
+
+    fn evt(id: u64, frame: u32, raw: RawEvent) -> VirtualEvent {
+        VirtualEvent::new(id, frame, raw.key.into(), raw.pressed)
+    }
+
+    fn evt_ex(
+        id: u64,
+        frame: u32,
+        raw: RawEvent,
+        view_dir_2d: Vec2,
+        view_dir_3d: Vec3A,
+        world_move_dir: Vec2,
+    ) -> VirtualEvent {
+        VirtualEvent::new_ex(
+            id,
+            frame,
+            raw.key.into(),
+            raw.pressed,
+            view_dir_2d,
+            view_dir_3d,
+            world_move_dir,
+        )
     }
 
     #[test]
     fn test_input_event_queue_empty() {
-        let mut iq: InputEventQueue = InputEventQueue::new(0, 3).unwrap();
+        let mut iq: InputEventQueue = InputEventQueue::new(100, 3);
         assert_eq!(iq.current_frame, 0);
-        assert_eq!(iq.unsynced_frame, 1);
+        assert_eq!(iq.synced_frame, 0);
         assert_eq!(iq.base_frame, 1);
+        assert_eq!(iq.base_id, 1);
 
         assert!(iq.produce(0, &[]).is_err());
         assert!(iq.produce(5, &[]).is_err());
 
-        assert!(iq.confirm(0, WINDOW).is_ok());
-        assert!(iq.confirm(1, WINDOW).is_err());
-        assert!(iq.confirm(7, WINDOW).is_err());
+        assert!(iq.confirm(0).is_ok());
+        assert!(iq.confirm(1).is_err());
+        assert!(iq.confirm(7).is_err());
         assert_eq!(iq.current_frame, 0);
-        assert_eq!(iq.unsynced_frame, 1);
+        assert_eq!(iq.synced_frame, 0);
         assert_eq!(iq.base_frame, 1);
+        assert_eq!(iq.base_id, 1);
 
-        assert_eq!(iq.events(0, WINDOW).iter(0).count(), 0);
-        assert_eq!(iq.events(1, WINDOW).iter(0).count(), 0);
-        assert_eq!(iq.events(100, WINDOW).iter(0).count(), 0);
+        assert!(iq.iter_current(0).is_err());
+        assert_eq!(iq.iter_current(1).unwrap().count(), 0);
+        assert_eq!(iq.iter_current(100).unwrap().count(), 0);
+        assert!(iq.iter_preinput(0, 0).is_err());
+        assert_eq!(iq.iter_preinput(1, 0).unwrap().count(), 0);
+        assert_eq!(iq.iter_preinput(100, 0).unwrap().count(), 0);
 
         iq.produce(1, &[]).unwrap();
         assert_eq!(iq.current_frame, 1);
-        assert_eq!(collect_offsets(&iq), vec![0, 0]);
-        assert_eq!(collect_unconsumed(&iq), vec![0, 0]);
-        assert_eq!(iq.events(0, WINDOW).iter(0).count(), 0);
-        assert_eq!(iq.events(1, WINDOW).iter(0).count(), 0);
-        assert_eq!(iq.events(2, WINDOW).iter(0).count(), 0);
+        assert_eq!(
+            iq.metas,
+            vec![InputFrameMeta {
+                frame: 1,
+                ..InputFrameMeta::default()
+            }]
+        );
+        assert!(iq.iter_current(0).is_err());
+        assert_eq!(iq.iter_current(1).unwrap().count(), 0);
+        assert_eq!(iq.iter_current(100).unwrap().count(), 0);
+        assert!(iq.iter_preinput(0, 100).is_err());
+        assert!(iq.iter_preinput(1, 100).is_err());
+        assert!(iq.iter_preinput(100, 100).is_err());
 
         iq.produce(2, &[]).unwrap();
         iq.produce(3, &[]).unwrap();
         iq.produce(4, &[]).unwrap();
         assert_eq!(iq.current_frame, 4);
-        assert_eq!(collect_offsets(&iq), vec![0, 0, 0, 0, 0]);
-        assert_eq!(collect_unconsumed(&iq), vec![0, 0, 0, 0, 0]);
-        assert_eq!(iq.events(0, WINDOW).iter(0).count(), 0);
-        assert_eq!(iq.events(4, WINDOW).iter(0).count(), 0);
-        assert_eq!(iq.events(6, WINDOW).iter(0).count(), 0);
-
-        assert_eq!(iq.events(0, WINDOW).iter(0).count(), 0);
-        assert_eq!(iq.events(0, WINDOW).iter(1).count(), 0);
-        assert_eq!(iq.events(0, WINDOW).iter(10).count(), 0);
+        assert_eq!(collect_frame(&iq), vec![1, 2, 3, 4]);
+        assert_eq!(collect_start_event_id(&iq), vec![1, 1, 1, 1]);
+        assert_eq!(collect_xend_event_id(&iq), vec![1, 1, 1, 1]);
+        assert!(iq.iter_current(0).is_err());
+        assert_eq!(iq.iter_current(4).unwrap().count(), 0);
+        assert_eq!(iq.iter_current(6).unwrap().count(), 0);
+        assert!(iq.iter_preinput(0, 0).is_err());
+        assert_eq!(iq.iter_preinput(4, 0).unwrap().count(), 0);
+        assert_eq!(iq.iter_preinput(6, 0).unwrap().count(), 0);
     }
 
     #[test]
     fn test_input_event_queue_produce() {
-        let a1_down = KeyEvent::new_button(KeyCode::Attack1, true);
-        let a1_up = KeyEvent::new_button(KeyCode::Attack1, false);
-        let run_left = KeyEvent::new_motion(KeyCode::Run, Vec2::new(-1.0, 0.0));
-        let run_right = KeyEvent::new_motion(KeyCode::Run, Vec2::new(1.0, 0.0));
-        let s1_down = KeyEvent::new_button(KeyCode::Skill1, true);
-        let s1_up = KeyEvent::new_button(KeyCode::Skill1, false);
+        let a1_down = RawEvent::new_button(RawKey::Attack1, true);
+        let a1_up = RawEvent::new_button(RawKey::Attack1, false);
+        let a2_down = RawEvent::new_button(RawKey::Attack2, true);
+        let a2_up = RawEvent::new_button(RawKey::Attack2, false);
+        let s1_down = RawEvent::new_button(RawKey::Skill1, true);
+        let s1_up = RawEvent::new_button(RawKey::Skill1, false);
 
-        let mut iq = InputEventQueue::new(0, 3).unwrap();
+        let mut iq = InputEventQueue::new(0, 3);
 
         // produce=1
         iq.produce(1, &[a1_down, a1_up]).unwrap();
         assert_eq!(iq.current_frame, 1);
-        assert_eq!(collect_offsets(&iq), vec![0, 2]);
-        assert_eq!(iq.events(0, WINDOW).iter(0).count(), 0);
+        assert_eq!(collect_start_event_id(&iq), vec![1]);
+        assert_eq!(collect_xend_event_id(&iq), vec![3]);
+        assert!(iq.iter_current(0).is_err());
+
         assert_eq!(
-            iq.events(1, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![&InputEvent::new(0, 1, a1_down), &InputEvent::new(1, 1, a1_up),]
+            iq.iter_current(1).unwrap().collect::<Vec<_>>(),
+            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
         );
+        assert_eq!(iq.iter_preinput(1, 0).unwrap().count(), 0);
+
+        assert_eq!(iq.iter_current(2).unwrap().count(), 0);
         assert_eq!(
-            iq.events(2, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![&InputEvent::new(0, 1, a1_down), &InputEvent::new(1, 1, a1_up),]
+            iq.iter_preinput(2, 0).unwrap().collect::<Vec<_>>(),
+            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
         );
-        assert_eq!(iq.events(2, WINDOW).iter(1).count(), 1);
-        assert_eq!(iq.events(2, WINDOW).iter(2).count(), 0);
-        assert_eq!(iq.events(4, WINDOW).iter(0).count(), 0);
-        assert_eq!(iq.events(6, WINDOW).iter(0).count(), 0);
+
+        assert_eq!(iq.iter_current(4).unwrap().count(), 0);
+        assert_eq!(iq.iter_preinput(4, 0).unwrap().count(), 2);
+        assert_eq!(iq.iter_preinput(4, 1).unwrap().count(), 2);
+        assert_eq!(iq.iter_preinput(4, 2).unwrap().count(), 1);
+        assert!(iq.iter_preinput(4, 3).is_err());
+
+        assert_eq!(iq.iter_current(5).unwrap().count(), 0);
+        assert_eq!(iq.iter_preinput(5, 0).unwrap().count(), 0);
 
         // produce=3
         iq.produce(2, &[]).unwrap();
-        iq.produce(3, &[run_left]).unwrap();
+        iq.produce(3, &[a2_down]).unwrap();
         assert_eq!(iq.current_frame, 3);
-        assert_eq!(collect_offsets(&iq), vec![0, 2, 2, 3]);
-        assert_eq!(iq.events(0, WINDOW).iter(0).count(), 0);
-        assert_eq!(iq.events(1, WINDOW).iter(0).count(), 2);
+        assert_eq!(collect_start_event_id(&iq), vec![1, 3, 3]);
+        assert_eq!(collect_xend_event_id(&iq), vec![3, 3, 4]);
+        assert!(iq.iter_current(0).is_err());
+
         assert_eq!(
-            iq.events(3, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![
-                &InputEvent::new(0, 1, a1_down),
-                &InputEvent::new(1, 1, a1_up),
-                &InputEvent::new(2, 3, run_left),
-            ]
+            iq.iter_current(1).unwrap().collect::<Vec<_>>(),
+            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
         );
-        assert_eq!(iq.events(3, WINDOW).iter(1).count(), 2);
-        assert_eq!(iq.events(5, WINDOW).iter(0).count(), 1);
+        assert_eq!(iq.iter_preinput(1, 0).unwrap().count(), 0);
+
+        assert_eq!(
+            iq.iter_current(3).unwrap().collect::<Vec<_>>(),
+            vec![&evt(3, 3, a2_down)]
+        );
+        assert_eq!(
+            iq.iter_preinput(3, 0).unwrap().collect::<Vec<_>>(),
+            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
+        );
+
+        assert_eq!(iq.iter_current(5).unwrap().count(), 0);
+        assert_eq!(
+            iq.iter_preinput(5, 0).unwrap().collect::<Vec<_>>(),
+            vec![&evt(3, 3, a2_down)]
+        );
+
+        assert_eq!(iq.iter_preinput(7, 0).unwrap().count(), 0);
 
         // produce=6
-        iq.produce(4, &[run_right]).unwrap();
+        iq.produce(4, &[a2_up]).unwrap();
         iq.produce(5, &[]).unwrap();
         iq.produce(6, &[s1_down, s1_up]).unwrap();
         assert_eq!(iq.current_frame, 6);
-        assert_eq!(collect_offsets(&iq), vec![0, 2, 2, 3, 4, 4, 6]);
-        assert_eq!(iq.events(1, WINDOW).iter(0).count(), 2);
-        assert_eq!(iq.events(3, WINDOW).iter(0).count(), 3);
+        assert_eq!(collect_start_event_id(&iq), vec![1, 3, 3, 4, 5, 5]);
+        assert_eq!(collect_xend_event_id(&iq), vec![3, 3, 4, 5, 5, 7]);
+
         assert_eq!(
-            iq.events(6, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![
-                &InputEvent::new(3, 4, run_right),
-                &InputEvent::new(4, 6, s1_down),
-                &InputEvent::new(5, 6, s1_up),
-            ]
+            iq.iter_current(1).unwrap().collect::<Vec<_>>(),
+            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
         );
-        assert_eq!(iq.events(6, WINDOW).iter(3).count(), 3);
+        assert_eq!(iq.iter_preinput(1, 0).unwrap().count(), 0);
+
         assert_eq!(
-            iq.events(8, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![&InputEvent::new(4, 6, s1_down), &InputEvent::new(5, 6, s1_up),]
+            iq.iter_current(3).unwrap().collect::<Vec<_>>(),
+            vec![&evt(3, 3, a2_down)]
         );
-        assert_eq!(iq.events(9, WINDOW).iter(3).count(), 0);
+        assert_eq!(
+            iq.iter_preinput(3, 0).unwrap().collect::<Vec<_>>(),
+            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
+        );
+
+        assert_eq!(
+            iq.iter_current(6).unwrap().collect::<Vec<_>>(),
+            vec![&evt(5, 6, s1_down), &evt(6, 6, s1_up)]
+        );
+        assert_eq!(
+            iq.iter_preinput(6, 0).unwrap().collect::<Vec<_>>(),
+            vec![&evt(3, 3, a2_down), &evt(4, 4, a2_up)]
+        );
+        assert_eq!(iq.iter_preinput(6, 3).unwrap().count(), 2);
+        assert_eq!(iq.iter_preinput(6, 4).unwrap().count(), 1);
+        assert_eq!(iq.iter_preinput(6, 5).unwrap().count(), 0);
+        assert_eq!(iq.iter_preinput(6, 6).unwrap().count(), 0);
+        assert!(iq.iter_preinput(6, 7).is_err());
     }
 
     #[test]
     fn test_input_event_queue_confirm() {
-        let b1_down = KeyEvent::new_button(KeyCode::Skill1, true);
-        let b1_up = KeyEvent::new_button(KeyCode::Skill1, false);
-        let run_left = KeyEvent::new_motion(KeyCode::Run, Vec2::new(-1.0, 0.0));
-        let run_right = KeyEvent::new_motion(KeyCode::Run, Vec2::new(1.0, 0.0));
-        let aim = KeyEvent::new_button(KeyCode::Aim, true);
-        let shoot = KeyEvent::new_button(KeyCode::Shot1, true);
+        let s1_down = RawEvent::new_button(RawKey::Skill1, true);
+        let s1_up = RawEvent::new_button(RawKey::Skill1, false);
+        let s2_down = RawEvent::new_button(RawKey::Skill2, true);
+        let s2_up = RawEvent::new_button(RawKey::Skill2, false);
+        let aim = RawEvent::new_button(RawKey::Aim, true);
+        let shoot = RawEvent::new_button(RawKey::Shot1, true);
 
-        let mut iq = InputEventQueue::new(0, 3).unwrap();
+        let mut iq = InputEventQueue::new(0, 3);
 
         // produce=0
-        iq.produce(1, &[b1_down, b1_up]).unwrap();
-        iq.confirm(0, WINDOW).unwrap();
+        iq.produce(1, &[s1_down, s1_up]).unwrap();
+        iq.confirm(1).unwrap();
         assert_eq!(iq.current_frame, 1);
-        assert_eq!(iq.unsynced_frame, 1);
+        assert_eq!(iq.synced_frame, 1);
         assert_eq!(iq.base_frame, 1);
-        assert_eq!(collect_offsets(&iq), vec![0, 2]);
-        assert_eq!(iq.events(0, WINDOW).iter(0).count(), 0);
+        assert_eq!(iq.base_id, 1);
+        assert_eq!(collect_start_event_id(&iq), vec![1]);
+        assert_eq!(collect_xend_event_id(&iq), vec![3]);
+        assert!(iq.iter_current(0).is_err());
+
         assert_eq!(
-            iq.events(1, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![&InputEvent::new(0, 1, b1_down), &InputEvent::new(1, 1, b1_up),]
+            iq.iter_current(1).unwrap().collect::<Vec<_>>(),
+            vec![&evt(1, 1, s1_down), &evt(2, 1, s1_up)]
         );
+        assert_eq!(iq.iter_preinput(1, 0).unwrap().count(), 0);
+
+        assert_eq!(iq.iter_current(2).unwrap().count(), 0);
         assert_eq!(
-            iq.events(2, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![&InputEvent::new(0, 1, b1_down), &InputEvent::new(1, 1, b1_up),]
+            iq.iter_preinput(2, 0).unwrap().collect::<Vec<_>>(),
+            vec![&evt(1, 1, s1_down), &evt(2, 1, s1_up)]
         );
-        assert_eq!(iq.events(4, WINDOW).iter(0).count(), 0);
-        assert_eq!(iq.events(5, WINDOW).iter(0).count(), 0);
+
+        assert_eq!(iq.iter_current(4).unwrap().count(), 0);
+        assert_eq!(iq.iter_preinput(4, 0).unwrap().count(), 2);
+
+        assert_eq!(iq.iter_current(5).unwrap().count(), 0);
+        assert_eq!(iq.iter_preinput(5, 0).unwrap().count(), 0);
 
         // produce=3
-        iq.produce(2, &[run_left]).unwrap();
-        iq.produce(3, &[run_right, aim]).unwrap();
-        iq.confirm(3, WINDOW).unwrap();
+        iq.produce(2, &[s2_down]).unwrap();
+        iq.produce(3, &[s2_down, aim]).unwrap();
+        iq.confirm(3).unwrap();
         assert_eq!(iq.current_frame, 3);
-        assert_eq!(iq.unsynced_frame, 4);
+        assert_eq!(iq.synced_frame, 3);
         assert_eq!(iq.base_frame, 1);
-        assert_eq!(collect_offsets(&iq), vec![0, 2, 3, 5]);
-        assert_eq!(iq.events(3, WINDOW).iter(0).count(), 5);
+        assert_eq!(iq.base_id, 1);
+        assert_eq!(collect_start_event_id(&iq), vec![1, 3, 4]);
+        assert_eq!(collect_xend_event_id(&iq), vec![3, 4, 6]);
+        assert_eq!(iq.iter_current(3).unwrap().count(), 2);
+        assert_eq!(iq.iter_preinput(3, 0).unwrap().count(), 3);
 
-        // produce=4
+        // produce=5
         iq.produce(4, &[]).unwrap();
-        iq.confirm(4, WINDOW).unwrap();
-        assert_eq!(iq.current_frame, 4);
-        assert_eq!(iq.unsynced_frame, 5);
+        iq.produce(5, &[]).unwrap();
+        iq.confirm(5).unwrap();
+        assert_eq!(iq.current_frame, 5);
+        assert_eq!(iq.synced_frame, 5);
         assert_eq!(iq.base_frame, 2);
-        assert_eq!(collect_offsets(&iq), vec![0, 1, 3, 3]);
-        assert_eq!(
-            iq.events(4, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![
-                &InputEvent::new(2, 2, run_left),
-                &InputEvent::new(3, 3, run_right),
-                &InputEvent::new(4, 3, aim),
-            ]
-        );
-        assert_eq!(iq.events(5, WINDOW).iter(0).count(), 2);
+        assert_eq!(iq.base_id, 3);
+        assert_eq!(collect_start_event_id(&iq), vec![3, 4, 6, 6]);
+        assert_eq!(collect_xend_event_id(&iq), vec![4, 6, 6, 6]);
 
-        // produce=6
-        iq.produce(5, &[shoot]).unwrap();
-        iq.produce(6, &[run_left, run_right]).unwrap();
-        iq.confirm(5, WINDOW).unwrap();
-        assert_eq!(iq.current_frame, 6);
-        assert_eq!(iq.unsynced_frame, 6);
+        assert_eq!(iq.iter_current(4).unwrap().count(), 0);
+        assert_eq!(
+            iq.iter_preinput(4, 0).unwrap().collect::<Vec<_>>(),
+            vec![&evt(3, 2, s2_down), &evt(4, 3, s2_down), &evt(5, 3, aim)]
+        );
+        assert_eq!(iq.iter_preinput(6, 0).unwrap().count(), 2);
+
+        // produce=7
+        iq.produce(6, &[shoot]).unwrap();
+        iq.produce(7, &[s2_down, s2_up]).unwrap();
+        iq.confirm(6).unwrap();
+        assert_eq!(iq.current_frame, 7);
+        assert_eq!(iq.synced_frame, 6);
         assert_eq!(iq.base_frame, 3);
-        assert_eq!(collect_offsets(&iq), vec![0, 2, 2, 3, 5]);
+        assert_eq!(iq.base_id, 4);
+        assert_eq!(collect_start_event_id(&iq), vec![4, 6, 6, 6, 7]);
+        assert_eq!(collect_xend_event_id(&iq), vec![6, 6, 6, 7, 9]);
+
+        assert_eq!(iq.iter_current(6).unwrap().collect::<Vec<_>>(), vec![&evt(6, 6, shoot)]);
         assert_eq!(
-            iq.events(5, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![
-                &InputEvent::new(3, 3, run_right),
-                &InputEvent::new(4, 3, aim),
-                &InputEvent::new(5, 5, shoot),
-            ]
+            iq.iter_preinput(6, 0).unwrap().collect::<Vec<_>>(),
+            vec![&evt(4, 3, s2_down), &evt(5, 3, aim)]
+        );
+
+        assert_eq!(
+            iq.iter_current(7).unwrap().collect::<Vec<_>>(),
+            vec![&evt(7, 7, s2_down), &evt(8, 7, s2_up)]
         );
         assert_eq!(
-            iq.events(6, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![
-                &InputEvent::new(5, 5, shoot),
-                &InputEvent::new(6, 6, run_left),
-                &InputEvent::new(7, 6, run_right),
-            ]
+            iq.iter_preinput(7, 0).unwrap().collect::<Vec<_>>(),
+            vec![&evt(6, 6, shoot)]
         );
-        assert_eq!(iq.events(7, WINDOW).iter(0).count(), 3);
-        assert_eq!(iq.events(9, WINDOW).iter(0).count(), 0);
+
+        assert_eq!(iq.iter_current(10).unwrap().count(), 0);
+        assert_eq!(iq.iter_preinput(10, 0).unwrap().count(), 2);
+        assert_eq!(iq.iter_preinput(10, 8).unwrap().count(), 1);
+        assert!(iq.iter_preinput(10, 9).is_err());
+
+        assert_eq!(iq.iter_current(11).unwrap().count(), 0);
+        assert_eq!(iq.iter_preinput(11, 0).unwrap().count(), 0);
     }
 
     #[test]
-    fn test_input_event_queue_consume() {
-        let b1_down = KeyEvent::new_button(KeyCode::Skill1, true);
-        let b1_up = KeyEvent::new_button(KeyCode::Skill1, false);
+    fn test_input_event_queue_view_move() {
+        let a1_down = RawEvent::new_button(RawKey::Attack1, true);
+        let a1_up = RawEvent::new_button(RawKey::Attack1, false);
+        let a5_down = RawEvent::new_button(RawKey::Attack5, true);
+        let a5_up = RawEvent::new_button(RawKey::Attack5, false);
+        let s1_down = RawEvent::new_button(RawKey::Skill1, true);
+        let s1_up = RawEvent::new_button(RawKey::Skill1, false);
 
-        let mut iq = InputEventQueue::new(0, 3).unwrap();
-
-        iq.produce(1, &[b1_down, b1_down, b1_up]).unwrap();
-        assert!(iq.consume(1).is_ok());
-        assert!(iq.consume(3).is_err());
-        iq.confirm(0, WINDOW).unwrap();
-        assert_eq!(iq.unconsumed_idx(), 2);
-        assert_eq!(collect_unconsumed(&iq), vec![0, 0]);
+        let mut iq = InputEventQueue::new(0, 3);
+        iq.produce(
+            1,
+            &[
+                RawEvent::new_view(Vec2::new(1.0, 0.5)),
+                a5_down,
+                RawEvent::new_move(Vec2::new(0.0, -1.0)),
+                a5_up,
+                RawEvent::new_move(Vec2::new(0.0, 0.0)),
+                a1_down,
+            ],
+        )
+        .unwrap();
         assert_eq!(
-            iq.events(1, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![&InputEvent::new(2, 1, b1_up),]
-        );
-
-        iq.produce(2, &[b1_down, b1_down]).unwrap();
-        assert_eq!(collect_unconsumed(&iq), vec![0, 0, 2]);
-        assert_eq!(
-            iq.events(1, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![&InputEvent::new(2, 1, b1_up),]
-        );
-        assert_eq!(
-            iq.events(2, WINDOW).iter(0).collect::<Vec<_>>(),
+            iq.iter_current(1).unwrap().collect::<Vec<_>>(),
             vec![
-                &InputEvent::new(2, 1, b1_up),
-                &InputEvent::new(3, 2, b1_down),
-                &InputEvent::new(4, 2, b1_down),
+                &evt_ex(1, 1, a5_down, Vec2::ZERO, Vec3A::ZERO, Vec2::ZERO),
+                &evt_ex(2, 1, a5_up, Vec2::new(0.0, -1.0), Vec3A::ZERO, Vec2::ZERO),
+                &evt_ex(3, 1, a1_down, Vec2::ZERO, Vec3A::ZERO, Vec2::ZERO),
             ]
         );
-        iq.consume(2).unwrap();
+        assert_eq!(iq.variables.view_rads, Vec2::new(1.0, 0.5));
+        assert_eq!(iq.variables.device_move, InputMoveState::new(Vec2::ZERO));
+        assert_eq!(iq.variables.optimized_device_move, InputMoveState::new(Vec2::ZERO));
+
+        iq.produce(
+            2,
+            &[
+                RawEvent::new_move(Vec2::new(1.0, 0.0)),
+                RawEvent::new_move(Vec2::new(0.0, 0.0)),
+            ],
+        )
+        .unwrap();
+        assert_eq!(iq.iter_current(2).unwrap().count(), 0);
+        assert_eq!(iq.variables.view_rads, Vec2::new(1.0, 0.5));
+        assert_eq!(iq.variables.device_move, InputMoveState::new(Vec2::ZERO));
+        assert_eq!(
+            iq.variables.optimized_device_move,
+            InputMoveState::new(Vec2::new(1.0, 0.0))
+        );
 
         iq.produce(3, &[]).unwrap();
-        iq.confirm(3, WINDOW).unwrap();
-        iq.produce(4, &[]).unwrap();
-        iq.produce(5, &[]).unwrap();
-        assert_eq!(collect_unconsumed(&iq), vec![0, 0, 2, 3, 3, 3]);
+        assert_eq!(iq.variables.device_move, InputMoveState::new(Vec2::ZERO));
+        assert_eq!(iq.variables.optimized_device_move, InputMoveState::new(Vec2::ZERO));
+
+        iq.produce(
+            4,
+            &[
+                RawEvent::new_move(Vec2::new(0.3, 0.3)),
+                RawEvent::new_view(Vec2::new(0.0, 0.7)),
+                a1_up,
+            ],
+        )
+        .unwrap();
+        assert_eq!(iq.variables.view_rads, Vec2::new(0.0, 0.7));
+        assert_eq!(iq.variables.device_move, InputMoveState::new(Vec2::new(1.0, 1.0)));
         assert_eq!(
-            iq.events(4, WINDOW).iter(0).collect::<Vec<_>>(),
-            vec![&InputEvent::new(3, 2, b1_down), &InputEvent::new(4, 2, b1_down)]
+            iq.variables.optimized_device_move,
+            InputMoveState::new(Vec2::new(1.0, 1.0))
+        );
+        assert_eq!(
+            iq.iter_current(4).unwrap().collect::<Vec<_>>(),
+            vec![&evt_ex(
+                4,
+                4,
+                a1_up,
+                Vec2::new(0.0, 0.7),
+                Vec3A::ZERO,
+                Vec2::new(1.0, 1.0).normalize()
+            ),]
+        );
+
+        iq.produce(5, &[s1_down, s1_up]).unwrap();
+        assert_eq!(
+            iq.iter_current(5).unwrap().collect::<Vec<_>>(),
+            vec![
+                &evt_ex(
+                    5,
+                    5,
+                    s1_down,
+                    Vec2::new(0.0, 0.7),
+                    Vec3A::ZERO,
+                    Vec2::new(1.0, 1.0).normalize()
+                ),
+                &evt_ex(
+                    6,
+                    5,
+                    s1_up,
+                    Vec2::new(0.0, 0.7),
+                    Vec3A::ZERO,
+                    Vec2::new(1.0, 1.0).normalize()
+                ),
+            ]
         );
     }
 
     #[test]
     fn test_input_system() {
-        let a1_down = KeyEvent::new_button(KeyCode::Attack1, true);
-        let a1_up = KeyEvent::new_button(KeyCode::Attack1, false);
-        let b1_down = KeyEvent::new_button(KeyCode::Skill1, true);
-        let b1_up = KeyEvent::new_button(KeyCode::Skill1, false);
-        let run_left = KeyEvent::new_motion(KeyCode::Run, Vec2::new(-1.0, 0.0));
-        let run_right = KeyEvent::new_motion(KeyCode::Run, Vec2::new(1.0, 0.0));
+        let a1_down = RawEvent::new_button(RawKey::Attack1, true);
+        let a1_up = RawEvent::new_button(RawKey::Attack1, false);
+        let s1_down = RawEvent::new_button(RawKey::Skill1, true);
+        let s1_up = RawEvent::new_button(RawKey::Skill1, false);
+        let aim = RawEvent::new_button(RawKey::Aim, false);
+        let shot = RawEvent::new_button(RawKey::Shot1, false);
 
-        assert!(SystemInput::new(0).is_err());
-        let mut si = SystemInput::new(3).unwrap();
-        // assert!(si.init(&[]).is_err()); // forbid empty
-        assert!(si.init(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).is_err());
-        assert!(si.init(&[10, 20, 10]).is_err());
-        si.init(&[100, 200]).unwrap();
-        assert!(si.init(&[300]).is_err());
+        let mut si = SystemInput::new(3);
+        assert!(si.init(0).is_err());
+        assert!(si.init(MAX_PLAYER + 1).is_err());
+        si.init(2).unwrap();
+        assert!(si.init(1).is_err());
         assert_eq!(si.player_count(), 2);
         assert_eq!(si.input_window(), 3);
 
-        assert_eq!(si.player_events(100, 0).unwrap().iter(0).count(), 0);
-        assert_eq!(si.player_events(200, 0).unwrap().iter(0).count(), 0);
+        let player0 = si.player_events(100).unwrap();
+        let player1 = si.player_events(101).unwrap();
 
         // p1=1, p2=?
-        let events = vec![PlayerKeyEvents {
+        let events = vec![InputPlayerEvents {
             player_id: 100,
             frame: 1,
             events: vec![a1_down, a1_up],
         }];
         si.produce(&events).unwrap();
         si.confirm().unwrap();
-        assert_eq!(si.latest_frame(), 1);
         assert_eq!(si.synced_frame(), 0);
         assert_eq!(si.unsynced_frame(), 1);
         assert_eq!(
-            si.player_events(100, 1).unwrap().iter(0).collect::<Vec<_>>(),
-            vec![&InputEvent::new(0, 1, a1_down), &InputEvent::new(1, 1, a1_up),]
+            player0.borrow().iter_current(1).unwrap().collect::<Vec<_>>(),
+            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up),]
         );
-        assert_eq!(si.player_events(200, 0).unwrap().iter(0).count(), 0);
+        assert_eq!(player0.borrow().iter_preinput(1, 0).unwrap().count(), 0);
+        assert_eq!(player1.borrow().iter_current(1).unwrap().count(), 0);
+        assert_eq!(player1.borrow().iter_preinput(1, 0).unwrap().count(), 0);
 
         // p1=1, p2=1
-        let events = vec![PlayerKeyEvents {
-            player_id: 200,
+        let events = vec![InputPlayerEvents {
+            player_id: 101,
             frame: 1,
-            events: vec![b1_down],
+            events: vec![s1_down],
         }];
         si.produce(&events).unwrap();
         si.confirm().unwrap();
-        assert_eq!(si.latest_frame(), 1);
         assert_eq!(si.synced_frame(), 1);
         assert_eq!(si.unsynced_frame(), 2);
-        assert_eq!(si.player_events(100, 1).unwrap().iter(0).count(), 2);
+        assert_eq!(player0.borrow().iter_current(1).unwrap().count(), 2);
+        assert_eq!(player0.borrow().iter_preinput(1, 0).unwrap().count(), 0);
         assert_eq!(
-            si.player_events(200, 1).unwrap().iter(0).collect::<Vec<_>>(),
-            vec![&InputEvent::new(0, 1, b1_down),]
+            player1.borrow().iter_current(1).unwrap().collect::<Vec<_>>(),
+            vec![&evt(1, 1, s1_down)]
         );
+        assert_eq!(player1.borrow().iter_preinput(1, 0).unwrap().count(), 0);
 
         // p1=3, p2=1
         let events = vec![
-            PlayerKeyEvents {
+            InputPlayerEvents {
                 player_id: 100,
                 frame: 2,
                 events: vec![],
             },
-            PlayerKeyEvents {
+            InputPlayerEvents {
                 player_id: 100,
                 frame: 3,
-                events: vec![run_left, run_right],
+                events: vec![aim, shot],
             },
         ];
         si.produce(&events).unwrap();
         si.confirm().unwrap();
-        assert_eq!(si.latest_frame(), 3);
         assert_eq!(si.synced_frame(), 1);
         assert_eq!(si.unsynced_frame(), 2);
-        assert_eq!(si.player_events(100, 3).unwrap().iter(0).count(), 4);
-        assert_eq!(si.player_events(200, 3).unwrap().iter(0).count(), 1);
+        assert_eq!(player0.borrow().iter_current(3).unwrap().count(), 2);
+        assert_eq!(player0.borrow().iter_preinput(3, 0).unwrap().count(), 2);
+        assert_eq!(player1.borrow().iter_current(3).unwrap().count(), 0);
+        assert_eq!(player1.borrow().iter_preinput(3, 0).unwrap().count(), 1);
 
         // p1=3, p2=2
-        let events = vec![PlayerKeyEvents {
-            player_id: 200,
+        let events = vec![InputPlayerEvents {
+            player_id: 101,
             frame: 2,
-            events: vec![b1_up],
+            events: vec![s1_up],
         }];
         si.produce(&events).unwrap();
         si.confirm().unwrap();
-        assert_eq!(si.latest_frame(), 3);
         assert_eq!(si.synced_frame(), 2);
         assert_eq!(si.unsynced_frame(), 3);
-        assert_eq!(si.player_events(100, 3).unwrap().iter(0).count(), 4);
-        assert_eq!(si.player_events(200, 3).unwrap().iter(0).count(), 2);
+        assert_eq!(player0.borrow().iter_current(3).unwrap().count(), 2);
+        assert_eq!(player0.borrow().iter_preinput(3, 0).unwrap().count(), 2);
+        assert_eq!(player1.borrow().iter_current(2).unwrap().count(), 1);
+        assert_eq!(player1.borrow().iter_preinput(3, 0).unwrap().count(), 2);
     }
 }
