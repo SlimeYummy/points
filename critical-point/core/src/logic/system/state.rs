@@ -5,10 +5,10 @@ use std::sync::Arc;
 
 use super::super::base::StateAny;
 use crate::consts::FPS;
-use crate::utils::{XError, XResult};
+use crate::utils::{xres, xresf, XResult};
 
 #[repr(C)]
-#[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
+#[derive(Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
 #[cs_attr(Ref)]
 pub struct StateSet {
     pub frame: u32,
@@ -16,7 +16,7 @@ pub struct StateSet {
     pub updates: Vec<Box<dyn StateAny>>,
 }
 
-#[cfg(debug_assertions)]
+#[cfg(feature = "debug-print")]
 impl Drop for StateSet {
     fn drop(&mut self) {
         println!("StateSet drop() frame:{}", self.frame);
@@ -42,12 +42,14 @@ pub struct SystemState {
 }
 
 impl Default for SystemState {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl SystemState {
+    #[inline]
     pub fn new() -> SystemState {
         SystemState {
             state_sets: VecDeque::with_capacity(2 * FPS as usize),
@@ -73,7 +75,7 @@ impl SystemState {
 
     pub fn init(&mut self, state_set: Arc<StateSet>) -> XResult<()> {
         if state_set.frame != 0 {
-            return Err(XError::bad_argument("SystemState::init() state_set.frame"));
+            return xresf!(BadArgument; "state_set.frame={}", state_set.frame);
         }
         self.state_sets.push_back(state_set);
         Ok(())
@@ -81,7 +83,7 @@ impl SystemState {
 
     pub fn append(&mut self, state_set: Arc<StateSet>) -> XResult<()> {
         if state_set.frame != self.current_frame + 1 {
-            return Err(XError::bad_argument("SystemState::append() state_set.frame"));
+            return xresf!(BadArgument; "state_set.frame={} current_frame={}", state_set.frame, self.current_frame);
         }
         self.current_frame += 1;
         self.state_sets.push_back(state_set);
@@ -91,7 +93,7 @@ impl SystemState {
     pub fn confirm(&mut self, synced_frame: u32) -> XResult<Vec<Arc<StateSet>>> {
         let mut outs = vec![];
         if synced_frame > self.current_frame {
-            return Err(XError::bad_argument("SystemState::confirm() synced_frame"));
+            return xresf!(BadArgument; "synced_frame={} current_frame={}", synced_frame, self.current_frame);
         }
         if synced_frame <= self.synced_frame {
             return Ok(outs);
@@ -114,7 +116,7 @@ impl SystemState {
 
     pub fn restore(&mut self, frame: u32) -> XResult<()> {
         if frame < self.synced_frame || frame > self.current_frame {
-            return Err(XError::bad_argument("SystemState::restore() frame"));
+            return xresf!(BadArgument; "frame={} synced_frame={} current_frame={}", frame, self.synced_frame, self.current_frame);
         }
         while let Some(state) = self.state_sets.back() {
             if state.frame > frame {
@@ -145,7 +147,7 @@ impl SystemState {
             std::ops::Bound::Unbounded => self.synced_frame,
         };
         if start < self.synced_frame {
-            return Err(XError::bad_argument("SystemState::range() start"));
+            return xres!(BadArgument; "range start");
         }
         let start_pos = (start - self.synced_frame) as usize;
 
@@ -156,7 +158,7 @@ impl SystemState {
         };
         let end_pos = (end - self.synced_frame) as usize;
         if end_pos > self.state_sets.len() {
-            return Err(XError::bad_argument("SystemState::range() end"));
+            return xres!(BadArgument; "range end");
         }
 
         return Ok(self.state_sets.range(start_pos..end_pos));
@@ -166,6 +168,7 @@ impl SystemState {
 impl Index<u32> for SystemState {
     type Output = Arc<StateSet>;
 
+    #[inline]
     fn index(&self, frame: u32) -> &Arc<StateSet> {
         return self.get(frame).unwrap();
     }
