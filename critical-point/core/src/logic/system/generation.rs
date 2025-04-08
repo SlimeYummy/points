@@ -1,25 +1,36 @@
 use std::collections::VecDeque;
 
 use crate::consts::FPS;
-use crate::utils::NumID;
+use crate::utils::{xres, NumID, XResult, MAX_PLAYER_ID, MIN_PLAYER_ID};
+
+const MIN_AUTO_GEN_ID: NumID = 1000;
 
 pub struct SystemGeneration {
     history: VecDeque<(u32, NumID)>,
+    player: NumID,
     counter: NumID,
 }
 
 impl SystemGeneration {
-    pub fn new(init: NumID) -> SystemGeneration {
+    pub fn new() -> SystemGeneration {
         SystemGeneration {
             history: VecDeque::with_capacity(2 * FPS as usize),
-            counter: init,
+            player: MIN_PLAYER_ID,
+            counter: MIN_AUTO_GEN_ID,
         }
     }
 
-    pub fn counter(&self) -> NumID {
-        self.counter
+    #[inline]
+    pub fn gen_player_id(&mut self) -> XResult<NumID> {
+        if self.player > MAX_PLAYER_ID {
+            return xres!(Overflow);
+        }
+        let id = self.player;
+        self.player += 1;
+        Ok(id)
     }
 
+    #[inline]
     pub fn gen_id(&mut self) -> NumID {
         let id = self.counter;
         self.counter += 1;
@@ -49,5 +60,10 @@ impl SystemGeneration {
                 break;
             }
         }
+    }
+
+    #[inline]
+    pub fn counter(&self) -> NumID {
+        self.counter
     }
 }
