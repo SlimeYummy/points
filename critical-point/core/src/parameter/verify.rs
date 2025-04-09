@@ -4,7 +4,7 @@ use crate::template::{
     TmplAccessory, TmplAccessoryPattern, TmplAccessoryPool, TmplCharacter, TmplDatabase, TmplEquipment, TmplJewel,
     TmplPerk, TmplSlotType, TmplSlotValue, TmplStyle,
 };
-use crate::utils::{IDLevel, IDPlus, XError, XResult};
+use crate::utils::{xres, xresf, IDLevel2, IDPlus2, XResult};
 
 pub struct ContextVerify<'t> {
     pub tmpl_db: &'t TmplDatabase,
@@ -32,10 +32,10 @@ fn verify_style(ctx: &mut ContextVerify<'_>, param: &ParamPlayer) -> XResult<Tmp
     let style = ctx.tmpl_db.find_as::<TmplStyle>(&param.style)?;
 
     if !character.styles.contains(&style.id) {
-        return Err(XError::bad_parameter("Character and Style mismatch"));
+        return xresf!(BadParameter; "character.id={} style.id={}", character.id, style.id);
     }
     if param.level < character.level.min || param.level > character.level.max {
-        return Err(XError::bad_parameter("Invalid style level"));
+        return xresf!(BadParameter; "style.id={} param.level={}", style.id, param.level);
     }
 
     let mut slots = TmplSlotValue::default();
@@ -51,20 +51,20 @@ fn verify_equipments(ctx: &mut ContextVerify<'_>, param: &ParamPlayer) -> XResul
     let mut slots = TmplSlotValue::default();
     let mut positions = [None; MAX_EQUIPMENT_COUNT];
 
-    for (idx, IDLevel { id, level }) in param.equipments.iter().enumerate() {
+    for (idx, IDLevel2 { id, level }) in param.equipments.iter().enumerate() {
         let equipment = ctx.tmpl_db.find_as::<TmplEquipment>(id)?;
         if !character.equipments.contains(&equipment.id) {
-            return Err(XError::bad_parameter("Character and Equipment mismatch"));
+            return xresf!(BadParameter; "character.id={} equipment.id={}", character.id, equipment.id);
         }
 
         if positions.contains(&Some(equipment.position)) {
-            return Err(XError::bad_parameter("Equipment type conflict"));
+            return xresf!(BadParameter; "equipment.id={} position={:?}", equipment.id, equipment.position);
         } else {
             positions[idx] = Some(equipment.position);
         }
 
         if *level < equipment.level.min || *level > equipment.level.max {
-            return Err(XError::bad_parameter("Invalid equipment level"));
+            return xresf!(BadParameter; "equipment.id={} level={}", equipment.id, level);
         }
 
         if !equipment.slots.is_empty() {
@@ -83,7 +83,7 @@ fn verify_perks(ctx: &mut ContextVerify<'_>, param: &ParamPlayer) -> XResult<Tmp
     for id in param.perks.iter() {
         let perk = ctx.tmpl_db.find_as::<TmplPerk>(id)?;
         if perk.style != style.id && !perk.usable_styles.contains(&style.id) {
-            return Err(XError::bad_parameter("Style and Perk mismatch"));
+            return xresf!(BadParameter; "style.id={} perk.id={}", style.id, perk.id);
         }
 
         if let Some(slot) = perk.slot {
@@ -96,7 +96,7 @@ fn verify_perks(ctx: &mut ContextVerify<'_>, param: &ParamPlayer) -> XResult<Tmp
 
 fn verify_accessories(ctx: &mut ContextVerify<'_>, param: &ParamPlayer) -> XResult<()> {
     if param.accessories.len() > MAX_ACCESSORY_COUNT {
-        return Err(XError::bad_parameter("Too many accessories"));
+        return xresf!(BadParameter; "character.id={} accessories.len={}", param.character, param.accessories.len());
     }
 
     for pa in param.accessories.iter() {
@@ -104,10 +104,10 @@ fn verify_accessories(ctx: &mut ContextVerify<'_>, param: &ParamPlayer) -> XResu
         let pattern = ctx.tmpl_db.find_as::<TmplAccessoryPattern>(&accessory.pattern)?;
 
         if pa.level > pattern.max_level {
-            return Err(XError::bad_parameter("Invalid accessory level"));
+            return xresf!(BadParameter; "accessory.id={} level={}", pa.id, pa.level);
         }
         if pa.entries.len() > pattern.pattern.len() {
-            return Err(XError::bad_parameter("Invalid entry count"));
+            return xresf!(BadParameter; "accessory.id={} entries.len={}", pa.id, pa.entries.len());
         }
 
         for (idx, entry_id) in pa.entries.iter().enumerate() {
@@ -117,7 +117,7 @@ fn verify_accessories(ctx: &mut ContextVerify<'_>, param: &ParamPlayer) -> XResu
                 TmplAccessoryPool::AB => pattern.a_pool.contains_key(entry_id) || pattern.b_pool.contains_key(entry_id),
             };
             if !contain {
-                return Err(XError::bad_parameter("Invalid entry type"));
+                return xresf!(BadParameter; "accessory.id={} entry_id={}", pa.id, entry_id);
             }
         }
     }
@@ -127,10 +127,10 @@ fn verify_accessories(ctx: &mut ContextVerify<'_>, param: &ParamPlayer) -> XResu
 
 fn verify_jewels(ctx: &mut ContextVerify<'_>, param: &ParamPlayer, slots: TmplSlotValue) -> XResult<()> {
     let mut slots = slots;
-    for IDPlus { id, plus } in param.jewels.iter() {
+    for IDPlus2 { id, plus } in param.jewels.iter() {
         let jewel = ctx.tmpl_db.find_as::<TmplJewel>(id)?;
         if *plus > MAX_ENTRY_PLUS {
-            return Err(XError::bad_parameter("Invalid jewel plus"));
+            return xresf!(BadParameter; "jewel.id={} plus={}", jewel.id, plus);
         }
 
         let count = match jewel.slot_type {
@@ -139,7 +139,7 @@ fn verify_jewels(ctx: &mut ContextVerify<'_>, param: &ParamPlayer, slots: TmplSl
             TmplSlotType::Special => &mut slots.special,
         };
         if *count == 0 {
-            return Err(XError::bad_parameter("Jewels and slots mismatch"));
+            return xresf!(BadParameter; "jewel.id={} slot_type={:?}", jewel.id, jewel.slot_type);
         }
         *count -= 1;
     }
@@ -150,63 +150,64 @@ fn verify_jewels(ctx: &mut ContextVerify<'_>, param: &ParamPlayer, slots: TmplSl
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::TEST_TEMPLATE_PATH;
     use crate::parameter::ParamAccessory;
-    use crate::utils::s;
+    use crate::utils::sb;
 
     #[test]
     fn test_verify_style() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
-        param.character = s!("Character.No1");
-        param.style = s!("Style.No2-1");
+        param.character = sb!("Character.No1");
+        param.style = sb!("Style.No2-1");
         let err = verify_style(&mut ctx, &param).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Character and Style mismatch)");
 
-        param.style = s!("Style.No1-1");
+        param.style = sb!("Style.No1-1");
         param.level = 10;
         let err = verify_style(&mut ctx, &param).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Invalid style level)");
 
-        param.style = s!("Style.No1-1");
+        param.style = sb!("Style.No1-1");
         param.level = 1;
         assert_eq!(verify_style(&mut ctx, &param).unwrap(), TmplSlotValue::new(0, 2, 2));
 
-        param.style = s!("Style.No1-1");
+        param.style = sb!("Style.No1-1");
         param.level = 6;
         assert_eq!(verify_style(&mut ctx, &param).unwrap(), TmplSlotValue::new(3, 5, 4));
     }
 
     #[test]
     fn test_verify_equipments() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
-        param.character = s!("Character.No1");
-        param.equipments = vec![IDLevel::new(&s!("Equipment.No4"), 0)];
+        param.character = sb!("Character.No1");
+        param.equipments = vec![IDLevel2::new(&sb!("Equipment.No4"), 0)];
         let err = verify_equipments(&mut ctx, &param).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Character and Equipment mismatch)");
 
         param.equipments = vec![
-            IDLevel::new(&s!("Equipment.No1"), 1),
-            IDLevel::new(&s!("Equipment.No3"), 0),
+            IDLevel2::new(&sb!("Equipment.No1"), 1),
+            IDLevel2::new(&sb!("Equipment.No3"), 0),
         ];
         let err = verify_equipments(&mut ctx, &param).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Equipment type conflict)");
 
-        param.equipments = vec![IDLevel::new(&s!("Equipment.No1"), 0)];
+        param.equipments = vec![IDLevel2::new(&sb!("Equipment.No1"), 0)];
         let err = verify_equipments(&mut ctx, &param).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Invalid equipment level)");
 
-        param.equipments = vec![IDLevel::new(&s!("Equipment.No1"), 5)];
+        param.equipments = vec![IDLevel2::new(&sb!("Equipment.No1"), 5)];
         let err = verify_equipments(&mut ctx, &param).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Invalid equipment level)");
 
         param.equipments = vec![
-            IDLevel::new(&s!("Equipment.No1"), 4),
-            IDLevel::new(&s!("Equipment.No2"), 3),
+            IDLevel2::new(&sb!("Equipment.No1"), 4),
+            IDLevel2::new(&sb!("Equipment.No2"), 3),
         ];
         assert_eq!(
             verify_equipments(&mut ctx, &param).unwrap(),
@@ -216,31 +217,31 @@ mod tests {
 
     #[test]
     fn test_verify_perks() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
-        param.style = s!("Style.No2-1");
-        param.perks = vec![s!("Perk.No1.Empty")];
+        param.style = sb!("Style.No2-1");
+        param.perks = vec![sb!("Perk.No1.Empty")];
         let err = verify_perks(&mut ctx, &param).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Style and Perk mismatch)");
 
-        param.style = s!("Style.No1-1");
-        param.perks = vec![s!("Perk.No1.AttackUp"), s!("Perk.No1.Slot")];
+        param.style = sb!("Style.No1-1");
+        param.perks = vec![sb!("Perk.No1.AttackUp"), sb!("Perk.No1.Slot")];
         assert_eq!(verify_perks(&mut ctx, &param).unwrap(), TmplSlotValue::new(0, 2, 2));
     }
 
     #[test]
     fn test_verify_accessories() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
         param.accessories = vec![
             ParamAccessory {
-                id: s!("Accessory.No1"),
+                id: sb!("Accessory.No1"),
                 level: 1,
-                entries: vec![s!("Accessory.No1.Entry1")],
+                entries: vec![sb!("Accessory.No1.Entry1")],
             };
             5
         ];
@@ -248,32 +249,32 @@ mod tests {
         assert_eq!(format!("{}", err), "Bad parameter (Too many accessories)");
 
         param.accessories = vec![ParamAccessory {
-            id: s!("Accessory.AttackUp.Variant1"),
+            id: sb!("Accessory.AttackUp.Variant1"),
             level: 0,
-            entries: vec![s!("Entry.DefenseUp")],
+            entries: vec![sb!("Entry.DefenseUp")],
         }];
         assert!(verify_accessories(&mut ctx, &param).is_ok());
 
         param.accessories = vec![ParamAccessory {
-            id: s!("Accessory.AttackUp.Variant1"),
+            id: sb!("Accessory.AttackUp.Variant1"),
             level: 10,
-            entries: vec![s!("Entry.DefenseUp")],
+            entries: vec![sb!("Entry.DefenseUp")],
         }];
         let err = verify_accessories(&mut ctx, &param).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Invalid accessory level)");
 
         param.accessories = vec![ParamAccessory {
-            id: s!("Accessory.AttackUp.Variant1"),
+            id: sb!("Accessory.AttackUp.Variant1"),
             level: 1,
-            entries: vec![s!("Entry.AttackUp"); 3],
+            entries: vec![sb!("Entry.AttackUp"); 3],
         }];
         let err = verify_accessories(&mut ctx, &param).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Invalid entry count)");
 
         param.accessories = vec![ParamAccessory {
-            id: s!("Accessory.AttackUp.Variant1"),
+            id: sb!("Accessory.AttackUp.Variant1"),
             level: 1,
-            entries: vec![s!("Entry.DefenseUp"), s!("Entry.AttackUp")],
+            entries: vec![sb!("Entry.DefenseUp"), sb!("Entry.AttackUp")],
         }];
         let err = verify_accessories(&mut ctx, &param).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Invalid entry type)");
@@ -281,21 +282,21 @@ mod tests {
 
     #[test]
     fn test_verify_jewels() {
-        let db = TmplDatabase::new("../test-res").unwrap();
+        let db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
-        param.jewels = vec![IDPlus::new(&s!("Jewel.AttackUp.Variant1"), 0)];
+        param.jewels = vec![IDPlus2::new(&sb!("Jewel.AttackUp.Variant1"), 0)];
         assert!(verify_jewels(&mut ctx, &param, TmplSlotValue::new(1, 1, 1)).is_ok());
 
-        param.jewels = vec![IDPlus::new(&s!("Jewel.AttackUp.Variant1"), 4)];
+        param.jewels = vec![IDPlus2::new(&sb!("Jewel.AttackUp.Variant1"), 4)];
         let err = verify_jewels(&mut ctx, &param, TmplSlotValue::new(1, 1, 1)).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Invalid jewel plus)");
 
         param.jewels = vec![
-            IDPlus::new(&s!("Jewel.AttackUp.Variant1"), 1),
-            IDPlus::new(&s!("Jewel.AttackUp.Variant1"), 1),
-            IDPlus::new(&s!("Jewel.AttackUp.VariantX"), 1),
+            IDPlus2::new(&sb!("Jewel.AttackUp.Variant1"), 1),
+            IDPlus2::new(&sb!("Jewel.AttackUp.Variant1"), 1),
+            IDPlus2::new(&sb!("Jewel.AttackUp.VariantX"), 1),
         ];
         let err = verify_jewels(&mut ctx, &param, TmplSlotValue::new(1, 1, 1)).unwrap_err();
         assert_eq!(format!("{}", err), "Bad parameter (Jewels and slots mismatch)");
