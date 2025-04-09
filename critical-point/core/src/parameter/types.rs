@@ -1,6 +1,6 @@
 use cirtical_point_csgen::CsIn;
 
-use crate::utils::{IDLevel, IDPlus, StrID};
+use crate::utils::{IDLevel2, IDPlus2, StrID};
 
 #[derive(
     Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, CsIn,
@@ -12,13 +12,13 @@ pub struct ParamPlayer {
     #[serde(default)]
     pub level: u32,
     #[serde(default)]
-    pub equipments: Vec<IDLevel>,
+    pub equipments: Vec<IDLevel2>,
     #[serde(default)]
     pub perks: Vec<StrID>,
     #[serde(default)]
     pub accessories: Vec<ParamAccessory>,
     #[serde(default)]
-    pub jewels: Vec<IDPlus>,
+    pub jewels: Vec<IDPlus2>,
 }
 
 #[derive(
