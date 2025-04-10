@@ -127,7 +127,7 @@ impl ScriptParser {
                 Self::map_err(self.idmgr.add_number(word_pair.as_str(), num), &word_pair)?;
             }
             Rule::String => {
-                let str = self.parse_string(val_pair)?.as_str().unwrap().to_string();
+                let str = self.parse_string(val_pair)?.as_str().unwrap().into();
                 Self::map_err(self.idmgr.add_string(word_pair.as_str(), str), &word_pair)?;
             }
             _ => return Err(Self::err(&val_pair, "Invalid token")),
@@ -670,7 +670,7 @@ impl IdentManager {
                 return Err(format!("Invaild argument: {}", ident));
             }
             if self.arguments.len() + self.closures.len() >= MAX_CLOSURE {
-                return Err("Too many arguments and self".to_string());
+                return Err("Too many arguments and self".into());
             }
 
             let arg_ident = format!("A.{}", ident);
@@ -683,7 +683,7 @@ impl IdentManager {
 
     fn add_closure(&mut self, ident: &str, init: Num) -> Result<(), String> {
         if self.arguments.len() + self.closures.len() >= MAX_CLOSURE {
-            return Err("Too many arguments and closures".to_string());
+            return Err("Too many arguments and closures".into());
         }
         let addr = CmdAddr::new(SEGMENT_CLOSURE, (self.arguments.len() + self.closures.len()) as u16);
         self.idents.add_ident(ident, IdentType::Closure(addr))?;
@@ -693,7 +693,7 @@ impl IdentManager {
 
     fn add_local(&mut self, ident: &str) -> Result<u32, String> {
         if self.locals.len() >= MAX_LOCAL {
-            return Err("Too many locals".to_string());
+            return Err("Too many locals".into());
         }
         self.local_counter += 1;
         self.idents.add_ident(ident, IdentType::Local(self.local_counter))?;
@@ -791,7 +791,7 @@ impl IdentMap {
         let mut last = 0;
         for (idx, _) in ident.match_indices('.') {
             if KEYWORDS.contains(&ident[last..idx]) {
-                return Err("Unexpected keyword".to_string());
+                return Err("Unexpected keyword".into());
             }
             last = idx + 1;
             match self.idents.get(&ident[..idx]) {
@@ -803,14 +803,14 @@ impl IdentMap {
             }
         }
         if KEYWORDS.contains(&ident[last..]) {
-            return Err("Unexpected keyword".to_string());
+            return Err("Unexpected keyword".into());
         }
         Ok(())
     }
 
     fn add_ident(&mut self, ident: &str, meta: IdentType) -> Result<(), String> {
         if KEYWORDS.contains(&ident) {
-            return Err("Unexpected keyword".to_string());
+            return Err("Unexpected keyword".into());
         }
         if self.idents.contains_key(ident) {
             return Err(format!("Ident conflict: {}", ident));
