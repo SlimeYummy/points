@@ -719,7 +719,7 @@ impl Command for CmdJmpCas {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::s;
+    use crate::utils::sb;
 
     #[test]
     fn test_script_blocks_deserde() {
@@ -747,8 +747,8 @@ mod tests {
         );
         assert_eq!(blocks.timer_start, 2);
         assert_eq!(blocks.constant_segment, &[1, 2, 3, 4]);
-        assert_eq!(blocks.string_segment, &[s!("aaa"), s!("bbb"), s!("ccc")]);
-        assert_eq!(blocks.arguments, &[s!("ax"), s!("bx"), s!("cx")]);
+        assert_eq!(blocks.string_segment, &[sb!("aaa"), sb!("bbb"), sb!("ccc")]);
+        assert_eq!(blocks.arguments, &[sb!("ax"), sb!("bx"), sb!("cx")]);
         assert_eq!(blocks.closure_inits, &[-10.0, 20.0, 30.0]);
     }
 }

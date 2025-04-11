@@ -7,7 +7,7 @@ use crate::script::config::{
     SEGMENT_CONSTANT, SEGMENT_IN_MAX, SEGMENT_IN_MIN, SEGMENT_NAMES, SEGMENT_OUT_MAX, SEGMENT_OUT_MIN,
     SEGMENT_REGISTER, SEGMENT_STRING,
 };
-use crate::utils::{Num, Symbol, SymbolMap, XError, XResult};
+use crate::utils::{xres, Num, Symbol, SymbolMap, XResult};
 
 pub struct ScriptExecutor {
     pc: usize,
@@ -40,7 +40,7 @@ impl ScriptExecutor {
     ) -> XResult<()> {
         let hook_block = match blocks.hook(hook_typ) {
             Some(block) => block,
-            None => return Err(XError::ScriptNoHook),
+            None => return xres!(ScriptNoHook),
         };
 
         self.num_segs.set_segment(SEGMENT_CLOSURE, context.closure_segment());
@@ -112,9 +112,9 @@ impl ScriptExecutor {
                 Exp => self.call(code, |[x]| x.exp()),
                 Degrees => self.call(code, |[x]| 180.0 / core::f64::consts::PI * x),
                 Radians => self.call(code, |[x]| core::f64::consts::PI / 180.0 * x),
-                Sin => self.call(code, |[x]| x.sin()),
-                Cos => self.call(code, |[x]| x.cos()),
-                Tan => self.call(code, |[x]| x.tan()),
+                Sin => self.call(code, |[x]| libm::sin(x)),
+                Cos => self.call(code, |[x]| libm::cos(x)),
+                Tan => self.call(code, |[x]| libm::tan(x)),
                 Ext0 => self.call_ext::<0, I, O, _>(code, context)?,
                 Ext1 => self.call_ext::<1, I, O, _>(code, context)?,
                 Ext2 => self.call_ext::<2, I, O, _>(code, context)?,
@@ -124,7 +124,7 @@ impl ScriptExecutor {
                 Ext6 => self.call_ext::<6, I, O, _>(code, context)?,
                 Ext7 => self.call_ext::<7, I, O, _>(code, context)?,
                 Ext8 => self.call_ext::<8, I, O, _>(code, context)?,
-                _ => return Err(XError::ScriptBadCommand),
+                _ => return xres!(ScriptBadCommand),
             };
         }
         Ok(())
@@ -315,7 +315,7 @@ pub trait ScriptEnv<const I: usize, const O: usize> {
     fn out_segments(&mut self) -> [&mut [u64]; O];
     fn global(&mut self) -> &mut SymbolMap<Num>;
     fn call_ext<'t>(&'t mut self, _ce: ScriptCallExt<'t>, _opt: u16, _args: &[CmdAddr]) -> XResult<Num> {
-        Err(XError::ScriptBadCommand)
+        xres!(ScriptBadCommand)
     }
 }
 
