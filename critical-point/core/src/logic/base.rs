@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::mem;
 
 use crate::logic::game::{ContextRestore, ContextUpdate};
-use crate::utils::{interface, Castable, NumID, XError, XResult};
+use crate::utils::{interface, xres, Castable, NumID, XError, XResult};
 
 //
 // LogicType & LogicAny
@@ -45,9 +45,9 @@ impl TryFrom<u16> for LogicType {
     type Error = XError;
 
     #[inline]
-    fn try_from(value: u16) -> Result<Self, XError> {
+    fn try_from(value: u16) -> XResult<Self> {
         if value as usize >= cardinality::<LogicType>() {
-            return Err(XError::overflow("LogicType::try_from()"));
+            return xres!(Overflow);
         }
         Ok(unsafe { mem::transmute::<u16, LogicType>(value) })
     }
@@ -59,8 +59,8 @@ pub trait LogicAny: Debug {
     fn spawn_frame(&self) -> u32;
     fn death_frame(&self) -> u32;
 
-    fn update(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<()>;
-    fn restore(&mut self, ctx: &ContextRestore) -> XResult<()>;
+    // fn state(&mut self) -> XResult<Box<dyn StateAny>>;
+    // fn restore(&mut self, ctx: &ContextRestore) -> XResult<()>;
 
     #[inline]
     fn is_alive(&self) -> bool {
@@ -123,9 +123,9 @@ impl TryFrom<u16> for StateType {
     type Error = XError;
 
     #[inline]
-    fn try_from(value: u16) -> Result<Self, XError> {
+    fn try_from(value: u16) -> XResult<Self> {
         if value as usize >= cardinality::<StateType>() {
-            return Err(XError::overflow("StateType::try_from()"));
+            return xres!(Overflow);
         }
         Ok(unsafe { mem::transmute::<u16, StateType>(value) })
     }
@@ -144,7 +144,7 @@ where
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
+#[derive(Debug, Clone, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
 #[archive_attr(derive(Debug))]
 #[cs_attr(Ref)]
 pub struct StateAnyBase {
@@ -153,7 +153,7 @@ pub struct StateAnyBase {
     pub logic_typ: LogicType,
 }
 
-#[cfg(debug_assertions)]
+#[cfg(feature = "debug-print")]
 impl Drop for StateAnyBase {
     fn drop(&mut self) {
         println!("StateAnyBase drop() {} {:?}", self.id, self.typ);
@@ -195,13 +195,45 @@ const _: () = {
     use std::{mem, ptr};
 
     use crate::logic::character::{
-        ArchivedStateNpcInit, ArchivedStateNpcUpdate, ArchivedStatePlayerInit, ArchivedStatePlayerUpdate,
-        StateCharaPhysics, StateNpcInit, StateNpcUpdate, StatePlayerInit, StatePlayerUpdate,
+        ArchivedStateNpcInit, ArchivedStateNpcUpdate, ArchivedStatePlayerInit, ArchivedStatePlayerUpdate, StateNpcInit,
+        StateNpcUpdate, StatePlayerInit, StatePlayerUpdate,
     };
     use crate::logic::game::{ArchivedStateGameInit, ArchivedStateGameUpdate, StateGameInit, StateGameUpdate};
     use crate::logic::stage::{ArchivedStateStageInit, ArchivedStateStageUpdate, StateStageInit, StateStageUpdate};
     use crate::utils::CastRef;
     use StateType::*;
+
+    impl PartialEq for dyn StateAny {
+        fn eq(&self, other: &Self) -> bool {
+            match (self.typ(), other.typ()) {
+                (GameInit, GameInit) => unsafe {
+                    self.cast_ref_unchecked::<StateGameInit>() == other.cast_ref_unchecked::<StateGameInit>()
+                },
+                (GameUpdate, GameUpdate) => unsafe {
+                    self.cast_ref_unchecked::<StateGameUpdate>() == other.cast_ref_unchecked::<StateGameUpdate>()
+                },
+                (StageInit, StageInit) => unsafe {
+                    self.cast_ref_unchecked::<StateStageInit>() == other.cast_ref_unchecked::<StateStageInit>()
+                },
+                (StageUpdate, StageUpdate) => unsafe {
+                    self.cast_ref_unchecked::<StateStageUpdate>() == other.cast_ref_unchecked::<StateStageUpdate>()
+                },
+                (PlayerInit, PlayerInit) => unsafe {
+                    self.cast_ref_unchecked::<StatePlayerInit>() == other.cast_ref_unchecked::<StatePlayerInit>()
+                },
+                (PlayerUpdate, PlayerUpdate) => unsafe {
+                    self.cast_ref_unchecked::<StatePlayerUpdate>() == other.cast_ref_unchecked::<StatePlayerUpdate>()
+                },
+                (NpcInit, NpcInit) => unsafe {
+                    self.cast_ref_unchecked::<StateNpcInit>() == other.cast_ref_unchecked::<StateNpcInit>()
+                },
+                (NpcUpdate, NpcUpdate) => unsafe {
+                    self.cast_ref_unchecked::<StateNpcUpdate>() == other.cast_ref_unchecked::<StateNpcUpdate>()
+                },
+                _ => false,
+            }
+        }
+    }
 
     impl Pointee for dyn StateAny {
         type Metadata = DynMetadata<dyn StateAny>;
@@ -346,9 +378,9 @@ mod tests {
     };
     use crate::logic::game::{StateGameInit, StateGameUpdate};
     use crate::logic::stage::{StateStageInit, StateStageUpdate};
-    use crate::utils::{s, CastPtr};
+    use crate::utils::{asb, CastPtr, CsQuat};
     use anyhow::Result;
-    use glam::{Quat, Vec3};
+    use glam::Vec3A;
     use rkyv::ser::serializers::AllocSerializer;
     use rkyv::ser::Serializer;
     use rkyv::{Deserialize, Infallible};
@@ -409,7 +441,7 @@ mod tests {
         let state_stage_new = test_rkyv(
             Box::new(StateStageInit {
                 _base: StateAnyBase::new(4321, StateType::StageInit, LogicType::Stage),
-                view_stage_file: "stage_file.tscn".to_string(),
+                view_stage_file: "stage_file.tscn".into(),
             }),
             StateType::StageInit,
             LogicType::Stage,
@@ -442,9 +474,9 @@ mod tests {
         let state_player_new = test_rkyv(
             Box::new(StatePlayerInit {
                 _base: StateAnyBase::new(1110, StateType::PlayerInit, LogicType::Player),
-                skeleton_file: s!("skeleton_file.ozz"),
-                animation_files: vec![s!("animation_file_1.ozz"), s!("animation_file_2.ozz")],
-                view_model: "model.vrm".to_string(),
+                skeleton_file: asb!("skeleton_file.ozz"),
+                animation_files: vec![asb!("animation_file_1.ozz"), asb!("animation_file_2.ozz")],
+                view_model: "model.vrm".into(),
             }),
             StateType::PlayerInit,
             LogicType::Player,
@@ -455,10 +487,10 @@ mod tests {
         assert_eq!(state_player_new.id, 1110);
         assert_eq!(state_player_new.typ, StateType::PlayerInit);
         assert_eq!(state_player_new.logic_typ, LogicType::Player);
-        assert_eq!(state_player_new.skeleton_file, s!("skeleton_file.ozz"));
+        assert_eq!(state_player_new.skeleton_file, asb!("skeleton_file.ozz"));
         assert_eq!(
             state_player_new.animation_files,
-            vec![s!("animation_file_1.ozz"), s!("animation_file_2.ozz")]
+            vec![asb!("animation_file_1.ozz"), asb!("animation_file_2.ozz")]
         );
         assert_eq!(state_player_new.view_model, "model.vrm");
 
@@ -466,8 +498,9 @@ mod tests {
             Box::new(StatePlayerUpdate {
                 _base: StateAnyBase::new(2220, StateType::PlayerUpdate, LogicType::Player),
                 physics: StateCharaPhysics {
-                    position: Vec3::new(1.0, 2.0, 3.0),
-                    rotation: Quat::IDENTITY,
+                    position: Vec3A::new(1.0, 2.0, 3.0).into(),
+                    rotation: CsQuat::IDENTITY,
+                    velocity: Vec3A::ZERO.into(),
                 },
                 actions: Vec::new(),
             }),
@@ -480,8 +513,8 @@ mod tests {
         assert_eq!(state_player_update.id, 2220);
         assert_eq!(state_player_update.typ, StateType::PlayerUpdate);
         assert_eq!(state_player_update.logic_typ, LogicType::Player);
-        assert_eq!(state_player_update.physics.position, Vec3::new(1.0, 2.0, 3.0));
-        assert_eq!(state_player_update.physics.rotation, Quat::IDENTITY);
+        assert_eq!(state_player_update.physics.position, Vec3A::new(1.0, 2.0, 3.0));
+        assert_eq!(state_player_update.physics.rotation, CsQuat::IDENTITY);
         assert_eq!(state_player_update.actions.len(), 0);
     }
 
