@@ -1,15 +1,17 @@
 use cirtical_point_csgen::{CsEnum, CsOut};
 use enum_iterator::{cardinality, Sequence};
+use glam::{Quat, Vec2, Vec3A};
 use std::fmt::Debug;
 use std::mem;
-use std::rc::Rc;
 
 use crate::consts::{MAX_ACTION_ANIMATION, WEIGHT_THRESHOLD};
-use crate::instance::{InstAction, InstPlayer};
 use crate::logic::character::LogicCharaPhysics;
-use crate::logic::game::{ContextUpdate, LogicSystems};
+use crate::logic::game::ContextUpdate;
+use crate::logic::system::input::InputVariables;
 use crate::template::TmplType;
-use crate::utils::{calc_ratio_clamp, interface, Castable, NumID, StrID, Symbol, XError, XResult};
+use crate::utils::{
+    calc_ratio_clamp, interface, to_euler_degree, xres, AStrID, ASymbol, Castable, NumID, StrID, XError, XResult,
+};
 
 //
 // StateAction & StateActionBase
@@ -38,6 +40,7 @@ pub enum StateActionType {
 }
 
 impl StateActionType {
+    #[inline]
     fn tmpl_typ(&self) -> TmplType {
         match self {
             StateActionType::Idle => TmplType::ActionIdle,
@@ -57,9 +60,9 @@ impl TryFrom<u16> for StateActionType {
     type Error = XError;
 
     #[inline]
-    fn try_from(value: u16) -> Result<Self, XError> {
+    fn try_from(value: u16) -> XResult<Self> {
         if value as usize >= cardinality::<StateActionType>() {
-            return Err(XError::overflow("StateActionType::try_from()"));
+            return xres!(Overflow);
         }
         Ok(unsafe { mem::transmute::<u16, StateActionType>(value) })
     }
@@ -74,12 +77,12 @@ where
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
+#[derive(Debug, Clone, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
 #[archive_attr(derive(Debug))]
 #[cs_attr(Ref)]
 pub struct StateActionBase {
     pub id: NumID,
-    pub tmpl_id: StrID,
+    pub tmpl_id: AStrID,
     pub typ: StateActionType,
     pub tmpl_typ: TmplType,
 
@@ -98,7 +101,7 @@ pub struct StateActionBase {
 
 interface!(StateAction, StateActionBase);
 
-#[cfg(debug_assertions)]
+#[cfg(feature = "debug-print")]
 impl Drop for StateActionBase {
     fn drop(&mut self) {
         println!("StateActionBase drop() {} {}", self.id, self.tmpl_id);
@@ -109,7 +112,7 @@ impl StateActionBase {
     pub fn new(typ: StateActionType, tmpl_typ: TmplType) -> StateActionBase {
         StateActionBase {
             id: 0,
-            tmpl_id: StrID::default(),
+            tmpl_id: AStrID::default(),
             typ,
             tmpl_typ,
 
@@ -139,7 +142,7 @@ impl Castable for dyn ArchivedStateAction {}
 #[derive(Debug, Default, Clone, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
 #[archive_attr(derive(Debug))]
 pub struct StateActionAnimation {
-    pub file: Symbol,
+    pub file: ASymbol,
     pub animation_id: u32,
     pub ratio: f32,
     pub weight: f32,
@@ -169,8 +172,23 @@ const _: () = {
     use std::{mem, ptr};
 
     use crate::logic::action::idle::{ArchivedStateActionIdle, StateActionIdle};
+    use crate::logic::action::r#move::{ArchivedStateActionMove, StateActionMove};
     use crate::utils::CastRef;
     use StateActionType::*;
+
+    impl PartialEq for dyn StateAction {
+        fn eq(&self, other: &Self) -> bool {
+            match (self.typ(), other.typ()) {
+                (StateActionType::Idle, StateActionType::Idle) => unsafe {
+                    self.cast_ref_unchecked::<StateActionIdle>() == other.cast_ref_unchecked::<StateActionIdle>()
+                },
+                (StateActionType::Move, StateActionType::Move) => unsafe {
+                    self.cast_ref_unchecked::<StateActionMove>() == other.cast_ref_unchecked::<StateActionMove>()
+                },
+                _ => false,
+            }
+        }
+    }
 
     impl Pointee for dyn StateAction {
         type Metadata = DynMetadata<dyn StateAction>;
@@ -188,7 +206,8 @@ const _: () = {
             let archived_ref: &Self = unsafe {
                 match typ {
                     Idle => mem::transmute_copy::<usize, &ArchivedStateActionIdle>(&0),
-                    _ => panic!("Invalid StateActionType"),
+                    Move => mem::transmute_copy::<usize, &ArchivedStateActionMove>(&0),
+                    // _ => panic!("Invalid StateActionType"),
                 }
             };
             ptr::metadata(archived_ref)
@@ -229,7 +248,8 @@ const _: () = {
 
             match self.typ() {
                 Idle => serialize::<StateActionIdle, _>(self, serializer),
-                _ => panic!("Invalid StateActionType"),
+                Move => serialize::<StateActionMove, _>(self, serializer),
+                // _ => panic!("Invalid StateActionType"),
             }
         }
 
@@ -267,7 +287,8 @@ const _: () = {
 
             match self.typ() {
                 Idle => deserialize::<StateActionIdle, _>(self, deserializer, alloc),
-                _ => panic!("Invalid TmplType"),
+                Move => deserialize::<StateActionMove, _>(self, deserializer, alloc),
+                // _ => panic!("Invalid TmplType"),
             }
         }
 
@@ -275,7 +296,8 @@ const _: () = {
             let value_ref: &dyn StateAction = unsafe {
                 match self.typ() {
                     Idle => mem::transmute_copy::<usize, &StateActionIdle>(&0),
-                    _ => panic!("Invalid TmplType"),
+                    Move => mem::transmute_copy::<usize, &StateActionMove>(&0),
+                    // _ => panic!("Invalid TmplType"),
                 }
             };
             Ok(ptr::metadata(value_ref))
@@ -294,8 +316,11 @@ where
     fn typ(&self) -> StateActionType;
     fn tmpl_typ(&self) -> TmplType;
     fn restore(&mut self, state: &(dyn StateAction + 'static)) -> XResult<()>;
-    fn next(&mut self, ctx: &mut ContextUpdate<'_>, ctx_an: &ContextActionNext) -> XResult<Option<Rc<dyn InstAction>>>;
-    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctx_au: &mut ContextActionUpdate<'_>) -> XResult<()>;
+    fn update(
+        &mut self,
+        ctx: &mut ContextUpdate<'_>,
+        ctxa: &mut ContextAction<'_>,
+    ) -> XResult<Option<Box<dyn StateAction>>>;
 }
 
 #[derive(Debug)]
@@ -352,7 +377,7 @@ impl LogicActionBase {
     pub fn save(&self, typ: StateActionType, tmpl_typ: TmplType) -> StateActionBase {
         StateActionBase {
             id: self.id,
-            tmpl_id: self.tmpl_id.clone(),
+            tmpl_id: ASymbol::from(&self.tmpl_id),
             typ,
             tmpl_typ,
 
@@ -387,106 +412,56 @@ impl LogicActionBase {
     pub fn handle_enter_leave(
         &mut self,
         ctx: &mut ContextUpdate<'_>,
-        ctx_au: &mut ContextActionUpdate<'_>,
+        ctxa: &mut ContextAction<'_>,
         enter_time: u32,
     ) -> Option<f32> {
-        let local_weight = match ctx_au.prev_action {
+        let local_weight = match ctxa.prev_action {
             None => 1.0,
             Some(_) => {
                 self.enter_progress += 1;
                 calc_ratio_clamp(self.enter_progress, enter_time)
             }
         };
-        let real_weight = ctx_au.apply_weight(local_weight);
+        let real_weight = ctxa.apply_weight(local_weight);
+        self.is_leaving = self.is_leaving || ctxa.next_action.is_some();
         if self.is_leaving && real_weight < WEIGHT_THRESHOLD {
             self.death_frame = ctx.frame; // action finished
             return None;
         }
         Some(real_weight)
     }
-
-    pub fn handle_next(
-        &mut self,
-        ctx: &mut ContextUpdate<'_>,
-        ctx_an: &ContextActionNext,
-        quick_event_idx: bool,
-    ) -> XResult<Option<Rc<dyn InstAction>>> {
-        let frame = ctx.frame;
-        let mut inst_next: Option<Rc<dyn InstAction>> = None;
-        let mut enter_event_idx = 0;
-        let mut events = ctx.input.player_events(ctx_an.player_id, frame)?;
-        for event in events.iter(self.event_idx) {
-            let new_next = ctx_an
-                .inst_player
-                .search_next_action(&self.tmpl_id, self.derive_level, event.key());
-            if let Some(new_next) = new_next {
-                if let Some(inst_next) = &mut inst_next {
-                    if new_next.enter_level >= inst_next.enter_level {
-                        *inst_next = new_next;
-                        enter_event_idx = event.idx;
-                    }
-                } else {
-                    inst_next = Some(new_next);
-                    enter_event_idx = event.idx;
-                }
-            }
-        }
-
-        if inst_next.is_some() {
-            self.is_leaving = true;
-            self.event_idx = enter_event_idx;
-            events.consume(self.event_idx, Some(enter_event_idx))?;
-        } else if quick_event_idx {
-            self.event_idx = events.future_idx();
-        }
-        Ok(inst_next)
-    }
 }
 
 //
-// ContextActionNext
+// ContextAction
 //
 
-pub struct ContextActionNext {
+pub struct ContextAction<'t> {
     pub player_id: NumID,
-    pub inst_player: Rc<InstPlayer>,
-}
-
-impl ContextActionNext {
-    pub fn new(player_id: NumID, inst_player: Rc<InstPlayer>) -> ContextActionNext {
-        ContextActionNext { player_id, inst_player }
-    }
-}
-
-//
-// ContextActionUpdate
-//
-
-pub struct ContextActionUpdate<'t> {
-    pub player_id: NumID,
-    pub inst_player: Rc<InstPlayer>,
-    pub chara_physics: &'t mut LogicCharaPhysics,
+    pub chara_physics: &'t LogicCharaPhysics,
     pub next_action: Option<&'t (dyn LogicAction + 'static)>,
     pub prev_action: Option<&'t (dyn LogicAction + 'static)>,
     pub unused_weight: f32,
-    pub states: Vec<Box<dyn StateAction>>,
+    pub input_vars: InputVariables,
+    pub new_velocity: Vec3A,
+    pub new_rotation: Quat,
 }
 
-impl<'t> ContextActionUpdate<'t> {
+impl<'t> ContextAction<'t> {
     pub fn new(
         player_id: NumID,
-        inst_player: Rc<InstPlayer>,
-        chara_physics: &'t mut LogicCharaPhysics,
-        states_cap: usize,
-    ) -> ContextActionUpdate<'t> {
-        ContextActionUpdate {
+        chara_physics: &'t LogicCharaPhysics,
+        input_vars: InputVariables,
+    ) -> ContextAction<'t> {
+        ContextAction {
             player_id,
-            inst_player,
             chara_physics,
             next_action: None,
             prev_action: None,
             unused_weight: 1.0,
-            states: Vec::with_capacity(states_cap),
+            input_vars,
+            new_velocity: Vec3A::ZERO,
+            new_rotation: Quat::IDENTITY,
         }
     }
 
@@ -500,16 +475,36 @@ impl<'t> ContextActionUpdate<'t> {
     }
 
     #[inline]
-    pub fn state(&mut self, state: Box<dyn StateAction>) {
-        self.states.push(state);
+    pub fn set_new_velocity(&mut self, move_dir: Vec2) {
+        self.new_velocity = Vec3A::new(move_dir.x, 0.0, move_dir.y);
+    }
+
+    #[inline]
+    pub fn set_new_rotation(&mut self, chara_dir: Vec2) {
+        let rot = Quat::from_rotation_arc_2d(Vec2::Y, chara_dir);
+        self.new_rotation = Quat::from_xyzw(0.0, -rot.z, 0.0, rot.w);
+        println!("self.new_rotation {:?}", to_euler_degree(self.new_rotation));
     }
 }
+
+//
+// utils
+//
+
+#[macro_export]
+macro_rules! continue_to {
+    ($mode:expr, $next:expr) => {{
+        $mode = $next;
+        continue;
+    }};
+}
+pub(crate) use continue_to;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::logic::action::idle::{ActionIdleMode, StateActionIdle};
-    use crate::utils::{s, CastPtr};
+    use crate::utils::{asb, CastPtr};
     use anyhow::Result;
     use rkyv::ser::serializers::AllocSerializer;
     use rkyv::ser::Serializer;
@@ -540,7 +535,7 @@ mod tests {
             switch_progress: 5,
         });
         raw_state.id = 123;
-        raw_state.tmpl_id = s!("idle");
+        raw_state.tmpl_id = asb!("idle");
         raw_state.spawn_frame = 99;
         raw_state.death_frame = 1100;
         raw_state.is_leaving = false;
@@ -551,7 +546,7 @@ mod tests {
         raw_state.body_ratio = 0.8;
         raw_state.animations[0] = StateActionAnimation {
             animation_id: 1,
-            file: s!("idle.ozz"),
+            file: asb!("idle.ozz"),
             ratio: 0.5,
             weight: 0.5,
         };
@@ -560,14 +555,14 @@ mod tests {
         let state = state.cast_as::<StateActionIdle>().unwrap();
 
         assert_eq!(state.id, 123);
-        assert_eq!(state.tmpl_id, s!("idle"));
+        assert_eq!(state.tmpl_id, asb!("idle"));
         assert_eq!(state.spawn_frame, 99);
         assert_eq!(state.death_frame, 1100);
         assert_eq!(state.derive_level, 1);
         assert_eq!(state.antibreak_level, 2);
         assert_eq!(state.body_ratio, 0.8);
         assert_eq!(state.animations[0].animation_id, 1);
-        assert_eq!(state.animations[0].file, s!("idle.ozz"));
+        assert_eq!(state.animations[0].file, asb!("idle.ozz"));
         assert_eq!(state.animations[0].ratio, 0.5);
         assert_eq!(state.animations[0].weight, 0.5);
         assert_eq!(state.animations[1], StateActionAnimation::default());
