@@ -1,27 +1,39 @@
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use crate::instance::{assemble_player, InstAction, InstPlayer};
+use jolt_physics_rs::PhysicsSystem;
+
+use crate::consts::{TEST_ASSET_PATH, TEST_TEMPLATE_PATH};
+use crate::instance::{assemble_player, InstPlayer};
 use crate::logic::action::{
-    ArchivedStateAction, ContextActionNext, ContextActionUpdate, LogicAction, LogicActionBase, StateAction,
-    StateActionBase, StateActionType,
+    ArchivedStateAction, ContextAction, LogicAction, LogicActionBase, StateAction, StateActionBase, StateActionType,
 };
 use crate::logic::game::{ContextUpdate, LogicSystems};
+use crate::logic::physics::{
+    BroadPhaseLayerInterfaceImpl, ObjectLayerPairFilterImpl, ObjectVsBroadPhaseLayerFilterImpl,
+};
 use crate::parameter::ParamPlayer;
 use crate::template::{TmplDatabase, TmplType};
-use crate::utils::{extend, s, NumID, StrID, XResult};
+use crate::utils::{extend, sb, NumID, StrID, XResult};
+
+pub(crate) fn mock_physics_system() -> PhysicsSystem {
+    PhysicsSystem::new(
+        BroadPhaseLayerInterfaceImpl::new_vbox(BroadPhaseLayerInterfaceImpl),
+        ObjectVsBroadPhaseLayerFilterImpl::new_vbox(ObjectVsBroadPhaseLayerFilterImpl),
+        ObjectLayerPairFilterImpl::new_vbox(ObjectLayerPairFilterImpl),
+    )
+}
 
 pub(crate) fn mock_logic_systems() -> LogicSystems {
-    let tmpl_db = TmplDatabase::new("../test-res").unwrap();
-    let asset_path = "../test-asset";
-    LogicSystems::new(tmpl_db, asset_path, None).unwrap()
+    let tmpl_db = TmplDatabase::new(TEST_TEMPLATE_PATH).unwrap();
+    LogicSystems::new(tmpl_db, TEST_ASSET_PATH, None).unwrap()
 }
 
 pub(crate) fn mock_inst_player(systems: &mut LogicSystems) -> Rc<InstPlayer> {
-    let mut ctx = ContextUpdate::new_empty(systems);
+    let mut ctx = ContextUpdate::new(systems, 0, 0);
     let param_player = ParamPlayer {
-        character: s!("Character.No1"),
-        style: s!("Style.No1-1"),
+        character: sb!("Character.No1"),
+        style: sb!("Style.No1-1"),
         level: 4,
         ..Default::default()
     };
@@ -95,18 +107,13 @@ unsafe impl LogicAction for LogicActionEmpty {
         Ok(())
     }
 
-    fn next(
+    fn update(
         &mut self,
         _ctx: &mut ContextUpdate<'_>,
-        _ctx_an: &ContextActionNext,
-    ) -> XResult<Option<Rc<dyn InstAction>>> {
-        Ok(None)
-    }
-
-    fn update(&mut self, _ctx: &mut ContextUpdate<'_>, ctx_au: &mut ContextActionUpdate<'_>) -> XResult<()> {
-        ctx_au.state(Box::new(StateActionEmpty {
+        _ctx_au: &mut ContextAction<'_>,
+    ) -> XResult<Option<Box<dyn StateAction>>> {
+        Ok(Some(Box::new(StateActionEmpty {
             _base: StateActionBase::new(StateActionType::Idle, TmplType::ActionIdle),
-        }));
-        Ok(())
+        })))
     }
 }
