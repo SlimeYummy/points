@@ -1,5 +1,5 @@
 use cirtical_point_csgen::CsOut;
-use glam::{Quat, Vec3};
+use glam::{Quat, Vec3A};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -11,16 +11,16 @@ use crate::logic::base::{ArchivedStateAny, LogicAny, LogicType, StateAny, StateA
 use crate::logic::game::{ContextRestore, ContextUpdate};
 use crate::parameter::ParamPlayer;
 use crate::template::{TmplCharacter, TmplStyle};
-use crate::utils::{extend, NumID, Symbol, XResult};
+use crate::utils::{extend, ASymbol, NumID, XResult};
 
 #[repr(C)]
-#[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
+#[derive(Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
 #[archive_attr(derive(Debug))]
 #[cs_attr(Ref)]
 pub struct StatePlayerInit {
     pub _base: StateAnyBase,
-    pub skeleton_file: Symbol,
-    pub animation_files: Vec<Symbol>,
+    pub skeleton_file: ASymbol,
+    pub animation_files: Vec<ASymbol>,
     pub view_model: String,
 }
 
@@ -58,7 +58,7 @@ impl ArchivedStateAny for rkyv::Archived<StatePlayerInit> {
 }
 
 #[repr(C)]
-#[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
+#[derive(Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
 #[archive_attr(derive(Debug))]
 #[cs_attr(Ref)]
 pub struct StatePlayerUpdate {
@@ -130,68 +130,58 @@ impl LogicAny for LogicPlayer {
     fn death_frame(&self) -> u32 {
         self.death_frame
     }
-
-    #[inline]
-    fn update(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<()> {
-        self.update_impl(ctx)
-    }
-
-    #[inline]
-    fn restore(&mut self, ctx: &ContextRestore) -> XResult<()> {
-        self.restore_impl(ctx)
-    }
 }
 
 impl LogicPlayer {
-    pub fn new(ctx: &mut ContextUpdate<'_>, param_player: &ParamPlayer) -> XResult<Box<LogicPlayer>> {
+    pub fn new(
+        ctx: &mut ContextUpdate<'_>,
+        param_player: &ParamPlayer,
+    ) -> XResult<(Box<LogicPlayer>, Arc<StatePlayerInit>)> {
         let tmpl_chara = ctx.tmpl_db.find_as::<TmplCharacter>(&param_player.character)?;
         let tmpl_style = ctx.tmpl_db.find_as::<TmplStyle>(&param_player.style)?;
 
         let inst_player = Rc::new(assemble_player(&mut ctx.context_assemble(), param_player)?);
-        let player_id = ctx.gene.gen_id();
+        let player_id = ctx.gene.gen_player_id()?;
         let mut player = Box::new(LogicPlayer {
             id: player_id,
             spawn_frame: ctx.frame,
             death_frame: u32::MAX,
             inst: inst_player.clone(),
-            chara_physics: LogicCharaPhysics::new(ctx, player_id, inst_player.clone(), Vec3::ZERO, Quat::IDENTITY)?,
+            chara_physics: LogicCharaPhysics::new(ctx, player_id, inst_player.clone(), Vec3A::ZERO, Quat::IDENTITY)?,
             chara_action: LogicCharaAction::new(ctx, player_id, inst_player.clone())?,
         });
 
         let animation_files = player.chara_action.preload_assets(ctx, inst_player.clone())?;
-        ctx.state_init(Arc::new(StatePlayerInit {
+        let state_init = Arc::new(StatePlayerInit {
             _base: StateAnyBase::new(player.id, StateType::PlayerInit, LogicType::Player),
-            skeleton_file: tmpl_chara.skeleton.clone(),
+            skeleton_file: ASymbol::from(&tmpl_chara.skeleton),
             animation_files,
             view_model: tmpl_style.view_model.clone(),
-        }));
+        });
 
-        let state_physics = player.chara_physics.init(ctx)?;
-        let state_actions = player.chara_action.init(ctx, &mut player.chara_physics)?;
-        ctx.state_update(Box::new(StatePlayerUpdate {
-            _base: StateAnyBase::new(player.id, StateType::PlayerUpdate, LogicType::Player),
-            physics: state_physics,
-            actions: state_actions,
-        }));
-        Ok(player)
+        player.chara_action.update(ctx, &player.chara_physics, true)?;
+        player.chara_physics.update(ctx, &player.chara_action)?;
+        Ok((player, state_init))
     }
 
-    pub fn restore_impl(&mut self, ctx: &ContextRestore) -> XResult<()> {
+    pub fn state(&mut self) -> XResult<Box<StatePlayerUpdate>> {
+        Ok(Box::new(StatePlayerUpdate {
+            _base: StateAnyBase::new(self.id, StateType::PlayerUpdate, LogicType::Player),
+            physics: self.chara_physics.state(),
+            actions: self.chara_action.take_states()?,
+        }))
+    }
+
+    pub fn restore(&mut self, ctx: &ContextRestore) -> XResult<()> {
         let state = ctx.find_as::<StatePlayerUpdate>(self.id)?;
         self.chara_action.restore(ctx, &state.actions)?;
         self.chara_physics.restore(ctx, &state.physics)?;
         Ok(())
     }
 
-    pub fn update_impl(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<()> {
-        let state_actions = self.chara_action.update(ctx, &mut self.chara_physics)?;
-        let state_physics = self.chara_physics.update(ctx)?;
-
-        ctx.state_update(Box::new(StatePlayerUpdate {
-            _base: StateAnyBase::new(self.id, StateType::PlayerUpdate, LogicType::Player),
-            physics: state_physics,
-            actions: state_actions,
-        }));
+    pub fn update(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<()> {
+        self.chara_action.update(ctx, &self.chara_physics, false)?;
+        self.chara_physics.update(ctx, &self.chara_action)?;
         Ok(())
     }
 }
@@ -201,70 +191,54 @@ mod tests {
     use super::*;
     use crate::logic::action::StateActionIdle;
     use crate::logic::game::{ContextUpdate, LogicSystems};
-    use crate::logic::system::state::StateSet;
     use crate::logic::test_utils::*;
-    use crate::utils::{s, CastPtr, CastRef};
+    use crate::utils::{asb, sb, CastRef};
 
-    fn prepare(systems: &mut LogicSystems, clear_state: bool) -> (Box<LogicPlayer>, ContextUpdate<'_>) {
-        let mut ctx = ContextUpdate::new_empty(systems);
+    fn prepare(systems: &mut LogicSystems, frame: u32) -> (Box<LogicPlayer>, Arc<StatePlayerInit>, ContextUpdate<'_>) {
+        let mut ctx = ContextUpdate::new(systems, frame, 0);
         let param_player = ParamPlayer {
-            character: s!("Character.No1"),
-            style: s!("Style.No1-1"),
+            character: sb!("Character.No1"),
+            style: sb!("Style.No1-1"),
             level: 4,
             ..Default::default()
         };
-        let logic_player = LogicPlayer::new(&mut ctx, &param_player).unwrap();
-        if clear_state {
-            ctx.state_set = StateSet::new(1, 0, 0);
-        }
-        ctx.input.init(&[logic_player.id]).unwrap();
-        (logic_player, ctx)
+        let (logic_player, state_init) = LogicPlayer::new(&mut ctx, &param_player).unwrap();
+        ctx.input.init(1).unwrap();
+        (logic_player, state_init, ctx)
     }
 
     #[test]
     fn test_logic_player_new() {
         let mut systems = mock_logic_systems();
-        let (logic_player, ctx) = prepare(&mut systems, false);
-        assert_eq!(logic_player.id, 1);
-        assert_eq!(logic_player.inst.tmpl_character, s!("Character.No1"));
-        assert_eq!(logic_player.inst.tmpl_style, s!("Style.No1-1"));
+        let (mut logic_player, state_init, _) = prepare(&mut systems, 0);
+        assert_eq!(logic_player.id, 100);
+        assert_eq!(logic_player.inst.tmpl_character, sb!("Character.No1"));
+        assert_eq!(logic_player.inst.tmpl_style, sb!("Style.No1-1"));
 
-        assert_eq!(ctx.state_set.inits.len(), 1);
-        let state_init = &ctx.state_set.inits[0];
-        let state_init = state_init.cast_to::<StatePlayerInit>().unwrap();
-        assert_eq!(state_init.id, 1);
-        assert_eq!(state_init.skeleton_file, s!("girl_skeleton_logic.ozz"));
+        assert_eq!(state_init.id, 100);
+        assert_eq!(state_init.skeleton_file, sb!("skel.ozz"));
         assert_eq!(state_init.animation_files.len(), 2);
-        let excepted_files = [
-            s!("girl_animation_logic_stand_idle.ozz"),
-            s!("girl_animation_logic_stand_ready.ozz"),
-        ];
+        let excepted_files = [asb!("anim_stand_idle.ozz"), asb!("anim_stand_ready.ozz")];
         for file in excepted_files.iter() {
             assert!(state_init.animation_files.contains(file));
         }
 
-        assert_eq!(ctx.state_set.updates.len(), 1);
-        let state_update = &ctx.state_set.updates[0];
-        let state_update = state_update.cast_ref::<StatePlayerUpdate>().unwrap();
-        assert_eq!(state_update.id, 1);
+        let state_update = logic_player.state().unwrap();
+        assert_eq!(state_update.id, 100);
         assert_eq!(state_update.actions.len(), 1);
         let state_act = state_update.actions[0].cast_ref::<StateActionIdle>().unwrap();
-        assert_eq!(state_act.tmpl_id, s!("Action.No1.Idle"));
+        assert_eq!(state_act.tmpl_id, sb!("Action.No1.Idle"));
     }
 
     #[test]
     fn test_logic_player_update() {
         let mut systems = mock_logic_systems();
-        let (mut logic_player, mut ctx) = prepare(&mut systems, true);
+        let (mut logic_player, _, mut ctx) = prepare(&mut systems, 1);
         logic_player.update(&mut ctx).unwrap();
-
-        assert_eq!(ctx.state_set.inits.len(), 0);
-        assert_eq!(ctx.state_set.updates.len(), 1);
-        let state_update = &ctx.state_set.updates[0];
-        let state_update = state_update.cast_ref::<StatePlayerUpdate>().unwrap();
-        assert_eq!(state_update.id, 1);
+        let state_update = logic_player.state().unwrap();
+        assert_eq!(state_update.id, 100);
         assert_eq!(state_update.actions.len(), 1);
         let state_act = state_update.actions[0].cast_ref::<StateActionIdle>().unwrap();
-        assert_eq!(state_act.tmpl_id, s!("Action.No1.Idle"));
+        assert_eq!(state_act.tmpl_id, sb!("Action.No1.Idle"));
     }
 }
