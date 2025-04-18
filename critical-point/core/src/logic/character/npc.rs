@@ -5,7 +5,7 @@ use crate::logic::game::{ContextRestore, ContextUpdate};
 use crate::utils::{extend, NumID, XResult};
 
 #[repr(C)]
-#[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
+#[derive(Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
 #[archive_attr(derive(Debug))]
 #[cs_attr(Ref)]
 pub struct StateNpcInit {
@@ -46,7 +46,7 @@ impl ArchivedStateAny for rkyv::Archived<StateNpcInit> {
 }
 
 #[repr(C)]
-#[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
+#[derive(Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
 #[archive_attr(derive(Debug))]
 #[cs_attr(Ref)]
 pub struct StateNpcUpdate {
@@ -113,14 +113,18 @@ impl LogicAny for LogicNpc {
     fn death_frame(&self) -> u32 {
         self.death_frame
     }
+}
 
-    #[inline]
-    fn update(&mut self, _ctx: &mut ContextUpdate<'_>) -> XResult<()> {
-        Ok(())
+impl LogicNpc {
+    pub fn state(&mut self) -> Box<StateNpcUpdate> {
+        unimplemented!();
     }
 
-    #[inline]
-    fn restore(&mut self, _ctx: &ContextRestore) -> XResult<()> {
-        Ok(())
+    pub fn restore(&mut self, _ctx: &ContextRestore) -> XResult<()> {
+        unimplemented!();
+    }
+
+    pub fn update_ai(&mut self, _ctx: &mut ContextUpdate<'_>) -> XResult<()> {
+        unimplemented!();
     }
 }
