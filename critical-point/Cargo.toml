@@ -4,6 +4,6 @@ members = [
     "core",
     "csgen",
     "csbridge",
-    "replay",
+    "demo",
     "pyext",
 ]
