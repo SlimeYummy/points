@@ -1,6 +1,6 @@
 #![allow(improper_ctypes_definitions)]
 
-use glam::Mat4;
+use glam_ext::{Mat4, Transform3A};
 use libc::c_char;
 use ozz_animation_rs::{ozz_rc_buf, Animation, LocalToModelJob, SamplingContext, SamplingJob, Skeleton, SoaTransform};
 use std::collections::HashMap;
@@ -9,10 +9,13 @@ use std::path::Path;
 use std::ptr;
 use std::rc::Rc;
 
-use cirtical_point_core::animation::{SkeletalAnimator, SkeletonJointMeta, SkeletonMeta};
+use cirtical_point_core::animation::{
+    rest_poses_to_local_transforms, rest_poses_to_model_matrices, soa_transforms_to_transforms, SkeletalAnimator,
+    SkeletonJointMeta, SkeletonMeta,
+};
 use cirtical_point_core::consts::MAX_ACTION_ANIMATION;
 use cirtical_point_core::logic::StateAction;
-use cirtical_point_core::utils::{Symbol, XError, XResult};
+use cirtical_point_core::utils::{xerror, ASymbol, XResult};
 
 use crate::utils::Return;
 
@@ -25,7 +28,7 @@ pub struct AnimatorWrapper {
     resource: Box<SkeletalResource>,
 }
 
-#[cfg(debug_assertions)]
+#[cfg(feature = "debug-print")]
 impl Drop for AnimatorWrapper {
     fn drop(&mut self) {
         println!("AnimatorWrapper.drop()");
@@ -33,21 +36,18 @@ impl Drop for AnimatorWrapper {
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_animator_create(
-    resource: *mut SkeletalResource,
-    skip_l2m: bool,
-) -> Return<*mut AnimatorWrapper> {
+pub extern "C" fn skeletal_animator_create(resource: *mut SkeletalResource, outs: u32) -> Return<*mut AnimatorWrapper> {
     let res: XResult<*mut AnimatorWrapper> = (|| {
         if resource.is_null() {
-            return Err(XError::bad_argument("skeletal_animator_create() resource is null"));
+            return Err(xerror!(BadArgument, "resource=null"));
         }
         if unsafe { &*resource }.sealed {
-            return Err(XError::bad_argument("skeletal_animator_create() resource consumed"));
+            return Err(xerror!(BadOperation, "resource consumed"));
         }
         let mut resource = unsafe { Box::from_raw(resource) };
         resource.sealed = true;
         let animator = Box::new(AnimatorWrapper {
-            animator: SkeletalAnimator::new(resource.skeleton.clone(), skip_l2m, 6, 4 * MAX_ACTION_ANIMATION),
+            animator: SkeletalAnimator::new(resource.skeleton.clone(), outs, 6, 4 * MAX_ACTION_ANIMATION),
             resource,
         });
         Ok(Box::into_raw(animator))
@@ -81,12 +81,9 @@ pub extern "C" fn skeletal_animator_update(
     let res: XResult<()> = (|| {
         let animator = as_animator(animator)?;
         animator.animator.update(frame, states, |anime_path| {
-            match animator.resource.animations.get(&anime_path) {
+            match animator.resource.animations.get(anime_path) {
                 Some(animation) => Ok(animation.clone()),
-                None => Err(XError::not_found(format!(
-                    "skeletal_animator_update() animation not found: {:?}",
-                    anime_path
-                ))),
+                None => Err(xerror!(NotFound, format!("animation={:?}", anime_path))),
             }
         })
     })();
@@ -130,20 +127,25 @@ pub extern "C" fn skeletal_animator_animate(animator: *mut AnimatorWrapper) -> R
 pub extern "C" fn skeletal_animator_joint_rest_poses<'t>(animator: *mut AnimatorWrapper) -> Return<&'t [SoaTransform]> {
     let res: XResult<&[SoaTransform]> = (|| {
         let animator = as_animator(animator)?;
-        let rest_poses = animator.animator.joint_rest_poses();
+        let rest_poses = animator.animator.skeleton_ref().joint_rest_poses();
         Ok(rest_poses)
     })();
     Return::from_result_with(res, &[])
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_animator_local_out<'t>(animator: *mut AnimatorWrapper) -> Return<&'t [SoaTransform]> {
-    let res: XResult<&[SoaTransform]> = (|| {
+pub extern "C" fn skeletal_animator_local_out<'t>(animator: *mut AnimatorWrapper) -> Return<&'t [Transform3A]> {
+    let res: XResult<&[Transform3A]> = (|| {
         let animator = as_animator(animator)?;
-        let local_out = animator.animator.local_out_ref();
-        let ptr = local_out.as_ptr();
-        let len = local_out.len();
-        Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
+        let local_out = animator.animator.local_transforms();
+        match local_out {
+            Some(local_out) => {
+                let ptr = local_out.as_ptr();
+                let len = local_out.len();
+                Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
+            }
+            None => Ok(&[] as &[Transform3A]),
+        }
     })();
     Return::from_result_with(res, &[])
 }
@@ -152,7 +154,7 @@ pub extern "C" fn skeletal_animator_local_out<'t>(animator: *mut AnimatorWrapper
 pub extern "C" fn skeletal_animator_model_out<'t>(animator: *mut AnimatorWrapper) -> Return<&'t [Mat4]> {
     let res: XResult<&[Mat4]> = (|| {
         let animator = as_animator(animator)?;
-        let model_out = animator.animator.model_out_ref();
+        let model_out = animator.animator.model_matrices();
         match model_out {
             Some(model_out) => {
                 let ptr = model_out.as_ptr();
@@ -167,7 +169,7 @@ pub extern "C" fn skeletal_animator_model_out<'t>(animator: *mut AnimatorWrapper
 
 fn as_animator<'t>(animator: *mut AnimatorWrapper) -> XResult<&'t mut AnimatorWrapper> {
     if animator.is_null() {
-        return Err(XError::bad_argument("as_animator() animator is null"));
+        return Err(xerror!(BadArgument, "animator=null"));
     }
     Ok(unsafe { &mut *animator })
 }
@@ -178,7 +180,7 @@ fn as_animator<'t>(animator: *mut AnimatorWrapper) -> XResult<&'t mut AnimatorWr
 
 pub struct SkeletalResource {
     skeleton: Rc<Skeleton>,
-    animations: HashMap<Symbol, Rc<Animation>>,
+    animations: HashMap<ASymbol, Rc<Animation>>,
     sealed: bool,
 }
 
@@ -192,22 +194,22 @@ impl SkeletalResource {
         })
     }
 
-    fn add_animation<P: AsRef<Path>>(&mut self, logic_path: Symbol, view_path: P) -> XResult<()> {
+    fn add_animation<P: AsRef<Path>>(&mut self, logic_path: ASymbol, view_path: P) -> XResult<()> {
         let animation = Rc::new(Animation::from_path(view_path)?);
         self.animations.insert(logic_path, animation);
         Ok(())
     }
 
-    fn remove_animation(&mut self, logic_path: Symbol) {
+    fn remove_animation(&mut self, logic_path: ASymbol) {
         self.animations.remove(&logic_path);
     }
 
-    fn has_animation(&self, logic_path: Symbol) -> bool {
+    fn has_animation(&self, logic_path: ASymbol) -> bool {
         self.animations.contains_key(&logic_path)
     }
 }
 
-#[cfg(debug_assertions)]
+#[cfg(feature = "debug-print")]
 impl Drop for SkeletalResource {
     fn drop(&mut self) {
         println!("SkeletalResource.drop()");
@@ -234,15 +236,13 @@ pub extern "C" fn skeletal_resource_destroy(resource: *mut SkeletalResource) {
 #[no_mangle]
 pub extern "C" fn skeletal_resource_add_animation(
     resource: *mut SkeletalResource,
-    logic_path: Symbol,
+    logic_path: ASymbol,
     view_path: *const c_char,
 ) -> Return<()> {
     let res: XResult<()> = (|| {
         let resource = as_resource(resource)?;
         if resource.sealed {
-            return Err(XError::invalid_operation(
-                "skeletal_resource_add_animation() resource consumed",
-            ));
+            return Err(xerror!(BadOperation, "resource consumed"));
         }
         let path = unsafe { CStr::from_ptr(view_path) }.to_str()?;
         resource.add_animation(logic_path, path)?;
@@ -254,14 +254,12 @@ pub extern "C" fn skeletal_resource_add_animation(
 #[no_mangle]
 pub extern "C" fn skeletal_resource_remove_animation(
     resource: *mut SkeletalResource,
-    logic_path: Symbol,
+    logic_path: ASymbol,
 ) -> Return<()> {
     let res: XResult<()> = (|| {
         let resource = as_resource(resource)?;
         if resource.sealed {
-            return Err(XError::invalid_operation(
-                "skeletal_resource_remove_animation() resource consumed",
-            ));
+            return Err(xerror!(BadOperation, "resource consumed"));
         }
         resource.remove_animation(logic_path);
         Ok(())
@@ -270,7 +268,10 @@ pub extern "C" fn skeletal_resource_remove_animation(
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_resource_has_animation(resource: *mut SkeletalResource, logic_path: Symbol) -> Return<bool> {
+pub extern "C" fn skeletal_resource_has_animation(
+    resource: *mut SkeletalResource,
+    logic_path: ASymbol,
+) -> Return<bool> {
     let res: XResult<bool> = (|| {
         let resource = as_resource(resource)?;
         Ok(resource.has_animation(logic_path))
@@ -280,7 +281,7 @@ pub extern "C" fn skeletal_resource_has_animation(resource: *mut SkeletalResourc
 
 fn as_resource<'t>(resource: *mut SkeletalResource) -> XResult<&'t mut SkeletalResource> {
     if resource.is_null() {
-        return Err(XError::bad_argument("as_resource() resource is null"));
+        return Err(xerror!(BadArgument, "resource=null"));
     }
     Ok(unsafe { &mut *resource })
 }
@@ -292,12 +293,15 @@ fn as_resource<'t>(resource: *mut SkeletalResource) -> XResult<&'t mut SkeletalR
 pub struct SkeletalPlayer {
     skeleton: Rc<Skeleton>,
     sampling_job: SamplingJob,
-    l2m_job: Option<LocalToModelJob>,
+    l2m_job: LocalToModelJob,
     is_loop: bool,
     progress: f32,
+    local_rest_poses: Vec<Transform3A>,
+    model_rest_poses: Vec<Mat4>,
+    local_out: Vec<Transform3A>,
 }
 
-#[cfg(debug_assertions)]
+#[cfg(feature = "debug-print")]
 impl Drop for SkeletalPlayer {
     fn drop(&mut self) {
         println!("SkeletalPlayer.drop()");
@@ -305,28 +309,26 @@ impl Drop for SkeletalPlayer {
 }
 
 impl SkeletalPlayer {
-    fn new(skeleton_path: &str, skip_l2m: bool) -> XResult<SkeletalPlayer> {
+    fn new(skeleton_path: &str) -> XResult<SkeletalPlayer> {
         let skeleton = Rc::new(Skeleton::from_path(skeleton_path)?);
 
         let mut sampling_job = SamplingJob::default();
         sampling_job.set_output(ozz_rc_buf(vec![SoaTransform::default(); skeleton.num_soa_joints()]));
 
-        let l2m_job = if !skip_l2m {
-            let mut l2m_job = LocalToModelJob::default();
-            l2m_job.set_skeleton(skeleton.clone());
-            l2m_job.set_input(sampling_job.output().unwrap().clone());
-            l2m_job.set_output(ozz_rc_buf(vec![Mat4::IDENTITY; skeleton.num_joints()]));
-            Some(l2m_job)
-        } else {
-            None
-        };
+        let mut l2m_job = LocalToModelJob::default();
+        l2m_job.set_skeleton(skeleton.clone());
+        l2m_job.set_input(sampling_job.output().unwrap().clone());
+        l2m_job.set_output(ozz_rc_buf(vec![Mat4::IDENTITY; skeleton.num_joints()]));
 
         Ok(SkeletalPlayer {
-            skeleton,
+            skeleton: skeleton.clone(),
             sampling_job,
             l2m_job,
             is_loop: false,
             progress: 0.0,
+            local_rest_poses: rest_poses_to_local_transforms(&skeleton)?,
+            model_rest_poses: rest_poses_to_model_matrices(&skeleton)?,
+            local_out: vec![Transform3A::IDENTITY; skeleton.num_joints()],
         })
     }
 
@@ -350,14 +352,13 @@ impl SkeletalPlayer {
         if animation_path.is_empty() {
             self.sampling_job.clear_animation();
             self.sampling_job.clear_context();
-            self.sampling_job
-                .output()
-                .unwrap()
-                .borrow_mut()
-                .copy_from_slice(self.skeleton.joint_rest_poses());
-            if let Some(l2m_job) = &mut self.l2m_job {
-                l2m_job.run()?;
-            }
+            // self.sampling_job
+            //     .output()
+            //     .unwrap()
+            //     .borrow_mut()
+            //     .copy_from_slice(self.skeleton.joint_rest_poses());
+            // self.l2m_job.run()?;
+            // self.local_out.copy_from_slice(&self.local_rest_poses);
         } else {
             let animation = Rc::new(Animation::from_path(animation_path)?);
             self.sampling_job.set_animation(animation.clone());
@@ -369,35 +370,53 @@ impl SkeletalPlayer {
         Ok(())
     }
 
-    fn update(&mut self, delta: f32) -> XResult<()> {
-        self.progress += delta;
-        while self.progress > animation.duration() {
-            self.progress -= animation.duration();
+    fn duration(&self) -> f32 {
+        match self.sampling_job.animation() {
+            Some(a) => a.duration(),
+            None => 0.0,
         }
+    }
 
+    fn set_progress(&mut self, progress: f32) {
+        if self.is_loop {
+            self.progress = progress.rem_euclid(self.duration());
+        } else {
+            self.progress = progress.clamp(0.0, self.duration());
+        }
+    }
+
+    fn add_progress(&mut self, delta: f32) {
+        self.progress += delta;
+        // if self.is_loop {
+        //     self.progress = self.progress.rem_euclid(self.duration());
+        // } else {
+        //     self.progress = self.progress.clamp(0.0, self.duration());
+        // }
+    }
+
+    fn update(&mut self) -> XResult<()> {
         let animation = match self.sampling_job.animation() {
             Some(a) => a,
             None => return Ok(()),
         };
 
         let ratio = self.progress / animation.duration();
-        self.sampling_job.set_ratio(ratio * 0.98);
+        self.sampling_job.set_ratio(ratio);
         self.sampling_job.run()?;
-        if let Some(l2m_job) = &mut self.l2m_job {
-            l2m_job.run()?;
-        }
+        self.l2m_job.run()?;
+        soa_transforms_to_transforms(self.l2m_job.input().unwrap().borrow().as_slice(), &mut self.local_out);
         Ok(())
     }
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_player_create(skeleton_path: *const c_char, skip_l2m: bool) -> Return<*mut SkeletalPlayer> {
+pub extern "C" fn skeletal_player_create(skeleton_path: *const c_char) -> Return<*mut SkeletalPlayer> {
     let res: XResult<*mut SkeletalPlayer> = (|| {
         let mut skeleton = "";
         if !skeleton_path.is_null() {
             skeleton = unsafe { CStr::from_ptr(skeleton_path) }.to_str()?
         };
-        let playback = Box::new(SkeletalPlayer::new(skeleton, skip_l2m)?);
+        let playback = Box::new(SkeletalPlayer::new(skeleton)?);
         Ok(Box::into_raw(playback))
     })();
     Return::from_result_with(res, ptr::null_mut())
@@ -439,36 +458,64 @@ pub extern "C" fn skeletal_player_set_animation(
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_player_update(playback: *mut SkeletalPlayer, delta: f32) -> Return<()> {
-    let res: XResult<()> = (|| {
-        let playback = as_playback(playback)?;
-        playback.update(delta)?;
-        Ok(())
-    })();
+pub extern "C" fn skeletal_player_duration(playback: *mut SkeletalPlayer) -> Return<f32> {
+    let res: XResult<f32> = (|| as_playback(playback).map(|p| p.duration()))();
     Return::from_result(res)
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_player_joint_rest_poses<'t>(playback: *mut SkeletalPlayer) -> Return<&'t [SoaTransform]> {
-    let res: XResult<&[SoaTransform]> = (|| {
+pub extern "C" fn skeletal_player_set_progress(playback: *mut SkeletalPlayer, progress: f32) -> Return<()> {
+    let res: XResult<()> = (|| as_playback(playback).map(|p| p.set_progress(progress)))();
+    Return::from_result(res)
+}
+
+#[no_mangle]
+pub extern "C" fn skeletal_player_add_progress(playback: *mut SkeletalPlayer, delta: f32) -> Return<()> {
+    let res: XResult<()> = (|| as_playback(playback).map(|p| p.add_progress(delta)))();
+    Return::from_result(res)
+}
+
+#[no_mangle]
+pub extern "C" fn skeletal_player_update(playback: *mut SkeletalPlayer) -> Return<()> {
+    let res: XResult<()> = (|| as_playback(playback).and_then(|p| p.update()))();
+    Return::from_result(res)
+}
+
+#[no_mangle]
+pub extern "C" fn skeletal_player_local_rest_poses<'t>(playback: *mut SkeletalPlayer) -> Return<&'t [Transform3A]> {
+    let res: XResult<&[Transform3A]> = (|| {
         let playback = as_playback(playback)?;
-        let rest = playback.skeleton.joint_rest_poses();
-        let ptr = rest.as_ptr();
-        let len = rest.len();
+        let ptr = playback.local_rest_poses.as_ptr();
+        let len = playback.local_rest_poses.len();
         Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
     })();
     Return::from_result_with(res, &[])
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_player_local_out<'t>(playback: *mut SkeletalPlayer) -> Return<&'t [SoaTransform]> {
-    let res: XResult<&[SoaTransform]> = (|| {
+pub extern "C" fn skeletal_player_model_rest_poses<'t>(playback: *mut SkeletalPlayer) -> Return<&'t [Mat4]> {
+    let res: XResult<&[Mat4]> = (|| {
         let playback = as_playback(playback)?;
-        let local_out = playback.sampling_job.output().unwrap();
-        let local_out = local_out.borrow();
-        let ptr = local_out.as_ptr();
-        let len = local_out.len();
+        let ptr = playback.model_rest_poses.as_ptr();
+        let len = playback.model_rest_poses.len();
         Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
+    })();
+    Return::from_result_with(res, &[])
+}
+
+#[no_mangle]
+pub extern "C" fn skeletal_player_local_out<'t>(playback: *mut SkeletalPlayer) -> Return<&'t [Transform3A]> {
+    let res: XResult<&[Transform3A]> = (|| {
+        let playback = as_playback(playback)?;
+        if playback.sampling_job.animation().is_some() {
+            let ptr = playback.local_out.as_ptr();
+            let len = playback.local_out.len();
+            Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
+        } else {
+            let ptr = playback.local_rest_poses.as_ptr();
+            let len = playback.local_rest_poses.len();
+            Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
+        }
     })();
     Return::from_result_with(res, &[])
 }
@@ -477,15 +524,16 @@ pub extern "C" fn skeletal_player_local_out<'t>(playback: *mut SkeletalPlayer) -
 pub extern "C" fn skeletal_player_model_out<'t>(playback: *mut SkeletalPlayer) -> Return<&'t [Mat4]> {
     let res: XResult<&[Mat4]> = (|| {
         let playback = as_playback(playback)?;
-        let model_out = playback.l2m_job.as_ref().and_then(|l2m_job| l2m_job.output());
-        match model_out {
-            Some(model_out) => {
-                let model_out = model_out.borrow();
-                let ptr = model_out.as_ptr();
-                let len = model_out.len();
-                Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
-            }
-            None => Ok(&[] as &[Mat4]),
+        if playback.sampling_job.animation().is_some() {
+            let model_out = playback.l2m_job.output().unwrap();
+            let model_out = model_out.borrow();
+            let ptr = model_out.as_ptr();
+            let len = model_out.len();
+            Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
+        } else {
+            let ptr = playback.model_rest_poses.as_ptr();
+            let len = playback.model_rest_poses.len();
+            Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
         }
     })();
     Return::from_result_with(res, &[])
@@ -493,7 +541,7 @@ pub extern "C" fn skeletal_player_model_out<'t>(playback: *mut SkeletalPlayer) -
 
 fn as_playback<'t>(playback: *mut SkeletalPlayer) -> XResult<&'t mut SkeletalPlayer> {
     if playback.is_null() {
-        return Err(XError::bad_argument("as_playback() playback is null"));
+        return Err(xerror!(BadArgument, "playback=null"));
     }
     Ok(unsafe { &mut *playback })
 }
