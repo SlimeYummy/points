@@ -1,14 +1,16 @@
 use cirtical_point_csgen::CsOut;
-use jolt_physics_rs::PhysicsSystem;
+use jolt_physics_rs::{global_finalize, global_initialize, PhysicsSystem};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 
 use crate::instance::{assemble_player, ContextAssemble, InstPlayer};
-use crate::logic::{LogicLoop, PlayerKeyEvents, StateSet};
+use crate::logic::{InputPlayerEvents, LogicLoop, StateSet};
 use crate::parameter::{verify_player, ContextVerify, ParamPlayer, ParamStage};
 use crate::script::ScriptExecutor;
 use crate::template::TmplDatabase;
-use crate::utils::{XError, XResult};
+use crate::utils::{xerr, xres, XResult};
+
+static JOLT_INIT: Once = Once::new();
 
 pub struct LogicEngine {
     tmpl_database: TmplDatabase,
@@ -17,9 +19,14 @@ pub struct LogicEngine {
     logic_loop: Option<LogicLoop>,
 }
 
-#[cfg(debug_assertions)]
 impl Drop for LogicEngine {
     fn drop(&mut self) {
+        if JOLT_INIT.is_completed() {
+            self.logic_loop = None;
+            global_finalize();
+        }
+
+        #[cfg(feature = "debug-print")]
         println!("LogicEngine dropped");
     }
 }
@@ -44,11 +51,13 @@ impl LogicEngine {
         self.logic_loop.as_ref().map(|logic_loop| logic_loop.phy_system())
     }
 
+    #[inline]
     pub fn verify_player(&mut self, param: &ParamPlayer) -> XResult<()> {
         let mut ctx = ContextVerify::new(&self.tmpl_database);
         verify_player(&mut ctx, param)
     }
 
+    #[inline]
     pub fn assemble_player(&mut self, param: ParamPlayer) -> XResult<InstPlayer> {
         let mut ctx = ContextAssemble::new(&self.tmpl_database, &mut self.script_executor);
         assemble_player(&mut ctx, &param)
@@ -75,29 +84,42 @@ impl LogicEngine {
         }
     }
 
-    pub fn start_game(&mut self, param_stage: ParamStage, param_players: Vec<ParamPlayer>) -> XResult<Arc<StateSet>> {
+    pub fn start_game(
+        &mut self,
+        param_stage: ParamStage,
+        param_players: Vec<ParamPlayer>,
+        save_path: Option<PathBuf>,
+    ) -> XResult<Arc<StateSet>> {
         if self.logic_loop.is_some() {
-            return Err(XError::unexpected("Game already running"));
+            return xres!(Unexpected; "game already running");
         }
-        let (logic_loop, state_set) =
-            LogicLoop::new(self.tmpl_database.clone(), &self.asset_path, param_stage, param_players)?;
+
+        JOLT_INIT.call_once(|| global_initialize());
+
+        let (logic_loop, state_set) = LogicLoop::new(
+            self.tmpl_database.clone(),
+            &self.asset_path,
+            param_stage,
+            param_players,
+            save_path,
+        )?;
         self.logic_loop = Some(logic_loop);
         Ok(state_set)
     }
 
-    pub fn update_game(&mut self, player_keys: Vec<PlayerKeyEvents>) -> XResult<Vec<Arc<StateSet>>> {
+    pub fn update_game(&mut self, player_events: Vec<InputPlayerEvents>) -> XResult<Vec<Arc<StateSet>>> {
         let logic_loop = self
             .logic_loop
             .as_mut()
-            .ok_or_else(|| XError::unexpected("Game not running"))?;
-        logic_loop.update(player_keys)
+            .ok_or_else(|| xerr!(Unexpected; "game not running"))?;
+        logic_loop.update(player_events)
     }
 
     pub fn stop_game(&mut self) -> XResult<()> {
         let logic_loop = self
             .logic_loop
             .as_mut()
-            .ok_or_else(|| XError::unexpected("Game not running"))?;
+            .ok_or_else(|| xerr!(Unexpected; "game not running"))?;
         logic_loop.stop()?;
         self.logic_loop = None;
         Ok(())
