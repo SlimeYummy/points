@@ -4,8 +4,8 @@ use cirtical_point_core::logic::{
     LogicType, StateAny, StateAnyBase, StateCharaPhysics, StateGameInit, StateGameUpdate, StatePlayerInit,
     StatePlayerUpdate, StateType,
 };
-use cirtical_point_core::utils::s;
-use glam::{Quat, Vec3};
+use cirtical_point_core::utils::{asb, CsQuat};
+use glam::Vec3A;
 use std::sync::Arc;
 
 use super::state_action::{new_state_action_idle, new_state_action_move};
@@ -37,13 +37,13 @@ fn new_state_player_init() -> StatePlayerInit {
             typ: StateType::PlayerInit,
             logic_typ: LogicType::Player,
         },
-        skeleton_file: s!("mock_skeleton.ozz"),
+        skeleton_file: asb!("mock_skeleton.ozz"),
         animation_files: vec![
-            s!("mock_animation_0.ozz"),
-            s!("mock_animation_1.ozz"),
-            s!("mock_animation_2.ozz"),
+            asb!("mock_animation_0.ozz"),
+            asb!("mock_animation_1.ozz"),
+            asb!("mock_animation_2.ozz"),
         ],
-        view_model: "model.vrm".to_string(),
+        view_model: "model.vrm".into(),
     }
 }
 
@@ -107,8 +107,9 @@ fn new_state_player_update() -> StatePlayerUpdate {
             logic_typ: LogicType::Player,
         },
         physics: StateCharaPhysics {
-            position: Vec3::new(1.0, 2.0, 3.0),
-            rotation: Quat::IDENTITY,
+            position: Vec3A::new(1.0, 2.0, 3.0).into(),
+            rotation: CsQuat::IDENTITY,
+            velocity: Vec3A::new(4.0, 5.0, 6.0).into(),
         },
         actions: vec![Box::new(new_state_action_idle()), Box::new(new_state_action_move())],
     }

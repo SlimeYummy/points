@@ -1,5 +1,6 @@
 #![allow(improper_ctypes_definitions)]
 
+use cirtical_point_core::xerror;
 use libc::c_char;
 use std::ffi::CStr;
 use std::sync::Arc;
@@ -7,9 +8,9 @@ use std::{mem, ptr};
 
 use cirtical_point_core::animation::SkeletonJointMeta;
 use cirtical_point_core::engine::{LogicEngine, LogicEngineStatus};
-use cirtical_point_core::logic::{PlayerKeyEvents, StateAction, StateAny, StateSet};
+use cirtical_point_core::logic::{InputPlayerEvents, StateAction, StateAny, StateSet};
 use cirtical_point_core::parameter::{ParamPlayer, ParamStage};
-use cirtical_point_core::utils::{Symbol, XError, XResult};
+use cirtical_point_core::utils::{Symbol, XResult};
 
 use crate::utils::{as_slice, Return};
 
@@ -42,7 +43,7 @@ pub extern "C" fn engine_verify_player(
     let res: XResult<()> = (|| {
         let engine = as_engine(engine)?;
         let player_buf = as_slice(player_data, player_len, "engine_verify_player() player data is null")?;
-        let player: ParamPlayer = rmp_serde::from_slice(player_buf).map_err(|e| XError::bad_argument(e.to_string()))?;
+        let player: ParamPlayer = rmp_serde::from_slice(player_buf).map_err(|e| xerror!(BadArgument, e))?;
         engine.verify_player(&player)
     })();
     Return::from_result(res)
@@ -75,10 +76,9 @@ pub extern "C" fn engine_start_game(
         let engine = as_engine(engine)?;
         let stage_buf = as_slice(stage_data, stage_len, "engine_start_game() stage data is null")?;
         let players_buf = as_slice(players_data, players_len, "engine_start_game() players data is null")?;
-        let stage: ParamStage = rmp_serde::from_slice(stage_buf).map_err(|e| XError::bad_argument(e.to_string()))?;
-        let players: Vec<ParamPlayer> =
-            rmp_serde::from_slice(players_buf).map_err(|e| XError::bad_argument(e.to_string()))?;
-        engine.start_game(stage, players)
+        let stage: ParamStage = rmp_serde::from_slice(stage_buf).map_err(|e| xerror!(BadArgument, e))?;
+        let players: Vec<ParamPlayer> = rmp_serde::from_slice(players_buf).map_err(|e| xerror!(BadArgument, e))?;
+        engine.start_game(stage, players, None)
     })();
     assert_eq!(unsafe { mem::transmute::<Option<Arc<StateSet>>, usize>(None) }, 0);
     Return::from_result_with(res.map(|s| Some(s)), None)
@@ -93,8 +93,7 @@ pub extern "C" fn engine_update_game(
     let res: XResult<Vec<Arc<StateSet>>> = (|| {
         let engine = as_engine(engine)?;
         let events_buf = as_slice(events_data, events_len, "engine_update_game() events data is null")?;
-        let events: Vec<PlayerKeyEvents> =
-            rmp_serde::from_slice(events_buf).map_err(|e| XError::bad_argument(e.to_string()))?;
+        let events: Vec<InputPlayerEvents> = rmp_serde::from_slice(events_buf).map_err(|e| xerror!(BadArgument, e))?;
         engine.update_game(events)
     })();
     Return::from_result(res)
@@ -116,7 +115,7 @@ pub extern "C" fn engine_stop_game(engine: *mut LogicEngine) -> Return<()> {
 
 fn as_engine<'t>(engine: *mut LogicEngine) -> XResult<&'t mut LogicEngine> {
     if engine.is_null() {
-        return Err(XError::bad_argument("as_engine() engine is null"));
+        return Err(xerror!(BadArgument, "engine=null"));
     }
     Ok(unsafe { &mut *engine })
 }

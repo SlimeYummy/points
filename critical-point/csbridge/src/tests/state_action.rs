@@ -5,7 +5,7 @@ use cirtical_point_core::logic::{
     StateActionMove, StateActionType,
 };
 use cirtical_point_core::template::TmplType;
-use cirtical_point_core::utils::s;
+use cirtical_point_core::utils::asb;
 use std::sync::Arc;
 
 #[no_mangle]
@@ -32,7 +32,7 @@ pub fn new_state_action_idle() -> StateActionIdle {
     StateActionIdle {
         _base: StateActionBase {
             id: 1234,
-            tmpl_id: s!("Mock.ActionIdle"),
+            tmpl_id: asb!("Mock.ActionIdle"),
             typ: StateActionType::Idle,
             tmpl_typ: TmplType::ActionIdle,
             spawn_frame: 555,
@@ -45,13 +45,13 @@ pub fn new_state_action_idle() -> StateActionIdle {
             body_ratio: 0.667,
             animations: [
                 StateActionAnimation {
-                    file: s!("mock_action_idle_1.ozz"),
+                    file: asb!("mock_action_idle_1.ozz"),
                     animation_id: 9999,
                     ratio: 0.125,
                     weight: 0.333,
                 },
                 StateActionAnimation {
-                    file: s!("mock_action_idle_2.ozz"),
+                    file: asb!("mock_action_idle_2.ozz"),
                     animation_id: 3456,
                     ratio: 0.6,
                     weight: 0.7,
@@ -82,7 +82,7 @@ pub fn new_state_action_move() -> StateActionMove {
     StateActionMove {
         _base: StateActionBase {
             id: 23893,
-            tmpl_id: s!("Mock.ActionMove"),
+            tmpl_id: asb!("Mock.ActionMove"),
             typ: StateActionType::Move,
             tmpl_typ: TmplType::ActionMove,
             spawn_frame: 891,
@@ -95,13 +95,13 @@ pub fn new_state_action_move() -> StateActionMove {
             body_ratio: 0.629,
             animations: [
                 StateActionAnimation {
-                    file: s!("mock_action_move_1.ozz"),
+                    file: asb!("mock_action_move_1.ozz"),
                     animation_id: 888,
                     ratio: 0.371,
                     weight: 0.287,
                 },
                 StateActionAnimation {
-                    file: s!("mock_action_move_2.ozz"),
+                    file: asb!("mock_action_move_2.ozz"),
                     animation_id: 3456,
                     ratio: 0.72,
                     weight: 0.46,

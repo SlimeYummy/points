@@ -1,9 +1,10 @@
+use cirtical_point_core::xerror;
 use libc::c_char;
 use std::cell::RefCell;
 use std::ffi::CString;
 use std::ptr;
 
-use cirtical_point_core::utils::{XError, XResult};
+use cirtical_point_core::utils::XResult;
 
 thread_local! {
     static ERR_MSG: RefCell<CString> = RefCell::new(CString::new("").unwrap());
@@ -56,7 +57,7 @@ impl<T> Return<T> {
 
 pub fn as_slice<'t, T>(ptr: *const T, len: u32, err_msg: &'static str) -> XResult<&'t [T]> {
     if ptr.is_null() {
-        Err(XError::bad_argument(err_msg))
+        Err(xerror!(BadArgument, err_msg))
     } else {
         Ok(unsafe { std::slice::from_raw_parts(ptr, len as usize) })
     }
