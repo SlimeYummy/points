@@ -3,13 +3,11 @@ mod gen_enum;
 mod gen_struct;
 
 use anyhow::{anyhow, Result};
-use case::CaseExt;
 use gen_enum::parse_enum;
 use gen_struct::{parse_struct_in, parse_struct_out};
 use proc_macro::TokenStream;
 use quote::quote;
 use std::collections::HashMap;
-use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync::{LazyLock, Mutex};
@@ -30,73 +28,80 @@ static GENERATOR: LazyLock<Mutex<Generator>> = LazyLock::new(|| Mutex::new(Gener
 impl Generator {
     fn new() -> Generator {
         let mut consts = HashMap::new();
-        consts.insert("FPS".to_string(), 15);
-        consts.insert("MAX_ACTION_ANIMATION".to_string(), 4);
-        consts.insert("MAX_ACCESSORY_COUNT".to_string(), 4);
-        consts.insert("MAX_ENTRY_PLUS".to_string(), 3);
-        consts.insert("MAX_EQUIPMENT_COUNT".to_string(), 3);
+        consts.insert("FPS".into(), 15);
+        consts.insert("MAX_ACTION_ANIMATION".into(), 4);
+        consts.insert("MAX_ACCESSORY_COUNT".into(), 4);
+        consts.insert("MAX_ENTRY_PLUS".into(), 3);
+        consts.insert("MAX_EQUIPMENT_COUNT".into(), 3);
 
         let mut types_in = HashMap::new();
-        types_in.insert("bool".to_string(), TypeIn::new_primitive("bool"));
-        types_in.insert("i8".to_string(), TypeIn::new_primitive("sbyte"));
-        types_in.insert("u8".to_string(), TypeIn::new_primitive("byte"));
-        types_in.insert("i16".to_string(), TypeIn::new_primitive("short"));
-        types_in.insert("u16".to_string(), TypeIn::new_primitive("ushort"));
-        types_in.insert("i32".to_string(), TypeIn::new_primitive("int"));
-        types_in.insert("u32".to_string(), TypeIn::new_primitive("uint"));
-        types_in.insert("i64".to_string(), TypeIn::new_primitive("long"));
-        types_in.insert("u64".to_string(), TypeIn::new_primitive("ulong"));
-        types_in.insert("f32".to_string(), TypeIn::new_primitive("float"));
-        types_in.insert("f64".to_string(), TypeIn::new_primitive("double"));
-        types_in.insert("NumID".to_string(), TypeIn::new_primitive("ulong"));
-        types_in.insert("StrID".to_string(), TypeIn::new_primitive("string"));
-        types_in.insert("Symbol".to_string(), TypeIn::new_primitive("string"));
-        types_in.insert("[f32; 2]".to_string(), TypeIn::new_primitive("Vec2"));
-        types_in.insert("[f32; 3]".to_string(), TypeIn::new_primitive("Vec3"));
-        types_in.insert("Vec2".to_string(), TypeIn::new_primitive("Vec2"));
-        types_in.insert("Vec3".to_string(), TypeIn::new_primitive("Vec3"));
-        types_in.insert("Vec4".to_string(), TypeIn::new_primitive("Vec4"));
-        types_in.insert("Quat".to_string(), TypeIn::new_primitive("Quat"));
-        types_in.insert("String".to_string(), TypeIn::new_primitive("string"));
-        types_in.insert("Vec".to_string(), TypeIn::new_generic("List", 1));
-        types_in.insert("HashMap".to_string(), TypeIn::new_generic("Dictionary", 2));
-        types_in.insert("HashSet".to_string(), TypeIn::new_generic("HashSet", 1));
+        types_in.insert("bool".into(), TypeIn::new_primitive("bool"));
+        types_in.insert("i8".into(), TypeIn::new_primitive("sbyte"));
+        types_in.insert("u8".into(), TypeIn::new_primitive("byte"));
+        types_in.insert("i16".into(), TypeIn::new_primitive("short"));
+        types_in.insert("u16".into(), TypeIn::new_primitive("ushort"));
+        types_in.insert("i32".into(), TypeIn::new_primitive("int"));
+        types_in.insert("u32".into(), TypeIn::new_primitive("uint"));
+        types_in.insert("i64".into(), TypeIn::new_primitive("long"));
+        types_in.insert("u64".into(), TypeIn::new_primitive("ulong"));
+        types_in.insert("f32".into(), TypeIn::new_primitive("float"));
+        types_in.insert("f64".into(), TypeIn::new_primitive("double"));
+        types_in.insert("NumID".into(), TypeIn::new_primitive("ulong"));
+        types_in.insert("StrID".into(), TypeIn::new_primitive("string"));
+        // types_in.insert("ASymbol".into(), TypeIn::new_primitive("string"));
+        types_in.insert("[f32; 2]".into(), TypeIn::new_primitive("Vec2"));
+        types_in.insert("[f32; 3]".into(), TypeIn::new_primitive("Vec3"));
+        types_in.insert("Vec2".into(), TypeIn::new_primitive("Vec2"));
+        types_in.insert("Vec3".into(), TypeIn::new_primitive("Vec3"));
+        types_in.insert("CsVec3A".into(), TypeIn::new_primitive("Vec3A"));
+        types_in.insert("CsVec4".into(), TypeIn::new_primitive("Vec4"));
+        types_in.insert("CsQuat".into(), TypeIn::new_primitive("Quat"));
+        types_in.insert("CsTransform3A".into(), TypeIn::new_primitive("Transform3A"));
+        types_in.insert("String".into(), TypeIn::new_primitive("string"));
+        types_in.insert("Vec".into(), TypeIn::new_generic("List", 1));
+        types_in.insert("HashMap".into(), TypeIn::new_generic("Dictionary", 2));
+        types_in.insert("HashSet".into(), TypeIn::new_generic("HashSet", 1));
 
         let mut types_out = HashMap::new();
-        types_out.insert("".to_string(), TypeOut::new_value("#error#", "#error#"));
-        types_out.insert("bool".to_string(), TypeOut::new_value("bool", "bool"));
-        types_out.insert("i8".to_string(), TypeOut::new_value("i8", "sbyte"));
-        types_out.insert("u8".to_string(), TypeOut::new_value("u8", "byte"));
-        types_out.insert("i16".to_string(), TypeOut::new_value("i16", "short"));
-        types_out.insert("u16".to_string(), TypeOut::new_value("u16", "ushort"));
-        types_out.insert("i32".to_string(), TypeOut::new_value("i32", "int"));
-        types_out.insert("u32".to_string(), TypeOut::new_value("u32", "uint"));
-        types_out.insert("i64".to_string(), TypeOut::new_value("i64", "long"));
-        types_out.insert("u64".to_string(), TypeOut::new_value("u64", "ulong"));
-        types_out.insert("f32".to_string(), TypeOut::new_value("f32", "float"));
-        types_out.insert("f64".to_string(), TypeOut::new_value("f64", "double"));
-        types_out.insert("NumID".to_string(), TypeOut::new_value("NumID", "ulong"));
-        types_out.insert("StrID".to_string(), TypeOut::new_value("StrID", "Symbol"));
-        types_out.insert("Symbol".to_string(), TypeOut::new_value("Symbol", "Symbol"));
-        types_out.insert("[f32; 2]".to_string(), TypeOut::new_value("[f32; 2]", "Vec2"));
-        types_out.insert("[f32; 3]".to_string(), TypeOut::new_value("[f32; 3]", "Vec3"));
-        types_out.insert("Vec2".to_string(), TypeOut::new_value("Vec2", "Vec2"));
-        types_out.insert("Vec3".to_string(), TypeOut::new_value("Vec3", "Vec3"));
-        types_out.insert("Vec4".to_string(), TypeOut::new_value("Vec4", "Vec4"));
-        types_out.insert("Quat".to_string(), TypeOut::new_value("Quat", "Quat"));
-        types_out.insert("SoaVec3".to_string(), TypeOut::new_value("SoaVec3", "SoaVec3"));
-        types_out.insert("SoaQuat".to_string(), TypeOut::new_value("SoaQuat", "SoaQuat"));
+        types_out.insert("".into(), TypeOut::new_value("#error#", "#error#"));
+        types_out.insert("bool".into(), TypeOut::new_value("bool", "bool"));
+        types_out.insert("i8".into(), TypeOut::new_value("i8", "sbyte"));
+        types_out.insert("u8".into(), TypeOut::new_value("u8", "byte"));
+        types_out.insert("i16".into(), TypeOut::new_value("i16", "short"));
+        types_out.insert("u16".into(), TypeOut::new_value("u16", "ushort"));
+        types_out.insert("i32".into(), TypeOut::new_value("i32", "int"));
+        types_out.insert("u32".into(), TypeOut::new_value("u32", "uint"));
+        types_out.insert("i64".into(), TypeOut::new_value("i64", "long"));
+        types_out.insert("u64".into(), TypeOut::new_value("u64", "ulong"));
+        types_out.insert("f32".into(), TypeOut::new_value("f32", "float"));
+        types_out.insert("f64".into(), TypeOut::new_value("f64", "double"));
+        types_out.insert("NumID".into(), TypeOut::new_value("NumID", "ulong"));
+        types_out.insert("AStrID".into(), TypeOut::new_value("AStrID", "ASymbol"));
+        types_out.insert("ASymbol".into(), TypeOut::new_value("ASymbol", "ASymbol"));
+        types_out.insert("[f32; 2]".into(), TypeOut::new_value("[f32; 2]", "Vec2"));
+        types_out.insert("[f32; 3]".into(), TypeOut::new_value("[f32; 3]", "Vec3"));
+        types_out.insert("Vec2".into(), TypeOut::new_value("Vec2", "Vec2"));
+        types_out.insert("Vec3".into(), TypeOut::new_value("Vec3", "Vec3"));
+        types_out.insert("CsVec3A".into(), TypeOut::new_value("CsVec3A", "Vec3A"));
+        types_out.insert("CsVec4".into(), TypeOut::new_value("CsVec4", "Vec4"));
+        types_out.insert("CsQuat".into(), TypeOut::new_value("CsQuat", "Quat"));
         types_out.insert(
-            "SoaTransform".to_string(),
+            "CsTransform3A".into(),
+            TypeOut::new_value("CsTransform3A", "Transform3A"),
+        );
+        types_out.insert("SoaVec3".into(), TypeOut::new_value("SoaVec3", "SoaVec3"));
+        types_out.insert("SoaQuat".into(), TypeOut::new_value("SoaQuat", "SoaQuat"));
+        types_out.insert(
+            "SoaTransform".into(),
             TypeOut::new_value("SoaTransform", "SoaTransform"),
         );
-        types_out.insert("dyn StateAny".to_string(), TypeOut::new_trait("StateAny"));
-        types_out.insert("dyn StateAction".to_string(), TypeOut::new_trait("StateAction"));
+        types_out.insert("dyn StateAny".into(), TypeOut::new_trait("StateAny"));
+        types_out.insert("dyn StateAction".into(), TypeOut::new_trait("StateAction"));
 
         let mut bases = HashMap::new();
-        bases.insert("StateAnyBase".to_string(), BaseMeta::new("StateAnyBase", "DynStateAny"));
+        bases.insert("StateAnyBase".into(), BaseMeta::new("StateAnyBase", "DynStateAny"));
         bases.insert(
-            "StateActionBase".to_string(),
+            "StateActionBase".into(),
             BaseMeta::new("StateActionBase", "DynStateAction"),
         );
 

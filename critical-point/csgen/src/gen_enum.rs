@@ -22,7 +22,7 @@ pub fn parse_enum(input: &ItemEnum) -> Result<(String, Box<dyn Task>, TypeIn, Ty
     let rs_name = input.ident.to_string();
     let mut task = Box::new(TaskEnum {
         cs_name: rs_name.clone(),
-        cs_type: cs_type.to_string(),
+        cs_type: cs_type.into(),
         items: Vec::with_capacity(input.variants.len()),
     });
 

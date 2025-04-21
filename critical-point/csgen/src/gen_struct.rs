@@ -76,11 +76,11 @@ fn parse_type_path_in(path: &TypePath) -> Result<ParsedPathIn> {
     if RE_COMMON.is_match(&code) {
         Ok(ParsedPathIn::Type(code))
     } else if let Some(caps) = RE_GENERIC.captures(&code) {
-        let name = caps.get(1).unwrap().as_str().to_string();
+        let name = caps.get(1).unwrap().as_str().into();
         let args = caps
             .iter()
             .skip(2)
-            .filter_map(|m| m.map(|m| m.as_str().to_string()))
+            .filter_map(|m| m.map(|m| m.as_str().into()))
             .collect();
         Ok(ParsedPathIn::Generic(name, args))
     } else {
@@ -102,7 +102,7 @@ fn parse_type_array(array: &TypeArray, consts: &HashMap<String, u32>) -> Result<
         None => len.parse()?,
     };
     if typ == "f32" && len == 2 {
-        Ok(ParsedArray::Type("[f32; 2]".to_string()))
+        Ok(ParsedArray::Type("[f32; 2]".into()))
     } else {
         Ok(ParsedArray::Array(typ, len))
     }
@@ -163,7 +163,7 @@ impl Task for TaskStructIn {
             let typ = ctx
                 .types_in
                 .get(field.rs_type())
-                .ok_or_else(|| anyhow!("Unknown type {}", field.rs_type()))?;
+                .ok_or_else(|| anyhow!("Unknown type {} in {}", field.rs_type(), self.cs_name))?;
 
             match field {
                 FieldIn::Type { field, rs_type } => {
@@ -321,23 +321,23 @@ fn parse_type_path_out(path: &TypePath) -> Result<ParsedPathOut> {
     if RE_COMMON.is_match(&code) {
         Ok(ParsedPathOut::Type(code))
     } else if let Some(caps) = RE_BOX.captures(&code) {
-        let name = caps.get(1).unwrap().as_str().to_string();
+        let name = caps.get(1).unwrap().as_str().into();
         Ok(ParsedPathOut::Reference(name, ReferenceType::Box))
     } else if let Some(caps) = RE_ARC.captures(&code) {
-        let name = caps.get(1).unwrap().as_str().to_string();
+        let name = caps.get(1).unwrap().as_str().into();
         Ok(ParsedPathOut::Reference(name, ReferenceType::Arc))
     } else if let Some(caps) = RE_VEC_BOX.captures(&code) {
-        let name = caps.get(1).unwrap().as_str().to_string();
+        let name = caps.get(1).unwrap().as_str().into();
         Ok(ParsedPathOut::VecReference(name, ReferenceType::Box))
     } else if let Some(caps) = RE_VEC_ARC.captures(&code) {
-        let name = caps.get(1).unwrap().as_str().to_string();
+        let name = caps.get(1).unwrap().as_str().into();
         Ok(ParsedPathOut::VecReference(name, ReferenceType::Arc))
     } else if let Some(caps) = RE_GENERIC.captures(&code) {
-        let name = caps.get(1).unwrap().as_str().to_string();
+        let name = caps.get(1).unwrap().as_str().into();
         let args = caps
             .iter()
             .skip(2)
-            .filter_map(|m| m.map(|m| m.as_str().to_string()))
+            .filter_map(|m| m.map(|m| m.as_str().into()))
             .collect();
         Ok(ParsedPathOut::Generic(name, args))
     } else {
@@ -366,6 +366,7 @@ enum FieldOut {
     Reference {
         field: String,
         rs_type: String,
+        #[allow(dead_code)]
         ref_type: ReferenceType,
     },
     VecReference {
@@ -468,7 +469,7 @@ impl TaskStructOut {
             let typ = ctx
                 .types_out
                 .get(field.rs_type())
-                .ok_or_else(|| anyhow!("Unknown type {}", field.rs_type()))?;
+                .ok_or_else(|| anyhow!("Unknown type {} in {}", field.rs_type(), self.rs_name))?;
 
             match field {
                 FieldOut::Type { field, rs_type } => {
@@ -803,7 +804,7 @@ impl TaskStructOut {
             let typ = ctx
                 .types_out
                 .get(field.rs_type())
-                .ok_or_else(|| anyhow!("Unknown type {}", field.rs_type()))?;
+                .ok_or_else(|| anyhow!("Unknown type {} in {}", field.rs_type(), self.rs_name))?;
 
             match field {
                 FieldOut::Type { field, rs_type } => {
