@@ -16,12 +16,12 @@ pub enum TypeIn {
 
 impl TypeIn {
     pub fn new_primitive(name: &str) -> TypeIn {
-        TypeIn::Primitive(TypePrimitive { name: name.to_string() })
+        TypeIn::Primitive(TypePrimitive { name: name.into() })
     }
 
     pub fn new_generic(name: &str, param_count: usize) -> TypeIn {
         TypeIn::Generic(TypeGeneric {
-            name: name.to_string(),
+            name: name.into(),
             param_count,
         })
     }
@@ -39,48 +39,43 @@ pub struct TypeGeneric {
 pub enum TypeOut {
     Value(TypeValue),
     Reference(TypeReference),
-    Placeholder(TypePlaceholder),
 }
 
 impl TypeOut {
     pub fn new_value(rs_name: &str, cs_name: &str) -> TypeOut {
         TypeOut::Value(TypeValue {
-            rs_name: rs_name.to_string(),
-            cs_name: cs_name.to_string(),
+            rs_name: rs_name.into(),
+            cs_name: cs_name.into(),
             is_primitive: false,
         })
     }
 
+    #[allow(dead_code)]
     pub fn new_primitive(rs_name: &str, cs_name: &str) -> TypeOut {
         TypeOut::Value(TypeValue {
-            rs_name: rs_name.to_string(),
-            cs_name: cs_name.to_string(),
+            rs_name: rs_name.into(),
+            cs_name: cs_name.into(),
             is_primitive: true,
         })
     }
 
     pub fn new_reference(rs_name: &str) -> TypeOut {
         TypeOut::Reference(TypeReference {
-            rs_name: rs_name.to_string(),
+            rs_name: rs_name.into(),
             is_trait: false,
         })
     }
 
     pub fn new_trait(rs_name: &str) -> TypeOut {
         TypeOut::Reference(TypeReference {
-            rs_name: rs_name.to_string(),
+            rs_name: rs_name.into(),
             is_trait: true,
-        })
-    }
-
-    pub fn new_placeholder(rs_name: &str) -> TypeOut {
-        TypeOut::Placeholder(TypePlaceholder {
-            rs_name: rs_name.to_string(),
         })
     }
 }
 
 pub struct TypeValue {
+    #[allow(dead_code)]
     pub rs_name: String,
     pub cs_name: String,
     pub is_primitive: bool,
@@ -91,15 +86,12 @@ pub struct TypeReference {
     pub is_trait: bool,
 }
 
-pub struct TypePlaceholder {
-    pub rs_name: String,
-}
-
 //
 // Base
 //
 
 pub struct BaseMeta {
+    #[allow(dead_code)]
     pub rs_base_name: String,
     pub rs_trait_name: String,
     pub rs_derives: Vec<String>,
@@ -109,8 +101,8 @@ pub struct BaseMeta {
 impl BaseMeta {
     pub fn new(rs_base_name: &str, rs_trait_name: &str) -> BaseMeta {
         BaseMeta {
-            rs_base_name: rs_base_name.to_string(),
-            rs_trait_name: rs_trait_name.to_string(),
+            rs_base_name: rs_base_name.into(),
+            rs_trait_name: rs_trait_name.into(),
             rs_derives: Vec::new(),
             code: String::new(),
         }
@@ -150,10 +142,6 @@ impl Lines {
         self.0.push(line);
     }
 
-    pub fn concat(&mut self, lines: Lines) {
-        self.0.extend(lines.0);
-    }
-
     pub fn join(&self) -> String {
         self.0.join("\r\n")
     }
@@ -161,7 +149,7 @@ impl Lines {
 
 impl<T: AsRef<str>> AddAssign<T> for Lines {
     fn add_assign(&mut self, rhs: T) {
-        self.push(rhs.as_ref().to_string());
+        self.push(rhs.as_ref().into());
     }
 }
 
