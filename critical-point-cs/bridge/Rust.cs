@@ -4,17 +4,17 @@ using System.Runtime.InteropServices;
 
 namespace CriticalPoint {
 
-    public struct Symbol {
+    public struct ASymbol {
         private nint _n;
 
         public bool IsNull { get => _n == 0; }
 
-        public static bool operator ==(Symbol lhs, Symbol rhs) => lhs._n == rhs._n;
-        public static bool operator !=(Symbol lhs, Symbol rhs) => lhs._n != rhs._n;
+        public static bool operator ==(ASymbol lhs, ASymbol rhs) => lhs._n == rhs._n;
+        public static bool operator !=(ASymbol lhs, ASymbol rhs) => lhs._n != rhs._n;
 
-        public override bool Equals(object? obj) => obj is Symbol s && _n == s._n;
+        public override bool Equals(object? obj) => obj is ASymbol s && _n == s._n;
 
-        public static explicit operator nint(Symbol s) => s._n;
+        public static explicit operator nint(ASymbol s) => s._n;
 
         public override int GetHashCode() => _n.GetHashCode();
 
@@ -31,9 +31,9 @@ namespace CriticalPoint {
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Symbol new_symbol([MarshalAs(UnmanagedType.LPStr)] string str);
+        private static extern unsafe ASymbol new_symbol([MarshalAs(UnmanagedType.LPStr)] string str);
 
-        internal Symbol(string str) => this = new_symbol(str);
+        internal ASymbol(string str) => this = new_symbol(str);
     }
 
     internal struct Return<T> where T : unmanaged {

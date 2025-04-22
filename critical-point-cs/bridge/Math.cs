@@ -1,6 +1,6 @@
 ﻿using MessagePack.Formatters;
 using MessagePack;
-using System.Runtime.Intrinsics;
+using System;
 using System.Runtime.InteropServices;
 
 using Cs = System.Numerics;
@@ -58,6 +58,9 @@ namespace CriticalPoint {
 
         public static readonly Vec2 ZERO = new Vec2(0, 0);
         public bool IsZero => x == 0 && y == 0;
+
+        public static readonly Vec2 ONE = new Vec2(1, 1);
+        public bool IsOne => x == 1 && y == 1;
     }
 
     public class Vec2Formatter : IMessagePackFormatter<Vec2> {
@@ -83,7 +86,6 @@ namespace CriticalPoint {
     // glam Vec3
     //
 
-    [StructLayout(LayoutKind.Sequential, Pack=4)]
     public struct Vec3 : IEquatable<Vec3> {
         public float x;
         public float y;
@@ -115,9 +117,11 @@ namespace CriticalPoint {
         }
 
         public bool Equals(Vec3 other) => x == other.x && y == other.y && z == other.z;
+        public bool Equals(Vec3A other) => x == other.x && y == other.y && z == other.z;
 
         public static explicit operator Vec3(Cs.Vector3 v) => new Vec3(v.X, v.Y, v.Z);
         public static explicit operator Cs.Vector3(Vec3 v) => new Cs.Vector3(v.x, v.y, v.z);
+        public static explicit operator Vec3A(Vec3 v) => new Vec3A(v.x, v.y, v.z);
 
 #if GODOT
         public static explicit operator Vec3(Gd.Vector3 v) => new Vec3(v.X, v.Y, v.Z);
@@ -129,6 +133,9 @@ namespace CriticalPoint {
 
         public static readonly Vec3 ZERO = new Vec3(0, 0, 0);
         public bool IsZero => x == 0 && y == 0 && z == 0;
+
+        public static readonly Vec3 ONE = new Vec3(1, 1, 1);
+        public bool IsOne => x == 1 && y == 1 && z == 1;
     }
 
     public class Vec3Formatter : IMessagePackFormatter<Vec3> {
@@ -152,16 +159,94 @@ namespace CriticalPoint {
     }
 
     //
+    // glam Vec3A
+    //
+
+    [StructLayout(LayoutKind.Sequential, Pack=4)]
+    public struct Vec3A : IEquatable<Vec3A> {
+        public float x;
+        public float y;
+        public float z;
+        public float _;
+
+        public Vec3A(float x, float y, float z) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this._ = 0;
+        }
+
+        internal float this[int i] {
+            get {
+                switch (i) {
+                    case 0: return x;
+                    case 1: return y;
+                    case 2: return z;
+                    default: throw new IndexOutOfRangeException();
+                }
+            }
+            set {
+                switch (i) {
+                    case 0: x = value; break;
+                    case 1: y = value; break;
+                    case 2: z = value; break;
+                    default: throw new IndexOutOfRangeException();
+                }
+            }
+        }
+
+        public bool Equals(Vec3A other) => x == other.x && y == other.y && z == other.z;
+        public bool Equals(Vec3 other) => x == other.x && y == other.y && z == other.z;
+
+        public static explicit operator Vec3A(Cs.Vector3 v) => new Vec3A(v.X, v.Y, v.Z);
+        public static explicit operator Cs.Vector3(Vec3A v) => new Cs.Vector3(v.x, v.y, v.z);
+        public static explicit operator Vec3A(Vec3 v) => new Vec3A(v.x, v.y, v.z);
+
+#if GODOT
+        public static explicit operator Vec3A(Gd.Vector3 v) => new Vec3A(v.X, v.Y, v.Z);
+        public static explicit operator Gd.Vector3(Vec3A v) => new Gd.Vector3(v.x, v.y, v.z);
+#elif UNITY_EDITOR || UNITY_STANDALONE
+        public static explicit operator Vec3A(U3d.Vector3 v) => new Vec3A(v.x, v.y, v.z);
+        public static explicit operator U3d.Vector3(Vec3A v) => new U3d.Vector3(v.x, v.y, v.z);
+#endif
+
+        public static readonly Vec3A ZERO = new Vec3A(0, 0, 0);
+        public bool IsZero => x == 0 && y == 0 && z == 0;
+
+        public static readonly Vec3A ONE = new Vec3A(1, 1, 1);
+        public bool IsOne => x == 1 && y == 1 && z == 1;
+    }
+
+    public class Vec3AFormatter : IMessagePackFormatter<Vec3A> {
+        public void Serialize(ref MessagePackWriter writer, Vec3A vec3, MessagePackSerializerOptions options) {
+            writer.WriteArrayHeader(3);
+            writer.Write(vec3.x);
+            writer.Write(vec3.y);
+            writer.Write(vec3.z);
+        }
+
+        public Vec3A Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) {
+            if (reader.TryReadNil()) {
+                return new Vec3A();
+            }
+            int count = reader.ReadArrayHeader();
+            if (count != 3) {
+                throw new MessagePackSerializationException("Invalid Vec3A format");
+            }
+            return new Vec3A(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+        }
+    }
+
+    //
     // glam Vec4
     //
 
-    [StructLayout(LayoutKind.Explicit, Size = 16, Pack=16)]
+    [StructLayout(LayoutKind.Sequential, Pack=4)]
     public struct Vec4 : IEquatable<Vec4> {
-        [FieldOffset(0)] private Vector128<float> _simd;
-        [FieldOffset(0)] public float x;
-        [FieldOffset(4)] public float y;
-        [FieldOffset(8)] public float z;
-        [FieldOffset(12)] public float w;
+        public float x;
+        public float y;
+        public float z;
+        public float w;
 
         public Vec4(float x, float y, float z, float w) {
             this.x = x;
@@ -206,11 +291,14 @@ namespace CriticalPoint {
 
         public static readonly Vec4 ZERO = new Vec4(0, 0, 0, 0);
         public bool IsZero => x == 0 && y == 0 && z == 0 && w == 0;
+
+        public static readonly Vec4 ONE = new Vec4(1, 1, 1, 1);
+        public bool IsOne => x == 1 && y == 1 && z == 1 && w == 1;
     }
 
     public class Vec4Formatter : IMessagePackFormatter<Vec4> {
         public void Serialize(ref MessagePackWriter writer, Vec4 vec4, MessagePackSerializerOptions options) {
-            writer.WriteArrayHeader(3);
+            writer.WriteArrayHeader(4);
             writer.Write(vec4.x);
             writer.Write(vec4.y);
             writer.Write(vec4.z);
@@ -233,13 +321,12 @@ namespace CriticalPoint {
     // glam Quat
     //
 
-    [StructLayout(LayoutKind.Explicit, Size = 16, Pack = 16)]
+    [StructLayout(LayoutKind.Sequential, Pack=4)]
     public struct Quat : IEquatable<Quat> {
-        [FieldOffset(0)] private Vector128<float> _simd;
-        [FieldOffset(0)] public float x;
-        [FieldOffset(4)] public float y;
-        [FieldOffset(8)] public float z;
-        [FieldOffset(12)] public float w;
+        public float x;
+        public float y;
+        public float z;
+        public float w;
 
         public Quat(float x, float y, float z, float w) {
             this.x = x;
@@ -270,7 +357,7 @@ namespace CriticalPoint {
 
     public class QuatFormatter : IMessagePackFormatter<Quat> {
         public void Serialize(ref MessagePackWriter writer, Quat quat, MessagePackSerializerOptions options) {
-            writer.WriteArrayHeader(3);
+            writer.WriteArrayHeader(4);
             writer.Write(quat.x);
             writer.Write(quat.y);
             writer.Write(quat.z);
@@ -398,6 +485,65 @@ namespace CriticalPoint {
                 new Vec4(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()),
                 new Vec4(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle())
             );
+        }
+    }
+
+    //
+    // glam Transform3A
+    //
+
+    [StructLayout(LayoutKind.Sequential, Pack=4)]
+    public struct Transform3A : IEquatable<Transform3A> {
+        public Vec3A translation;
+        public Quat rotation;
+        public Vec3A scale;
+
+        public Transform3A(Vec3A translation, Quat rotation, Vec3A scale) {
+            this.translation = translation;
+            this.rotation = rotation;
+            this.scale = scale;
+        }
+
+        public bool Equals(Transform3A other) {
+            return translation.Equals(other.translation)
+                && rotation.Equals(other.rotation)
+                && scale.Equals(other.scale);
+        }
+
+        public static readonly Transform3A ZERO = new Transform3A(Vec3A.ZERO, Quat.IDENTITY, Vec3A.ONE);
+        public bool IsZero => translation.IsZero && rotation.IsZero && scale.IsZero;
+
+        public static readonly Transform3A IDENTITY = new Transform3A(Vec3A.ZERO, Quat.IDENTITY, Vec3A.ONE);
+        public bool IsIdentity => translation.IsZero && rotation.IsIdentity && scale.IsOne;
+    }
+
+    public class Transform3AFormatter : IMessagePackFormatter<Transform3A> {
+        public void Serialize(ref MessagePackWriter writer, Transform3A transform, MessagePackSerializerOptions options) {
+            writer.WriteArrayHeader(10);
+            writer.Write(transform.translation.x);
+            writer.Write(transform.translation.y);
+            writer.Write(transform.translation.z);
+            writer.Write(transform.rotation.x);
+            writer.Write(transform.rotation.y);
+            writer.Write(transform.rotation.z);
+            writer.Write(transform.rotation.w);
+            writer.Write(transform.scale.x);
+            writer.Write(transform.scale.y);
+            writer.Write(transform.scale.z);
+        }
+
+        public Transform3A Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) {
+            if (reader.TryReadNil()) {
+                return new Transform3A();
+            }
+            int count = reader.ReadArrayHeader();
+            if (count != 10) {
+                throw new MessagePackSerializationException("Invalid Transform3A format");
+            }
+            Vec3A translation = new Vec3A(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            Quat rotation = new Quat(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            Vec3A scale = new Vec3A(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            return new Transform3A(translation, rotation, scale);
         }
     }
 

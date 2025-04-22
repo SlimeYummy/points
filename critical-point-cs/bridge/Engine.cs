@@ -86,7 +86,7 @@ namespace CriticalPoint {
             uint events_len
         );
 
-        public VecArcStateSet UpdateGame(List<PlayerKeyEvents> events) {
+        public VecArcStateSet UpdateGame(List<InputPlayerEvents> events) {
             byte[] events_bytes = MessagePackSerializer.Serialize(events, Static.MsgPackOpts);
             unsafe {
                 fixed (byte* events_ptr = events_bytes) {
