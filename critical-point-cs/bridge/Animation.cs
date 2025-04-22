@@ -135,31 +135,31 @@ namespace CriticalPoint {
         [DllImport("critical_point_csbridge.dll")]
         private static extern unsafe Return0 skeletal_resource_add_animation(
             IntPtr resource,
-            Symbol logic_path,
+            ASymbol logic_path,
             [MarshalAs(UnmanagedType.LPStr)] string view_path
         );
 
-        public void AddAnimation(Symbol logic_path, string view_path) {
+        public void AddAnimation(ASymbol logic_path, string view_path) {
             skeletal_resource_add_animation(_resource, logic_path, view_path).Unwrap();
         }
 
         [DllImport("critical_point_csbridge.dll")]
         private static extern unsafe Return0 skeletal_resource_remove_animation(
             IntPtr resource,
-            Symbol logic_path
+            ASymbol logic_path
         );
 
-        public void RemoveAnimation(Symbol logic_path) {
+        public void RemoveAnimation(ASymbol logic_path) {
             skeletal_resource_remove_animation(_resource, logic_path).Unwrap();
         }
 
         [DllImport("critical_point_csbridge.dll")]
         private static extern unsafe Return<byte> skeletal_resource_has_animation(
             IntPtr resource,
-            Symbol logic_path
+            ASymbol logic_path
         );
 
-        public bool HasAnimation(Symbol logic_path) {
+        public bool HasAnimation(ASymbol logic_path) {
             return skeletal_resource_has_animation(_resource, logic_path).Unwrap() != 0;
         }
     }
@@ -175,12 +175,11 @@ namespace CriticalPoint {
 
         [DllImport("critical_point_csbridge.dll")]
         private static extern unsafe Return<IntPtr> skeletal_player_create(
-            [MarshalAs(UnmanagedType.LPStr)] string skeleton_path,
-            [MarshalAs(UnmanagedType.U1)] bool skip_l2m
+            [MarshalAs(UnmanagedType.LPStr)] string skeleton_path
         );
 
-        public SkeletalPlayer(string skeleton_path, bool skip_l2m = false) {
-            _player = skeletal_player_create(skeleton_path, skip_l2m).Unwrap();
+        public SkeletalPlayer(string skeleton_path) {
+            _player = skeletal_player_create(skeleton_path).Unwrap();
         }
 
         [DllImport("critical_point_csbridge.dll")]
@@ -216,23 +215,52 @@ namespace CriticalPoint {
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Return0 skeletal_player_update(IntPtr playback, float delta);
+        private static extern unsafe Return<float> skeletal_player_duration(IntPtr playback);
 
-        public void Update(float delta) {
-            skeletal_player_update(_player, delta).Unwrap();
+        public float Duration() {
+            return skeletal_player_duration(_player).Unwrap();
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Return<RsSlice<SoaTransform>> skeletal_player_joint_rest_poses(IntPtr playback);
-        public RefSliceVal<SoaTransform> JointRestPoses() {
-            return new RefSliceVal<SoaTransform>(skeletal_player_joint_rest_poses(_player).Unwrap());
+        private static extern unsafe Return0 skeletal_player_set_progress(IntPtr playback, float progress);
+
+        public void SetProgress(float progress) {
+            skeletal_player_set_progress(_player, progress).Unwrap();
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Return<RsSlice<SoaTransform>> skeletal_player_local_out(IntPtr playback);
+        private static extern unsafe Return0 skeletal_player_add_progress(IntPtr playback, float delta);
 
-        public RefSliceVal<SoaTransform> LocalOut() {
-            return new RefSliceVal<SoaTransform>(skeletal_player_local_out(_player).Unwrap());
+        public void AddProgress(float delta) {
+            skeletal_player_add_progress(_player, delta).Unwrap();
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return0 skeletal_player_update(IntPtr playback);
+
+        public void Update() {
+            skeletal_player_update(_player).Unwrap();
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return<RsSlice<Transform3A>> skeletal_player_local_rest_poses(IntPtr playback);
+
+        public RefSliceVal<Transform3A> LocalRestPoses() {
+            return new RefSliceVal<Transform3A>(skeletal_player_local_rest_poses(_player).Unwrap());
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return<RsSlice<Mat4>> skeletal_player_model_rest_poses(IntPtr playback);
+
+        public RefSliceVal<Mat4> ModelRestPoses() {
+            return new RefSliceVal<Mat4>(skeletal_player_model_rest_poses(_player).Unwrap());
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return<RsSlice<Transform3A>> skeletal_player_local_out(IntPtr playback);
+
+        public RefSliceVal<Transform3A> LocalOut() {
+            return new RefSliceVal<Transform3A>(skeletal_player_local_out(_player).Unwrap());
         }
 
         [DllImport("critical_point_csbridge.dll")]

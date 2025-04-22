@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="GodotSharp" Version="4.3.0" />
-    <PackageReference Include="MessagePack" Version="2.5.172" />
+    <PackageReference Include="MessagePack" Version="2.5.187" />
   </ItemGroup>
 
   <ItemGroup>
