@@ -4,9 +4,9 @@ using System.Runtime.InteropServices;
 namespace CriticalPointTests {
     [TestClass]
     public class TestSkeletonResource {
-        const string ASSET_PATH = "../../../../../critical-point/test-asset/";
-        const string SKELETON = "girl_skeleton_logic.ozz";
-        const string ANIMATION = "girl_animation_logic_stand_idle.ozz";
+        const string ASSET_PATH = "../../../../../turning-point/test-assets/";
+        const string SKELETON = "view_skel.ozz";
+        const string ANIMATION = "view_anim.ozz";
 
         [TestMethod]
         public void TestNewDelete() {
@@ -28,9 +28,9 @@ namespace CriticalPointTests {
 
     [TestClass]
     public class TestSkeletonAnimator {
-        const string ASSET_PATH = "../../../../../critical-point/test-asset/";
-        const string SKELETON = "girl_skeleton_logic.ozz";
-        const string ANIMATION = "girl_animation_logic_stand_idle.ozz";
+        const string ASSET_PATH = "../../../../../turning-point/test-assets/";
+        const string SKELETON = "view_skel.ozz";
+        const string ANIMATION = "view_anim.ozz";
 
         [TestMethod]
         public void TestNewDelete() {
@@ -87,9 +87,9 @@ namespace CriticalPointTests {
     
     [TestClass]
     public class TestOzzPlayer {
-        const string ASSET_PATH = "../../../../../critical-point/test-asset/";
-        const string SKELETON = "girl_skeleton_logic.ozz";
-        const string ANIMATION = "girl_animation_logic_stand_idle.ozz";
+        const string ASSET_PATH = "../../../../../turning-point/test-assets/";
+        const string SKELETON = "view_skel.ozz";
+        const string ANIMATION = "view_anim.ozz";
         
         [TestMethod]
         public void TestNewDelete() {
@@ -122,7 +122,8 @@ namespace CriticalPointTests {
         public void TestUpdate() {
             using (var player = new SkeletalPlayer(ASSET_PATH + SKELETON)) {
                 player.SetAnimation(ASSET_PATH + ANIMATION);
-                player.Update(0.0f);
+                player.AddProgress(0.05f);
+                player.Update();
                 var local_out = player.LocalOut();
                 var a = local_out[0];
                 Assert.AreEqual(17, local_out.Length);

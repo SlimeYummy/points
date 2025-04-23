@@ -3,13 +3,13 @@
 namespace CriticalPointTests {
     [TestClass]
     public class TestEngine {
-        const string TMPL_PATH = "../../../../../critical-point/test-res";
-        const string ASSET_PATH = "../../../../../critical-point/test-asset";
+        const string TMPL_PATH = "../../../../../turning-point/test-templates";
+        const string ASSET_PATH = "../../../../../turning-point/test-assets";
 
         [TestMethod]
         public void TestNewDelete() {
             Assert.ThrowsException<EngineException>(() => {
-                LogicEngine engine = new LogicEngine("./test-res", "./test-asset");
+                LogicEngine engine = new LogicEngine("./test-templates", "./test-assets");
             });
 
             LogicEngine engine = new LogicEngine(TMPL_PATH, ASSET_PATH);
@@ -74,12 +74,12 @@ namespace CriticalPointTests {
                 Assert.AreEqual(state_set.inits.Length, 3);
                 state_set.Dispose();
 
-                var state_sets = engine.UpdateGame(new List<PlayerKeyEvents> {
-                    new PlayerKeyEvents {
+                var state_sets = engine.UpdateGame(new List<PlayerEvents> {
+                    new PlayerEvents {
                         frame = 1,
-                        player_id = 3,
+                        player_id = 100,
                         events = new List<KeyEvent> {
-                             new KeyEvent { key = KeyCode.Attack1, pressed = true },
+                             new KeyEvent { key = RawKey.Attack1, pressed = true },
                         },
                     }
                 });
