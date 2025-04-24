@@ -1,3 +1,5 @@
+import { checkArray } from './builtin';
+
 export type IDPrefix =
     | '#'
     | 'Character'
@@ -38,28 +40,12 @@ export function parseIDArray(
         len?: number;
         min_len?: number;
         max_len?: number;
-        add_first?: string;
         allow_conflict?: boolean;
     } = {},
 ): ReadonlyArray<string> {
-    if (!Array.isArray(raw)) {
-        throw new Error(`${where}: must be an array`);
-    }
-    if (opts.len !== undefined && raw.length !== opts.len) {
-        throw new Error(`${where}: len must = ${opts.len}`);
-    }
-    if (opts.min_len !== undefined && raw.length < opts.min_len) {
-        throw new Error(`${where}: length must be > ${opts.min_len}`);
-    }
-    if (opts.max_len !== undefined && raw.length > opts.max_len) {
-        throw new Error(`${where}: length must be < ${opts.max_len}`);
-    }
+    checkArray(raw, where, opts);
 
     const res: Array<string> = [];
-    if (typeof opts.add_first === 'string') {
-        res.push(opts.add_first);
-    }
-
     for (const [idx, id] of Array.from(raw.entries())) {
         if (!opts.allow_conflict && res.find((x) => x == id)) {
             throw new Error(`${where}[${idx}]: ID conflict`);
