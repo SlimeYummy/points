@@ -1,5 +1,5 @@
+import path from 'node:path';
 import { FPS } from './config';
-import path from 'path';
 
 export type int = number;
 export type float = number;
@@ -38,54 +38,6 @@ export function parseInt(
         throw new Error(`${where}: must <= ${opts.max}`);
     }
     return Math.round(raw as number);
-}
-
-const RE_TIME = /^(\d+(?:\.\d+)*)(s|m|h|ms|min)$/;
-
-function str2time(s: string): int {
-    const match = RE_TIME.exec(s);
-    if (!match || !match[1]) throw new Error('Invalid time');
-
-    const tm = Number.parseInt(match[1]);
-    switch (match[2]) {
-        case 's':
-            return Math.round(FPS * tm);
-        case 'm':
-        case 'min':
-            return Math.round(FPS * tm * 60);
-        case 'h':
-            return Math.round(FPS * tm * 60 * 24);
-        case 'ms':
-            return Math.round((FPS * tm) / 1000);
-        default:
-            throw new Error('Invalid time');
-    }
-}
-
-export function parseTime(
-    raw: int | string,
-    where: string,
-    opts: {
-        min?: int;
-        max?: int;
-    } = {},
-): int {
-    let res = 0;
-    if (typeof raw === 'number') {
-        res = raw;
-    } else if (typeof raw === 'string') {
-        res = str2time(raw);
-    } else {
-        throw new Error(`${where}: must be a int/time`);
-    }
-
-    if (opts.min !== undefined && res < opts.min) {
-        throw new Error(`${where}: must >= ${opts.min}`);
-    }
-    if (opts.max !== undefined && res > opts.max) {
-        throw new Error(`${where}: must <= ${opts.max}`);
-    }
-    return Math.round(res);
 }
 
 const RE_PERCENT = /^\d+(?:\.\d+)?%$/;
@@ -127,43 +79,70 @@ export function checkArray<T>(
         len?: int;
         min_len?: int;
         max_len?: int;
+        ascend?: boolean;
+        descend?: boolean;
     } = {},
 ): ReadonlyArray<T> {
     if (!Array.isArray(raw)) {
         throw new Error(`${where}: must be an array`);
     }
     if (opts.len !== undefined && raw.length !== opts.len) {
-        throw new Error(`${where}: len must = ${opts.len}`);
+        throw new Error(`${where}: length must = ${opts.len}`);
     }
     if (opts.min_len !== undefined && raw.length < opts.min_len) {
-        throw new Error(`${where}: length must > ${opts.min_len}`);
+        throw new Error(`${where}: length must >= ${opts.min_len}`);
     }
     if (opts.max_len !== undefined && raw.length > opts.max_len) {
-        throw new Error(`${where}: length must < ${opts.max_len}`);
+        throw new Error(`${where}: length must <= ${opts.max_len}`);
     }
     return raw;
 }
 
-export function parseArray<T>(
-    raw: ReadonlyArray<T>,
+export function checkOrder(
+    raw: ReadonlyArray<number>,
     where: string,
+    opts: {
+        ascend?: boolean;
+        descend?: boolean;
+    } = {},
+) {
+    if (opts.ascend) {
+        let prev = -Infinity;
+        for (const [idx, item] of raw.entries()) {
+            if (item < prev) {
+                throw new Error(`${where}[${idx}]: must be ascend`);
+            }
+            prev = item;
+        }
+    }
+    if (opts.descend) {
+        let prev = Infinity;
+        for (const [idx, item] of raw.entries()) {
+            if (item > prev) {
+                throw new Error(`${where}[${idx}]: must be descend`);
+            }
+            prev = item;
+        }
+    }
+}
+
+export function parseArray<R, T>(
+    raw: ReadonlyArray<R>,
+    where: string,
+    callback: (value: R, where: string) => T,
     opts: {
         len?: int;
         min_len?: int;
         max_len?: int;
-        add_first?: T;
     } = {},
 ): ReadonlyArray<T> {
     checkArray(raw, where, opts);
 
-    if (!opts.add_first) {
-        return Array.from(raw);
+    const res: Array<T> = [];
+    for (const [idx, item] of raw.entries()) {
+        res.push(callback(item, `${where}[${idx}]`));
     }
-    const array = [opts.add_first];
-    for (let idx = 0; idx < array.length; ++idx) {
-        array.push(raw[idx]!);
-    }
-    return array;
+    return res;
 }
 
 export function parseBoolArray(
@@ -173,15 +152,11 @@ export function parseBoolArray(
         len?: int;
         min_len?: int;
         max_len?: int;
-        add_first?: boolean;
     } = {},
 ): ReadonlyArray<boolean> {
     checkArray(raw, where, opts);
 
     const res = [];
-    if (opts.add_first !== undefined) {
-        res.push(opts.add_first);
-    }
     for (const [idx, item] of raw.entries()) {
         res.push(parseBool(item, `${where}[${idx}]`));
     }
@@ -198,13 +173,15 @@ export function parseIntArray(
         min_len?: int;
         max_len?: int;
         allow_bool?: boolean;
+        ascend?: boolean;
+        descend?: boolean;
         add_first?: int;
     } = {},
 ): ReadonlyArray<int> {
     checkArray(raw, where, opts);
 
     const res = [];
-    if (opts.add_first !== undefined) {
+    if (typeof opts.add_first === 'number') {
         res.push(opts.add_first);
     }
     for (const [idx, item] of raw.entries()) {
@@ -216,6 +193,10 @@ export function parseIntArray(
             }),
         );
     }
+    checkOrder(typeof opts.add_first === 'number' ? res.slice(1) : res, where, {
+        ascend: opts.ascend,
+        descend: opts.descend,
+    });
     return res;
 }
 
@@ -234,50 +215,6 @@ export function parseIntRange(
     return res as [int, int];
 }
 
-export function parseTimeArray(
-    raw: ReadonlyArray<int | string>,
-    where: string,
-    opts: {
-        min?: int;
-        max?: int;
-        len?: int;
-        min_len?: int;
-        max_len?: int;
-        add_first?: int;
-    } = {},
-): ReadonlyArray<int> {
-    checkArray(raw, where, opts);
-
-    const res = [];
-    if (opts.add_first !== undefined) {
-        res.push(opts.add_first);
-    }
-    for (const [idx, item] of raw.entries()) {
-        res.push(
-            parseTime(item, `${where}[${idx}]`, {
-                min: opts.min,
-                max: opts.max,
-            }),
-        );
-    }
-    return res;
-}
-
-export function parseTimeRange(
-    raw: ReadonlyArray<int | string>,
-    where: string,
-    opts: {
-        min?: int;
-        max?: int;
-    } = {},
-): readonly [int, int] {
-    const res = parseTimeArray(raw, where, { ...opts, len: 2 });
-    if (res && res[0]! > res[1]!) {
-        throw new Error(`${where}: range[0] must < range[1]`);
-    }
-    return res as [int, int];
-}
-
 export function parseFloatArray(
     raw: ReadonlyArray<float | string>,
     where: string,
@@ -287,13 +224,15 @@ export function parseFloatArray(
         len?: int;
         min_len?: int;
         max_len?: int;
+        ascend?: boolean;
+        descend?: boolean;
         add_first?: float;
     } = {},
 ): ReadonlyArray<float> {
     checkArray(raw, where, opts);
 
     const res = [];
-    if (opts.add_first !== undefined) {
+    if (typeof opts.add_first === 'number') {
         res.push(opts.add_first);
     }
     for (const [idx, item] of raw.entries()) {
@@ -304,6 +243,10 @@ export function parseFloatArray(
             }),
         );
     }
+    checkOrder(typeof opts.add_first === 'number' ? res.slice(1) : res, where, {
+        ascend: opts.ascend,
+        descend: opts.descend,
+    });
     return res;
 }
 
@@ -335,13 +278,13 @@ export function parseString(
         throw new Error(`${where}: must be a string`);
     }
     if (opts.min_len !== undefined && raw.length < opts.min_len) {
-        throw new Error(`${where}: length must > ${opts.min_len}`);
+        throw new Error(`${where}: length must >= ${opts.min_len}`);
     }
     if (opts.max_len !== undefined && raw.length > opts.max_len) {
-        throw new Error(`${where}: length must < ${opts.max_len}`);
+        throw new Error(`${where}: length must <= ${opts.max_len}`);
     }
     if (opts.regex && !opts.regex.test(raw)) {
-        throw new Error(`${where}: must match "${opts.regex}"`);
+        throw new Error(`${where}: must match ${opts.regex}`);
     }
     return raw;
 }
