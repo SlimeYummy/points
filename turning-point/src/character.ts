@@ -13,8 +13,10 @@ import {
     parseIDArray,
     parseIntRange,
     parseString,
+    parseVec2,
 } from './common';
 import { Resource } from './resource';
+import { Action } from './action';
 import {
     parseAttributeTable,
     PRIMARY_ATTRIBUTES,
@@ -24,13 +26,14 @@ import {
 } from './attribute';
 import { Equipment } from './equipment';
 import { parseJevelSlotsArray } from './jewel';
+import { Perk } from './perk';
 
 export type CharacterArgs = {
     /** 角色名字 */
     name: string;
 
     /** 最大等级 */
-    level: [int, int];
+    level: readonly [int, int];
 
     /** 风格ID列表 */
     styles: ReadonlyArray<ID>;
@@ -41,11 +44,15 @@ export type CharacterArgs = {
     /** 用于移动的包围胶囊体 */
     bounding_capsule: Capsule;
 
-    /** 用于骨骼动画的模型文件(ozz) */
-    skeleton: FilePath;
+    /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
+     * - xxx.logic-skel.ozz 逻辑骨骼
+     * - xxx.view-skel.ozz 视图骨骼
+     * - xxx.target.rkyv (.json)角色判定体（包围盒）
+     */
+    skeleton_files: FilePath;
 
-    /** 绑定在骨骼动画上的受击包围盒配置文件 */
-    target_box: FilePath;
+    /** 模型在XZ平面上的朝向（正面方向） */
+    skeleton_toward: readonly [float, float];
 };
 
 /**
@@ -54,7 +61,7 @@ export type CharacterArgs = {
  * Character里包含该角色所有Style通用的数据。
  */
 export class Character extends Resource {
-    public static override prefix: IDPrefix = 'Character';
+    public static override readonly prefix: IDPrefix = 'Character';
 
     public static override find(id: string, where: string): Character {
         const res = Resource.find(id, where);
@@ -80,10 +87,10 @@ export class Character extends Resource {
     public readonly bounding_capsule: Capsule;
 
     /** 用于骨骼动画的模型文件(ozz) */
-    public readonly skeleton: FilePath;
+    public readonly skeleton_files: FilePath;
 
-    /** 绑定在骨骼动画上的受击包围盒配置文件 */
-    public readonly target_box: FilePath;
+    /** 模型在XZ平面上的朝向（正面方向） */
+    public readonly skeleton_toward: readonly [float, float];
 
     public constructor(id: ID, args: CharacterArgs) {
         super(id);
@@ -96,8 +103,10 @@ export class Character extends Resource {
             Capsule,
             this.w('bounding_capsule'),
         );
-        this.skeleton = parseFile(args.skeleton, this.w('skeleton'), { extension: '.ozz' });
-        this.target_box = parseFile(args.target_box, this.w('target_box'));
+        this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'));
+        this.skeleton_toward = parseVec2(args.skeleton_toward, this.w('skeleton_toward'), {
+            normalized: true,
+        });
     }
 
     public override verify() {
@@ -149,7 +158,7 @@ export type StyleArgs = {
 };
 
 export class Style extends Resource {
-    public static override prefix: IDPrefix = 'Style';
+    public static override readonly prefix: IDPrefix = 'Style';
 
     public static override find(id: string, where: string): Style {
         const res = Resource.find(id, where);
@@ -198,16 +207,27 @@ export class Style extends Resource {
             this.w('attributes'),
         );
         this.slots = parseJevelSlotsArray(args.slots, this.w('slots'));
-        this.fixed_attributes = parseFixedAttributes(
+        this.fixed_attributes = new FixedAttributes(
             args.fixed_attributes,
             this.w('fixed_attributes'),
         );
         this.perks = parseIDArray(args.perks, 'Perk', this.w('perks'));
-        this.usable_perks = !args.usable_perks
-            ? undefined
-            : parseIDArray(args.usable_perks, 'Perk', this.w('usable_perks'));
+        this.usable_perks = this.parseUsablePerks(args.usable_perks, args.perks);
         this.actions = parseIDArray(args.actions, 'Action', this.w('actions'));
         this.view_model = parseFile(args.view_model, this.w('view_model'), { extension: '.vrm' });
+    }
+
+    private parseUsablePerks(
+        usable_perks: ReadonlyArray<ID> | undefined,
+        perks: ReadonlyArray<ID>,
+    ): ReadonlyArray<ID> {
+        const all_perks = usable_perks ? [...usable_perks] : [];
+        for (const perk of perks) {
+            if (!all_perks.includes(perk)) {
+                all_perks.push(perk);
+            }
+        }
+        return parseIDArray(all_perks, 'Perk', this.w('usable_perks'));
     }
 
     public override verify() {
@@ -215,26 +235,36 @@ export class Style extends Resource {
         if (!character.styles.includes(this.id)) {
             throw this.e('character', 'Character and Style mismatch');
         }
-        const levels = character.level[1] - character.level[0] + 1;
 
-        for (const [attr, attributes] of Object.entries(this.attributes)) {
-            if (attributes.length !== levels) {
-                throw this.e(`attributes[${attr}]`, `len must = ${levels}`);
+        const level_count = character.level[1] - character.level[0] + 1;
+        for (const vals of Object.values(this.attributes)) {
+            if (vals.length !== level_count) {
+                throw this.e('attributes', `len must = ${vals.length}`);
             }
         }
 
-        if (this.slots.length !== levels) {
-            throw this.e('slots', `len must = ${levels}`);
+        for (const [idx, perk_id] of this.perks.entries()) {
+            const perk = Perk.find(perk_id, this.w(`perks[${idx}]`));
+            if (perk.style !== this.id) {
+                throw this.e(`perks[${idx}]`, 'Style and Perk mismatch');
+            }
         }
 
-        // for (const [idx, prek] of this.perks.entries()) {
-        // }
+        if (this.usable_perks) {
+            for (const [idx, perk_id] of this.usable_perks.entries()) {
+                const perk = Perk.find(perk_id, this.w(`usable_perks[${idx}]`));
+                if (!perk.usable_styles.includes(this.id)) {
+                    throw this.e(`usable_perks[${idx}]`, 'Style and Perk mismatch');
+                }
+            }
+        }
 
-        // for (const [idx, prek] of this.usable_perks.entries()) {
-        // }
-
-        // for (const [idx, prek] of this.actions.entries()) {
-        // }
+        for (const [idx, entry_id] of this.actions.entries()) {
+            const action = Action.find(entry_id, this.w(`actions[${idx}]`));
+            if (!action.styles.includes(this.id)) {
+                throw this.e(`actions[${idx}]`, 'Style and Action mismatch');
+            }
+        }
     }
 }
 
@@ -324,8 +354,4 @@ export class FixedAttributes {
             min: 0,
         });
     }
-}
-
-export function parseFixedAttributes(args: FixedAttributesArgs, where: string): FixedAttributes {
-    return new FixedAttributes(args, where);
 }

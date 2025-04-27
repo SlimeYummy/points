@@ -35,7 +35,7 @@ export type AccessoryPatternArgs = {
  * 装饰品随机词条池，用于控制饰品随机词条生成。
  */
 export class AccessoryPool extends Resource {
-    public static override prefix: IDPrefix = 'AccessoryPool';
+    public static override readonly prefix: IDPrefix = 'AccessoryPool';
 
     public static override find(id: string, where: string): AccessoryPool {
         const res = Resource.find(id, where);
@@ -148,7 +148,7 @@ export type AccessoryArgs = {
  * 装饰品，一类具有随机词条的物品，随机词条取决于AccessoryPool。
  */
 export class Accessory extends Resource {
-    public static override prefix: IDPrefix = 'Accessory';
+    public static override readonly prefix: IDPrefix = 'Accessory';
 
     public static override find(id: string, where: string): Accessory {
         const res = Resource.find(id, where);
