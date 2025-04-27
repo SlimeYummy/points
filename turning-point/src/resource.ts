@@ -1,16 +1,28 @@
+import fs from 'node:fs';
 import { ID, IDPrefix, RE_TMPL_ID_EXTRA } from './common';
-import fs from 'fs';
 
 export abstract class Resource {
     static #resources = new Map<string, Resource>();
     static #symbols = new Set<string>();
 
-    public static prefix?: IDPrefix = undefined;
+    public static readonly prefix?: IDPrefix = undefined;
 
     public readonly T: string;
     public readonly id: string;
 
     public abstract verify(): void;
+
+    public static newId(id: string, prefix: string) {
+        const match = RE_TMPL_ID_EXTRA.exec(id.slice(prefix.length));
+        if (!match) {
+            throw new Error(`<${id}>.id: must match ID pattern`);
+        }
+        for (let idx = 1; idx <= 3; idx += 1) {
+            if (match[idx]) {
+                Resource.#symbols.add(match[idx]!);
+            }
+        }
+    }
 
     constructor(id: string) {
         if (typeof id !== 'string') {
@@ -25,15 +37,7 @@ export abstract class Resource {
             throw new Error(`<${id}>.id: must start with "${prefix}"`);
         }
 
-        const match = RE_TMPL_ID_EXTRA.exec(id.slice(prefix.length));
-        if (!match) {
-            throw new Error(`<${id}>.id: must match ID pattern`);
-        }
-        for (let idx = 1; idx <= 3; idx += 1) {
-            if (match[idx]) {
-                Resource.#symbols.add(match[idx]!);
-            }
-        }
+        Resource.newId(id, prefix);
 
         if (Resource.#resources.has(id)) {
             throw new Error(`<${id}>.id: id cannot repeat`);
