@@ -71,7 +71,6 @@ export function parseJevelSlotsArray(
         len?: number;
         min_len?: number;
         max_len?: number;
-        add_first?: string | readonly [int, int, int];
     } = {},
 ): ReadonlyArray<readonly [int, int, int]> {
     if (!Array.isArray(slots)) {
@@ -88,9 +87,6 @@ export function parseJevelSlotsArray(
     }
 
     const res = [];
-    if (opts.add_first) {
-        res.push(parseJevelSlots(opts.add_first, where));
-    }
     for (const slot of slots) {
         res.push(parseJevelSlots(slot, where));
     }
@@ -144,7 +140,7 @@ export type JewelArgs = {
  * 宝石可以通过合成强化「+」值，具体参考词条中的「+」值。
  */
 export class Jewel extends Resource {
-    public static override prefix: IDPrefix = 'Jewel';
+    public static override readonly prefix: IDPrefix = 'Jewel';
 
     public static override find(id: string, where: string): Jewel {
         const res = Resource.find(id, where);
