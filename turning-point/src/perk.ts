@@ -36,19 +36,19 @@ export type PerkArgs = {
     /** 可以启用该天赋的角色风格 */
     usable_styles?: ReadonlyArray<ID>;
 
-    /** 最高等级 */
-    max_level: int;
-
     /** 天赋树中的父节点 {天赋ID: 等级} */
     parents?: Readonly<Record<ID, int>>;
 
+    /** 最高等级 */
+    max_level: int;
+
     /** 每一级的属性列表 */
     attributes?: Readonly<
-        Record<PrimaryAttribute | SecondaryAttribute, ReadonlyArray<float | string>>
+        Partial<Record<PrimaryAttribute | SecondaryAttribute, ReadonlyArray<float | string>>>
     >;
 
     /** 每一级的插槽列 */
-    slots: ReadonlyArray<string | readonly [int, int, int]>;
+    slots?: ReadonlyArray<string | readonly [int, int, int]>;
 
     /** 每一级的词条 */
     entries?: Readonly<Record<ID, ReadonlyArray<readonly [int, int]>>>;
@@ -61,7 +61,7 @@ export type PerkArgs = {
  * 天赋点 即天赋树上的天赋加点
  */
 export class Perk extends Resource {
-    public static override prefix: IDPrefix = 'Perk';
+    public static override readonly prefix: IDPrefix = 'Perk';
 
     public static override find(id: string, where: string): Perk {
         const res = Resource.find(id, where);
@@ -83,15 +83,15 @@ export class Perk extends Resource {
     /** 可以启用该天赋的角色风格 */
     public readonly usable_styles: ReadonlyArray<ID>;
 
-    /** 最高等级 */
-    public readonly max_level: int;
-
     /** 天赋树中的父节点 {天赋ID: 等级} */
     public readonly parents?: Readonly<Record<ID, int>>;
 
+    /** 最高等级 */
+    public readonly max_level: int;
+
     /** 每一级的属性列表 */
     public readonly attributes?: Readonly<
-        Partial<Record<PrimaryAttribute | SecondaryAttribute, ReadonlyArray<float>>>
+        Partial<Partial<Record<PrimaryAttribute | SecondaryAttribute, ReadonlyArray<float>>>>
     >;
 
     /** 每一级的插槽列 */
@@ -113,10 +113,10 @@ export class Perk extends Resource {
         super(id);
         this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
         this.character = parseID(args.character, 'Character', this.w('character'));
-        this.style = parseID(args.character, 'Style', this.w('style'));
+        this.style = parseID(args.style, 'Style', this.w('style'));
         this.usable_styles = this.parseUsableStyles(args.usable_styles, this.style);
-        this.max_level = parseInt(args.max_level, this.w('max_level'), { min: 0 });
         this.parents = this.parseParents(args.parents);
+        this.max_level = parseInt(args.max_level, this.w('max_level'), { min: 0 });
         this.attributes = !args.attributes
             ? undefined
             : parseAttributeTable(
@@ -159,7 +159,7 @@ export class Perk extends Resource {
 
         const res: Record<ID, int> = {};
         for (const [pid, level] of Object.entries(parents)) {
-            const res_pid = parseID(pid, 'Entry', this.w(`parents[${pid}]`));
+            const res_pid = parseID(pid, 'Perk', this.w(`parents[${pid}]`));
             res[res_pid] = parseInt(level, this.w(`parents[${pid}]`), { min: 0 });
         }
         return res;
@@ -167,17 +167,28 @@ export class Perk extends Resource {
 
     public override verify() {
         Character.find(this.character, this.w('character'));
-
         const style = Style.find(this.style, this.w('style'));
         if (this.character !== style.character) {
-            throw this.e('style', 'character mismatch with style');
+            throw this.e('style', 'Character mismatch with Style');
+        }
+        if (!style.perks.includes(this.id)) {
+            throw this.e('style', 'Style and Perk mismatch');
         }
 
         if (this.usable_styles) {
             for (const [idx, id] of this.usable_styles.entries()) {
-                const usableStyle = Style.find(id, this.w(`usable_styles[${idx}]`));
-                if (this.character !== usableStyle.character) {
-                    throw this.e(`usable_styles[${idx}]`, 'character mismatch with usable_styles');
+                const usable_style = Style.find(id, this.w(`usable_styles[${idx}]`));
+                if (this.character !== usable_style.character) {
+                    throw this.e(
+                        `usable_styles[${idx}]`,
+                        'Character mismatch with Style (usable_styles)',
+                    );
+                }
+                if (!usable_style.usable_perks?.includes(this.id)) {
+                    throw this.e(
+                        `usable_styles[${idx}]`,
+                        'Style and Perk mismatch (usable_styles)',
+                    );
                 }
             }
         }
@@ -186,7 +197,7 @@ export class Perk extends Resource {
             for (const [pid, level] of Object.entries(this.parents)) {
                 const parent = Perk.find(pid, this.w(`parents[${pid}]`));
                 if (this.character !== parent.character) {
-                    throw this.e(`parents[${pid}]`, 'character mismatch with parent');
+                    throw this.e(`parents[${pid}]`, 'Character mismatch with parent');
                 }
                 if (level > parent.max_level) {
                     throw this.e(`parents[${pid}]`, "> parent's max_level");

@@ -16,7 +16,7 @@ export type ZoneArgs = {
  * 区域 游戏中的场景
  */
 export class Zone extends Resource {
-    public static override prefix: IDPrefix = 'Zone';
+    public static override readonly prefix: IDPrefix = 'Zone';
 
     public static override find(id: string, where: string): Zone {
         const res = Resource.find(id, where);

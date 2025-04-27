@@ -7,6 +7,7 @@ import {
     int,
     MAX_ENTRY_PLUS,
     MAX_NAME_LEN,
+    parseArray,
     parseID,
     parseInt,
     parseString,
@@ -51,7 +52,7 @@ export type EntryArgs = {
  * 词条 装备/饰品/宝石上需要凑够数量发动效果的技能
  */
 export class Entry extends Resource {
-    public static override prefix: IDPrefix = 'Entry';
+    public static override readonly prefix: IDPrefix = 'Entry';
 
     public static override find(id: string, where: string): Entry {
         const res = Resource.find(id, where);
@@ -78,7 +79,7 @@ export class Entry extends Resource {
      * 同一词条(+/$)叠加带来的提升 List长度必须等于max_piece
      * 累计MAX_ENTRY_PLUS个(+/$)提升一次 共max_piece次
      */
-    public readonly attributes_plus?: Readonly<
+    public readonly plus_attributes?: Readonly<
         Partial<Record<SecondaryAttribute, ReadonlyArray<float>>>
     >;
 
@@ -105,13 +106,13 @@ export class Entry extends Resource {
         super(id);
         this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
         this.max_piece = parseInt(args.max_piece, this.w('max_piece'), { min: 1 });
-        [this.attributes, this.attributes_plus] = !args.attributes
+        [this.attributes, this.plus_attributes] = !args.attributes
             ? [undefined, undefined]
             : parseAttributePlusTable(
                   args.attributes,
                   [PRIMARY_ATTRIBUTES, SECONDARY_ATTRIBUTES, SECONDARY_PLUS_ATTRIBUTES],
                   this.w('attributes'),
-                  { len: this.max_piece, add_first: 0 },
+                  { len: this.max_piece },
               );
 
         [this.var_indexes, this.var_indexes_plus] = !args.var_indexes
@@ -138,21 +139,25 @@ export function parseEntryTable(
 ): Readonly<Record<ID, ReadonlyArray<readonly [int, int]>>> {
     checkRecord(entries, where);
 
-    const res: Record<ID, Array<[int, int]>> = {};
+    const res: Record<ID, ReadonlyArray<[int, int]>> = {};
     for (const [id, vals] of Object.entries(entries)) {
         const resId = parseID(id, 'Entry', `${where}[${id}]`);
-        checkArray(vals, `${where}[${id}]`, opts);
-        res[resId] = vals.map((tuple, idx) => {
-            const [piece, plus] = tuple;
-            checkArray(tuple, `${where}[${id}][${idx}]`, { len: 2 });
-            if (plus > piece * MAX_ENTRY_PLUS) {
-                throw new Error(`${where}[${id}][${idx}]: [1] must <= [0] * {MAX_ENTRY_PLUS}`);
-            }
-            return [
-                parseInt(piece, `${where}[${id}][${idx}][0]`, { min: 0 }),
-                parseInt(plus, `${where}[${id}][${idx}][1]`, { min: 0 }),
-            ];
-        });
+        res[resId] = parseArray(
+            vals,
+            `${where}[${id}]`,
+            (tuple, where) => {
+                const [piece, plus] = tuple;
+                checkArray(tuple, `${where}`, { len: 2 });
+                if (plus > piece * MAX_ENTRY_PLUS) {
+                    throw new Error(`${where}: [1] must <= [0] * {MAX_ENTRY_PLUS}`);
+                }
+                return [
+                    parseInt(piece, `${where}[0]`, { min: 0 }),
+                    parseInt(plus, `${where}[1]`, { min: 0 }),
+                ];
+            },
+            opts,
+        );
     }
     return res;
 }
