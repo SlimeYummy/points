@@ -12,6 +12,7 @@ import {
     parseInt,
     parseIntArray,
 } from './common';
+import { Resource } from './resource';
 import { Character, Style } from './character';
 
 type VarMeta = {
@@ -30,6 +31,7 @@ export class Var<T> {
             if (this.#metas.has(var_id)) {
                 throw new Error(`Var.define(${var_id}): define multiple times`);
             }
+            Resource.newId(var_id, '#');
             const meta = {
                 id: parseID(var_id, '#', `Var.define(${var_id}: ...)`),
                 max_level: parseInt(max_level, `Var.define(${var_id}: [0])`, { min: 1 }),
@@ -105,7 +107,7 @@ export function parseVarValueArgs<R, T>(
         min_len?: int;
         max_len?: int;
         [key: string]: any;
-    } = {},
+    },
     parse: (raw: R, where: string, opts: Record<string, any>) => T,
     parseArray: (
         raw: ReadonlyArray<R>,
@@ -208,7 +210,7 @@ export function verifyVarValue<T>(
     }
 
     const meta = Var.find(va.id, where);
-    
+
     if (!meta.no_limit) {
         if (consumers.character) {
             const character = Character.find(consumers.character, where);
@@ -216,16 +218,15 @@ export function verifyVarValue<T>(
                 meta.characters.includes(consumers.character) ||
                 character.styles.every((style) => meta.styles.includes(style));
             if (!ok) {
-                throw new Error(
-                    `${where}: ${consumers.character} not defined in ${va.id}`,
-                );
+                throw new Error(`${where}: ${consumers.character} not defined in ${va.id}`);
             }
         }
-    
+
         if (consumers.styles) {
             for (const style_id of consumers.styles) {
                 const style = Style.find(style_id, where);
-                const ok = meta.styles.includes(style_id) || meta.characters.includes(style.character);
+                const ok =
+                    meta.styles.includes(style_id) || meta.characters.includes(style.character);
                 if (!ok) {
                     throw new Error(`${where}: ${style_id} not defined in ${va.id}`);
                 }
@@ -317,9 +318,7 @@ export function verifyVarIndexTable(
                 meta.characters.includes(suppliers.character) ||
                 character.styles.every((style) => meta.styles.includes(style));
             if (!ok) {
-                throw new Error(
-                    `${where}: ${suppliers.character} not defined in ${id}`,
-                );
+                throw new Error(`${where}: ${suppliers.character} not defined in ${id}`);
             }
         }
 

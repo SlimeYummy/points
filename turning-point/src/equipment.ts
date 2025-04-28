@@ -6,6 +6,7 @@ import {
     IDPrefix,
     int,
     MAX_NAME_LEN,
+    parseArray,
     parseID,
     parseInt,
     parseIntRange,
@@ -85,7 +86,7 @@ export type EquipmentArgs = {
  * 装备区分等级 原则上同等级装备性能接近 方便将等级作为衡量强弱的标准
  */
 export class Equipment extends Resource {
-    public static override prefix: IDPrefix = 'Equipment';
+    public static override readonly prefix: IDPrefix = 'Equipment';
 
     public static override find(id: string, where: string): Equipment {
         const res = Resource.find(id, where);
@@ -119,7 +120,7 @@ export class Equipment extends Resource {
     >;
 
     /** 每级的插槽列 */
-    public readonly slots?: ReadonlyArray<string | readonly [int, int, int]>;
+    public readonly slots?: ReadonlyArray<readonly [int, int, int]>;
 
     /** 每级的词条 */
     public readonly entries?: Readonly<Record<ID, ReadonlyArray<readonly [int, int]>>>;
@@ -170,33 +171,34 @@ export class Equipment extends Resource {
         if (materials == null) {
             return undefined;
         }
-        checkArray(materials, this.w('materials'), { len });
-
-        const res: Array<Array<[ID, int]>> = [];
-        for (const [i, vals] of materials.entries()) {
-            checkArray(vals, this.w(`materials[${i}]`));
-            res.push(
-                vals.map((tuple, j) => {
+        return parseArray(
+            materials,
+            this.w('materials'),
+            (vals, where) => {
+                return parseArray(vals, where, (tuple, where) => {
                     const [id, cnt] = tuple;
-                    checkArray(tuple, this.w(`materials[${i}][${j}]`), { len: 2 });
+                    checkArray(tuple, where, { len: 2 });
                     return [
-                        parseID(id, 'Material', `materials[${i}][${j}][0]`),
-                        parseInt(cnt, `materials[${i}][${j}][1]`, { min: 0 }),
+                        parseID(id, 'Material', `${where}[0]`),
+                        parseInt(cnt, `${where}[1]`, { min: 0 }),
                     ];
-                }),
-            );
-        }
-        return res;
+                });
+            },
+            { len },
+        );
     }
 
     public override verify() {
-        Character.find(this.character, this.w('character'));
+        const character = Character.find(this.character, this.w('character'));
+        if (!character.equipments.includes(this.id)) {
+            throw this.e('character', 'Character and Equipment mismatch');
+        }
 
         if (this.parents) {
             for (const [pid, level] of Object.entries(this.parents)) {
                 const parent = Equipment.find(pid, this.w(`parents[${pid}]`));
                 if (this.character !== parent.character) {
-                    throw this.e(`parents[${pid}]`, 'character mismatch with parent');
+                    throw this.e(`parents[${pid}]`, 'Character mismatch with parent');
                 }
                 if (this.slot !== parent.slot) {
                     throw this.e(`parents[${pid}]`, 'slot missmatch with parent');
