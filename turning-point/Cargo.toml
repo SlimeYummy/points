@@ -1,0 +1,23 @@
+[package]
+edition = "2021"
+name = "turining-point-node"
+version = "0.0.0"
+
+[lib]
+path = "native/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+cirtical-point-core = { path = "../critical-point/core" }
+glam = { version = "0.30", features = ["libm", "approx"] }
+napi = { version = "2.12.2", default-features = false, features = ["napi4"] }
+napi-derive = "2.12.2"
+ozz-animation-rs = { path = "../../ozz-animation-rs", features = ["rkyv"] }
+serde_json = "1.0"
+
+[build-dependencies]
+napi-build = "2.0.1"
+
+[profile.release]
+lto = true
+strip = "symbols"
