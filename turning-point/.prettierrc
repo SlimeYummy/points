@@ -6,9 +6,10 @@
     "tabWidth": 4,
     "semi": true,
     "importOrder": [
-        "/common$",
-        "/resource$",
-        ""
+        "^@",
+        "common$",
+        "resource$",
+        "^[./]"
     ],
     "importOrderSortSpecifiers": true,
     "importOrderCaseInsensitive": true
