@@ -1,5 +1,4 @@
 import { int, parseFloatArray } from './common';
-
 import { float } from './common';
 
 const _PRIMARY_ATTRIBUTES = [
@@ -195,7 +194,6 @@ export function parseAttributeTable<
     where: string,
     opts: {
         len?: int;
-        add_first?: number;
     } = {},
 ): Readonly<Partial<Record<A, ReadonlyArray<float>>>> {
     if (typeof attributes !== 'object' || attributes === null) {
@@ -221,7 +219,6 @@ export function parseAttributePlusTable<
     where: string,
     opts: {
         len?: int;
-        add_first?: number;
     } = {},
 ): [
     Readonly<Partial<Record<A, ReadonlyArray<float>>>> | undefined,
@@ -241,8 +238,11 @@ export function parseAttributePlusTable<
             throw new Error(`${where}[${attr}]: attribute not includes`);
         }
         if (attr.startsWith('$')) {
-            const pcattr = attr.slice(0, -1);
-            pcattrs[pcattr] = parseFloatArray(vals!, `${where}[${attr}]`, opts);
+            const pcattr = attr.slice(1);
+            pcattrs[pcattr] = parseFloatArray(vals!, `${where}[${attr}]`, {
+                ...opts,
+                add_first: 0,
+            });
             any_pcattrs = true;
         } else {
             attrs[attr] = parseFloatArray(vals!, `${where}[${attr}]`, opts);
