@@ -261,3 +261,235 @@ new ActionGeneral('Action.One.Attack/2', {
         '3s-5s': LEVEL_ATTACK,
     },
 });
+
+//
+// Perk
+//
+
+new Perk('Perk.One.NormalAttack.Branch', {
+    name: 'Normal Attack Branch',
+    character: ONE.id,
+    style: 'Style.One/1',
+    max_level: 2,
+    var_indexes: {
+        '#.One.NormalAttack.Branch': [1, 2],
+    },
+});
+
+new Perk('Perk.One.AttackUp', {
+    name: 'Attack Up',
+    character: ONE.id,
+    style: 'Style.One/1',
+    usable_styles: ONE.styles,
+    max_level: 3,
+    attributes: {
+        AttackUp: ['10%', '15%', '20%'],
+    },
+});
+
+new Perk('Perk.One.FinalPerk', {
+    name: 'Final Perk',
+    character: ONE.id,
+    style: 'Style.One/2',
+    usable_styles: ONE.styles,
+    parents: {
+        'Perk.One.AttackUp': 3,
+    },
+    max_level: 1,
+    slots: ['S1'],
+    entries: {
+        'Entry.AttackUp': [[1, MAX_ENTRY_PLUS]],
+        'Entry.DefenseUp': [[1, MAX_ENTRY_PLUS]],
+    },
+});
+
+//
+// Jewel
+//
+
+new Jewel('Jewel.DefenseUp/1', {
+    slot: Defense,
+    rare: Rare1,
+    entry: 'Entry.DefenseUp',
+    piece: 1,
+    variant: Variant1,
+});
+
+new Jewel('Jewel.AttackUp/1', {
+    slot: Attack,
+    rare: Rare1,
+    entry: 'Entry.AttackUp',
+    piece: 1,
+    variant: Variant1,
+});
+
+new Jewel('Jewel.AttackUp/2', {
+    slot: Attack,
+    rare: Rare2,
+    entry: 'Entry.AttackUp',
+    piece: 2,
+    variant: Variant2,
+});
+
+new Jewel('Jewel.SuperCritical', {
+    slot: Special,
+    rare: Rare3,
+    entry: 'Entry.CriticalChance',
+    piece: 2,
+    sub_entry: 'Entry.CriticalDamage',
+    sub_piece: 1,
+    variant: Variant2,
+});
+
+//
+// Accessory
+//
+
+const POOL_RARE1 = 'AccessoryPool.Rare1';
+new AccessoryPool(POOL_RARE1, {
+    rare: Rare1,
+    patterns: 'S B B',
+    max_level: 9,
+    a_entries: {},
+    b_entries: {
+        'Entry.DefenseUp': 10,
+        'Entry.ElementalDefenseUp': 10,
+    },
+});
+
+const POOL_RARE2 = 'AccessoryPool.Rare2';
+new AccessoryPool(POOL_RARE2, {
+    rare: Rare2,
+    patterns: 'S AB B B',
+    max_level: 12,
+    a_entries: {
+        'Entry.AttackUp': 10,
+        'Entry.CriticalChance': 10,
+        'Entry.MaxHealthUp': 20,
+    },
+    b_entries: {
+        'Entry.DefenseUp': 10,
+        'Entry.ElementalDefenseUp': 10,
+    },
+});
+
+const POOL_RARE3 = 'AccessoryPool.Rare3';
+new AccessoryPool(POOL_RARE3, {
+    rare: Rare3,
+    patterns: 'S A AB AB B',
+    max_level: 15,
+    a_entries: {
+        'Entry.AttackUp': 10,
+        'Entry.CriticalChance': 10,
+    },
+    b_entries: {
+        'Entry.DefenseUp': 10,
+        'Entry.ElementalDefenseUp': 10,
+        'Entry.MaxHealthUp': 10,
+    },
+});
+
+new Accessory('Accessory.AttackUp/1', {
+    pool: POOL_RARE1,
+    rare: 'Rare1',
+    entry: 'Entry.AttackUp',
+    piece: 1,
+    variant: Variant1,
+});
+
+new Accessory('Accessory.CriticalChance', {
+    pool: POOL_RARE2,
+    rare: 'Rare2',
+    entry: 'Entry.CriticalChance',
+    piece: 2,
+    variant: Variant2,
+});
+
+new Accessory('Accessory.AttackUp/3', {
+    pool: POOL_RARE3,
+    rare: 'Rare3',
+    entry: 'Entry.AttackUp',
+    piece: 3,
+    variant: Variant3,
+});
+
+//
+// Entry
+//
+
+new Entry('Entry.Empty', { name: '', max_piece: 1 });
+
+new Entry('Entry.MaxHealthUp', {
+    name: 'MaxHealthUp',
+    max_piece: 4,
+    attributes: {
+        MaxHealthUp: ['10%', '20%', '27.5%', '35%'],
+        $MaxHealthUp: ['3.5%', '7%', '11%', '15%'],
+    },
+});
+
+new Entry('Entry.AttackUp', {
+    name: 'AttackUp',
+    max_piece: 5,
+    attributes: {
+        AttackUp: ['4%', '8%', '12%', '16%', '20%'],
+        $AttackUp: ['2%', '4%', '6%', '8%', '10%'],
+    },
+});
+
+new Entry('Entry.DefenseUp', {
+    name: 'DefenseUp',
+    max_piece: 5,
+    attributes: {
+        DefenseUp: ['15%', '30%', '40%', '50%', '60%'],
+        $DefenseUp: ['5%', '10%', '20%', '20%', '20%'],
+        $MaxHealthUp: [0, 0, 0, '5%', '10%'],
+    },
+});
+
+new Entry('Entry.ElementalDefenseUp', {
+    name: 'ElementalDefenseUp',
+    max_piece: 3,
+    attributes: {
+        ElementalDefenseUp: ['20%', '40%', '60%'],
+        $ElementalDefenseUp: ['5%', '10%', '10%'],
+        $AttackUp: ['1%', '2%', '4%'],
+    },
+});
+
+new Entry('Entry.CriticalChance', {
+    name: 'CriticalChance',
+    max_piece: 4,
+    attributes: {
+        CriticalChance: ['5%', '10%', '15%', '20%'],
+        $CriticalChance: ['2.5%', '5%', '7.5%', '10%'],
+    },
+});
+
+new Entry('Entry.CriticalDamage', {
+    name: 'CriticalDamage',
+    max_piece: 3,
+    attributes: {
+        CriticalChance: ['8%', '16%', '25%'],
+        $CriticalChance: ['5%', '10%', '15%'],
+    },
+});
+
+new Entry('Entry.Variable', {
+    name: 'Entry Variable',
+    max_piece: 3,
+    var_indexes: {
+        '#.Entry.Variable/1': [1, 2, 3],
+        '#.Entry.Variable/2': [0, 1, 2],
+    },
+});
+
+//
+// Zone
+//
+
+new Zone('Zone.Demo', {
+    name: 'Demo',
+    zone_file: 'stage-demo.json',
+    view_zone_file: 'stage-demo.tscn',
+});
