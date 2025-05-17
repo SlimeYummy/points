@@ -6,7 +6,10 @@
 # python
 #
 
-turning-point-py
+.ruff_cache
+__pycache__/
+build/
+turning_point.egg-info/
 
 #
 # nodejs
@@ -14,6 +17,10 @@ turning-point-py
 
 node_modules/
 bin/
+npm/
+native.d.ts
+native.js
+*.node
 
 #
 # rust
