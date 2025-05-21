@@ -3,7 +3,7 @@ use ozz_animation_rs::OzzError;
 use std::error::Error;
 use std::fmt;
 
-use crate::template2::id::TmplID;
+use crate::utils::id::TmplID;
 
 const EMPTY_ERROR: &'static str = "";
 
@@ -87,8 +87,8 @@ trait ToString {
 impl ToString for MixedError<()> {
     fn to_string(&self, f: &mut fmt::Formatter<'_>, name: &str) -> fmt::Result {
         match self {
-            MixedError::Static(e) => write!(f, "{} |P: {}", name, e.pos),
-            MixedError::Dynamic(e) => write!(f, "{} |P: {} |M: {}", name, e.pos, e.msg),
+            MixedError::Static(e) => write!(f, "{}  [P]: {}", name, e.pos),
+            MixedError::Dynamic(e) => write!(f, "{}  [P]: {}  [M]: {}", name, e.pos, e.msg),
         }
     }
 }
@@ -98,8 +98,8 @@ macro_rules! val_to_string {
         impl ToString for MixedError<$typ> {
             fn to_string(&self, f: &mut fmt::Formatter<'_>, name: &str) -> fmt::Result {
                 match self {
-                    MixedError::Static(e) => write!(f, "{}({}) |P: {}", name, e.src, e.pos),
-                    MixedError::Dynamic(e) => write!(f, "{}({}) |P: {} |M: {}", name, e.src, e.pos, e.msg),
+                    MixedError::Static(e) => write!(f, "{}({})  [P]: {}", name, e.src, e.pos),
+                    MixedError::Dynamic(e) => write!(f, "{}({})  [P]: {}  [M]: {}", name, e.src, e.pos, e.msg),
                 }
             }
         }
@@ -114,10 +114,10 @@ macro_rules! err_to_string {
         impl ToString for MixedError<$err> {
             fn to_string(&self, f: &mut fmt::Formatter<'_>, name: &str) -> fmt::Result {
                 match self {
-                    MixedError::Static(e) => write!(f, "{}({}) |P: {} |S: {}", name, $err_name, e.pos, e.src),
+                    MixedError::Static(e) => write!(f, "{}({})  [P]: {}  [S]: {}", name, $err_name, e.pos, e.src),
                     MixedError::Dynamic(e) => write!(
                         f,
-                        "{}({}) |P: {} |M: {} |S: {}",
+                        "{}({})  [P]: {}  [M]: {}  [S]: {}",
                         name, $err_name, e.pos, e.msg, e.src
                     ),
                 }
@@ -169,6 +169,7 @@ pub enum XError {
     Zip(MixedError<std::io::Error>),
     Jolt(MixedError<JoltError>),
     Ozz(MixedError<OzzError>),
+    Rkyv(MixedError<()>), // no source here
 }
 
 impl Error for XError {
@@ -216,6 +217,7 @@ macro_rules! switch_call {
             XError::Zip(e) => $func(e),
             XError::Jolt(e) => $func(e),
             XError::Ozz(e) => $func(e),
+            XError::Rkyv(e) => $func(e),
         }
     };
 }
@@ -251,6 +253,7 @@ macro_rules! switch_new {
             XError::Zip(e) => XError::Zip($func(e)),
             XError::Jolt(e) => XError::Jolt($func(e)),
             XError::Ozz(e) => XError::Ozz($func(e)),
+            XError::Rkyv(e) => XError::Rkyv($func(e)),
         }
     };
 }
@@ -304,6 +307,7 @@ impl fmt::Display for XError {
             XError::Zip(e) => e.to_string(f, "Zip"),
             XError::Jolt(e) => e.to_string(f, "Jolt"),
             XError::Ozz(e) => e.to_string(f, "Ozz"),
+            XError::Rkyv(e) => e.to_string(f, "Rkyv"),
         }
     }
 }
@@ -373,13 +377,13 @@ macro_rules! xerr {
     ($variant:ident; $extra:expr) => {
         crate::utils::XError::$variant(crate::utils::MixedError::from_static(
             (),
-            &const_format::formatcp!("{}:{}({})", file!(), line!(), $extra),
+            &const_format::formatcp!("{}:{} ({})", file!(), line!(), $extra),
         ))
     };
     ($variant:ident, $source:expr; $extra:expr) => {
         crate::utils::XError::$variant(crate::utils::MixedError::from_static(
             $source,
-            &const_format::formatcp!("{}:{}({})", file!(), line!(), $extra),
+            &const_format::formatcp!("{}:{} ({})", file!(), line!(), $extra),
         ))
     };
 }
