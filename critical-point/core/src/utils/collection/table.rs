@@ -1,14 +1,14 @@
 use rkyv::Archive;
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
-use std::ops::{Index, IndexMut, RangeBounds};
-use std::{slice, vec};
+use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::slice;
 
 //
 // Table KV
 //
 
-#[derive(Debug, Default, Clone, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct TableKv<K, V> {
     pub k: K,
     pub v: V,
@@ -37,8 +37,9 @@ impl<K, V> From<TableKv<K, V>> for (K, V) {
 
 const _: () = {
     use serde::de::value::{MapAccessDeserializer, SeqAccessDeserializer};
-    use serde::de::{Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
-    use serde::ser::{Serialize, Serializer};
+    use serde::de::{Deserializer, MapAccess, SeqAccess, Visitor};
+    use serde::ser::{Serialize, SerializeTuple, Serializer};
+    use serde::Deserialize;
 
     impl<'de, K, V> Deserialize<'de> for TableKv<K, V>
     where
@@ -69,7 +70,7 @@ const _: () = {
         }
 
         fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-            #[derive(serde::Deserialize)]
+            #[derive(Deserialize)]
             struct Helper<K, V> {
                 k: K,
                 v: V,
@@ -84,7 +85,6 @@ const _: () = {
         where
             S: Serializer,
         {
-            use serde::ser::SerializeTuple;
             let mut seq = serializer.serialize_tuple(2)?;
             seq.serialize_element(&self.k)?;
             seq.serialize_element(&self.v)?;
@@ -129,6 +129,22 @@ impl<K, V> Default for Table<K, V> {
     }
 }
 
+impl<K, V> Deref for Table<K, V> {
+    type Target = Vec<TableKv<K, V>>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<K, V> DerefMut for Table<K, V> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl<K, V> Table<K, V> {
     #[inline]
     pub fn new() -> Table<K, V> {
@@ -138,46 +154,6 @@ impl<K, V> Table<K, V> {
     #[inline]
     pub fn with_capacity(capacity: usize) -> Table<K, V> {
         Table(Vec::with_capacity(capacity))
-    }
-
-    #[inline]
-    pub fn reserve(&mut self, additional: usize) {
-        self.0.reserve(additional);
-    }
-
-    #[inline]
-    pub fn reserve_exact(&mut self, additional: usize) {
-        self.0.reserve_exact(additional);
-    }
-
-    #[inline]
-    pub fn clear(&mut self) {
-        self.0.clear();
-    }
-
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    #[inline]
-    pub fn capacity(&self) -> usize {
-        self.0.capacity()
-    }
-
-    #[inline]
-    pub fn get(&self, idx: usize) -> Option<&TableKv<K, V>> {
-        self.0.get(idx)
-    }
-
-    #[inline]
-    pub fn get_mut(&mut self, idx: usize) -> Option<&mut TableKv<K, V>> {
-        self.0.get_mut(idx)
     }
 
     #[inline]
@@ -221,43 +197,13 @@ impl<K, V> Table<K, V> {
     }
 
     #[inline]
-    pub fn push(&mut self, kv: TableKv<K, V>) {
-        self.0.push(kv);
-    }
-
-    #[inline]
     pub fn push2(&mut self, k: K, v: V) {
         self.0.push(TableKv::new(k, v));
     }
 
     #[inline]
-    pub fn pop(&mut self) -> Option<TableKv<K, V>> {
-        self.0.pop()
-    }
-
-    #[inline]
-    pub fn insert(&mut self, idx: usize, kv: TableKv<K, V>) {
-        self.0.insert(idx, kv);
-    }
-
-    #[inline]
     pub fn insert2(&mut self, idx: usize, k: K, v: V) {
         self.0.insert(idx, TableKv::new(k, v));
-    }
-
-    #[inline]
-    pub fn remove(&mut self, idx: usize) -> TableKv<K, V> {
-        self.0.remove(idx)
-    }
-
-    #[inline]
-    pub fn as_slice(&self) -> &[TableKv<K, V>] {
-        self.0.as_slice()
-    }
-
-    #[inline]
-    pub fn as_mut_slice(&mut self) -> &mut [TableKv<K, V>] {
-        self.0.as_mut_slice()
     }
 }
 
@@ -284,26 +230,6 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for Table<K, V> {
 }
 
 impl<K, V> Table<K, V> {
-    #[inline]
-    pub fn iter(&self) -> slice::Iter<'_, TableKv<K, V>> {
-        self.0.iter()
-    }
-
-    #[inline]
-    pub fn iter_mut(&mut self) -> slice::IterMut<'_, TableKv<K, V>> {
-        self.0.iter_mut()
-    }
-
-    #[inline]
-    pub fn into_iter(self) -> vec::IntoIter<TableKv<K, V>> {
-        self.0.into_iter()
-    }
-
-    #[inline]
-    pub fn drain<'t, R: RangeBounds<usize>>(&'t mut self, range: R) -> vec::Drain<'t, TableKv<K, V>> {
-        self.0.drain(range)
-    }
-
     #[inline]
     pub fn keys(&self) -> TableKeysIter<'_, K, V> {
         TableKeysIter(self.0.iter())
@@ -454,22 +380,16 @@ const _: () = {
 // Archived Table
 //
 
+impl<K: Archive, V: Archive> Deref for ArchivedTable<K, V> {
+    type Target = rkyv::vec::ArchivedVec<ArchivedTableKv<K, V>>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl<K: Archive, V: Archive> ArchivedTable<K, V> {
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    #[inline]
-    pub fn get(&self, idx: usize) -> Option<&ArchivedTableKv<K, V>> {
-        self.0.get(idx)
-    }
-
     #[inline]
     pub fn key(&self, idx: usize) -> Option<&K::Archived> {
         self.0.get(idx).map(|kv| &kv.k)
@@ -488,11 +408,6 @@ impl<K: Archive, V: Archive> ArchivedTable<K, V> {
     #[inline]
     pub fn value_x(&self, idx: usize) -> &V::Archived {
         self.0.get(idx).map(|kv| &kv.v).unwrap()
-    }
-
-    #[inline]
-    pub fn as_slice(&self) -> &[ArchivedTableKv<K, V>] {
-        self.0.as_slice()
     }
 }
 
@@ -518,11 +433,6 @@ where
 }
 
 impl<K: Archive, V: Archive> ArchivedTable<K, V> {
-    #[inline]
-    pub fn iter(&self) -> slice::Iter<'_, ArchivedTableKv<K, V>> {
-        self.0.iter()
-    }
-
     #[inline]
     pub fn keys(&self) -> ArchivedTableKeysIter<'_, K, V> {
         ArchivedTableKeysIter(self.0.iter())
@@ -627,21 +537,21 @@ mod tests {
 
     #[test]
     fn test_table_rkyv() {
-        use rkyv::Deserialize;
+        use rkyv::rancor::Error;
 
         let tb1: Table<u8, String> = Table::default();
-        let buf = rkyv::to_bytes::<_, 1024>(&tb1).unwrap();
-        let archived1 = unsafe { rkyv::archived_root::<Table<u8, String>>(&buf) };
-        let tb1x: Table<u8, String> = archived1.deserialize(&mut rkyv::Infallible).unwrap();
+        let buf = rkyv::to_bytes::<Error>(&tb1).unwrap();
+        let archived1 = unsafe { rkyv::access_unchecked::<ArchivedTable<u8, String>>(&buf) };
+        let tb1x: Table<u8, String> = rkyv::deserialize::<_, Error>(archived1).unwrap();
         assert_eq!(tb1, tb1x);
 
         let mut tb2: Table<u64, [f32; 2]> = Table::new();
         tb2.push2(0, [1.0, 2.0]);
         tb2.push2(0, [3.0, 4.0]);
         tb2.push2(0, [5.0, 6.0]);
-        let buf = rkyv::to_bytes::<_, 1024>(&tb2).unwrap();
-        let archived2 = unsafe { rkyv::archived_root::<Table<u64, [f32; 2]>>(&buf) };
-        let tb2x: Table<u64, [f32; 2]> = archived2.deserialize(&mut rkyv::Infallible).unwrap();
+        let buf = rkyv::to_bytes::<Error>(&tb2).unwrap();
+        let archived2 = unsafe { rkyv::access_unchecked::<ArchivedTable<u64, [f32; 2]>>(&buf) };
+        let tb2x: Table<u64, [f32; 2]> = rkyv::deserialize::<_, Error>(archived2).unwrap();
         assert_eq!(tb2, tb2x);
     }
 }
