@@ -15,7 +15,6 @@ pub struct PreAllocator {
 
 unsafe impl Allocator for &'_ mut PreAllocator {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-        println!("allocate {:?}", layout);
         if self.using.get() {
             return Err(AllocError);
         }
@@ -41,7 +40,6 @@ unsafe impl Allocator for &'_ mut PreAllocator {
         _old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        println!("grow {:?} {:?}", _old_layout, new_layout);
         if new_layout.align() > PRE_ALLOCATION_ALIGN {
             return Err(AllocError);
         }
@@ -63,7 +61,6 @@ unsafe impl Allocator for &'_ mut PreAllocator {
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        println!("grow {:?} {:?}", old_layout, new_layout);
         let new_ptr = self.grow(ptr, old_layout, new_layout)?;
         ptr::write_bytes(
             self.buffer.get().add(old_layout.size()),
@@ -83,7 +80,6 @@ unsafe impl Allocator for &'_ mut PreAllocator {
     }
 
     unsafe fn deallocate(&self, _ptr: NonNull<u8>, _layout: Layout) {
-        println!("deallocate {:?}", _layout);
         self.using.set(false);
     }
 }

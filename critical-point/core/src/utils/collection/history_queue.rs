@@ -2,7 +2,7 @@ use std::collections::{vec_deque, VecDeque};
 use std::fmt;
 use std::ops::{Index, IndexMut};
 
-use crate::utils::{xres, XError, XResult};
+use crate::utils::{xres, XResult};
 
 pub struct HistoryQueue<T> {
     queue: VecDeque<T>,
