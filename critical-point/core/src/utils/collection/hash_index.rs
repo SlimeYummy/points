@@ -1,6 +1,6 @@
 use std::alloc::Layout;
 use std::fmt::Debug;
-use std::hash::{BuildHasher, Hash, Hasher, RandomState};
+use std::hash::{BuildHasher, Hash, RandomState};
 use std::{alloc, fmt, ptr};
 
 use super::hash::{DeterministicState, PRIME_TABLE};
@@ -323,23 +323,25 @@ impl<'a, K, V, S> Iterator for HashIndexIter<'a, K, V, S> {
 
 #[cfg(test)]
 mod tests {
+    use std::hash::Hasher;
+
     use super::*;
-    use crate::utils::{sb, Symbol};
+    use crate::utils::id::{id, TmplID};
 
     #[test]
     fn test_insert_find() {
-        let mut hi: DtHashIndex<Symbol, u32> = DtHashIndex::new();
-        hi.insert(sb!("a"), 1);
-        hi.insert(sb!("b"), 2);
-        hi.insert(sb!("a"), 3);
+        let mut hi: DtHashIndex<TmplID, u32> = DtHashIndex::new();
+        hi.insert(id!("#.Aaa"), 1);
+        hi.insert(id!("#.Bbb"), 2);
+        hi.insert(id!("#.Aaa"), 3);
         assert_eq!(hi.len(), 3);
-        assert_eq!(hi.find(&sb!("a")).unwrap().copied().collect::<Vec<_>>(), vec![1, 3]);
-        assert_eq!(hi.find(&sb!("b")).unwrap().copied().collect::<Vec<_>>(), vec![2]);
+        assert_eq!(hi.find(&id!("#.Aaa")).unwrap().copied().collect::<Vec<_>>(), vec![1, 3]);
+        assert_eq!(hi.find(&id!("#.Bbb")).unwrap().copied().collect::<Vec<_>>(), vec![2]);
 
         let all = hi.iter().map(|(k, v)| (k.clone(), *v)).collect::<Vec<_>>();
-        assert!(all.contains(&(sb!("a"), 1)));
-        assert!(all.contains(&(sb!("b"), 2)));
-        assert!(all.contains(&(sb!("a"), 3)));
+        assert!(all.contains(&(id!("#.Aaa"), 1)));
+        assert!(all.contains(&(id!("#.Bbb"), 2)));
+        assert!(all.contains(&(id!("#.Aaa"), 3)));
     }
 
     #[test]
@@ -364,46 +366,46 @@ mod tests {
             }
         }
 
-        let mut hi: HashIndex<Symbol, u32, TestState> = HashIndex::with_capacity_and_hasher(1, TestState);
-        hi.insert(sb!("xxx"), 1);
-        hi.insert(sb!("yyy"), 2);
-        hi.insert(sb!("yyy"), 3);
-        hi.insert(sb!("xxx"), 4);
-        hi.insert(sb!("zzz"), 5);
-        hi.insert(sb!("zzz"), 5);
-        hi.insert(sb!("xxx"), 6);
+        let mut hi: HashIndex<TmplID, u32, TestState> = HashIndex::with_capacity_and_hasher(1, TestState);
+        hi.insert(id!("#.Xxx"), 1);
+        hi.insert(id!("#.Yyy"), 2);
+        hi.insert(id!("#.Yyy"), 3);
+        hi.insert(id!("#.Xxx"), 4);
+        hi.insert(id!("#.Zzz"), 5);
+        hi.insert(id!("#.Zzz"), 5);
+        hi.insert(id!("#.Xxx"), 6);
 
         assert_eq!(
-            hi.find(&sb!("xxx")).unwrap().copied().collect::<Vec<_>>(),
+            hi.find(&id!("#.Xxx")).unwrap().copied().collect::<Vec<_>>(),
             vec![1, 4, 6]
         );
-        assert_eq!(hi.find(&sb!("yyy")).unwrap().copied().collect::<Vec<_>>(), vec![2, 3]);
-        assert_eq!(hi.find(&sb!("zzz")).unwrap().copied().collect::<Vec<_>>(), vec![5, 5]);
+        assert_eq!(hi.find(&id!("#.Yyy")).unwrap().copied().collect::<Vec<_>>(), vec![2, 3]);
+        assert_eq!(hi.find(&id!("#.Zzz")).unwrap().copied().collect::<Vec<_>>(), vec![5, 5]);
     }
 
     #[test]
     fn test_grow() {
-        let mut hi: HashIndex<Symbol, u32> = HashIndex::new();
+        let mut hi: HashIndex<String, u32> = HashIndex::new();
         assert_eq!(hi.capacity(), 0);
         assert_eq!(hi.len(), 0);
 
-        hi.insert(sb!("a"), 999);
-        hi.insert(sb!("a"), 998);
-        hi.insert(sb!("a"), 997);
-        hi.insert(sb!("a"), 996);
+        hi.insert("a".into(), 999);
+        hi.insert("a".into(), 998);
+        hi.insert("a".into(), 997);
+        hi.insert("a".into(), 996);
         assert_eq!(hi.capacity(), 32);
         assert_eq!(hi.len(), 4);
 
         for i in 0..30 {
-            hi.insert(sb!("n{}", i), i);
+            hi.insert(format!("n{}", i), i);
         }
-        hi.insert(sb!("a"), 999);
-        hi.insert(sb!("a"), 995);
+        hi.insert("a".into(), 999);
+        hi.insert("a".into(), 995);
 
         assert_eq!(hi.capacity(), 59);
         assert_eq!(hi.len(), 36);
         assert_eq!(
-            hi.find(&sb!("a")).unwrap().copied().collect::<Vec<_>>(),
+            hi.find(&"a".into()).unwrap().copied().collect::<Vec<_>>(),
             vec![999, 998, 997, 996, 999, 995]
         );
     }
