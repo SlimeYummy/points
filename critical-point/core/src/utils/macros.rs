@@ -2,6 +2,30 @@
 // Rust derive
 //
 
+#[macro_export]
+macro_rules! ifelse {
+    ($c:expr, $a:expr, $b:expr) => {
+        if $c {
+            $a
+        } else {
+            $b
+        }
+    };
+}
+pub use ifelse;
+
+macro_rules! impl_for {
+    ($t1:ty, $t2:ty, { $($body:tt)* }) => {
+        impl $t1 {
+            $($body)*
+        }
+        impl $t2 {
+            $($body)*
+        }
+    };
+}
+pub(crate) use impl_for;
+
 macro_rules! extend {
     ($cls:ident, $base:ty) => {
         static_assertions::const_assert!(std::mem::offset_of!($cls, _base) == 0);
@@ -44,8 +68,6 @@ macro_rules! interface {
                 return unsafe { &mut *(ptr as *const () as *mut Self::Target) };
             }
         }
-
-        impl crate::utils::Castable for dyn $itf {}
     };
 }
 pub(crate) use interface;
@@ -57,14 +79,19 @@ pub(crate) use interface;
 macro_rules! rkyv_self {
     ($type:ty) => {
         const _: () = {
-            use rkyv::{Archive, Archived, Deserialize, Fallible, Serialize};
+            use rkyv::rancor::Fallible;
+            use rkyv::traits::NoUndef;
+            use rkyv::{Archive, Deserialize, Place, Portable, Serialize};
+
+            unsafe impl NoUndef for $type {}
+            unsafe impl Portable for $type {}
 
             impl Archive for $type {
                 type Archived = $type;
                 type Resolver = ();
 
                 #[inline]
-                unsafe fn resolve(&self, _: usize, _: Self::Resolver, out: *mut Self::Archived) {
+                fn resolve(&self, _: Self::Resolver, out: Place<Self::Archived>) {
                     out.write(*self);
                 }
             }
@@ -76,7 +103,7 @@ macro_rules! rkyv_self {
                 }
             }
 
-            impl<D: Fallible + ?Sized> Deserialize<$type, D> for Archived<$type> {
+            impl<D: Fallible + ?Sized> Deserialize<$type, D> for $type {
                 #[inline]
                 fn deserialize(&self, _: &mut D) -> Result<$type, D::Error> {
                     Ok(*self)
@@ -116,7 +143,8 @@ pub(crate) use serde_by;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::CastRef;
+    use crate::utils::Castable;
+    use std::any::Any;
 
     struct Base {
         b1: i32,
@@ -124,7 +152,7 @@ mod tests {
         b3: String,
     }
 
-    unsafe trait Itf {
+    unsafe trait Itf: Any {
         fn sum(&self) -> u64;
     }
 
@@ -168,7 +196,7 @@ mod tests {
         assert_eq!(itf.b2, 2);
         assert_eq!(itf.b3, "aaa");
 
-        let dd = itf.cast_ref::<Derived>().unwrap();
+        let dd = itf.cast::<Derived>().unwrap();
         assert_eq!(dd.b1, 1);
         assert_eq!(dd.b2, 2);
         assert_eq!(dd.b3, "aaa");
