@@ -1,31 +1,153 @@
-use glam_ext::{Quat, Transform3A, Vec3A, Vec4};
+use glam::{Quat, Vec2, Vec3A, Vec4};
+use std::hint::likely;
 
+use crate::consts::{DEFAULT_TOWARD_DIR_2D, DEFAULT_TOWARD_DIR_3D, FPS};
+
+#[inline(always)]
+pub fn f2s(frame: u32) -> f32 {
+    frame as f32 / FPS
+}
+
+#[inline(always)]
+pub fn s2f(second: f32) -> u32 {
+    (second * FPS).round() as u32
+}
+
+#[inline(always)]
+pub fn s2f_round(second: f32) -> u32 {
+    (second * FPS).round() as u32
+}
+
+#[inline(always)]
+pub fn s2f_floor(second: f32) -> u32 {
+    (second * FPS).floor() as u32
+}
+
+#[inline(always)]
+pub fn s2f_ceil(second: f32) -> u32 {
+    (second * FPS).ceil() as u32
+}
+
+/// a (- eps) <= b
 #[macro_export]
-macro_rules! near {
+macro_rules! loose_lt {
     ($a:expr, $b:expr) => {
-        $a.abs_diff_eq($b, crate::consts::FLOAT_EPSILON)
+        loose_lt!($a, $b, 1e-4)
     };
     ($a:expr, $b:expr, $eps:expr) => {
-        $a.abs_diff_eq($b, $eps)
+        $a - $eps <= $b
     };
 }
-pub(crate) use near;
+pub use loose_lt;
 
-#[inline(always)]
-pub fn calc_ratio(a: u32, b: u32) -> f32 {
-    if b == 0 {
+/// a (+ eps) < b
+#[macro_export]
+macro_rules! strict_lt {
+    ($a:expr, $b:expr) => {
+        strict_lt!($a, $b, 1e-4)
+    };
+    ($a:expr, $b:expr, $eps:expr) => {
+        $a + $eps < $b
+    };
+}
+pub use strict_lt;
+
+/// a (+ eps) >= b
+#[macro_export]
+macro_rules! loose_gt {
+    ($a:expr, $b:expr) => {
+        loose_gt!($a, $b, 1e-4)
+    };
+    ($a:expr, $b:expr, $eps:expr) => {
+        $a + $eps >= $b
+    };
+}
+pub use loose_gt;
+
+/// a (- eps) > b
+#[macro_export]
+macro_rules! strict_gt {
+    ($a:expr, $b:expr) => {
+        strict_gt!($a, $b, 1e-4)
+    };
+    ($a:expr, $b:expr, $eps:expr) => {
+        $a - $eps > $b
+    };
+}
+pub use strict_gt;
+
+#[macro_export]
+macro_rules! ratio_saturating {
+    ($a:expr, $b:expr) => {{
+        let aa = $a as f32;
+        let bb = ($b as f32).abs();
+        if std::hint::likely(aa > 0.0) {
+            (aa / bb).min(1.0)
+        } else {
+            0.0
+        }
+    }};
+}
+pub use ratio_saturating;
+
+#[macro_export]
+macro_rules! ratio_warpping {
+    ($a:expr, $b:expr) => {{
+        let aa = $a as f32;
+        let bb = ($b as f32).abs();
+        let r = (aa % bb) / bb;
+        if std::hint::likely(r >= 0.0) {
+            r
+        } else if std::hint::likely(r < 0.0) {
+            r + 1.0
+        } else {
+            0.0 // NaN/Inf
+        }
+    }};
+}
+pub use ratio_warpping;
+
+#[inline]
+pub fn dt_sign(num: f32) -> f32 {
+    if num >= 0.0 {
         1.0
     } else {
-        (a as f32) / (b as f32)
+        -1.0
     }
 }
 
-#[inline(always)]
-pub fn calc_ratio_clamp(a: u32, b: u32) -> f32 {
-    if a >= b {
-        return 1.0;
-    }
-    calc_ratio(a, b)
+#[inline]
+pub fn quat_from_dir_xz(dir: Vec2) -> Quat {
+    // 2D coordinate system is left-handed.
+    // 3D coordinate system (used by CriticalPoint) is right-handed.
+    // So swap `from` and `to` parameters here.
+    let q = Quat::from_rotation_arc_2d(dir, DEFAULT_TOWARD_DIR_2D);
+    Quat::from_xyzw(0.0, q.z, 0.0, q.w)
+}
+
+#[inline]
+pub fn dir_xz_from_quat(quat: Quat) -> Vec2 {
+    let dir = quat * DEFAULT_TOWARD_DIR_3D;
+    let dir_xz = if likely(dir.y.abs() < 0.999) {
+        Vec2::new(dir.x, dir.z)
+    } else if dir.y > 0.0 {
+        let dir = quat * Vec3A::NEG_Y;
+        Vec2::new(dir.x, dir.z)
+    } else {
+        let dir = quat * Vec3A::Y;
+        Vec2::new(dir.x, dir.z)
+    };
+    dir_xz.normalize()
+}
+
+#[inline]
+pub fn cos_degree(deg: f32) -> f32 {
+    deg.to_radians().cos()
+}
+
+#[inline]
+pub fn sin_degree(deg: f32) -> f32 {
+    deg.to_radians().sin()
 }
 
 #[inline]
@@ -55,7 +177,7 @@ pub fn to_euler_degree(quat: Quat) -> (f32, f32, f32) {
     rkyv::Serialize,
     rkyv::Deserialize,
 )]
-#[archive_attr(derive(Debug))]
+#[rkyv(derive(Debug))]
 pub struct CsVec3A {
     // TODO: remove this in .net core
     pub x: f32,
@@ -108,7 +230,7 @@ impl PartialEq<Vec3A> for CsVec3A {
     rkyv::Serialize,
     rkyv::Deserialize,
 )]
-#[archive_attr(derive(Debug))]
+#[rkyv(derive(Debug))]
 pub struct CsVec4 {
     // TODO: remove this in .net core
     pub x: f32,
@@ -161,7 +283,7 @@ impl PartialEq<Vec4> for CsVec4 {
     rkyv::Serialize,
     rkyv::Deserialize,
 )]
-#[archive_attr(derive(Debug))]
+#[rkyv(derive(Debug))]
 pub struct CsQuat {
     // TODO: remove this in .net core
     pub x: f32,
@@ -199,5 +321,92 @@ impl PartialEq<Quat> for CsQuat {
     fn eq(&self, other: &Quat) -> bool {
         let zelf: Quat = (*self).into();
         &zelf == other
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use approx::assert_ulps_eq;
+    use glam::Vec3;
+
+    use super::*;
+    use std::f32::consts::{FRAC_PI_2, PI};
+    use std::f32::{INFINITY, NAN};
+
+    #[test]
+    fn test_ratio_saturating() {
+        assert_eq!(ratio_saturating!(-0.5, 2.0), 0.0);
+        assert_eq!(ratio_saturating!(0.0, 2.0), 0.0);
+        assert_eq!(ratio_saturating!(1.5, 2.0), 0.75);
+        assert_eq!(ratio_saturating!(2.5, 2.0), 1.0);
+
+        assert_eq!(ratio_saturating!(-0.5, -2.0), 0.0);
+        assert_eq!(ratio_saturating!(0.0, -2.0), 0.0);
+        assert_eq!(ratio_saturating!(1.5, -2.0), 0.75);
+        assert_eq!(ratio_saturating!(2.5, -2.0), 1.0);
+
+        assert_eq!(ratio_saturating!(-INFINITY, 2.0), 0.0);
+        assert_eq!(ratio_saturating!(INFINITY, 2.0), 1.0);
+        assert_eq!(ratio_saturating!(NAN, 2.0), 0.0);
+
+        assert_eq!(ratio_saturating!(5.0, 0.0), 1.0);
+        assert_eq!(ratio_saturating!(0.0, 0.0), 0.0);
+    }
+
+    #[test]
+    fn test_ratio_wrapping() {
+        assert_eq!(ratio_warpping!(-2.5, 2.0), 0.75);
+        assert_eq!(ratio_warpping!(-1.5, 2.0), 0.25);
+        assert_eq!(ratio_warpping!(0.0, 2.0), 0.0);
+        assert_eq!(ratio_warpping!(0.5, 2.0), 0.25);
+        assert_eq!(ratio_warpping!(2.5, 2.0), 0.25);
+        assert_eq!(ratio_warpping!(4.5, 2.0), 0.25);
+
+        assert_eq!(ratio_warpping!(-2.5, -2.0), 0.75);
+        assert_eq!(ratio_warpping!(0.5, -2.0), 0.25);
+        assert_eq!(ratio_warpping!(4.5, -2.0), 0.25);
+
+        assert_eq!(ratio_saturating!(-INFINITY, 2.0), 0.0);
+        assert_eq!(ratio_saturating!(INFINITY, 2.0), 1.0);
+        assert_eq!(ratio_saturating!(NAN, 2.0), 0.0);
+
+        assert_eq!(ratio_saturating!(5.0, 0.0), 1.0);
+        assert_eq!(ratio_saturating!(0.0, 0.0), 0.0);
+    }
+
+    #[test]
+    fn test_loose_strict_compare() {
+        assert_eq!(loose_lt!(1.0 + 1e-6, 1.0), true);
+        assert_eq!(loose_lt!(1.0 + 1e-3, 1.0), false);
+        assert_eq!(strict_lt!(1.0 - 1e-3, 1.0), true);
+        assert_eq!(strict_lt!(1.0 - 1e-6, 1.0), false);
+
+        assert_eq!(loose_gt!(1.0 - 1e-6, 1.0), true);
+        assert_eq!(loose_gt!(1.0 - 1e-3, 1.0), false);
+        assert_eq!(strict_gt!(1.0 + 1e-3, 1.0), true);
+        assert_eq!(strict_gt!(1.0 + 1e-6, 1.0), false);
+    }
+
+    #[test]
+    fn test_quat_dir_xz() {
+        assert_ulps_eq!(quat_from_dir_xz(DEFAULT_TOWARD_DIR_2D), Quat::IDENTITY);
+        assert_ulps_eq!(quat_from_dir_xz(Vec2::NEG_Y), Quat::from_rotation_y(PI));
+        assert_ulps_eq!(quat_from_dir_xz(Vec2::X), Quat::from_rotation_y(FRAC_PI_2));
+        assert_ulps_eq!(quat_from_dir_xz(Vec2::NEG_X), Quat::from_rotation_y(-FRAC_PI_2));
+
+        assert_ulps_eq!(dir_xz_from_quat(Quat::IDENTITY), DEFAULT_TOWARD_DIR_2D);
+        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_y(PI)), Vec2::NEG_Y);
+        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_y(FRAC_PI_2)), Vec2::X);
+        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_y(-FRAC_PI_2)), Vec2::NEG_X);
+        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_z(FRAC_PI_2)), Vec2::Y);
+        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_z(-FRAC_PI_2)), Vec2::Y);
+        assert_ulps_eq!(
+            dir_xz_from_quat(Quat::from_rotation_y(FRAC_PI_2) * Quat::from_rotation_z(FRAC_PI_2)),
+            Vec2::X
+        );
+        assert_ulps_eq!(
+            dir_xz_from_quat(Quat::from_rotation_y(-FRAC_PI_2) * Quat::from_rotation_z(-FRAC_PI_2)),
+            Vec2::NEG_X
+        );
     }
 }
