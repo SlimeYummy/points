@@ -1,8 +1,9 @@
-use std::any::Any;
+use std::any::{Any, TypeId};
+use std::mem;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::{mem, ptr};
 
+use crate::utils::error::xres;
 use crate::utils::XResult;
 
 #[inline]
@@ -22,206 +23,115 @@ pub unsafe fn force_mut<T: ?Sized>(val: &T) -> &mut T {
     return mem::transmute::<*const T, &mut T>(ptr);
 }
 
-pub trait Castable {}
+pub trait Castable {
+    type Ptr<T: 'static>;
 
-pub trait CastRef {
-    fn cast_ref<T: 'static>(&self) -> XResult<&T>;
-    unsafe fn cast_ref_unchecked<T: 'static>(&self) -> &T;
-    fn cast_mut<T: 'static>(&mut self) -> XResult<&mut T>;
-    unsafe fn cast_mut_unchecked<T: 'static>(&mut self) -> &mut T;
+    fn cast<T: 'static>(self) -> XResult<Self::Ptr<T>>;
+    unsafe fn cast_unchecked<T: 'static>(self) -> Self::Ptr<T>;
 }
 
-impl<TO> CastRef for TO
-where
-    TO: ?Sized + Castable,
-{
+impl<'t, TO: ?Sized + Any> Castable for &'t TO {
+    type Ptr<T: 'static> = &'t T;
+
     #[inline]
-    fn cast_ref<T: 'static>(&self) -> XResult<&T> {
-        check_variant::<TO, T>(self)?;
-        return Ok(unsafe { self.cast_ref_unchecked() });
+    fn cast<T: 'static>(self) -> XResult<&'t T> {
+        if (*self).type_id() == TypeId::of::<T>() {
+            Ok(unsafe { self.cast_unchecked() })
+        } else {
+            xres!(BadType; "invalid cast")
+        }
     }
 
     #[inline]
-    unsafe fn cast_ref_unchecked<T: 'static>(&self) -> &T {
+    unsafe fn cast_unchecked<T: 'static>(self) -> &'t T {
         let (src_data, _) = (self as *const TO).to_raw_parts();
         &*(src_data as *const T)
     }
+}
+
+impl<'t, TO: ?Sized + Any> Castable for &'t mut TO {
+    type Ptr<T: 'static> = &'t mut T;
 
     #[inline]
-    fn cast_mut<T: 'static>(&mut self) -> XResult<&mut T> {
-        check_variant::<TO, T>(self)?;
-        return Ok(unsafe { self.cast_mut_unchecked() });
+    fn cast<T: 'static>(self) -> XResult<&'t mut T> {
+        if (*self).type_id() == TypeId::of::<T>() {
+            Ok(unsafe { self.cast_unchecked() })
+        } else {
+            xres!(BadType; "invalid cast")
+        }
     }
 
     #[inline]
-    unsafe fn cast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
+    unsafe fn cast_unchecked<T: 'static>(self) -> &'t mut T {
         let (src_data, _) = (self as *mut TO).to_raw_parts();
         &mut *(src_data as *mut T)
     }
 }
 
-pub trait CastPtr {
-    type Ptr<T>;
-
-    fn cast_as<T: 'static>(self) -> XResult<Self::Ptr<T>>;
-    unsafe fn cast_as_unchecked<T: 'static>(self) -> Self::Ptr<T>;
-
-    fn cast_to<T>(&self) -> XResult<Self::Ptr<T>>
-    where
-        T: 'static,
-        Self::Ptr<T>: Clone;
-    unsafe fn cast_to_unchecked<T>(&self) -> Self::Ptr<T>
-    where
-        T: 'static,
-        Self::Ptr<T>: Clone;
-}
-
-impl<TO> CastPtr for Box<TO>
-where
-    TO: ?Sized + Castable + CastRef,
-{
-    type Ptr<T> = Box<T>;
+impl<TO: ?Sized + Any> Castable for Box<TO> {
+    type Ptr<T: 'static> = Box<T>;
 
     #[inline]
-    fn cast_as<T: 'static>(self) -> XResult<Box<T>> {
-        check_variant::<TO, T>(self.as_ref())?;
-        Ok(unsafe { self.cast_as_unchecked() })
+    fn cast<T: 'static>(self) -> XResult<Box<T>> {
+        if (*self).type_id() == TypeId::of::<T>() {
+            Ok(unsafe { self.cast_unchecked() })
+        } else {
+            xres!(BadType; "invalid cast")
+        }
     }
 
     #[inline]
-    unsafe fn cast_as_unchecked<T: 'static>(self) -> Box<T> {
-        let (src_data, _) = (Box::leak(self) as *mut TO).to_raw_parts();
-
-        Box::from_raw(src_data as *mut T)
-    }
-
-    #[inline]
-    fn cast_to<T>(&self) -> XResult<Box<T>>
-    where
-        T: 'static,
-        Box<T>: Clone,
-    {
-        check_variant::<TO, T>(self.as_ref())?;
-        Ok(unsafe { self.cast_to_unchecked() })
-    }
-
-    #[inline]
-    unsafe fn cast_to_unchecked<T>(&self) -> Box<T>
-    where
-        T: 'static,
-        Box<T>: Clone,
-    {
-        let (src_data, _) = (self.as_ref() as *const TO).to_raw_parts();
-        let dst_box = Box::from_raw(src_data as *mut T);
-        let new_dst_box = dst_box.clone();
-        mem::forget(dst_box);
-        new_dst_box
+    unsafe fn cast_unchecked<T: 'static>(self) -> Box<T> {
+        let (src_data, _) = Box::into_raw(self).to_raw_parts();
+        unsafe { Box::from_raw(src_data as *mut T) }
     }
 }
 
-impl<TO> CastPtr for Rc<TO>
-where
-    TO: ?Sized + Castable + CastRef,
-{
-    type Ptr<T> = Rc<T>;
+impl<TO: ?Sized + Any> Castable for Rc<TO> {
+    type Ptr<T: 'static> = Rc<T>;
 
     #[inline]
-    fn cast_as<T: 'static>(self) -> XResult<Rc<T>> {
-        check_variant::<TO, T>(self.as_ref())?;
-        Ok(unsafe { self.cast_as_unchecked() })
+    fn cast<T: 'static>(self) -> XResult<Rc<T>> {
+        if (*self).type_id() == TypeId::of::<T>() {
+            Ok(unsafe { self.cast_unchecked() })
+        } else {
+            xres!(BadType; "invalid cast")
+        }
     }
 
     #[inline]
-    unsafe fn cast_as_unchecked<T: 'static>(self) -> Rc<T> {
+    unsafe fn cast_unchecked<T: 'static>(self) -> Rc<T> {
         let (src_data, _) = Rc::into_raw(self).to_raw_parts();
-
         unsafe { Rc::from_raw(src_data as *const T) }
     }
-
-    #[inline]
-    fn cast_to<T: 'static>(&self) -> XResult<Rc<T>> {
-        self.clone().cast_as()
-    }
-
-    #[inline]
-    unsafe fn cast_to_unchecked<T: 'static>(&self) -> Rc<T> {
-        self.clone().cast_as_unchecked()
-    }
 }
 
-impl<TO> CastPtr for Arc<TO>
-where
-    TO: ?Sized + Castable + CastRef,
-{
-    type Ptr<T> = Arc<T>;
+impl<TO: ?Sized + Any> Castable for Arc<TO> {
+    type Ptr<T: 'static> = Arc<T>;
 
     #[inline]
-    fn cast_as<T: 'static>(self) -> XResult<Arc<T>> {
-        check_variant::<TO, T>(self.as_ref())?;
-        Ok(unsafe { self.cast_as_unchecked() })
+    fn cast<T: 'static>(self) -> XResult<Arc<T>> {
+        if (*self).type_id() == TypeId::of::<T>() {
+            Ok(unsafe { self.cast_unchecked() })
+        } else {
+            xres!(BadType; "invalid cast")
+        }
     }
 
     #[inline]
-    unsafe fn cast_as_unchecked<T: 'static>(self) -> Arc<T> {
+    unsafe fn cast_unchecked<T: 'static>(self) -> Arc<T> {
         let (src_data, _) = Arc::into_raw(self).to_raw_parts();
         unsafe { Arc::from_raw(src_data as *const T) }
     }
-
-    #[inline]
-    fn cast_to<T: 'static>(&self) -> XResult<Arc<T>> {
-        self.clone().cast_as()
-    }
-
-    #[inline]
-    unsafe fn cast_to_unchecked<T: 'static>(&self) -> Arc<T> {
-        self.clone().cast_as_unchecked()
-    }
 }
-
-#[inline]
-fn check_variant<TO, T>(re: &TO) -> XResult<()>
-where
-    TO: ?Sized + Castable,
-    T: 'static,
-{
-    let src_meta = ptr::metadata(re as *const TO);
-    let src_drop = unsafe { *mem::transmute_copy::<_, *mut *mut u8>(&src_meta) };
-
-    let dst_ref: &dyn Any = unsafe { mem::transmute_copy::<usize, &T>(&0) };
-    let dst_meta = ptr::metadata(dst_ref);
-    let dst_drop = unsafe { *mem::transmute_copy::<_, *mut *mut u8>(&dst_meta) };
-
-    if src_drop != dst_drop {
-        return xres!(BadType; "check variant");
-    }
-    Ok(())
-}
-
-#[cfg(not(feature = "server-side"))]
-mod x {
-    pub type Xrc<T> = std::rc::Rc<T>;
-    pub type Xweak<T> = std::rc::Weak<T>;
-}
-
-#[cfg(feature = "server-side")]
-mod x {
-    pub type Xrc<T> = std::sync::Arc<T>;
-    pub type Xweak<T> = std::sync::Weak<T>;
-}
-
-pub use x::*;
-
-use super::xres;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    trait Trait {
+    trait Trait: Any {
         fn foo(&self) -> String;
     }
-
-    impl Castable for dyn Trait {}
 
     #[derive(Clone)]
     struct StructA {
@@ -262,17 +172,17 @@ mod tests {
 
         {
             let dyn_a = &a as &dyn Trait;
-            assert!(dyn_a.cast_ref::<StructB>().is_err());
-            assert!(dyn_a.cast_ref::<()>().is_err());
-            let aa = dyn_a.cast_ref::<StructA>().unwrap();
+            assert!(dyn_a.cast::<StructB>().is_err());
+            assert!(dyn_a.cast::<()>().is_err());
+            let aa = dyn_a.cast::<StructA>().unwrap();
             assert_eq!(aa.s1, "AA");
             assert_eq!(aa.s2, "BB");
             assert_eq!(aa.foo(), "AA BB");
 
             let dyn_b = &b as &dyn Trait;
-            assert!(dyn_b.cast_ref::<StructA>().is_err());
-            assert!(dyn_b.cast_ref::<()>().is_err());
-            let bb = dyn_b.cast_ref::<StructB>().unwrap();
+            assert!(dyn_b.cast::<StructA>().is_err());
+            assert!(dyn_b.cast::<()>().is_err());
+            let bb = dyn_b.cast::<StructB>().unwrap();
             assert_eq!(bb.i, -99);
             assert_eq!(bb.f, 2.5);
             assert_eq!(bb.s, "CC");
@@ -281,9 +191,9 @@ mod tests {
 
         {
             let dyn_a = &mut a as &mut dyn Trait;
-            assert!(dyn_a.cast_mut::<StructB>().is_err());
-            assert!(dyn_a.cast_mut::<()>().is_err());
-            let aa = dyn_a.cast_mut::<StructA>().unwrap();
+            assert!(dyn_a.cast::<StructB>().is_err());
+            assert!(dyn_a.cast::<()>().is_err());
+            let aa = dyn_a.cast::<StructA>().unwrap();
             aa.s1 = "XXX".into();
             aa.s2 = "YYY".into();
             assert_eq!(aa.s1, "XXX");
@@ -291,9 +201,9 @@ mod tests {
             assert_eq!(aa.foo(), "XXX YYY");
 
             let dyn_b = &mut b as &mut dyn Trait;
-            assert!(dyn_b.cast_mut::<StructA>().is_err());
-            assert!(dyn_b.cast_mut::<()>().is_err());
-            let bb = dyn_b.cast_mut::<StructB>().unwrap();
+            assert!(dyn_b.cast::<StructA>().is_err());
+            assert!(dyn_b.cast::<()>().is_err());
+            let bb = dyn_b.cast::<StructB>().unwrap();
             bb.i = 123;
             bb.f = 3.5;
             bb.s = "Z!!!".into();
@@ -315,60 +225,29 @@ mod tests {
 
     #[test]
     fn test_box_cast_ptr() {
-        {
-            let a = Box::new(StructA {
-                s1: "AA".into(),
-                s2: "BB".into(),
-            });
-            assert!((a.clone() as Box<dyn Trait>).cast_as::<StructB>().is_err());
-            assert!((a.clone() as Box<dyn Trait>).cast_as::<String>().is_err());
-            let aa = (a as Box<dyn Trait>).cast_as::<StructA>().unwrap();
-            assert_eq!(aa.s1, "AA");
-            assert_eq!(aa.s2, "BB");
-            assert_eq!(aa.foo(), "AA BB");
+        let a = Box::new(StructA {
+            s1: "AA".into(),
+            s2: "BB".into(),
+        });
+        assert!((a.clone() as Box<dyn Trait>).cast::<StructB>().is_err());
+        assert!((a.clone() as Box<dyn Trait>).cast::<String>().is_err());
+        let aa = (a as Box<dyn Trait>).cast::<StructA>().unwrap();
+        assert_eq!(aa.s1, "AA");
+        assert_eq!(aa.s2, "BB");
+        assert_eq!(aa.foo(), "AA BB");
 
-            let b = Box::new(StructB {
-                i: -99,
-                f: 2.5,
-                s: "CC".into(),
-            });
-            assert!((b.clone() as Box<dyn Trait>).cast_as::<StructA>().is_err());
-            assert!((b.clone() as Box<dyn Trait>).cast_as::<String>().is_err());
-            let bb = (b as Box<dyn Trait>).cast_as::<StructB>().unwrap();
-            assert_eq!(bb.i, -99);
-            assert_eq!(bb.f, 2.5);
-            assert_eq!(bb.s, "CC");
-            assert_eq!(bb.foo(), "CC -99 2.5");
-        }
-
-        {
-            let a = Box::new(StructA {
-                s1: "AA".into(),
-                s2: "BB".into(),
-            });
-            let dyn_a = a as Box<dyn Trait>;
-            assert!(dyn_a.cast_to::<StructB>().is_err());
-            assert!(dyn_a.cast_to::<String>().is_err());
-            let mut aa = dyn_a.cast_to::<StructA>().unwrap();
-            assert_eq!(aa.foo(), "AA BB");
-            aa.s2 = "YYY".into();
-            assert_eq!(aa.foo(), "AA YYY");
-            assert_eq!(dyn_a.foo(), "AA BB");
-
-            let b = Box::new(StructB {
-                i: -99,
-                f: 2.5,
-                s: "CC".into(),
-            });
-            let dyn_b = b as Box<dyn Trait>;
-            assert!(dyn_b.cast_to::<StructA>().is_err());
-            assert!(dyn_b.cast_to::<String>().is_err());
-            let mut bb = dyn_b.cast_to::<StructB>().unwrap();
-            assert_eq!(bb.foo(), "CC -99 2.5");
-            bb.f = 3.5;
-            assert_eq!(bb.foo(), "CC -99 3.5");
-            assert_eq!(dyn_b.foo(), "CC -99 2.5");
-        }
+        let b = Box::new(StructB {
+            i: -99,
+            f: 2.5,
+            s: "CC".into(),
+        });
+        assert!((b.clone() as Box<dyn Trait>).cast::<StructA>().is_err());
+        assert!((b.clone() as Box<dyn Trait>).cast::<String>().is_err());
+        let bb = (b as Box<dyn Trait>).cast::<StructB>().unwrap();
+        assert_eq!(bb.i, -99);
+        assert_eq!(bb.f, 2.5);
+        assert_eq!(bb.s, "CC");
+        assert_eq!(bb.foo(), "CC -99 2.5");
     }
 
     #[test]
@@ -377,16 +256,16 @@ mod tests {
             s1: "AA".into(),
             s2: "BB".into(),
         }) as Rc<dyn Trait>;
-        assert!(dyn_a.cast_to::<StructB>().is_err());
-        assert!(dyn_a.cast_to::<String>().is_err());
+        assert!(dyn_a.clone().cast::<StructB>().is_err());
+        assert!(dyn_a.clone().cast::<String>().is_err());
 
-        let aa = dyn_a.cast_to::<StructA>().unwrap();
+        let aa = dyn_a.clone().cast::<StructA>().unwrap();
         assert_eq!(aa.s1, "AA");
         assert_eq!(aa.s2, "BB");
         assert_eq!(aa.foo(), "AA BB");
         assert_eq!(Rc::strong_count(&dyn_a), 2);
 
-        let aaa = dyn_a.cast_as::<StructA>().unwrap();
+        let aaa = dyn_a.cast::<StructA>().unwrap();
         assert_eq!(Rc::strong_count(&aaa), 2);
         assert_eq!(aaa.foo(), "AA BB");
         assert!(Rc::ptr_eq(&aa, &aaa));
@@ -396,17 +275,17 @@ mod tests {
             f: 2.5,
             s: "CC".into(),
         }) as Rc<dyn Trait>;
-        assert!(dyn_b.cast_to::<StructA>().is_err());
-        assert!(dyn_b.cast_to::<String>().is_err());
+        assert!(dyn_b.clone().cast::<StructA>().is_err());
+        assert!(dyn_b.clone().cast::<String>().is_err());
 
-        let bb = dyn_b.cast_to::<StructB>().unwrap();
+        let bb = dyn_b.clone().cast::<StructB>().unwrap();
         assert_eq!(bb.i, -99);
         assert_eq!(bb.f, 2.5);
         assert_eq!(bb.s, "CC");
         assert_eq!(bb.foo(), "CC -99 2.5");
         assert_eq!(Rc::strong_count(&dyn_b), 2);
 
-        let bbb = dyn_b.cast_as::<StructB>().unwrap();
+        let bbb = dyn_b.cast::<StructB>().unwrap();
         assert_eq!(Rc::strong_count(&bbb), 2);
         assert_eq!(bbb.foo(), "CC -99 2.5");
         assert!(Rc::ptr_eq(&bb, &bbb));
@@ -418,16 +297,16 @@ mod tests {
             s1: "PPP".into(),
             s2: "QQ".into(),
         }) as Arc<dyn Trait>;
-        assert!(dyn_a.cast_to::<StructB>().is_err());
-        assert!(dyn_a.cast_to::<String>().is_err());
+        assert!(dyn_a.clone().cast::<StructB>().is_err());
+        assert!(dyn_a.clone().cast::<String>().is_err());
 
-        let aa = dyn_a.cast_to::<StructA>().unwrap();
+        let aa = dyn_a.clone().cast::<StructA>().unwrap();
         assert_eq!(aa.s1, "PPP");
         assert_eq!(aa.s2, "QQ");
         assert_eq!(aa.foo(), "PPP QQ");
         assert_eq!(Arc::strong_count(&dyn_a), 2);
 
-        let aaa = dyn_a.cast_as::<StructA>().unwrap();
+        let aaa = dyn_a.cast::<StructA>().unwrap();
         assert_eq!(Arc::strong_count(&aaa), 2);
         assert_eq!(aaa.foo(), "PPP QQ");
         assert!(Arc::ptr_eq(&aa, &aaa));
@@ -437,17 +316,17 @@ mod tests {
             f: 2.5,
             s: "$$".into(),
         }) as Arc<dyn Trait>;
-        assert!(dyn_b.cast_to::<StructA>().is_err());
-        assert!(dyn_b.cast_to::<String>().is_err());
+        assert!(dyn_b.clone().cast::<StructA>().is_err());
+        assert!(dyn_b.clone().cast::<String>().is_err());
 
-        let bb = dyn_b.cast_to::<StructB>().unwrap();
+        let bb = dyn_b.clone().cast::<StructB>().unwrap();
         assert_eq!(bb.i, -99);
         assert_eq!(bb.f, 2.5);
         assert_eq!(bb.s, "$$");
         assert_eq!(bb.foo(), "$$ -99 2.5");
         assert_eq!(Arc::strong_count(&dyn_b), 2);
 
-        let bbb = dyn_b.cast_as::<StructB>().unwrap();
+        let bbb = dyn_b.cast::<StructB>().unwrap();
         assert_eq!(Arc::strong_count(&bbb), 2);
         assert_eq!(bbb.foo(), "$$ -99 2.5");
         assert!(Arc::ptr_eq(&bb, &bbb));
