@@ -607,3 +607,180 @@ const _: () = {
     }
 };
 
+#[macro_export]
+macro_rules! id {
+    ($string:expr) => {
+        $crate::utils::TmplID::try_from($string).unwrap()
+    };
+    ($($arg:tt)*) => {{
+        let res = std::fmt::format(format_args!($($arg)*));
+        $crate::utils::TmplID::new(&res).unwrap()
+    }}
+}
+pub use id;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::tests::*;
+    use TmplPrefix::*;
+
+    #[test]
+    fn test_tmpl_symbol_cache_json() {
+        let test_dir = prepare_tmp_dir("tmpl-symbol-cache-json");
+        assert!(TmplSymbolCache::from_file(&test_dir).is_err());
+
+        // Test invalid symbol length
+        let json_dir = test_dir.join("symbol.json");
+        write_json(&json_dir, &[&"X".repeat(MAX_SYMBOL_LEN + 1)]);
+        assert!(TmplSymbolCache::from_file(&test_dir).is_err());
+
+        // Test common symbols
+        write_json(&json_dir, &["A", "BB", "CCC", "DDDDDDDDDD"]);
+        let cache = TmplSymbolCache::from_file(&test_dir).unwrap();
+        assert_eq!(cache.find_id("A").unwrap(), 0);
+        assert_eq!(cache.find_id("BB").unwrap(), 1);
+        assert_eq!(cache.find_id("CCC").unwrap(), 2);
+        assert_eq!(cache.find_id("DDDDDDDDDD").unwrap(), 3);
+        assert_eq!(cache.find_id("").unwrap(), u16::MAX);
+        assert!(cache.find_id("Z").is_err());
+        assert_eq!(cache.find_str(0).unwrap(), "A");
+        assert_eq!(cache.find_str(1).unwrap(), "BB");
+        assert_eq!(cache.find_str(2).unwrap(), "CCC");
+        assert_eq!(cache.find_str(3).unwrap(), "DDDDDDDDDD");
+        assert!(cache.find_str(4).is_err());
+
+        // Test hash conflict
+        write_json(&json_dir, &(0..20).map(|n| n.to_string()).collect::<Vec<_>>());
+        let cache = TmplSymbolCache::from_file(&test_dir).unwrap();
+        for n in 0..20 {
+            assert_eq!(cache.find_id(&n.to_string()).unwrap(), n);
+            assert_eq!(cache.find_str(n).unwrap(), n.to_string());
+        }
+    }
+
+    #[test]
+    fn test_tmpl_symbol_cache_rkyv() {
+        let test_dir = prepare_tmp_dir("tmpl-symbol-cache-rkyv");
+        assert!(TmplSymbolCache::from_file(&test_dir).is_err());
+
+        // Test invalid symbol length
+        let rkyv_dir = test_dir.join("symbol.rkyv");
+        write_rkyv(&rkyv_dir, &vec!["X".repeat(MAX_SYMBOL_LEN + 1)]);
+        assert!(TmplSymbolCache::from_file(&test_dir).is_err());
+
+        // Test common symbols
+        write_rkyv(
+            &rkyv_dir,
+            &vec![
+                "A".to_string(),
+                "BB".to_string(),
+                "CCC".to_string(),
+                "DDDDDDDDDD".to_string(),
+            ],
+        );
+        let cache = TmplSymbolCache::from_file(&test_dir).unwrap();
+        assert_eq!(cache.find_id("A").unwrap(), 0);
+        assert_eq!(cache.find_id("BB").unwrap(), 1);
+        assert_eq!(cache.find_id("CCC").unwrap(), 2);
+        assert_eq!(cache.find_id("DDDDDDDDDD").unwrap(), 3);
+        assert_eq!(cache.find_id("").unwrap(), u16::MAX);
+        assert!(cache.find_id("Z").is_err());
+        assert_eq!(cache.find_str(0).unwrap(), "A");
+        assert_eq!(cache.find_str(1).unwrap(), "BB");
+        assert_eq!(cache.find_str(2).unwrap(), "CCC");
+        assert_eq!(cache.find_str(3).unwrap(), "DDDDDDDDDD");
+        assert!(cache.find_str(4).is_err());
+
+        // Test hash conflict
+        write_rkyv(&rkyv_dir, &(0..20).map(|n| n.to_string()).collect::<Vec<String>>());
+        let cache = TmplSymbolCache::from_file(&test_dir).unwrap();
+        for n in 0..20 {
+            assert_eq!(cache.find_id(&n.to_string()).unwrap(), n);
+            assert_eq!(cache.find_str(n).unwrap(), n.to_string());
+        }
+    }
+
+    fn make_id(prefix: TmplPrefix, key1: u16, key2: u16, key3: u16, suffix: u16) -> TmplID {
+        let id = ((prefix as u64) << 58)
+            | ((suffix as u64) << 48)
+            | ((key1 as u64) << 32)
+            | ((key2 as u64) << 16)
+            | ((key3 as u64) << 0);
+        TmplID(id)
+    }
+
+    #[test]
+    fn test_tmpl_id_common() {
+        let test_dir = prepare_tmp_dir("tmpl-id-common");
+        let json_dir = test_dir.join("symbol.json");
+
+        let strings = (0..26)
+            .map(|n| format!("{0}{1}{1}", (b'A' + n) as char, (b'a' + n) as char))
+            .collect::<Vec<String>>();
+        write_json(&json_dir, &strings);
+        let cache = TmplSymbolCache::from_file(&test_dir).unwrap();
+
+        let id1 = TmplID::new_with("Character.Zzz", &cache).unwrap();
+        assert_eq!(id1, make_id(Character, 25, SYMBOL_EMPTY, SYMBOL_EMPTY, SUFFIX_EMPTY));
+        assert_eq!(id1.to_string_with(&cache), "Character.Zzz");
+
+        let id2 = TmplID::new_with("Equipment.Aaa/Z", &cache).unwrap();
+        assert_eq!(id2, make_id(Equipment, 0, SYMBOL_EMPTY, SYMBOL_EMPTY, 35));
+        assert_eq!(id2.to_string_with(&cache), "Equipment.Aaa/Z");
+
+        let id3 = TmplID::new_with("Equipment.Aaa/00", &cache).unwrap();
+        assert_eq!(id3, make_id(Equipment, 0, SYMBOL_EMPTY, SYMBOL_EMPTY, 36 + 0));
+        assert_eq!(id3.to_string_with(&cache), "Equipment.Aaa/00");
+
+        let id4 = TmplID::new_with("Zone.Hhh.Iii", &cache).unwrap();
+        assert_eq!(id4, make_id(Zone, 7, 8, SYMBOL_EMPTY, SUFFIX_EMPTY));
+        assert_eq!(id4.to_string_with(&cache), "Zone.Hhh.Iii");
+
+        let id5 = TmplID::new_with("Zone.Hhh.Iii/9Z", &cache).unwrap();
+        assert_eq!(id5, make_id(Zone, 7, 8, SYMBOL_EMPTY, 36 + 359));
+        assert_eq!(id5.to_string_with(&cache), "Zone.Hhh.Iii/9Z");
+
+        let id6 = TmplID::new_with("Character.Xxx.Yyy.Ooo", &cache).unwrap();
+        assert_eq!(id6, make_id(Character, 23, 24, 14, SUFFIX_EMPTY));
+        assert_eq!(id6.to_string_with(&cache), "Character.Xxx.Yyy.Ooo");
+
+        let id7 = TmplID::new_with("Character.Xxx.Yyy.Ooo/A0", &cache).unwrap();
+        assert_eq!(id7, make_id(Character, 23, 24, 14, 36 + 360));
+        assert_eq!(id7.to_string_with(&cache), "Character.Xxx.Yyy.Ooo/A0");
+
+        let id8 = TmplID::new_with("Character.Xxx.Yyy.Ooo/Z9", &cache).unwrap();
+        assert_eq!(id8, make_id(Character, 23, 24, 14, 36 + 360 + 259));
+        assert_eq!(id8.to_string_with(&cache), "Character.Xxx.Yyy.Ooo/Z9");
+
+        assert!(TmplID::new_with("Zzz", &cache).is_err());
+        assert!(TmplID::new_with("Character", &cache).is_err());
+        assert!(TmplID::new_with("Character.S+", &cache).is_err());
+        assert!(TmplID::new_with("Character.Ab", &cache).is_err());
+        assert!(TmplID::new_with("Zone.Aaa.S+", &cache).is_err());
+        assert!(TmplID::new_with("Zone.Aaa.Ab", &cache).is_err());
+        assert!(TmplID::new_with("Zone.Aaa/", &cache).is_err());
+        assert!(TmplID::new_with("Zone.Aaa/a", &cache).is_err());
+        assert!(TmplID::new_with("Zone.Aaa.Bbb.11", &cache).is_err());
+        assert!(TmplID::new_with("Zone.Aaa.Bbb.Ccc.Ddd", &cache).is_err());
+        assert!(TmplID::new_with("Zone.Aaa.Bbb.Ccc/CC", &cache).is_err());
+        assert!(TmplID::new_with("Zone.128.Bbb.Ccc", &cache).is_err());
+    }
+
+    #[test]
+    fn test_tmpl_id_json_rkyv() {
+        use rkyv::rancor::Error;
+
+        let id1 = TmplID::new("Zone.Aaa/0").unwrap();
+        let buf = serde_json::to_vec(&id1).unwrap();
+        let id2 = serde_json::from_slice(&buf).unwrap();
+        assert_eq!(id1, id2);
+
+        let id3 = TmplID::new("Entry.Xxx.Yyy.Zzz/1F").unwrap();
+        let buf = rkyv::to_bytes::<Error>(&id3).unwrap();
+        let id4 = unsafe { rkyv::access_unchecked::<TmplID>(&buf) };
+        let id5 = rkyv::deserialize::<_, Error>(id4).unwrap();
+        assert_eq!(id3, (*id4).into());
+        assert_eq!(id3, id5);
+    }
+}
