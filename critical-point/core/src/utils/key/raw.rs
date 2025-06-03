@@ -1,8 +1,7 @@
+use approx::abs_diff_eq;
 use cirtical_point_csgen::{CsEnum, CsIn};
 use glam::Vec2;
 use std::fmt;
-
-use crate::consts::FLOAT_EPSILON;
 
 #[repr(u8)]
 #[derive(
@@ -12,6 +11,7 @@ use crate::consts::FLOAT_EPSILON;
     PartialEq,
     Eq,
     Hash,
+    serde::Serialize,
     serde::Deserialize,
     rkyv::Archive,
     rkyv::Serialize,
@@ -116,7 +116,17 @@ impl RawKey {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsIn)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    CsIn,
+)]
 pub struct RawEvent {
     pub key: RawKey,
     pub pressed: bool,
@@ -135,7 +145,7 @@ impl RawEvent {
 
     #[inline]
     pub fn new_move(move_dir: Vec2) -> RawEvent {
-        if move_dir.abs_diff_eq(Vec2::ZERO, FLOAT_EPSILON) {
+        if abs_diff_eq!(move_dir, Vec2::ZERO) {
             RawEvent {
                 key: RawKey::Move,
                 pressed: false,

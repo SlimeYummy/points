@@ -2,21 +2,12 @@ use cirtical_point_csgen::CsEnum;
 use glam::{Vec2, Vec3A};
 
 use super::raw::RawKey;
+use crate::consts::{DEFAULT_VIEW_DIR_2D, DEFAULT_VIEW_DIR_3D};
+use crate::utils::macros::rkyv_self;
+use crate::utils::serde_by;
 
 #[repr(u8)]
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsEnum,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
 pub enum VirtualKey {
     Move,
     View,
@@ -70,6 +61,8 @@ pub enum VirtualKey {
     Break3,
 }
 
+rkyv_self!(VirtualKey);
+
 impl From<RawKey> for VirtualKey {
     fn from(key: RawKey) -> VirtualKey {
         use VirtualKey::*;
@@ -116,7 +109,17 @@ impl From<RawKey> for VirtualKey {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
 pub struct VirtualEvent {
     pub id: u64,
     pub frame: u32,
@@ -130,7 +133,15 @@ pub struct VirtualEvent {
 impl VirtualEvent {
     #[inline]
     pub fn new(id: u64, frame: u32, key: VirtualKey, pressed: bool) -> VirtualEvent {
-        VirtualEvent::new_ex(id, frame, key, pressed, Vec2::ZERO, Vec3A::ZERO, Vec2::ZERO)
+        VirtualEvent::new_ex(
+            id,
+            frame,
+            key,
+            pressed,
+            DEFAULT_VIEW_DIR_2D,
+            DEFAULT_VIEW_DIR_3D,
+            Vec2::ZERO,
+        )
     }
 
     #[inline]
@@ -155,8 +166,9 @@ impl VirtualEvent {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub enum VirtualDirection {
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "dir", content = "cos")]
+pub enum VirtualDir {
     // All variants are stored the cos values in range [0, 180].
     Forward(f32),
     Backward(f32),
@@ -164,19 +176,65 @@ pub enum VirtualDirection {
     Right(f32),
 }
 
-impl VirtualDirection {
+rkyv_self!(VirtualDir);
+
+impl VirtualDir {
     #[inline]
     pub fn cos(&self) -> f32 {
         match self {
-            VirtualDirection::Forward(cos) => *cos,
-            VirtualDirection::Backward(cos) => *cos,
-            VirtualDirection::Left(cos) => *cos,
-            VirtualDirection::Right(cos) => *cos,
+            VirtualDir::Forward(cos) => *cos,
+            VirtualDir::Backward(cos) => *cos,
+            VirtualDir::Left(cos) => *cos,
+            VirtualDir::Right(cos) => *cos,
         }
     }
 
     #[inline]
     pub fn radius(&self) -> f32 {
         libm::acosf(self.cos())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VirtualKeyDir {
+    pub key: VirtualKey,
+    pub dir: Option<VirtualDir>,
+}
+
+rkyv_self!(VirtualKeyDir);
+serde_by!(
+    VirtualKeyDir,
+    (VirtualKey, Option<VirtualDir>),
+    VirtualKeyDir::from,
+    VirtualKeyDir::to_tuple
+);
+
+impl VirtualKeyDir {
+    #[inline]
+    pub fn new(key: VirtualKey, dir: Option<VirtualDir>) -> VirtualKeyDir {
+        VirtualKeyDir { key, dir }
+    }
+
+    #[inline]
+    pub fn to_tuple(&self) -> (VirtualKey, Option<VirtualDir>) {
+        (self.key, self.dir)
+    }
+}
+
+impl From<VirtualKey> for VirtualKeyDir {
+    fn from(key: VirtualKey) -> VirtualKeyDir {
+        VirtualKeyDir::new(key, None)
+    }
+}
+
+impl From<(VirtualKey, Option<VirtualDir>)> for VirtualKeyDir {
+    fn from((key, dir): (VirtualKey, Option<VirtualDir>)) -> VirtualKeyDir {
+        VirtualKeyDir::new(key, dir)
+    }
+}
+
+impl From<VirtualKeyDir> for (VirtualKey, Option<VirtualDir>) {
+    fn from(virtual_key_dir: VirtualKeyDir) -> (VirtualKey, Option<VirtualDir>) {
+        virtual_key_dir.to_tuple()
     }
 }
