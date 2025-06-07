@@ -6,7 +6,7 @@ use crate::utils::{DeterministicState, PRIME_TABLE};
 pub const MAX_SYMBOL_SIZE: usize = 1 << 16;
 
 pub(super) trait InnerNode {
-    fn hash(&self) -> u64;
+    fn hash(&self) -> u32;
     fn as_str(&self) -> &str;
     fn next(&mut self) -> &mut *mut Self;
     fn ref_count(&self) -> u32;
@@ -14,7 +14,7 @@ pub(super) trait InnerNode {
 
 pub(super) struct InnerMap<N: InnerNode> {
     nodes: Vec<*mut N>,
-    prime: u64,
+    prime: u32,
     prime_pos: usize,
     count: usize,
     state: DeterministicState,
@@ -34,7 +34,7 @@ impl<N: InnerNode> InnerMap<N> {
 
         InnerMap {
             nodes: vec![ptr::null_mut(); PRIME_TABLE[prime_pos] as usize],
-            prime: PRIME_TABLE[prime_pos] as u64,
+            prime: PRIME_TABLE[prime_pos],
             count: 0,
             prime_pos,
             state: DeterministicState::new(),
@@ -42,14 +42,15 @@ impl<N: InnerNode> InnerMap<N> {
     }
 
     #[inline(always)]
-    pub(super) fn hash(&self, string: &str) -> u64 {
+    pub(super) fn hash(&self, string: &str) -> u32 {
         let mut hasher = self.state.build_hasher();
         hasher.write(string.as_bytes());
-        hasher.finish()
+        let hash = hasher.finish();
+        ((hash & 0xFFFFFFFF) ^ (hash >> 32)) as u32
     }
 
     #[inline]
-    pub(super) fn find(&self, string: &str, hash: u64) -> Option<NonNull<N>> {
+    pub(super) fn find(&self, string: &str, hash: u32) -> Option<NonNull<N>> {
         let pos = (hash % self.prime) as usize;
         let mut node = unsafe { self.nodes.get_unchecked(pos) };
         loop {
@@ -79,25 +80,6 @@ impl<N: InnerNode> InnerMap<N> {
         self.count += 1;
     }
 
-    // #[inline]
-    // pub(super) fn remove(&mut self, mut node: NonNull<N>) -> bool {
-    //     let hash = unsafe { node.as_ref().hash() };
-    //     let pos = (hash % self.prime) as usize;
-    //     let mut iter = unsafe { self.nodes.get_unchecked_mut(pos) };
-    //     while !iter.is_null() {
-    //         if *iter == node.as_ptr() {
-    //             unsafe {
-    //                 *iter = *node.as_mut().next();
-    //                 *node.as_mut().next() = ptr::null_mut();
-    //             }
-    //             self.count -= 1;
-    //             return true;
-    //         }
-    //         iter = unsafe { (**iter).next() };
-    //     }
-    //     return false;
-    // }
-
     #[inline]
     pub(super) fn try_grow(&mut self) {
         if self.count < self.prime as usize {
@@ -105,7 +87,7 @@ impl<N: InnerNode> InnerMap<N> {
         }
 
         let new_prime_pos = self.prime_pos + 1;
-        let new_prime = PRIME_TABLE[new_prime_pos] as u64;
+        let new_prime = PRIME_TABLE[new_prime_pos];
         let mut new_nodes = vec![ptr::null_mut(); new_prime as usize];
 
         for node in self.nodes.iter() {
