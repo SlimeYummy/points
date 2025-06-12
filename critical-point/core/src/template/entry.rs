@@ -1,92 +1,55 @@
 use crate::consts::MAX_ENTRY_PLUS;
-use crate::template2::attribute::TmplAttribute;
-use crate::template2::base::{ArchivedTmplAny, TmplAny, TmplType};
-use crate::template2::id::TmplID;
+use crate::template::attribute::TmplAttribute;
+use crate::template::base::impl_tmpl;
 // use crate::template2::script::TmplScript;
-use crate::utils::{rkyv_self, serde_by, Num, Table};
+use crate::utils::{impl_for, PiecePlus, Table, TmplID};
 
-#[derive(Debug, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[archive_attr(derive(Debug))]
+#[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[rkyv(derive(Debug))]
 pub struct TmplEntry {
     pub id: TmplID,
     pub name: String,
     pub max_piece: u32,
     #[serde(default)]
-    pub attributes: Table<TmplAttribute, Vec<Num>>,
+    pub attributes: Table<TmplAttribute, Vec<f32>>,
     #[serde(default)]
-    pub plus_attributes: Table<TmplAttribute, Vec<Num>>,
+    pub plus_attributes: Table<TmplAttribute, Vec<f32>>,
+    #[serde(default)]
+    pub var_indexes: Table<TmplID, Vec<u32>>,
+    #[serde(default)]
+    pub plus_var_indexes: Table<TmplID, Vec<u32>>,
     // #[serde(default)]
     // pub script: Option<TmplScript>,
     // #[serde(default)]
-    // pub script_args: Table2<(Symbol, TmplIsPlus), Num>,
+    // pub script_args: Table2<(Symbol, TmplIsPlus), f32>,
 }
 
-#[typetag::deserialize(name = "Entry")]
-impl TmplAny for TmplEntry {
-    #[inline]
-    fn id(&self) -> TmplID {
-        self.id.clone()
-    }
+impl_tmpl!(TmplEntry, Entry, "Entry");
 
-    #[inline]
-    fn typ(&self) -> TmplType {
-        TmplType::Entry
-    }
-}
-
-impl TmplEntry {
+impl_for!(TmplEntry, ArchivedTmplEntry, {
     #[inline]
     pub fn max_plus(&self) -> u32 {
         self.max_piece * MAX_ENTRY_PLUS
     }
-}
 
-impl ArchivedTmplAny for ArchivedTmplEntry {
     #[inline]
-    fn id(&self) -> TmplID {
-        TmplID::from(self.id).clone()
+    pub fn normalize_pair(&self, pair: PiecePlus) -> PiecePlus {
+        PiecePlus {
+            piece: u32::clamp(pair.piece, 0, self.max_piece.into()),
+            plus: u32::clamp(pair.plus, 0, self.max_plus()),
+        }
     }
 
     #[inline]
-    fn typ(&self) -> TmplType {
-        TmplType::Entry
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TmplEntryPair {
-    pub piece: u32,
-    pub plus: u32,
-}
-
-rkyv_self!(TmplEntryPair);
-serde_by!(TmplEntryPair, (u32, u32), TmplEntryPair::from, TmplEntryPair::to_tuple);
-
-impl TmplEntryPair {
-    #[inline]
-    pub fn new(piece: u32, plus: u32) -> Self {
-        Self { piece, plus }
+    pub fn piece_to_index(&self, piece: u32) -> usize {
+        (piece.clamp(1, self.max_piece.into()) - 1) as usize
     }
 
     #[inline]
-    pub fn to_tuple(&self) -> (u32, u32) {
-        (self.piece, self.plus)
+    pub fn plus_to_index(&self, plus: u32) -> usize {
+        (plus / MAX_ENTRY_PLUS).min(self.max_piece.into()) as usize
     }
-}
-
-impl From<(u32, u32)> for TmplEntryPair {
-    #[inline]
-    fn from((piece, plus): (u32, u32)) -> Self {
-        Self { piece, plus }
-    }
-}
-
-impl From<TmplEntryPair> for (u32, u32) {
-    #[inline]
-    fn from(val: TmplEntryPair) -> Self {
-        (val.piece, val.plus)
-    }
-}
+});
 
 #[cfg(test)]
 mod tests {
