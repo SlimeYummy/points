@@ -1,9 +1,9 @@
-use crate::template2::attribute::TmplAttribute;
-use crate::template2::base::{ArchivedTmplAny, TmplAny, TmplLevelRange, TmplType};
-use crate::template2::id::TmplID;
-use crate::template2::jewel::TmplJewelSlots;
-use crate::utils::{rkyv_self, Num, ShapeCapsule, Symbol, Table};
 use cirtical_point_csgen::CsEnum;
+use glam::Vec2;
+
+use crate::template::attribute::TmplAttribute;
+use crate::template::base::impl_tmpl;
+use crate::utils::{impl_for, rkyv_self, JewelSlots, LevelRange, ShapeCapsule, Table, TmplID};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
 #[repr(u8)]
@@ -16,58 +16,35 @@ pub enum CharacterType {
 rkyv_self!(CharacterType);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[archive_attr(derive(Debug))]
+#[rkyv(derive(Debug))]
 pub struct TmplCharacter {
     pub id: TmplID,
     pub name: String,
-    pub level: TmplLevelRange,
+    pub level: LevelRange,
     pub styles: Vec<TmplID>,
     pub equipments: Vec<TmplID>,
     pub bounding_capsule: ShapeCapsule,
-    pub skeleton: Symbol,
-    pub target_box: Symbol,
+    pub skeleton_files: String,
+    pub skeleton_toward: Vec2,
 }
 
-#[typetag::deserialize(name = "Character")]
-impl TmplAny for TmplCharacter {
-    #[inline]
-    fn id(&self) -> TmplID {
-        self.id.clone()
-    }
+impl_tmpl!(TmplCharacter, Character, "Character");
 
+impl_for!(TmplCharacter, ArchivedTmplCharacter, {
     #[inline]
-    fn typ(&self) -> TmplType {
-        TmplType::Character
+    pub fn level_to_index(&self, level: u32) -> usize {
+        (level.clamp(self.level.min, self.level.max) - self.level.min) as usize
     }
-}
+});
 
-impl TmplCharacter {
-    #[inline]
-    pub fn norm_level(&self, level: u32) -> u32 {
-        level - self.level.min
-    }
-}
-
-impl ArchivedTmplAny for ArchivedTmplCharacter {
-    #[inline]
-    fn id(&self) -> TmplID {
-        self.id.clone()
-    }
-
-    #[inline]
-    fn typ(&self) -> TmplType {
-        TmplType::Character
-    }
-}
-
-#[derive(Debug, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[archive_attr(derive(Debug))]
+#[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[rkyv(derive(Debug))]
 pub struct TmplStyle {
     pub id: TmplID,
     pub name: String,
     pub character: TmplID,
-    pub attributes: Table<TmplAttribute, Vec<Num>>,
-    pub slots: Vec<TmplJewelSlots>,
+    pub attributes: Table<TmplAttribute, Vec<f32>>,
+    pub slots: Vec<JewelSlots>,
     pub fixed_attributes: TmplFixedAttributes,
     pub perks: Vec<TmplID>,
     #[serde(default)]
@@ -76,28 +53,7 @@ pub struct TmplStyle {
     pub view_model: String,
 }
 
-#[typetag::deserialize(name = "Style")]
-impl TmplAny for TmplStyle {
-    fn id(&self) -> TmplID {
-        self.id.clone()
-    }
-
-    fn typ(&self) -> TmplType {
-        TmplType::Style
-    }
-}
-
-impl ArchivedTmplAny for ArchivedTmplStyle {
-    #[inline]
-    fn id(&self) -> TmplID {
-        self.id.clone()
-    }
-
-    #[inline]
-    fn typ(&self) -> TmplType {
-        TmplType::Style
-    }
-}
+impl_tmpl!(TmplStyle, Style, "Style");
 
 #[derive(Debug, Default, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct TmplFixedAttributes {
@@ -115,8 +71,9 @@ rkyv_self!(TmplFixedAttributes);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::template2::database::TmplDatabase;
-    use crate::template2::id::id;
+    use crate::template::base::ArchivedTmplAny;
+    use crate::template::database::TmplDatabase;
+    use crate::utils::id;
 
     #[test]
     fn test_load_character() {
@@ -132,8 +89,8 @@ mod tests {
             &[id!("Equipment.No1"), id!("Equipment.No2"), id!("Equipment.No3")]
         );
         assert_eq!(character.bounding_capsule, ShapeCapsule::new(0.5 * 1.35, 0.3));
-        assert_eq!(character.skeleton, "skel.ozz");
-        assert_eq!(character.target_box, "target_box.json");
+        assert_eq!(character.skeleton_files, "girl");
+        assert_eq!(character.skeleton_toward, Vec2::Y);
     }
 
     #[test]
@@ -173,12 +130,12 @@ mod tests {
         assert_eq!(
             style.slots.as_slice(),
             &[
-                TmplJewelSlots::new(0, 2, 2),
-                TmplJewelSlots::new(0, 2, 2),
-                TmplJewelSlots::new(0, 3, 3),
-                TmplJewelSlots::new(2, 3, 3),
-                TmplJewelSlots::new(2, 5, 4),
-                TmplJewelSlots::new(3, 5, 4),
+                JewelSlots::new(0, 2, 2),
+                JewelSlots::new(0, 2, 2),
+                JewelSlots::new(0, 3, 3),
+                JewelSlots::new(2, 3, 3),
+                JewelSlots::new(2, 5, 4),
+                JewelSlots::new(3, 5, 4),
             ]
         );
 
