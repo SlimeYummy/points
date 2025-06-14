@@ -1,11 +1,6 @@
-use crate::template2::attribute::TmplAttribute;
-use crate::template2::base::{TmplAny, TmplLevelRange, TmplType};
-use crate::template2::entry::TmplEntryPair;
-use crate::template2::id::TmplID;
-use crate::template2::jewel::TmplJewelSlots;
-use crate::utils::{rkyv_self, Num, Table};
-
-use super::ArchivedTmplAny;
+use crate::template::attribute::TmplAttribute;
+use crate::template::base::impl_tmpl;
+use crate::utils::{impl_for, rkyv_self, JewelSlots, LevelRange, PiecePlus, Table, TmplID};
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -18,7 +13,7 @@ pub enum TmplEquipmentSlot {
 rkyv_self!(TmplEquipmentSlot);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[archive_attr(derive(Debug))]
+#[rkyv(derive(Debug))]
 pub struct TmplEquipment {
     pub id: TmplID,
     pub name: String,
@@ -26,57 +21,34 @@ pub struct TmplEquipment {
     pub slot: TmplEquipmentSlot,
     #[serde(default)]
     pub parents: Table<TmplID, u32>,
-    pub level: TmplLevelRange,
+    pub level: LevelRange,
     #[serde(default)]
-    pub materials: Table<TmplID, Vec<Num>>,
-    pub attributes: Table<TmplAttribute, Vec<Num>>,
+    pub materials: Table<TmplID, Vec<f32>>,
+    pub attributes: Table<TmplAttribute, Vec<f32>>,
     #[serde(default)]
-    pub slots: Vec<TmplJewelSlots>,
+    pub slots: Vec<JewelSlots>,
     #[serde(default)]
-    pub entries: Table<TmplID, Vec<TmplEntryPair>>,
+    pub entries: Table<TmplID, Vec<PiecePlus>>,
     // #[serde(default)]
     // pub script: Option<TmplScript>,
     // #[serde(default)]
-    // pub script_args: Table<Symbol, Num>,
+    // pub script_args: Table<Symbol, f32>,
 }
 
-#[typetag::deserialize(name = "Equipment")]
-impl TmplAny for TmplEquipment {
-    #[inline]
-    fn id(&self) -> TmplID {
-        self.id.clone()
-    }
+impl_tmpl!(TmplEquipment, Equipment, "Equipment");
 
+impl_for!(TmplEquipment, ArchivedTmplEquipment, {
     #[inline]
-    fn typ(&self) -> TmplType {
-        TmplType::Equipment
+    pub fn level_to_index(&self, level: u32) -> usize {
+        (level.clamp(self.level.min, self.level.max) - self.level.min) as usize
     }
-}
-
-impl TmplEquipment {
-    #[inline]
-    pub fn norm_level(&self, level: u32) -> u32 {
-        level - self.level.min
-    }
-}
-
-impl ArchivedTmplAny for ArchivedTmplEquipment {
-    #[inline]
-    fn id(&self) -> TmplID {
-        self.id.clone()
-    }
-
-    #[inline]
-    fn typ(&self) -> TmplType {
-        TmplType::Equipment
-    }
-}
+});
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::template2::database::TmplDatabase;
-    use crate::template2::id::id;
+    use crate::template::database::TmplDatabase;
+    use crate::utils::id;
 
     #[test]
     fn test_load_equipment() {
@@ -106,10 +78,10 @@ mod tests {
         assert_eq!(
             equipment.slots.as_slice(),
             &[
-                TmplJewelSlots::new(0, 0, 0),
-                TmplJewelSlots::new(0, 0, 0),
-                TmplJewelSlots::new(0, 1, 0),
-                TmplJewelSlots::new(0, 1, 0)
+                JewelSlots::new(0, 0, 0),
+                JewelSlots::new(0, 0, 0),
+                JewelSlots::new(0, 1, 0),
+                JewelSlots::new(0, 1, 0)
             ]
         );
 
@@ -118,10 +90,10 @@ mod tests {
         assert_eq!(
             equipment.entries[0].v.as_slice(),
             &[
-                TmplEntryPair::new(1, 0),
-                TmplEntryPair::new(1, 1),
-                TmplEntryPair::new(1, 2),
-                TmplEntryPair::new(1, 3)
+                PiecePlus::new(1, 0),
+                PiecePlus::new(1, 1),
+                PiecePlus::new(1, 2),
+                PiecePlus::new(1, 3)
             ]
         );
 
