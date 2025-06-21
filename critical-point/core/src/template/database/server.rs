@@ -9,7 +9,7 @@ use std::{alloc, fmt, fs, mem, slice, u32};
 
 use crate::template2::base::{ArchivedTmplAny, TmplAny};
 use crate::template2::database::base::{load_json_to_rkyv, load_rkyv_into, TmplIndexCache};
-use crate::template2::id::{TmplID, TmplHashMap};
+use crate::template2::id::{TmplHashMap, TmplID};
 use crate::utils::{AsXResultIO, IdentityState, XResult};
 
 //
@@ -34,9 +34,11 @@ pub(crate) unsafe fn init_database_static<P: AsRef<Path>>(path: P) -> XResult<()
 #[cfg(test)]
 #[ctor::ctor]
 fn test_init_database_static() {
+    use crate::consts::TEST_TMP_RES_PATH;
+
     unsafe {
-        crate::template2::id::init_id_static("../../test-tmp/resource").unwrap();
-        init_database_static("../../test-tmp/resource").unwrap();
+        crate::utils::init_id_static(TEST_TMP_RES_PATH).unwrap();
+        init_database_static(TEST_TMP_RES_PATH).unwrap();
     };
 }
 
