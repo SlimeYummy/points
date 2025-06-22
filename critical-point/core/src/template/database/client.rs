@@ -11,10 +11,9 @@ use std::ptr::NonNull;
 use std::rc::Rc;
 use std::{alloc, fmt, fs, mem, ptr, slice, u32};
 
-use crate::template2::base::{ArchivedTmplAny, TmplAny};
-use crate::template2::database::base::{load_json_to_rkyv, load_rkyv_into, TmplIndexCache};
-use crate::template2::id::{TmplID, TmplHashMap};
-use crate::utils::{xerr, xfrom, xfromf, xres, xresf, IdentityState, XResult};
+use crate::template::base::{ArchivedTmplAny, TmplAny, TmplHashMap};
+use crate::template::database::base::{load_json_to_rkyv, load_rkyv_into, TmplIndexCache};
+use crate::utils::{xerr, xfromf, xresf, IdentityState, TmplID, XResult};
 
 //
 // Database
@@ -35,7 +34,18 @@ pub(crate) unsafe fn init_database_static<P: AsRef<Path>>(path: P) -> XResult<()
     Ok(())
 }
 
-pub(crate) struct TmplDatabaseInner {
+#[cfg(test)]
+#[ctor::ctor]
+fn test_init_database_static() {
+    use crate::consts::TEST_TMP_RES_PATH;
+
+    unsafe {
+        crate::utils::init_id_static(TEST_TMP_RES_PATH).unwrap();
+        init_database_static(TEST_TMP_RES_PATH).unwrap();
+    };
+}
+
+struct TmplDatabaseInner {
     is_rkyv: bool,
     is_aliving: bool,
     file: File,
@@ -214,6 +224,13 @@ impl TmplDatabaseInner {
             }
         }
     }
+
+    fn set_cache_size_limit(&mut self, size: usize) {
+        if size < self.cached_size_limit {
+            self.delete_by(|zelf, _| zelf.cached_size > zelf.cached_size_limit);
+        }
+        self.cached_size_limit = size;
+    }
 }
 
 pub struct TmplDatabase {
@@ -232,14 +249,20 @@ impl TmplDatabase {
         unsafe { &mut *self.inner.get() }
     }
 
-    pub fn new(cached_size: usize, cached_frame_limit: u32) -> XResult<TmplDatabase> {
+    pub fn new(cached_size_limit: usize, cached_frame_limit: u32) -> XResult<TmplDatabase> {
         Ok(TmplDatabase {
             inner: Rc::new(UnsafeCell::new(TmplDatabaseInner::from_file(
                 index_cache().path(),
-                cached_size,
+                cached_size_limit,
                 cached_frame_limit,
             )?)),
         })
+    }
+
+    pub(crate) fn clone(&self) -> TmplDatabase {
+        TmplDatabase {
+            inner: self.inner.clone(),
+        }
     }
 
     #[inline]
@@ -262,6 +285,11 @@ impl TmplDatabase {
         self.inner().current_frame = current_frame;
         self.inner()
             .delete_by(|zelf, inner| inner.cached_frame + zelf.cached_frame_limit <= current_frame);
+    }
+
+    #[inline]
+    pub fn set_cache_size_limit(&self, size: usize) {
+        self.inner().set_cache_size_limit(size);
     }
 }
 
@@ -300,6 +328,8 @@ impl AtInnerReferred {
         id: TmplID,
         initialize: F,
     ) -> XResult<NonNull<AtInnerReferred>> {
+        use rkyv::boxed::ArchivedBox;
+
         let size = AT_INNER_SIZE + (tmpl_size + 0xF) & !0xF;
         let mut inner =
             NonNull::new_unchecked(alloc::alloc(Layout::from_size_align_unchecked(size, 16)) as *mut AtInnerReferred);
@@ -312,8 +342,8 @@ impl AtInnerReferred {
         initialize(inner.as_mut().buf_mut())?;
         inner.as_mut().padding_buf_mut().fill(0);
 
-        let archived_ref = rkyv::archived_unsized_root::<dyn TmplAny>(inner.as_ref().buf());
-        inner.as_mut().archived_ref = mem::transmute::<&dyn ArchivedTmplAny, [*const (); 2]>(archived_ref);
+        let archived_ref = rkyv::access_unchecked::<ArchivedBox<dyn ArchivedTmplAny>>(inner.as_ref().buf());
+        inner.as_mut().archived_ref = mem::transmute::<&dyn ArchivedTmplAny, [*const (); 2]>(archived_ref.as_ref());
         return Ok(inner);
     }
 
@@ -349,13 +379,16 @@ impl AtInnerReferred {
 
     #[inline]
     fn from_cached(mut cached: NonNull<AtInnerCached>) -> NonNull<AtInnerReferred> {
+        use rkyv::boxed::ArchivedBox;
+
         unsafe {
             assert_eq!(cached.as_ref().h.ref_count.get(), 0);
 
             cached.as_mut().clear();
             let mut referred = NonNull::new_unchecked(cached.as_ptr() as *mut _ as *mut AtInnerReferred);
-            let archived_ref = rkyv::archived_unsized_root::<dyn TmplAny>(referred.as_ref().buf());
-            referred.as_mut().archived_ref = mem::transmute::<&dyn ArchivedTmplAny, [*const (); 2]>(archived_ref);
+            let archived_ref = rkyv::access_unchecked::<ArchivedBox<dyn ArchivedTmplAny>>(referred.as_ref().buf());
+            referred.as_mut().archived_ref =
+                mem::transmute::<&dyn ArchivedTmplAny, [*const (); 2]>(archived_ref.as_ref());
             referred
         }
     }
@@ -526,18 +559,9 @@ where
 }
 
 #[cfg(test)]
-#[ctor::ctor]
-fn test_init_database_static() {
-    unsafe {
-        crate::template2::id::init_id_static("../../test-tmp/resource").unwrap();
-        init_database_static("../../test-tmp/resource").unwrap();
-    };
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::template2::id::id;
+    use crate::utils::id;
 
     fn db_all_count(db: &TmplDatabase) -> usize {
         db.inner().map.len()
@@ -562,47 +586,47 @@ mod tests {
         assert_eq!(db_all_count(&db), 0);
         assert_eq!(db_cache_count(&db), 0);
 
-        let stage1 = db.find(id!("Stage.Demo")).unwrap();
-        let stage_size = stage1.size();
-        assert_eq!(stage1.ref_count(), 1);
+        let zone1 = db.find(id!("Zone.Demo")).unwrap();
+        let zone_size = zone1.size();
+        assert_eq!(zone1.ref_count(), 1);
         assert_eq!(db_all_count(&db), 1);
         assert_eq!(db_cache_count(&db), 0);
-        assert_eq!(db.size(), stage_size);
+        assert_eq!(db.size(), zone_size);
         assert_eq!(db.cached_size(), 0);
 
-        let stage2 = stage1.clone();
-        assert_eq!(stage2.ref_count(), 2);
+        let zone2 = zone1.clone();
+        assert_eq!(zone2.ref_count(), 2);
         assert_eq!(db_all_count(&db), 1);
         assert_eq!(db_cache_count(&db), 0);
-        assert_eq!(db.size(), stage_size);
+        assert_eq!(db.size(), zone_size);
         assert_eq!(db.cached_size(), 0);
-        mem::drop(stage2);
-        assert_eq!(stage1.ref_count(), 1);
+        mem::drop(zone2);
+        assert_eq!(zone1.ref_count(), 1);
 
-        mem::drop(stage1);
+        mem::drop(zone1);
         assert_eq!(db_all_count(&db), 1);
         assert_eq!(db_cache_count(&db), 1);
-        assert_eq!(db.size(), stage_size);
-        assert_eq!(db.cached_size(), stage_size);
+        assert_eq!(db.size(), zone_size);
+        assert_eq!(db.cached_size(), zone_size);
 
         let entry = db.find(id!("Entry.MaxHealthUp")).unwrap();
         let entry_size = entry.size();
         assert_eq!(entry.ref_count(), 1);
-        assert_eq!(db.size(), stage_size + entry_size);
-        assert_eq!(db.cached_size(), stage_size);
+        assert_eq!(db.size(), zone_size + entry_size);
+        assert_eq!(db.cached_size(), zone_size);
 
-        let stage3 = db.find(id!("Stage.Demo")).unwrap();
-        assert_eq!(stage3.ref_count(), 1);
+        let zone3 = db.find(id!("Zone.Demo")).unwrap();
+        assert_eq!(zone3.ref_count(), 1);
         assert_eq!(db_all_count(&db), 2);
         assert_eq!(db_cache_count(&db), 0);
-        assert_eq!(db.size(), stage_size + entry_size);
+        assert_eq!(db.size(), zone_size + entry_size);
         assert_eq!(db.cached_size(), 0);
 
-        mem::drop(stage3);
+        mem::drop(zone3);
         assert_eq!(db_all_count(&db), 2);
         assert_eq!(db_cache_count(&db), 1);
-        assert_eq!(db.size(), stage_size + entry_size);
-        assert_eq!(db.cached_size(), stage_size);
+        assert_eq!(db.size(), zone_size + entry_size);
+        assert_eq!(db.cached_size(), zone_size);
 
         db.inner().free_all();
         assert_eq!(db_all_count(&db), 0);
@@ -620,7 +644,7 @@ mod tests {
     #[test]
     fn test_tmpl_database_auto_free() {
         // Cached size must > 2 Entry && < 3 Entry
-        let db = TmplDatabase::new(600, 2).unwrap();
+        let db = TmplDatabase::new(400, 2).unwrap();
         assert_eq!(db_all_count(&db), 0);
         assert_eq!(db_cache_count(&db), 0);
 

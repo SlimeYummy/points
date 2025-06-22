@@ -1,46 +1,38 @@
 mod base;
-#[cfg(not(feature = "server"))]
+#[cfg(not(feature = "server-side"))]
 mod client;
-#[cfg(feature = "server")]
+#[cfg(feature = "server-side")]
 mod server;
 
-#[cfg(not(feature = "server"))]
-pub use client::{At, TmplDatabase};
-#[cfg(feature = "server")]
-pub use server::{At, TmplDatabase};
+#[cfg(not(feature = "server-side"))]
+pub use client::*;
+#[cfg(feature = "server-side")]
+pub use server::*;
 
-use crate::template2::base::TmplAny;
-use crate::template2::id::TmplID;
-use crate::utils::{CastRef, XResult};
+use std::any::TypeId;
 use std::mem;
+
+use crate::template::base::TmplAny;
+use crate::utils::{xres, TmplID, XResult};
 
 impl At<dyn TmplAny> {
     #[inline]
-    pub fn cast_as<T: TmplAny + rkyv::Archive + 'static>(self) -> XResult<At<T>> {
-        self.as_archived().cast_ref::<T::Archived>()?;
+    pub fn cast<T: TmplAny + rkyv::Archive + 'static>(self) -> XResult<At<T>> {
+        if self.as_archived().type_id() != TypeId::of::<T::Archived>() {
+            return xres!(BadType; "invalid cast");
+        }
         Ok(unsafe { mem::transmute::<At<dyn TmplAny>, At<T>>(self) })
     }
 
     #[inline]
-    pub unsafe fn cast_as_unchecked<T: TmplAny + rkyv::Archive + 'static>(self) -> At<T> {
-        unsafe { mem::transmute::<At<dyn TmplAny>, At<T>>(self) }
-    }
-
-    #[inline]
-    pub fn cast_to<T: TmplAny + rkyv::Archive + 'static>(&self) -> XResult<At<T>> {
-        self.as_archived().cast_ref::<T::Archived>()?;
-        Ok(unsafe { mem::transmute::<At<dyn TmplAny>, At<T>>(self.clone()) })
-    }
-
-    #[inline]
-    pub unsafe fn cast_to_unchecked<T: TmplAny + rkyv::Archive + 'static>(&self) -> At<T> {
-        unsafe { mem::transmute::<At<dyn TmplAny>, At<T>>(self.clone()) }
+    pub unsafe fn cast_unchecked<T: TmplAny + rkyv::Archive + 'static>(self) -> At<T> {
+        mem::transmute::<At<dyn TmplAny>, At<T>>(self)
     }
 }
 
 impl TmplDatabase {
     #[inline]
     pub fn find_as<T: TmplAny + rkyv::Archive + 'static>(&self, id: TmplID) -> XResult<At<T>> {
-        self.find(id)?.cast_as()
+        self.find(id)?.cast()
     }
 }

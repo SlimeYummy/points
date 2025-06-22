@@ -1,4 +1,3 @@
-use rkyv::AlignedVec;
 use std::fmt::Debug;
 use std::fs;
 use std::fs::File;
@@ -6,9 +5,8 @@ use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
 
-use crate::template2::base::TmplAny;
-use crate::template2::id::{TmplID, TmplHashMap};
-use crate::utils::{xerr, xfrom, xfromf, xres, xresf, IdentityState, XResult};
+use crate::template::base::{TmplAny, TmplHashMap};
+use crate::utils::{xerr, xerrf, xfromf, xresf, IdentityState, TmplID, XResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(super) struct TmplIndex {
@@ -50,7 +48,8 @@ impl TmplIndexCache {
     };
 
     pub(super) fn from_file<P: AsRef<Path>>(path: P) -> XResult<TmplIndexCache> {
-        use rkyv::Deserialize;
+        use rkyv::rancor::Failure;
+        use rkyv::Archived;
 
         let path = PathBuf::from(path.as_ref());
         let rkyv_path = path.join("index.rkyv");
@@ -59,10 +58,8 @@ impl TmplIndexCache {
 
         if fs::exists(&rkyv_path).unwrap_or(false) {
             let buf = fs::read(&rkyv_path).map_err(xfromf!("rkyv_path={:?}", rkyv_path))?;
-            let archived = unsafe { rkyv::archived_root::<TmplHashMap<TmplIndex>>(&buf) };
-            let indexes = archived
-                .deserialize(&mut rkyv::Infallible)
-                .map_err(|_| xerr!(Unexpected; "rkyv"))?;
+            let archived = unsafe { rkyv::access_unchecked::<Archived<TmplHashMap<TmplIndex>>>(&buf) };
+            let indexes = rkyv::deserialize::<_, Failure>(archived).map_err(|_| xerr!(Rkyv))?;
             return Ok(TmplIndexCache { indexes, path });
         }
 
@@ -109,9 +106,8 @@ pub(super) fn load_rkyv_into(file: &mut File, id: TmplID, index: TmplIndex, buf:
     Ok(())
 }
 
-pub(super) fn load_json_to_rkyv(file: &mut File, id: TmplID, index: TmplIndex) -> XResult<AlignedVec> {
-    use rkyv::ser::serializers::AllocSerializer;
-    use rkyv::ser::Serializer;
+pub(super) fn load_json_to_rkyv(file: &mut File, id: TmplID, index: TmplIndex) -> XResult<rkyv::util::AlignedVec> {
+    use rkyv::rancor::Failure;
 
     file.seek(SeekFrom::Start(index.ptr as u64))
         .map_err(xfromf!("id={}", id))?;
@@ -122,9 +118,7 @@ pub(super) fn load_json_to_rkyv(file: &mut File, id: TmplID, index: TmplIndex) -
     file.read_exact(&mut file_buf).map_err(xfromf!("id={}", id))?;
     let tmpl: Box<dyn TmplAny> = serde_json::from_slice(&file_buf).map_err(xfromf!("id={}", id))?;
 
-    let mut serializer = AllocSerializer::<4096>::default();
-    serializer.serialize_unsized_value(tmpl.as_ref()).unwrap();
-    let rkyv_buf = serializer.into_serializer().into_inner();
+    let rkyv_buf = rkyv::to_bytes::<Failure>(&tmpl).map_err(|_| xerrf!(Unexpected; "id={}", id))?;
     Ok(rkyv_buf)
 }
 
@@ -133,8 +127,8 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::template2::id::id;
-    use crate::template2::test_utils::*;
+    use crate::utils::id;
+    use crate::utils::tests::*;
 
     #[test]
     fn test_tmpl_index_cache_json() {
