@@ -22,7 +22,7 @@ struct AssetTargetBinding {
     part: Symbol,
     joint: Symbol,
     ratio: f32,
-    #[serde(default = "Symbol::default")]
+    #[serde(default)]
     joint2: Symbol,
 }
 
@@ -44,22 +44,23 @@ pub struct LoadedTargetBinding {
 }
 
 impl AssetLoader {
-    pub fn load_target_box(&mut self, path: &Symbol) -> XResult<LoadedTargetBox> {
-        let mut asset_stage = self.load_json::<AssetTargetBox, _>(path.as_str())?;
+    pub fn load_target_box(&mut self, path_prefix: &Symbol) -> XResult<LoadedTargetBox> {
+        let path = format!("{}.target.json", path_prefix);
+        let mut asset_zone = self.load_json::<AssetTargetBox, _>(&path)?;
 
         let mut loaded = LoadedTargetBox::default();
-        loaded.parts = asset_stage.parts;
+        loaded.parts = asset_zone.parts;
 
-        let mut jolt_shapes = Vec::with_capacity(asset_stage.shapes.len());
-        for shape in &asset_stage.shapes {
+        let mut jolt_shapes = Vec::with_capacity(asset_zone.shapes.len());
+        for shape in &asset_zone.shapes {
             jolt_shapes.push(self.load_shape(shape)?);
         }
 
-        loaded.bindings = Vec::with_capacity(asset_stage.bindings.len());
-        for asset_binding in asset_stage.bindings.drain(..) {
+        loaded.bindings = Vec::with_capacity(asset_zone.bindings.len());
+        for asset_binding in asset_zone.bindings.drain(..) {
             let jolt_shape = jolt_shapes
                 .get(asset_binding.shape_index as usize)
-                .ok_or_else(|| xerrf!(BadAsset; "path={} shape_index={}", path, asset_binding.shape_index))?;
+                .ok_or_else(|| xerrf!(BadAsset; "path={}, shape_index={}", path, asset_binding.shape_index))?;
             loaded.bindings.push(LoadedTargetBinding {
                 shape: jolt_shape.clone(),
                 position: asset_binding.position,
