@@ -1,23 +1,22 @@
 use educe::Educe;
-use std::vec;
 
-use crate::script::{script_in, script_out, sin, sout, ScriptInputMap, ScriptOutType, ScriptOutputMap};
-use crate::template::{TmplAttributeType, TmplIsPlus};
-use crate::utils::{xresf, Num, Table2, XResult};
+// use crate::script::{script_in, script_out, sin, sout, ScriptInputMap, ScriptOutType, ScriptOutputMap};
+use crate::template::TmplAttribute;
+use crate::utils::{xresf, ArchivedTable, XResult};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PrimaryValues {
-    pub max_health: Num,
-    pub max_posture: Num,
-    pub posture_recovery: Num,
+    pub max_health: f32,
+    pub max_posture: f32,
+    pub posture_recovery: f32,
 
-    pub physical_attack: Num,
-    pub elemental_attack: Num,
-    pub arcane_attack: Num,
+    pub physical_attack: f32,
+    pub elemental_attack: f32,
+    pub arcane_attack: f32,
 
-    pub physical_defense: Num,
-    pub elemental_defense: Num,
-    pub arcane_defense: Num,
+    pub physical_defense: f32,
+    pub elemental_defense: f32,
+    pub arcane_defense: f32,
 }
 
 impl PrimaryValues {
@@ -25,8 +24,8 @@ impl PrimaryValues {
         Self::default()
     }
 
-    pub fn append_attribute(&mut self, label: TmplAttributeType, value: Num) {
-        use TmplAttributeType as A;
+    pub fn append_attribute(&mut self, label: TmplAttribute, value: f32) {
+        use TmplAttribute as A;
         match label {
             A::MaxHealth => self.max_health += value,
             A::MaxPosture => self.max_posture += value,
@@ -41,135 +40,135 @@ impl PrimaryValues {
         }
     }
 
-    pub fn append_table(&mut self, level: u32, attributes: &Table2<TmplAttributeType, Num>) -> XResult<()> {
+    pub fn append_table(&mut self, level: u32, attributes: &ArchivedTable<TmplAttribute, Vec<f32>>) -> XResult<()> {
         if level == 0 {
             return Ok(());
         }
 
-        for (attr, values) in attributes.iter() {
-            match values.get(level as usize) {
-                Some(value) => self.append_attribute(*attr, *value),
-                None => return xresf!(BadAttribute; "attr={:?} level={}", attr, level),
+        for attr in attributes.iter() {
+            match attr.v.get(level as usize) {
+                Some(value) => self.append_attribute(attr.k, value.into()),
+                None => return xresf!(BadAttribute; "attr={:?}, level={}", attr, level),
             }
         }
         Ok(())
     }
 
-    pub fn script_input() -> ScriptInputMap {
-        script_in(
-            "primary",
-            vec![
-                sin!(PrimaryValues, max_health),
-                sin!(PrimaryValues, max_posture),
-                sin!(PrimaryValues, posture_recovery),
-                sin!(PrimaryValues, physical_attack),
-                sin!(PrimaryValues, elemental_attack),
-                sin!(PrimaryValues, arcane_attack),
-                sin!(PrimaryValues, physical_defense),
-                sin!(PrimaryValues, elemental_defense),
-                sin!(PrimaryValues, arcane_defense),
-            ],
-        )
-    }
+    // pub fn script_input() -> ScriptInputMap {
+    //     script_in(
+    //         "primary",
+    //         vec![
+    //             sin!(PrimaryValues, max_health),
+    //             sin!(PrimaryValues, max_posture),
+    //             sin!(PrimaryValues, posture_recovery),
+    //             sin!(PrimaryValues, physical_attack),
+    //             sin!(PrimaryValues, elemental_attack),
+    //             sin!(PrimaryValues, arcane_attack),
+    //             sin!(PrimaryValues, physical_defense),
+    //             sin!(PrimaryValues, elemental_defense),
+    //             sin!(PrimaryValues, arcane_defense),
+    //         ],
+    //     )
+    // }
 }
 
 #[derive(Educe, Debug, Clone, Copy)]
 #[educe(Default)]
 pub struct SecondaryValues {
-    pub max_health_up: Num,
-    pub max_health_down: Num,
+    pub max_health_up: f32,
+    pub max_health_down: f32,
 
-    pub max_posture_up: Num,
-    pub max_posture_down: Num,
+    pub max_posture_up: f32,
+    pub max_posture_down: f32,
 
-    pub attack_up: Num,
-    pub attack_down: Num,
-    pub physical_attack_up: Num,
-    pub physical_attack_down: Num,
-    pub elemental_attack_up: Num,
-    pub elemental_attack_down: Num,
-    pub arcane_attack_up: Num,
-    pub arcane_attack_down: Num,
+    pub attack_up: f32,
+    pub attack_down: f32,
+    pub physical_attack_up: f32,
+    pub physical_attack_down: f32,
+    pub elemental_attack_up: f32,
+    pub elemental_attack_down: f32,
+    pub arcane_attack_up: f32,
+    pub arcane_attack_down: f32,
 
-    pub critical_chance: Num,
-    pub critical_damage: Num,
+    pub critical_chance: f32,
+    pub critical_damage: f32,
 
-    pub defense_up: Num,
-    pub defense_down: Num,
-    pub physical_defense_up: Num,
-    pub physical_defense_down: Num,
-    pub cut_defense_up: Num,
-    pub cut_defense_down: Num,
-    pub blunt_defense_up: Num,
-    pub blunt_defense_down: Num,
-    pub ammo_defense_up: Num,
-    pub ammo_defense_down: Num,
-    pub elemental_defense_up: Num,
-    pub elemental_defense_down: Num,
-    pub fire_defense_up: Num,
-    pub fire_defense_down: Num,
-    pub ice_defense_up: Num,
-    pub ice_defense_down: Num,
-    pub thunder_defense_up: Num,
-    pub thunder_defense_down: Num,
-    pub arcane_defense_up: Num,
-    pub arcane_defense_down: Num,
+    pub defense_up: f32,
+    pub defense_down: f32,
+    pub physical_defense_up: f32,
+    pub physical_defense_down: f32,
+    pub cut_defense_up: f32,
+    pub cut_defense_down: f32,
+    pub blunt_defense_up: f32,
+    pub blunt_defense_down: f32,
+    pub ammo_defense_up: f32,
+    pub ammo_defense_down: f32,
+    pub elemental_defense_up: f32,
+    pub elemental_defense_down: f32,
+    pub fire_defense_up: f32,
+    pub fire_defense_down: f32,
+    pub ice_defense_up: f32,
+    pub ice_defense_down: f32,
+    pub thunder_defense_up: f32,
+    pub thunder_defense_down: f32,
+    pub arcane_defense_up: f32,
+    pub arcane_defense_down: f32,
 
-    pub damage_up: Num,
-    pub damage_down: Num,
-    pub physical_damage_up: Num,
-    pub physical_damage_down: Num,
-    pub cut_damage_up: Num,
-    pub cut_damage_down: Num,
-    pub blunt_damage_up: Num,
-    pub blunt_damage_down: Num,
-    pub ammo_damage_up: Num,
-    pub ammo_damage_down: Num,
-    pub elemental_damage_up: Num,
-    pub elemental_damage_down: Num,
-    pub fire_damage_up: Num,
-    pub fire_damage_down: Num,
-    pub ice_damage_up: Num,
-    pub ice_damage_down: Num,
-    pub thunder_damage_up: Num,
-    pub thunder_damage_down: Num,
-    pub arcane_damage_up: Num,
-    pub arcane_damage_down: Num,
+    pub damage_up: f32,
+    pub damage_down: f32,
+    pub physical_damage_up: f32,
+    pub physical_damage_down: f32,
+    pub cut_damage_up: f32,
+    pub cut_damage_down: f32,
+    pub blunt_damage_up: f32,
+    pub blunt_damage_down: f32,
+    pub ammo_damage_up: f32,
+    pub ammo_damage_down: f32,
+    pub elemental_damage_up: f32,
+    pub elemental_damage_down: f32,
+    pub fire_damage_up: f32,
+    pub fire_damage_down: f32,
+    pub ice_damage_up: f32,
+    pub ice_damage_down: f32,
+    pub thunder_damage_up: f32,
+    pub thunder_damage_down: f32,
+    pub arcane_damage_up: f32,
+    pub arcane_damage_down: f32,
 
-    pub normal_damage_up: Num,
-    pub normal_damage_down: Num,
-    pub skill_damage_up: Num,
-    pub skill_damage_down: Num,
+    pub normal_damage_up: f32,
+    pub normal_damage_down: f32,
+    pub skill_damage_up: f32,
+    pub skill_damage_down: f32,
 
     #[educe(Default = 1.0)]
-    pub final_damage_ratio: Num,
+    pub final_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_physical_damage_ratio: Num,
+    pub final_physical_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_cut_damage_ratio: Num,
+    pub final_cut_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_blunt_damage_ratio: Num,
+    pub final_blunt_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_ammo_damage_ratio: Num,
+    pub final_ammo_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_elemental_damage_ratio: Num,
+    pub final_elemental_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_fire_damage_ratio: Num,
+    pub final_fire_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_ice_damage_ratio: Num,
+    pub final_ice_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_thunder_damage_ratio: Num,
+    pub final_thunder_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_arcane_damage_ratio: Num,
+    pub final_arcane_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_normal_damage_ratio: Num,
+    pub final_normal_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_skill_damage_ratio: Num,
+    pub final_skill_damage_ratio: f32,
 }
 
 impl SecondaryValues {
-    pub fn append_attribute(&mut self, label: TmplAttributeType, value: Num) {
-        use TmplAttributeType as A;
+    pub fn append_attribute(&mut self, label: TmplAttribute, value: f32) {
+        use TmplAttribute as A;
         match label {
             A::MaxHealthUp => self.max_health_up += value,
             A::MaxHealthDown => self.max_health_down += value,
@@ -245,270 +244,256 @@ impl SecondaryValues {
         }
     }
 
-    pub fn append_table(&mut self, level: u32, attributes: &Table2<TmplAttributeType, Num>) -> XResult<()> {
-        for (attr, values) in attributes.iter() {
-            match values.get(level as usize) {
-                Some(value) => self.append_attribute(*attr, *value),
-                None => return xresf!(BadAttribute; "attr={:?} level={}", attr, level),
+    pub fn append_table(&mut self, index: usize, attributes: &ArchivedTable<TmplAttribute, Vec<f32>>) -> XResult<()> {
+        for attr in attributes.iter() {
+            match attr.v.get(index) {
+                Some(value) => {
+                    self.append_attribute(attr.k, value.into());
+                }
+                None => return xresf!(BadAttribute; "attr={:?}, index={}", attr, index),
             }
         }
         Ok(())
     }
 
-    pub fn append_table_plus(
-        &mut self,
-        piece: u32,
-        plus: u32,
-        attributes: &Table2<(TmplAttributeType, TmplIsPlus), Num>,
-    ) -> XResult<()> {
-        for ((attr, is_plus), values) in attributes.iter() {
-            let level = if *is_plus { plus } else { piece };
-            match values.get(level as usize) {
-                Some(value) => self.append_attribute(*attr, *value),
-                None => return xresf!(BadAttribute; "attr={:?} level={}", attr, level),
-            }
-        }
-        Ok(())
-    }
-
-    pub fn script_output() -> ScriptOutputMap {
-        script_out(
-            "secondary",
-            vec![
-                sout!(+, SecondaryValues, max_health_up),
-                sout!(+, SecondaryValues, max_health_down),
-                sout!(+, SecondaryValues, max_posture_up),
-                sout!(+, SecondaryValues, max_posture_down),
-                sout!(+, SecondaryValues, attack_up),
-                sout!(+, SecondaryValues, attack_down),
-                sout!(+, SecondaryValues, physical_attack_up),
-                sout!(+, SecondaryValues, physical_attack_down),
-                sout!(+, SecondaryValues, elemental_attack_up),
-                sout!(+, SecondaryValues, elemental_attack_down),
-                sout!(+, SecondaryValues, arcane_attack_up),
-                sout!(+, SecondaryValues, arcane_attack_down),
-                sout!(+, SecondaryValues, critical_chance),
-                sout!(+, SecondaryValues, critical_damage),
-                sout!(+, SecondaryValues, defense_up),
-                sout!(+, SecondaryValues, defense_down),
-                sout!(+, SecondaryValues, physical_defense_up),
-                sout!(+, SecondaryValues, physical_defense_down),
-                sout!(+, SecondaryValues, cut_defense_up),
-                sout!(+, SecondaryValues, cut_defense_down),
-                sout!(+, SecondaryValues, blunt_defense_up),
-                sout!(+, SecondaryValues, blunt_defense_down),
-                sout!(+, SecondaryValues, ammo_defense_up),
-                sout!(+, SecondaryValues, ammo_defense_down),
-                sout!(+, SecondaryValues, elemental_defense_up),
-                sout!(+, SecondaryValues, elemental_defense_down),
-                sout!(+, SecondaryValues, fire_defense_up),
-                sout!(+, SecondaryValues, fire_defense_down),
-                sout!(+, SecondaryValues, ice_defense_up),
-                sout!(+, SecondaryValues, ice_defense_down),
-                sout!(+, SecondaryValues, thunder_defense_up),
-                sout!(+, SecondaryValues, thunder_defense_down),
-                sout!(+, SecondaryValues, arcane_defense_up),
-                sout!(+, SecondaryValues, arcane_defense_down),
-                sout!(+, SecondaryValues, damage_up),
-                sout!(+, SecondaryValues, damage_down),
-                sout!(+, SecondaryValues, physical_damage_up),
-                sout!(+, SecondaryValues, physical_damage_down),
-                sout!(+, SecondaryValues, cut_damage_up),
-                sout!(+, SecondaryValues, cut_damage_down),
-                sout!(+, SecondaryValues, blunt_damage_up),
-                sout!(+, SecondaryValues, blunt_damage_down),
-                sout!(+, SecondaryValues, ammo_damage_up),
-                sout!(+, SecondaryValues, ammo_damage_down),
-                sout!(+, SecondaryValues, elemental_damage_up),
-                sout!(+, SecondaryValues, elemental_damage_down),
-                sout!(+, SecondaryValues, fire_damage_up),
-                sout!(+, SecondaryValues, fire_damage_down),
-                sout!(+, SecondaryValues, ice_damage_up),
-                sout!(+, SecondaryValues, ice_damage_down),
-                sout!(+, SecondaryValues, thunder_damage_up),
-                sout!(+, SecondaryValues, thunder_damage_down),
-                sout!(+, SecondaryValues, arcane_damage_up),
-                sout!(+, SecondaryValues, arcane_damage_down),
-                sout!(+, SecondaryValues, normal_damage_up),
-                sout!(+, SecondaryValues, normal_damage_down),
-                sout!(+, SecondaryValues, skill_damage_up),
-                sout!(+, SecondaryValues, skill_damage_down),
-                sout!(*, SecondaryValues, final_damage_ratio),
-                sout!(*, SecondaryValues, final_physical_damage_ratio),
-                sout!(*, SecondaryValues, final_cut_damage_ratio),
-                sout!(*, SecondaryValues, final_blunt_damage_ratio),
-                sout!(*, SecondaryValues, final_ammo_damage_ratio),
-                sout!(*, SecondaryValues, final_elemental_damage_ratio),
-                sout!(*, SecondaryValues, final_fire_damage_ratio),
-                sout!(*, SecondaryValues, final_ice_damage_ratio),
-                sout!(*, SecondaryValues, final_thunder_damage_ratio),
-                sout!(*, SecondaryValues, final_arcane_damage_ratio),
-                sout!(*, SecondaryValues, final_normal_damage_ratio),
-                sout!(*, SecondaryValues, final_skill_damage_ratio),
-            ],
-        )
-    }
+    // pub fn script_output() -> ScriptOutputMap {
+    //     script_out(
+    //         "secondary",
+    //         vec![
+    //             sout!(+, SecondaryValues, max_health_up),
+    //             sout!(+, SecondaryValues, max_health_down),
+    //             sout!(+, SecondaryValues, max_posture_up),
+    //             sout!(+, SecondaryValues, max_posture_down),
+    //             sout!(+, SecondaryValues, attack_up),
+    //             sout!(+, SecondaryValues, attack_down),
+    //             sout!(+, SecondaryValues, physical_attack_up),
+    //             sout!(+, SecondaryValues, physical_attack_down),
+    //             sout!(+, SecondaryValues, elemental_attack_up),
+    //             sout!(+, SecondaryValues, elemental_attack_down),
+    //             sout!(+, SecondaryValues, arcane_attack_up),
+    //             sout!(+, SecondaryValues, arcane_attack_down),
+    //             sout!(+, SecondaryValues, critical_chance),
+    //             sout!(+, SecondaryValues, critical_damage),
+    //             sout!(+, SecondaryValues, defense_up),
+    //             sout!(+, SecondaryValues, defense_down),
+    //             sout!(+, SecondaryValues, physical_defense_up),
+    //             sout!(+, SecondaryValues, physical_defense_down),
+    //             sout!(+, SecondaryValues, cut_defense_up),
+    //             sout!(+, SecondaryValues, cut_defense_down),
+    //             sout!(+, SecondaryValues, blunt_defense_up),
+    //             sout!(+, SecondaryValues, blunt_defense_down),
+    //             sout!(+, SecondaryValues, ammo_defense_up),
+    //             sout!(+, SecondaryValues, ammo_defense_down),
+    //             sout!(+, SecondaryValues, elemental_defense_up),
+    //             sout!(+, SecondaryValues, elemental_defense_down),
+    //             sout!(+, SecondaryValues, fire_defense_up),
+    //             sout!(+, SecondaryValues, fire_defense_down),
+    //             sout!(+, SecondaryValues, ice_defense_up),
+    //             sout!(+, SecondaryValues, ice_defense_down),
+    //             sout!(+, SecondaryValues, thunder_defense_up),
+    //             sout!(+, SecondaryValues, thunder_defense_down),
+    //             sout!(+, SecondaryValues, arcane_defense_up),
+    //             sout!(+, SecondaryValues, arcane_defense_down),
+    //             sout!(+, SecondaryValues, damage_up),
+    //             sout!(+, SecondaryValues, damage_down),
+    //             sout!(+, SecondaryValues, physical_damage_up),
+    //             sout!(+, SecondaryValues, physical_damage_down),
+    //             sout!(+, SecondaryValues, cut_damage_up),
+    //             sout!(+, SecondaryValues, cut_damage_down),
+    //             sout!(+, SecondaryValues, blunt_damage_up),
+    //             sout!(+, SecondaryValues, blunt_damage_down),
+    //             sout!(+, SecondaryValues, ammo_damage_up),
+    //             sout!(+, SecondaryValues, ammo_damage_down),
+    //             sout!(+, SecondaryValues, elemental_damage_up),
+    //             sout!(+, SecondaryValues, elemental_damage_down),
+    //             sout!(+, SecondaryValues, fire_damage_up),
+    //             sout!(+, SecondaryValues, fire_damage_down),
+    //             sout!(+, SecondaryValues, ice_damage_up),
+    //             sout!(+, SecondaryValues, ice_damage_down),
+    //             sout!(+, SecondaryValues, thunder_damage_up),
+    //             sout!(+, SecondaryValues, thunder_damage_down),
+    //             sout!(+, SecondaryValues, arcane_damage_up),
+    //             sout!(+, SecondaryValues, arcane_damage_down),
+    //             sout!(+, SecondaryValues, normal_damage_up),
+    //             sout!(+, SecondaryValues, normal_damage_down),
+    //             sout!(+, SecondaryValues, skill_damage_up),
+    //             sout!(+, SecondaryValues, skill_damage_down),
+    //             sout!(*, SecondaryValues, final_damage_ratio),
+    //             sout!(*, SecondaryValues, final_physical_damage_ratio),
+    //             sout!(*, SecondaryValues, final_cut_damage_ratio),
+    //             sout!(*, SecondaryValues, final_blunt_damage_ratio),
+    //             sout!(*, SecondaryValues, final_ammo_damage_ratio),
+    //             sout!(*, SecondaryValues, final_elemental_damage_ratio),
+    //             sout!(*, SecondaryValues, final_fire_damage_ratio),
+    //             sout!(*, SecondaryValues, final_ice_damage_ratio),
+    //             sout!(*, SecondaryValues, final_thunder_damage_ratio),
+    //             sout!(*, SecondaryValues, final_arcane_damage_ratio),
+    //             sout!(*, SecondaryValues, final_normal_damage_ratio),
+    //             sout!(*, SecondaryValues, final_skill_damage_ratio),
+    //         ],
+    //     )
+    // }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ExtraValues {
-    pub max_health: Num,
-    pub max_posture: Num,
+    pub max_health: f32,
+    pub max_posture: f32,
 
-    pub physical_attack: Num,
-    pub elemental_attack: Num,
-    pub arcane_attack: Num,
+    pub physical_attack: f32,
+    pub elemental_attack: f32,
+    pub arcane_attack: f32,
 
-    pub critical_chance: Num,
-    pub critical_damage: Num,
+    pub critical_chance: f32,
+    pub critical_damage: f32,
 
-    pub cut_defense: Num,
-    pub blunt_defense: Num,
-    pub ammo_defense: Num,
-    pub fire_defense: Num,
-    pub ice_defense: Num,
-    pub thunder_defense: Num,
-    pub arcane_defense: Num,
+    pub cut_defense: f32,
+    pub blunt_defense: f32,
+    pub ammo_defense: f32,
+    pub fire_defense: f32,
+    pub ice_defense: f32,
+    pub thunder_defense: f32,
+    pub arcane_defense: f32,
 }
 
-impl ExtraValues {
-    pub fn script_output() -> ScriptOutputMap {
-        script_out(
-            "extra",
-            vec![
-                sout!(+, ExtraValues, max_health),
-                sout!(+, ExtraValues, max_posture),
-                sout!(+, ExtraValues, physical_attack),
-                sout!(+, ExtraValues, elemental_attack),
-                sout!(+, ExtraValues, arcane_attack),
-                sout!(+, ExtraValues, critical_chance),
-                sout!(+, ExtraValues, critical_damage),
-                sout!(+, ExtraValues, cut_defense),
-                sout!(+, ExtraValues, blunt_defense),
-                sout!(+, ExtraValues, ammo_defense),
-                sout!(+, ExtraValues, fire_defense),
-                sout!(+, ExtraValues, ice_defense),
-                sout!(+, ExtraValues, thunder_defense),
-                sout!(+, ExtraValues, arcane_defense),
-            ],
-        )
-    }
-}
+// impl ExtraValues {
+//     pub fn script_output() -> ScriptOutputMap {
+//         script_out(
+//             "extra",
+//             vec![
+//                 sout!(+, ExtraValues, max_health),
+//                 sout!(+, ExtraValues, max_posture),
+//                 sout!(+, ExtraValues, physical_attack),
+//                 sout!(+, ExtraValues, elemental_attack),
+//                 sout!(+, ExtraValues, arcane_attack),
+//                 sout!(+, ExtraValues, critical_chance),
+//                 sout!(+, ExtraValues, critical_damage),
+//                 sout!(+, ExtraValues, cut_defense),
+//                 sout!(+, ExtraValues, blunt_defense),
+//                 sout!(+, ExtraValues, ammo_defense),
+//                 sout!(+, ExtraValues, fire_defense),
+//                 sout!(+, ExtraValues, ice_defense),
+//                 sout!(+, ExtraValues, thunder_defense),
+//                 sout!(+, ExtraValues, arcane_defense),
+//             ],
+//         )
+//     }
+// }
 
 #[derive(Educe, Debug, Clone, Copy)]
 #[educe(Default)]
 pub struct PanelValues {
-    pub max_health: Num,
-    pub health_recovery: Num,
+    pub max_health: f32,
+    pub health_recovery: f32,
 
-    pub max_posture: Num,
-    pub posture_recovery: Num,
+    pub max_posture: f32,
+    pub posture_recovery: f32,
 
-    pub physical_attack: Num,
-    pub elemental_attack: Num,
-    pub arcane_attack: Num,
+    pub physical_attack: f32,
+    pub elemental_attack: f32,
+    pub arcane_attack: f32,
 
-    pub cut_defense: Num,
-    pub blunt_defense: Num,
-    pub ammo_defense: Num,
-    pub fire_defense: Num,
-    pub ice_defense: Num,
-    pub thunder_defense: Num,
-    pub arcane_defense: Num,
+    pub cut_defense: f32,
+    pub blunt_defense: f32,
+    pub ammo_defense: f32,
+    pub fire_defense: f32,
+    pub ice_defense: f32,
+    pub thunder_defense: f32,
+    pub arcane_defense: f32,
 
-    pub max_health_up: Num,
-    pub max_health_down: Num,
+    pub max_health_up: f32,
+    pub max_health_down: f32,
 
-    pub max_posture_up: Num,
-    pub max_posture_down: Num,
+    pub max_posture_up: f32,
+    pub max_posture_down: f32,
 
-    pub physical_attack_up: Num,
-    pub physical_attack_down: Num,
-    pub elemental_attack_up: Num,
-    pub elemental_attack_down: Num,
-    pub arcane_attack_up: Num,
-    pub arcane_attack_down: Num,
+    pub physical_attack_up: f32,
+    pub physical_attack_down: f32,
+    pub elemental_attack_up: f32,
+    pub elemental_attack_down: f32,
+    pub arcane_attack_up: f32,
+    pub arcane_attack_down: f32,
 
-    pub critical_chance: Num,
-    pub critical_damage: Num,
+    pub critical_chance: f32,
+    pub critical_damage: f32,
 
-    pub cut_defense_up: Num,
-    pub cut_defense_down: Num,
-    pub blunt_defense_up: Num,
-    pub blunt_defense_down: Num,
-    pub ammo_defense_up: Num,
-    pub ammo_defense_down: Num,
-    pub fire_defense_up: Num,
-    pub fire_defense_down: Num,
-    pub ice_defense_up: Num,
-    pub ice_defense_down: Num,
-    pub thunder_defense_up: Num,
-    pub thunder_defense_down: Num,
-    pub arcane_defense_up: Num,
-    pub arcane_defense_down: Num,
+    pub cut_defense_up: f32,
+    pub cut_defense_down: f32,
+    pub blunt_defense_up: f32,
+    pub blunt_defense_down: f32,
+    pub ammo_defense_up: f32,
+    pub ammo_defense_down: f32,
+    pub fire_defense_up: f32,
+    pub fire_defense_down: f32,
+    pub ice_defense_up: f32,
+    pub ice_defense_down: f32,
+    pub thunder_defense_up: f32,
+    pub thunder_defense_down: f32,
+    pub arcane_defense_up: f32,
+    pub arcane_defense_down: f32,
 
-    pub cut_damage_up: Num,
-    pub cut_damage_down: Num,
-    pub blunt_damage_up: Num,
-    pub blunt_damage_down: Num,
-    pub ammo_damage_up: Num,
-    pub ammo_damage_down: Num,
-    pub fire_damage_up: Num,
-    pub fire_damage_down: Num,
-    pub ice_damage_up: Num,
-    pub ice_damage_down: Num,
-    pub thunder_damage_up: Num,
-    pub thunder_damage_down: Num,
-    pub arcane_damage_up: Num,
-    pub arcane_damage_down: Num,
+    pub cut_damage_up: f32,
+    pub cut_damage_down: f32,
+    pub blunt_damage_up: f32,
+    pub blunt_damage_down: f32,
+    pub ammo_damage_up: f32,
+    pub ammo_damage_down: f32,
+    pub fire_damage_up: f32,
+    pub fire_damage_down: f32,
+    pub ice_damage_up: f32,
+    pub ice_damage_down: f32,
+    pub thunder_damage_up: f32,
+    pub thunder_damage_down: f32,
+    pub arcane_damage_up: f32,
+    pub arcane_damage_down: f32,
 
-    pub normal_damage_up: Num,
-    pub normal_damage_down: Num,
-    pub skill_damage_up: Num,
-    pub skill_damage_down: Num,
-
-    #[educe(Default = 1.0)]
-    pub final_max_health_ratio: Num,
-    #[educe(Default = 1.0)]
-    pub final_health_recovery_ratio: Num,
-    #[educe(Default = 1.0)]
-    pub final_max_posture_ratio: Num,
-    #[educe(Default = 1.0)]
-    pub final_posture_recovery_ratio: Num,
+    pub normal_damage_up: f32,
+    pub normal_damage_down: f32,
+    pub skill_damage_up: f32,
+    pub skill_damage_down: f32,
 
     #[educe(Default = 1.0)]
-    pub final_cut_damage_ratio: Num,
+    pub final_max_health_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_blunt_damage_ratio: Num,
+    pub final_health_recovery_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_ammo_damage_ratio: Num,
+    pub final_max_posture_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_fire_damage_ratio: Num,
-    #[educe(Default = 1.0)]
-    pub final_ice_damage_ratio: Num,
-    #[educe(Default = 1.0)]
-    pub final_thunder_damage_ratio: Num,
-    #[educe(Default = 1.0)]
-    pub final_arcane_damage_ratio: Num,
-    #[educe(Default = 1.0)]
-    pub final_normal_damage_ratio: Num,
-    #[educe(Default = 1.0)]
-    pub final_skill_damage_ratio: Num,
+    pub final_posture_recovery_ratio: f32,
 
     #[educe(Default = 1.0)]
-    pub final_cut_injury_ratio: Num,
+    pub final_cut_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_blunt_injury_ratio: Num,
+    pub final_blunt_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_ammo_injury_ratio: Num,
+    pub final_ammo_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_fire_injury_ratio: Num,
+    pub final_fire_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_ice_injury_ratio: Num,
+    pub final_ice_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_thunder_injury_ratio: Num,
+    pub final_thunder_damage_ratio: f32,
     #[educe(Default = 1.0)]
-    pub final_arcane_injury_ratio: Num,
+    pub final_arcane_damage_ratio: f32,
+    #[educe(Default = 1.0)]
+    pub final_normal_damage_ratio: f32,
+    #[educe(Default = 1.0)]
+    pub final_skill_damage_ratio: f32,
+
+    #[educe(Default = 1.0)]
+    pub final_cut_injury_ratio: f32,
+    #[educe(Default = 1.0)]
+    pub final_blunt_injury_ratio: f32,
+    #[educe(Default = 1.0)]
+    pub final_ammo_injury_ratio: f32,
+    #[educe(Default = 1.0)]
+    pub final_fire_injury_ratio: f32,
+    #[educe(Default = 1.0)]
+    pub final_ice_injury_ratio: f32,
+    #[educe(Default = 1.0)]
+    pub final_thunder_injury_ratio: f32,
+    #[educe(Default = 1.0)]
+    pub final_arcane_injury_ratio: f32,
 }
 
 impl PanelValues {
@@ -587,15 +572,15 @@ impl PanelValues {
             * secondary.final_thunder_damage_ratio;
         values.final_arcane_damage_ratio = secondary.final_damage_ratio * secondary.final_arcane_damage_ratio;
 
-        fn ratio(up: Num, down: Num) -> Num {
-            (1.0 + up) * Num::max(0.1, 1.0 - down)
+        fn ratio(up: f32, down: f32) -> f32 {
+            (1.0 + up) * f32::max(0.1, 1.0 - down)
         }
 
         values.max_health = primary.max_health * ratio(values.max_health_up, values.max_health_down);
-        values.max_health = Num::max(values.max_health, 1.0);
+        values.max_health = f32::max(values.max_health, 1.0);
 
         values.max_posture = primary.max_posture * ratio(values.max_posture_up, values.max_posture_down);
-        values.max_posture = Num::max(values.max_posture, 1.0);
+        values.max_posture = f32::max(values.max_posture, 1.0);
 
         values.physical_attack =
             primary.physical_attack * ratio(values.physical_attack_up, values.physical_attack_down);
@@ -616,8 +601,8 @@ impl PanelValues {
     }
 
     pub fn append_extra(&mut self, extra: &ExtraValues) {
-        fn norm(val: Num) -> Num {
-            Num::max(1.0, val)
+        fn norm(val: f32) -> f32 {
+            f32::max(1.0, val)
         }
 
         self.max_health = norm(self.max_health + extra.max_health);
@@ -636,75 +621,75 @@ impl PanelValues {
         self.arcane_defense = norm(self.arcane_defense + extra.arcane_defense);
     }
 
-    pub fn script_input() -> ScriptInputMap {
-        script_in(
-            "panel",
-            vec![
-                sin!(PanelValues, max_health_up),
-                sin!(PanelValues, max_health_down),
-                sin!(PanelValues, max_posture_up),
-                sin!(PanelValues, max_posture_down),
-                sin!(PanelValues, physical_attack_up),
-                sin!(PanelValues, physical_attack_down),
-                sin!(PanelValues, elemental_attack_up),
-                sin!(PanelValues, elemental_attack_down),
-                sin!(PanelValues, arcane_attack_up),
-                sin!(PanelValues, arcane_attack_down),
-                sin!(PanelValues, critical_chance),
-                sin!(PanelValues, critical_damage),
-                sin!(PanelValues, cut_defense_up),
-                sin!(PanelValues, cut_defense_down),
-                sin!(PanelValues, blunt_defense_up),
-                sin!(PanelValues, blunt_defense_down),
-                sin!(PanelValues, ammo_defense_up),
-                sin!(PanelValues, ammo_defense_down),
-                sin!(PanelValues, fire_defense_up),
-                sin!(PanelValues, fire_defense_down),
-                sin!(PanelValues, ice_defense_up),
-                sin!(PanelValues, ice_defense_down),
-                sin!(PanelValues, thunder_defense_up),
-                sin!(PanelValues, thunder_defense_down),
-                sin!(PanelValues, arcane_defense_up),
-                sin!(PanelValues, arcane_defense_down),
-                sin!(PanelValues, cut_damage_up),
-                sin!(PanelValues, cut_damage_down),
-                sin!(PanelValues, blunt_damage_up),
-                sin!(PanelValues, blunt_damage_down),
-                sin!(PanelValues, ammo_damage_up),
-                sin!(PanelValues, ammo_damage_down),
-                sin!(PanelValues, fire_damage_up),
-                sin!(PanelValues, fire_damage_down),
-                sin!(PanelValues, ice_damage_up),
-                sin!(PanelValues, ice_damage_down),
-                sin!(PanelValues, thunder_damage_up),
-                sin!(PanelValues, thunder_damage_down),
-                sin!(PanelValues, arcane_damage_up),
-                sin!(PanelValues, arcane_damage_down),
-                sin!(PanelValues, normal_damage_up),
-                sin!(PanelValues, normal_damage_down),
-                sin!(PanelValues, skill_damage_up),
-                sin!(PanelValues, skill_damage_down),
-                sin!(PanelValues, final_max_health_ratio),
-                sin!(PanelValues, final_health_recovery_ratio),
-                sin!(PanelValues, final_max_posture_ratio),
-                sin!(PanelValues, final_posture_recovery_ratio),
-                sin!(PanelValues, final_cut_damage_ratio),
-                sin!(PanelValues, final_blunt_damage_ratio),
-                sin!(PanelValues, final_ammo_damage_ratio),
-                sin!(PanelValues, final_fire_damage_ratio),
-                sin!(PanelValues, final_ice_damage_ratio),
-                sin!(PanelValues, final_thunder_damage_ratio),
-                sin!(PanelValues, final_arcane_damage_ratio),
-                sin!(PanelValues, final_normal_damage_ratio),
-                sin!(PanelValues, final_skill_damage_ratio),
-                sin!(PanelValues, final_cut_injury_ratio),
-                sin!(PanelValues, final_blunt_injury_ratio),
-                sin!(PanelValues, final_ammo_injury_ratio),
-                sin!(PanelValues, final_fire_injury_ratio),
-                sin!(PanelValues, final_ice_injury_ratio),
-                sin!(PanelValues, final_thunder_injury_ratio),
-                sin!(PanelValues, final_arcane_injury_ratio),
-            ],
-        )
-    }
+    // pub fn script_input() -> ScriptInputMap {
+    //     script_in(
+    //         "panel",
+    //         vec![
+    //             sin!(PanelValues, max_health_up),
+    //             sin!(PanelValues, max_health_down),
+    //             sin!(PanelValues, max_posture_up),
+    //             sin!(PanelValues, max_posture_down),
+    //             sin!(PanelValues, physical_attack_up),
+    //             sin!(PanelValues, physical_attack_down),
+    //             sin!(PanelValues, elemental_attack_up),
+    //             sin!(PanelValues, elemental_attack_down),
+    //             sin!(PanelValues, arcane_attack_up),
+    //             sin!(PanelValues, arcane_attack_down),
+    //             sin!(PanelValues, critical_chance),
+    //             sin!(PanelValues, critical_damage),
+    //             sin!(PanelValues, cut_defense_up),
+    //             sin!(PanelValues, cut_defense_down),
+    //             sin!(PanelValues, blunt_defense_up),
+    //             sin!(PanelValues, blunt_defense_down),
+    //             sin!(PanelValues, ammo_defense_up),
+    //             sin!(PanelValues, ammo_defense_down),
+    //             sin!(PanelValues, fire_defense_up),
+    //             sin!(PanelValues, fire_defense_down),
+    //             sin!(PanelValues, ice_defense_up),
+    //             sin!(PanelValues, ice_defense_down),
+    //             sin!(PanelValues, thunder_defense_up),
+    //             sin!(PanelValues, thunder_defense_down),
+    //             sin!(PanelValues, arcane_defense_up),
+    //             sin!(PanelValues, arcane_defense_down),
+    //             sin!(PanelValues, cut_damage_up),
+    //             sin!(PanelValues, cut_damage_down),
+    //             sin!(PanelValues, blunt_damage_up),
+    //             sin!(PanelValues, blunt_damage_down),
+    //             sin!(PanelValues, ammo_damage_up),
+    //             sin!(PanelValues, ammo_damage_down),
+    //             sin!(PanelValues, fire_damage_up),
+    //             sin!(PanelValues, fire_damage_down),
+    //             sin!(PanelValues, ice_damage_up),
+    //             sin!(PanelValues, ice_damage_down),
+    //             sin!(PanelValues, thunder_damage_up),
+    //             sin!(PanelValues, thunder_damage_down),
+    //             sin!(PanelValues, arcane_damage_up),
+    //             sin!(PanelValues, arcane_damage_down),
+    //             sin!(PanelValues, normal_damage_up),
+    //             sin!(PanelValues, normal_damage_down),
+    //             sin!(PanelValues, skill_damage_up),
+    //             sin!(PanelValues, skill_damage_down),
+    //             sin!(PanelValues, final_max_health_ratio),
+    //             sin!(PanelValues, final_health_recovery_ratio),
+    //             sin!(PanelValues, final_max_posture_ratio),
+    //             sin!(PanelValues, final_posture_recovery_ratio),
+    //             sin!(PanelValues, final_cut_damage_ratio),
+    //             sin!(PanelValues, final_blunt_damage_ratio),
+    //             sin!(PanelValues, final_ammo_damage_ratio),
+    //             sin!(PanelValues, final_fire_damage_ratio),
+    //             sin!(PanelValues, final_ice_damage_ratio),
+    //             sin!(PanelValues, final_thunder_damage_ratio),
+    //             sin!(PanelValues, final_arcane_damage_ratio),
+    //             sin!(PanelValues, final_normal_damage_ratio),
+    //             sin!(PanelValues, final_skill_damage_ratio),
+    //             sin!(PanelValues, final_cut_injury_ratio),
+    //             sin!(PanelValues, final_blunt_injury_ratio),
+    //             sin!(PanelValues, final_ammo_injury_ratio),
+    //             sin!(PanelValues, final_fire_injury_ratio),
+    //             sin!(PanelValues, final_ice_injury_ratio),
+    //             sin!(PanelValues, final_thunder_injury_ratio),
+    //             sin!(PanelValues, final_arcane_injury_ratio),
+    //         ],
+    //     )
+    // }
 }
