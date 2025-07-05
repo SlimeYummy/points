@@ -6,16 +6,18 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use crate::utils::{xfromf, xresf, DtHashMap, Symbol, SymbolMap, XResult};
+use crate::animation::RootMotionTrack;
+use crate::utils::{xfromf, xresf, SymbolHashMap, XResult};
 
 pub struct AssetLoader {
     asset_path: PathBuf,
 
-    pub(super) shape_mesh_cache: DtHashMap<Symbol, JRef<Shape>>,
-    pub(super) shape_heigh_tfield_cache: DtHashMap<Symbol, JRef<Shape>>,
+    pub(super) shape_mesh_cache: SymbolHashMap<JRef<Shape>>,
+    pub(super) shape_heigh_tfield_cache: SymbolHashMap<JRef<Shape>>,
 
-    pub(super) skeleton_cache: SymbolMap<Rc<Skeleton>>,
-    pub(super) animation_cache: SymbolMap<Rc<Animation>>,
+    pub(super) skeleton_cache: SymbolHashMap<Rc<Skeleton>>,
+    pub(super) animation_cache: SymbolHashMap<Rc<Animation>>,
+    pub(super) root_motion_cache: SymbolHashMap<Rc<RootMotionTrack>>,
 }
 
 impl AssetLoader {
@@ -27,11 +29,12 @@ impl AssetLoader {
         return Ok(AssetLoader {
             asset_path: asset_path.as_ref().to_path_buf(),
 
-            shape_mesh_cache: DtHashMap::with_capacity(64),
-            shape_heigh_tfield_cache: DtHashMap::with_capacity(16),
+            shape_mesh_cache: SymbolHashMap::with_capacity(64),
+            shape_heigh_tfield_cache: SymbolHashMap::with_capacity(16),
 
-            skeleton_cache: SymbolMap::with_capacity(64),
-            animation_cache: SymbolMap::with_capacity(512),
+            skeleton_cache: SymbolHashMap::with_capacity(64),
+            animation_cache: SymbolHashMap::with_capacity(512),
+            root_motion_cache: SymbolHashMap::with_capacity(384),
         });
     }
 
