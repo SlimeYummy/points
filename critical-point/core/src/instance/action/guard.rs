@@ -1,5 +1,5 @@
-use crate::instance::action::base::{query_index, query_switch, ContextActionAssemble, InstAction, InstActionBase};
-use crate::template::{TmplActionGuard, TmplActionGuardAttribute, TmplAnimation, TmplType};
+use crate::instance::action::base::{query_index, query_switch, ContextActionAssemble, InstActionAny, InstActionBase};
+use crate::template3::{TmplActionGuard, TmplActionGuardAttribute, TmplAnimation, TmplType};
 use crate::utils::{extend, Xrc};
 
 #[derive(Debug)]
@@ -15,7 +15,7 @@ pub struct InstActionGuard {
 
 extend!(InstActionGuard, InstActionBase);
 
-unsafe impl InstAction for InstActionGuard {
+unsafe impl InstActionAny for InstActionGuard {
     fn typ(&self) -> TmplType {
         TmplType::ActionGuard
     }

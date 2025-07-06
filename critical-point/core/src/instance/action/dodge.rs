@@ -1,5 +1,5 @@
-use crate::instance::action::base::{query_index, query_switch, ContextActionAssemble, InstAction, InstActionBase};
-use crate::template::{TmplActionDodge, TmplActionDodgeAttribute, TmplAnimation, TmplType};
+use crate::instance::action::base::{query_index, query_switch, ContextActionAssemble, InstActionAny, InstActionBase};
+use crate::template3::{TmplActionDodge, TmplActionDodgeAttribute, TmplAnimation, TmplType};
 use crate::utils::{extend, Xrc};
 
 #[derive(Debug)]
@@ -14,7 +14,7 @@ pub struct InstActionDodge {
 
 extend!(InstActionDodge, InstActionBase);
 
-unsafe impl InstAction for InstActionDodge {
+unsafe impl InstActionAny for InstActionDodge {
     fn typ(&self) -> TmplType {
         TmplType::ActionDodge
     }
