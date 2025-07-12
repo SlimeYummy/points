@@ -3,7 +3,7 @@
 #![feature(trivial_bounds)]
 #![feature(allocator_api)]
 #![feature(error_generic_member_access)]
-#![allow(unexpected_cfgs)] // TODO: Upgrade rkyv to 0.8
+#![feature(likely_unlikely)]
 
 #[cfg(not(debug_assertions))]
 use mimalloc::MiMalloc;
@@ -19,7 +19,7 @@ pub mod engine;
 pub mod instance;
 pub mod logic;
 pub mod parameter;
-pub mod script;
+// pub mod script;
 pub mod template;
-pub mod template2;
+// pub mod template3;
 pub mod utils;

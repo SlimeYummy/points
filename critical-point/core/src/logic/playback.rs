@@ -183,12 +183,12 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::logic::base::{LogicType, StateAnyBase, StateType};
+    use crate::logic::base::{LogicType, StateBase, StateType};
     use crate::logic::character::{StatePlayerInit, StatePlayerUpdate};
     use crate::logic::game::{StateGameInit, StateGameUpdate};
-    use crate::logic::stage::{StateStageInit, StateStageUpdate};
     use crate::logic::system::input::InputPlayerEvents;
     use crate::logic::system::save::SystemSave;
+    use crate::logic::zone::{StateZoneInit, StateZoneUpdate};
     use crate::logic::StateCharaPhysics;
     use crate::utils::{asb, RawEvent, RawKey};
 
@@ -262,36 +262,36 @@ mod tests {
 
         let mut state0 = StateSet::new(0, 0, 0);
         state0.inits.push(Arc::new(StateGameInit {
-            _base: StateAnyBase::new(1, StateType::GameInit, LogicType::Game),
+            _base: StateBase::new(1, StateType::GameInit, LogicType::Game),
         }));
-        state0.inits.push(Arc::new(StateStageInit {
-            _base: StateAnyBase::new(2, StateType::StageInit, LogicType::Stage),
-            view_stage_file: "Stage.Demo".into(),
+        state0.inits.push(Arc::new(StateZoneInit {
+            _base: StateBase::new(2, StateType::ZoneInit, LogicType::Zone),
+            view_zone_file: "Zone.Demo".into(),
         }));
         let state0 = Arc::new(state0);
         ss.save_state(state0.clone()).unwrap();
 
         let mut state1 = StateSet::new(1, 0, 0);
         state1.updates.push(Box::new(StateGameUpdate {
-            _base: StateAnyBase::new(1, StateType::GameUpdate, LogicType::Game),
+            _base: StateBase::new(1, StateType::GameUpdate, LogicType::Game),
             frame: 0,
             id_gen_counter: 123,
         }));
-        state1.updates.push(Box::new(StateStageUpdate {
-            _base: StateAnyBase::new(2, StateType::StageUpdate, LogicType::Stage),
+        state1.updates.push(Box::new(StateZoneUpdate {
+            _base: StateBase::new(2, StateType::ZoneUpdate, LogicType::Zone),
         }));
         let state1 = Arc::new(state1);
         ss.save_state(state1.clone()).unwrap();
 
         let mut state2 = StateSet::new(2, 0, 0);
         state2.inits.push(Arc::new(StatePlayerInit {
-            _base: StateAnyBase::new(100, StateType::PlayerInit, LogicType::Player),
+            _base: StateBase::new(100, StateType::PlayerInit, LogicType::Player),
             skeleton_file: asb!("skel.ozz"),
-            animation_files: vec![asb!("anim_stand_idle.ozz"), asb!("anim_stand_ready.ozz")],
+            animation_files: vec![asb!("girl_stand_idle.ozz"), asb!("girl_stand_ready.ozz")],
             view_model: "model.ozz".into(),
         }));
         state2.updates.push(Box::new(StatePlayerUpdate {
-            _base: StateAnyBase::new(100, StateType::PlayerUpdate, LogicType::Player),
+            _base: StateBase::new(100, StateType::PlayerUpdate, LogicType::Player),
             physics: StateCharaPhysics::default(),
             actions: vec![],
         }));
