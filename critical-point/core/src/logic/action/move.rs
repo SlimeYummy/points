@@ -4,25 +4,35 @@ use std::f32::consts::{FRAC_PI_2, PI};
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use crate::consts::WEIGHT_THRESHOLD;
-use crate::instance::{InstAction, InstActionMove};
+use crate::instance::InstActionMove;
 use crate::logic::action::base::{
-    continue_to, ArchivedStateAction, ContextAction, LogicAction, LogicActionBase, StateAction, StateActionAnimation,
-    StateActionBase, StateActionType,
+    continue_mode, impl_state_action, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
+    StateActionAnimation, StateActionAny, StateActionBase, StateActionType,
 };
 use crate::logic::game::ContextUpdate;
-use crate::template::{TmplActionMove, TmplType};
-use crate::utils::{calc_ratio, extend, xresf, ASymbol, CastRef, XResult};
+use crate::template::TmplType;
+use crate::utils::{dt_sign, extend, xresf, Castable, XResult, LEVEL_MOVE, LEVEL_UNBREAKABLE};
 
 const ANIME_MOVE_ID: u32 = 1;
-const ANIME_TURN_LEFT_ID: u32 = 1;
-const ANIME_TURN_RIGHT_ID: u32 = 1;
+// const ANIME_TURN_LEFT_ID: u32 = 2;
+// const ANIME_TURN_RIGHT_ID: u32 = 3;
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsEnum)]
-#[archive_attr(derive(Debug))]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    CsEnum,
+)]
+#[rkyv(derive(Debug))]
 pub enum ActionMoveMode {
-    None,
     Start,
     Move,
     TurnLeft,
@@ -31,97 +41,45 @@ pub enum ActionMoveMode {
 }
 
 #[repr(C)]
-#[derive(Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
-#[archive_attr(derive(Debug))]
+#[derive(
+    Debug, PartialEq, rkyv::Archive, serde::Serialize, serde::Deserialize, rkyv::Serialize, rkyv::Deserialize, CsOut,
+)]
+#[rkyv(derive(Debug))]
 #[cs_attr(Ref)]
 pub struct StateActionMove {
     pub _base: StateActionBase,
     pub mode: ActionMoveMode,
-    pub switch_progress: u32,
-    pub previous_progress: u32,
-    pub current_progress: u32,
+    pub switch_time: f32,
+    pub current_time: f32,
 }
 
 extend!(StateActionMove, StateActionBase);
-
-unsafe impl StateAction for StateActionMove {
-    #[inline]
-    fn typ(&self) -> StateActionType {
-        assert!(self.typ == StateActionType::Move);
-        StateActionType::Move
-    }
-
-    #[inline]
-    fn tmpl_typ(&self) -> TmplType {
-        assert!(self.tmpl_typ == TmplType::ActionMove);
-        TmplType::ActionMove
-    }
-}
-
-impl ArchivedStateAction for rkyv::Archived<StateActionMove> {
-    #[inline]
-    fn typ(&self) -> StateActionType {
-        StateActionType::Move
-    }
-
-    #[inline]
-    fn tmpl_typ(&self) -> TmplType {
-        TmplType::ActionMove
-    }
-}
+impl_state_action!(StateActionMove, ActionMove, Move, "Move");
 
 #[repr(C)]
 #[derive(Debug)]
 pub(crate) struct LogicActionMove {
     _base: LogicActionBase,
-    tmpl: Rc<TmplActionMove>,
     inst: Rc<InstActionMove>,
 
-    yam_step_cos: f32,
-    yam_step_vec: Vec2,
-    turn_step_vec: Vec2,
-    min_turn_cos: f32,
+    yam_ang_vel: f32,
+    turn_ang_vel: f32,
+    turn_threshold_cos: f32,
 
     mode: ActionMoveMode,
-    switch_progress: u32,
-    previous_progress: u32,
-    current_progress: u32,
+    move_dir: Vec2,
+    switch_time: f32,
+    previous_time: f32,
+    current_time: f32,
 }
 
 extend!(LogicActionMove, LogicActionBase);
 
-unsafe impl LogicAction for LogicActionMove {
-    #[inline]
-    fn typ(&self) -> StateActionType {
-        StateActionType::Move
-    }
-
-    #[inline]
-    fn tmpl_typ(&self) -> TmplType {
-        TmplType::ActionMove
-    }
-
-    #[inline]
-    fn restore(&mut self, state: &(dyn StateAction + 'static)) -> XResult<()> {
-        self.restore_impl(state)
-    }
-
-    #[inline]
-    fn update(
-        &mut self,
-        ctx: &mut ContextUpdate<'_>,
-        ctxa: &mut ContextAction<'_>,
-    ) -> XResult<Option<Box<dyn StateAction>>> {
-        self.update_impl(ctx, ctxa)
-    }
-}
-
 impl LogicActionMove {
     pub fn new(ctx: &mut ContextUpdate<'_>, inst_act: Rc<InstActionMove>) -> XResult<LogicActionMove> {
-        let yam_step_cos = libm::cosf(FRAC_PI_2 / (inst_act.tmpl.yam_time as f32));
-        let yam_step_vec = Vec2::from_angle(FRAC_PI_2 / (inst_act.tmpl.yam_time as f32));
-        let turn_step_vec = Vec2::from_angle(PI / (inst_act.tmpl.turn_time as f32));
-        let min_turn_cos = match (&inst_act.tmpl.anime_turn_left, &inst_act.tmpl.anime_turn_right) {
+        let yam_ang_vel = FRAC_PI_2 / (inst_act.yam_time as f32);
+        let turn_ang_vel = PI / (inst_act.turn_time as f32);
+        let turn_threshold_cos = match (&inst_act.anim_turn_left, &inst_act.anim_turn_right) {
             (Some(_), Some(_)) => 0.0,
             _ => -1.0,
         };
@@ -129,151 +87,432 @@ impl LogicActionMove {
         Ok(LogicActionMove {
             _base: LogicActionBase {
                 derive_level: inst_act.derive_level,
-                antibreak_level: inst_act.antibreak_level,
-                ..LogicActionBase::new(ctx.gene.gen_id(), inst_act.id.clone(), ctx.frame)
+                poise_level: inst_act.poise_level,
+                ..LogicActionBase::new(ctx.gene.gen_id(), inst_act.clone())
             },
-            tmpl: inst_act.tmpl.clone(),
             inst: inst_act,
 
-            yam_step_cos,
-            yam_step_vec,
-            turn_step_vec,
-            min_turn_cos,
+            yam_ang_vel,
+            turn_ang_vel,
+            turn_threshold_cos,
 
-            mode: ActionMoveMode::None,
-            switch_progress: 0,
-            previous_progress: 0,
-            current_progress: 0,
+            mode: ActionMoveMode::Start,
+            move_dir: Vec2::ZERO,
+            switch_time: 0.0,
+            previous_time: 0.0,
+            current_time: 0.0,
         })
     }
+}
 
-    fn restore_impl(&mut self, state: &(dyn StateAction + 'static)) -> XResult<()> {
+unsafe impl LogicActionAny for LogicActionMove {
+    #[inline]
+    fn typ(&self) -> StateActionType {
+        StateActionType::Move
+    }
+
+    #[inline]
+    fn tmpl_typ(&self) -> TmplType {
+        TmplType::ActionMove
+    }
+
+    fn restore(&mut self, state: &(dyn StateActionAny + 'static)) -> XResult<()> {
         if state.id != self._base.id {
-            return xresf!(LogicIDMismatch; "state.id={} self.id={}", state.id, self._base.id);
+            return xresf!(LogicIDMismatch; "state.id={}, self.id={}", state.id, self._base.id);
         }
-        let state = state.cast_ref::<StateActionMove>()?;
+        let state = state.cast::<StateActionMove>()?;
 
         self._base.restore(&state._base);
         self.mode = state.mode;
-        self.switch_progress = state.switch_progress;
-        self.previous_progress = state.previous_progress;
-        self.current_progress = state.current_progress;
+        self.switch_time = state.switch_time;
+        self.current_time = state.current_time;
         Ok(())
     }
 
-    fn save(&self) -> Box<StateActionMove> {
-        Box::new(StateActionMove {
-            _base: self._base.save(self.typ(), self.tmpl_typ()),
-            mode: self.mode,
-            switch_progress: self.switch_progress,
-            previous_progress: self.previous_progress,
-            current_progress: self.current_progress,
-        })
+    fn start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
+        self._base.start(ctx, ctxa)?;
+        self.current_time = -ctxa.time_step;
+        self.mode = ActionMoveMode::Start;
+        // In order to ensure the accuracy of the player's first attack direction (first attack in free state).
+        // The turn of the ActionMoveMode::Start is unbreakable.
+        self.derive_level = LEVEL_UNBREAKABLE;
+        Ok(())
     }
 
-    fn update_impl(
-        &mut self,
-        ctx: &mut ContextUpdate<'_>,
-        ctxa: &mut ContextAction<'_>,
-    ) -> XResult<Option<Box<dyn StateAction>>> {
-        println!("---------------------------------------");
+    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<ActionUpdateReturn> {
+        self._base.update(ctx, ctxa)?;
 
-        let anim_weight = match self._base.handle_enter_leave(ctx, ctxa, self.tmpl.enter_time) {
-            Some(ratio) => ratio,
-            None => return Ok(None),
-        };
-
-        if !self.is_leaving {
-            let chara_dir = ctxa.chara_physics.direction_2d();
-            let move_dir = match ctxa.input_vars.optimized_world_move().move_dir() {
-                Some(dir) => dir,
-                None => {
-                    if self.tmpl.anime_stop.is_none() {
-                        self.is_leaving = true;
-                        Vec2::ZERO
-                    } else {
-                        self.mode = ActionMoveMode::Stop;
-                        chara_dir
-                    }
-                }
-            };
-            let diff_cos = chara_dir.dot(move_dir);
-            println!(
-                "diff_cos {} chara_dir {} move_dir {} self.yam_step_vec {}",
-                diff_cos, chara_dir, move_dir, self.yam_step_vec
-            );
-
-            let mut new_chara_dir = chara_dir;
-            let mut new_move_dir = Vec2::ZERO;
-            loop {
-                match self.mode {
-                    ActionMoveMode::None => {
-                        match diff_cos > self.yam_step_cos {
-                            true => continue_to!(self.mode, ActionMoveMode::Move),
-                            false => continue_to!(self.mode, ActionMoveMode::Start),
-                        };
-                    }
-                    ActionMoveMode::Start => {
-                        if diff_cos > self.yam_step_cos {
-                            continue_to!(self.mode, ActionMoveMode::Move);
-                        } else {
-                            let mut rot = self.yam_step_vec;
-                            rot.y *= chara_dir.perp_dot(move_dir).signum(); // sign
-                            new_chara_dir = rot.rotate(chara_dir);
-                            println!("chara_dir {} new_chara_dir {} rot {}", chara_dir, new_chara_dir, rot);
-                        }
-                    }
-                    ActionMoveMode::Move => {
-                        if diff_cos > self.yam_step_cos {
-                            new_chara_dir = move_dir;
-                        } else if diff_cos >= self.min_turn_cos {
-                            let mut rot = self.yam_step_vec;
-                            rot.y *= chara_dir.perp_dot(move_dir).signum(); // sign
-                            new_chara_dir = rot.rotate(chara_dir);
-                        } else {
-                            let sign = chara_dir.perp_dot(move_dir).signum();
-                            if sign < 0.0 {
-                                continue_to!(self.mode, ActionMoveMode::TurnLeft);
-                            } else if sign > 0.0 {
-                                continue_to!(self.mode, ActionMoveMode::TurnRight);
-                            }
-                        }
-                        new_move_dir = new_chara_dir * 1.0;
-                    }
-                    ActionMoveMode::TurnLeft => {}
-                    ActionMoveMode::TurnRight => {}
-                    ActionMoveMode::Stop => {}
-                }
-                break;
+        let chara_dir = ctxa.chara_physics.direction();
+        let input_move_dir = ctxa.input_vars.optimized_world_move().move_dir();
+        let mut stop = false;
+        if let Some(dir) = input_move_dir {
+            self.move_dir = dir;
+        } else {
+            if self.mode != ActionMoveMode::Start {
+                match &self.inst.anim_stop {
+                    Some(_) => self.mode = ActionMoveMode::Stop,
+                    None => stop = true,
+                };
+                self.move_dir = Vec2::ZERO;
             }
+        }
+        println!("derive_level: {:?}", self.derive_level);
 
-            ctxa.set_new_velocity(new_move_dir * 5.0);
-            ctxa.set_new_rotation(new_chara_dir);
+        let diff_cos = chara_dir.dot(self.move_dir);
+        let yam_step_angle_nosign = self.yam_ang_vel * ctxa.time_step;
+        let yam_step_vec_nosign = Vec2::from_angle(yam_step_angle_nosign);
+        let yam_step_cos = yam_step_vec_nosign.x;
+
+        let mut new_chara_dir = chara_dir;
+        let mut new_move_dir = Vec2::ZERO;
+        loop {
+            match self.mode {
+                ActionMoveMode::Start => {
+                    // diff_angle < step_angle
+                    if diff_cos > yam_step_cos {
+                        if input_move_dir.is_some() {
+                            self.derive_level = LEVEL_MOVE;
+                            continue_mode!(self.mode, ActionMoveMode::Move);
+                        } else {
+                            new_chara_dir = self.move_dir;
+                            stop = true;
+                        }
+                    } else {
+                        let mut step_vec = yam_step_vec_nosign;
+                        step_vec.y *= dt_sign(chara_dir.perp_dot(self.move_dir));
+                        new_chara_dir = step_vec.rotate(chara_dir);
+                        println!(
+                            "Start move_dir:{} chara_dir:{} new_chara_dir:{} step_vec:{} step_angle:{}",
+                            self.move_dir,
+                            chara_dir,
+                            new_chara_dir,
+                            step_vec,
+                            step_vec.to_angle()
+                        );
+                    }
+                }
+                ActionMoveMode::Move => {
+                    // diff_angle < step_angle
+                    if diff_cos > yam_step_cos {
+                        new_chara_dir = self.move_dir;
+                    } else if diff_cos >= self.turn_threshold_cos {
+                        let mut step_vec = yam_step_vec_nosign;
+                        step_vec.y *= dt_sign(chara_dir.perp_dot(self.move_dir));
+                        new_chara_dir = step_vec.rotate(chara_dir);
+                        println!(
+                            "chara_dir:{} new_chara_dir:{} step_vec:{} step_angle:{}",
+                            chara_dir,
+                            new_chara_dir,
+                            step_vec,
+                            step_vec.to_angle()
+                        );
+                    } else {
+                        let sign = dt_sign(chara_dir.perp_dot(self.move_dir));
+                        if sign < 0.0 {
+                            continue_mode!(self.mode, ActionMoveMode::TurnLeft);
+                        } else if sign > 0.0 {
+                            continue_mode!(self.mode, ActionMoveMode::TurnRight);
+                        }
+                    }
+                    new_move_dir = new_chara_dir * 1.0;
+                }
+                ActionMoveMode::TurnLeft => {}
+                ActionMoveMode::TurnRight => {}
+                ActionMoveMode::Stop => {}
+            }
+            break;
         }
 
-        let state = match self.mode {
-            ActionMoveMode::Start => self.play_move(anim_weight),
-            ActionMoveMode::Move => self.play_move(anim_weight),
-            // ActionMoveMode::TurnLeft => {}
-            // ActionMoveMode::TurnRight => {}
-            ActionMoveMode::Stop => self.play_move(anim_weight),
-            _ => unreachable!(),
-        };
-        Ok(Some(state))
+        self.current_time += ctxa.time_step;
+
+        if self.fade_in_weight < 1.0 {
+            self.fade_in_weight += ctxa.time_step / self.inst.anim_move.fade_in;
+            self.fade_in_weight = self.fade_in_weight.min(1.0);
+        }
+
+        if stop {
+            self.stop(ctx, ctxa)?;
+        }
+
+        let mut ret = ActionUpdateReturn::new(self.save());
+        ret.set_velocity_2d(new_move_dir * 5.0);
+        ret.set_direction(new_chara_dir);
+        Ok(ret)
     }
 
-    fn play_move(&mut self, weight: f32) -> Box<StateActionMove> {
-        let anime_move: &crate::template::TmplAnimation = &self.tmpl.anime_move;
-        self.current_progress = (self.current_progress + 1) % anime_move.duration;
-        let state_idle = StateActionAnimation {
-            animation_id: ANIME_MOVE_ID,
-            file: ASymbol::from(&anime_move.file),
-            ratio: calc_ratio(self.current_progress, anime_move.duration),
-            weight,
+    fn save(&self) -> Box<dyn StateActionAny> {
+        let mut state = Box::new(StateActionMove {
+            _base: self._base.save(self.typ(), self.tmpl_typ()),
+            mode: self.mode,
+            switch_time: self.switch_time,
+            current_time: self.current_time,
+        });
+
+        match self.mode {
+            ActionMoveMode::Start | ActionMoveMode::Move => {
+                state.animations[0] = StateActionAnimation {
+                    animation_id: ANIME_MOVE_ID,
+                    files: self.inst.anim_move.files.clone(),
+                    ratio: self.inst.anim_move.ratio_warpping(self.current_time),
+                    weight: 1.0,
+                }
+            }
+            // ActionMoveMode::TurnLeft => {}
+            // ActionMoveMode::TurnRight => {}
+            // ActionMoveMode::Stop => {}
+            _ => unreachable!("mode: {:?}", self.mode),
         };
 
-        let mut state = self.save();
-        state.animations[0] = state_idle;
+        state.fade_in_weight = self.fade_in_weight;
         state
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::consts::{DEFAULT_TOWARD_DIR_3D, SPF};
+    use crate::logic::action::base::LogicActionStatus;
+    use crate::logic::action::test_utils::*;
+    use crate::utils::tests::FrameTicker;
+    use crate::utils::{id, s2f, sb};
+    use approx::assert_ulps_eq;
+    use glam::{Quat, Vec3, Vec3A, Vec3Swizzles};
+
+    #[test]
+    fn test_state_rkyv() {
+        let mut raw_state = Box::new(StateActionMove {
+            _base: StateActionBase::new(StateActionType::Move, TmplType::ActionMove),
+            mode: ActionMoveMode::Move,
+            switch_time: 5.0,
+            current_time: 10.0,
+        });
+        raw_state.id = 123;
+        raw_state.tmpl_id = id!("Action.Instance.Run/1A");
+        raw_state.status = LogicActionStatus::Activing;
+        raw_state.first_frame = 15;
+        raw_state.last_frame = 99;
+        raw_state.derive_level = 1;
+        raw_state.poise_level = 2;
+        raw_state.animations[0] = StateActionAnimation::new(sb!("move"), 1, 0.5, 0.5);
+
+        let state = test_state_action_rkyv(raw_state, StateActionType::Move, TmplType::ActionMove).unwrap();
+        let state = state.cast::<StateActionMove>().unwrap();
+
+        assert_eq!(state.id, 123);
+        assert_eq!(state.tmpl_id, id!("Action.Instance.Run/1A"));
+        assert_eq!(state.status, LogicActionStatus::Activing);
+        assert_eq!(state.first_frame, 15);
+        assert_eq!(state.last_frame, 99);
+        assert_eq!(state.derive_level, 1);
+        assert_eq!(state.poise_level, 2);
+        assert_eq!(state.animations[0], StateActionAnimation::new(sb!("move"), 1, 0.5, 0.5));
+        assert_eq!(state.animations[1], StateActionAnimation::default());
+        assert_eq!(state.animations[2], StateActionAnimation::default());
+        assert_eq!(state.animations[3], StateActionAnimation::default());
+        assert_eq!(state.mode, ActionMoveMode::Move);
+        assert_eq!(state.switch_time, 5.0);
+        assert_eq!(state.current_time, 10.0);
+    }
+
+    fn new_move(tenv: &mut TestEnv) -> (LogicActionMove, Rc<InstActionMove>) {
+        let inst_act: Rc<InstActionMove> = tenv
+            .inst_player
+            .find_action_by_id(id!("Action.Instance.Run/1A"))
+            .unwrap();
+        let logic_act = LogicActionMove::new(&mut tenv.context_update(), inst_act.clone()).unwrap();
+        (logic_act, inst_act)
+    }
+
+    static RUN_OZZ: &str = "girl_run";
+
+    #[test]
+    fn test_logic_new() {
+        let mut tenv = TestEnv::new().unwrap();
+        let logic_move = new_move(&mut tenv).0;
+
+        assert_eq!(logic_move.tmpl_id(), id!("Action.Instance.Run/1A"));
+        assert!(logic_move.is_starting());
+        assert_eq!(logic_move.first_frame, 0);
+        assert_eq!(logic_move.last_frame, u32::MAX);
+        assert_eq!(logic_move.fade_in_weight, 0.0);
+        assert_ulps_eq!(logic_move.yam_ang_vel, FRAC_PI_2 / 0.4);
+        assert_ulps_eq!(logic_move.turn_ang_vel, PI / 1.0);
+        assert_eq!(logic_move.turn_threshold_cos, -1.0);
+        assert_eq!(logic_move.mode, ActionMoveMode::Start);
+        assert_eq!(logic_move.switch_time, 0.0);
+        assert_eq!(logic_move.current_time, 0.0);
+    }
+
+    #[test]
+    fn test_logic_first_update() {
+        let mut tenv = TestEnv::new().unwrap();
+
+        {
+            let (mut logic_move, inst_move) = new_move(&mut tenv);
+            let (mut ctx, mut ctxa) = tenv.contexts(true);
+            ctxa.input_vars.optimized_device_move.moving = true;
+            ctxa.input_vars.optimized_device_move.direction = Vec2::NEG_Y;
+
+            logic_move.start(&mut ctx, &mut ctxa).unwrap();
+            let ret = logic_move.update(&mut ctx, &mut ctxa).unwrap();
+            assert!(logic_move.is_activing());
+            assert_eq!(logic_move.mode, ActionMoveMode::Move);
+            assert_eq!(logic_move.current_time, 0.0);
+            assert_eq!(ret.state.fade_in_weight, SPF / inst_move.anim_move.fade_in);
+            assert_eq!(ret.state.animations[0].animation_id, ANIME_MOVE_ID);
+            assert_eq!(ret.state.animations[0].files, RUN_OZZ);
+            assert_eq!(ret.state.animations[0].ratio, 0.0);
+            assert_eq!(ret.state.animations[0].weight, 1.0);
+        }
+
+        {
+            let (mut logic_move, inst_move) = new_move(&mut tenv);
+            let (mut ctx, mut ctxa) = tenv.contexts(true);
+            ctxa.input_vars.optimized_device_move.moving = true;
+            ctxa.input_vars.optimized_device_move.direction = Vec2::Y;
+
+            logic_move.start(&mut ctx, &mut ctxa).unwrap();
+            let ret = logic_move.update(&mut ctx, &mut ctxa).unwrap();
+            assert!(logic_move.is_activing());
+            assert_eq!(logic_move.mode, ActionMoveMode::Start);
+            assert_eq!(logic_move.current_time, 0.0);
+            assert_eq!(ret.state.fade_in_weight, SPF / inst_move.anim_move.fade_in);
+            assert_eq!(ret.state.animations[0].animation_id, ANIME_MOVE_ID);
+            assert_eq!(ret.state.animations[0].files, RUN_OZZ);
+            assert_eq!(ret.state.animations[0].ratio, 0.0);
+            assert_eq!(ret.state.animations[0].weight, 1.0);
+        }
+    }
+
+    #[test]
+    fn test_logic_start() {
+        let mut tenv = TestEnv::new().unwrap();
+        let (mut logic_move, inst_move) = new_move(&mut tenv);
+
+        let (mut ctx, mut ctxa) = tenv.contexts(true);
+        logic_move.start(&mut ctx, &mut ctxa).unwrap();
+        for ft in FrameTicker::new(0..s2f(0.4)) {
+            let (mut ctx, mut ctxa) = tenv.contexts(true);
+            ctxa.input_vars.optimized_device_move.moving = true;
+            ctxa.input_vars.optimized_device_move.direction = Vec2::X;
+
+            let ret = logic_move.update(&mut ctx, &mut ctxa).unwrap();
+            assert!(logic_move.is_activing());
+            assert_eq!(logic_move.mode, ft.or_last(ActionMoveMode::Start, ActionMoveMode::Move));
+            assert_eq!(logic_move.current_time, ft.time);
+
+            assert_ulps_eq!(ret.state.fade_in_weight, inst_move.anim_move.fade_in_weight(ft.time(1)));
+            assert_eq!(ret.state.animations[0].animation_id, ANIME_MOVE_ID);
+            assert_eq!(ret.state.animations[0].files, RUN_OZZ);
+            assert_ulps_eq!(ret.state.animations[0].ratio, ft.time / inst_move.anim_move.duration);
+            assert_eq!(ret.state.animations[0].weight, 1.0);
+
+            let rot = ft.or_last(
+                Quat::from_rotation_y(logic_move.yam_ang_vel * ft.time(1)),
+                Quat::from_rotation_y(FRAC_PI_2),
+            );
+            assert_ulps_eq!(ret.new_direction.unwrap(), (rot * Vec3::Z).xz(),);
+            assert_ulps_eq!(
+                ret.new_velocity.unwrap(),
+                ft.or_last(Vec3A::ZERO, Vec3A::new(5.0, 0.0, 0.0))
+            );
+            tenv.chara_physics.set_direction(ret.new_direction.unwrap());
+        }
+    }
+
+    #[test]
+    fn test_logic_move_forward() {
+        let mut tenv = TestEnv::new().unwrap();
+        let (mut logic_move, inst_move) = new_move(&mut tenv);
+
+        let (mut ctx, mut ctxa) = tenv.contexts(false);
+        logic_move.start(&mut ctx, &mut ctxa).unwrap();
+        for ft in FrameTicker::new(0..3) {
+            let (mut ctx, mut ctxa) = tenv.contexts(false);
+            ctxa.input_vars.optimized_device_move.moving = true;
+            ctxa.input_vars.optimized_device_move.direction = Vec2::NEG_Y;
+
+            let ret = logic_move.update(&mut ctx, &mut ctxa).unwrap();
+            assert!(logic_move.is_activing());
+            assert_eq!(logic_move.mode, ActionMoveMode::Move);
+            assert_eq!(logic_move.current_time, ft.time);
+
+            assert_eq!(ret.state.fade_in_weight, 1.0);
+            assert_eq!(ret.state.animations[0].animation_id, ANIME_MOVE_ID);
+            assert_eq!(ret.state.animations[0].files, RUN_OZZ);
+            assert_eq!(ret.state.animations[0].ratio, ft.time / inst_move.anim_move.duration);
+            assert_eq!(ret.state.animations[0].weight, 1.0);
+
+            assert_ulps_eq!(ret.new_direction.unwrap(), Vec2::Y);
+            assert_ulps_eq!(ret.new_velocity.unwrap(), Vec3A::new(0.0, 0.0, 5.0));
+            tenv.chara_physics.set_direction(ret.new_direction.unwrap());
+        }
+    }
+
+    #[test]
+    fn test_logic_move_yam() {
+        let mut tenv = TestEnv::new().unwrap();
+        let (mut logic_move, inst_move) = new_move(&mut tenv);
+        let (mut ctx, mut ctxa) = tenv.contexts(false);
+        ctxa.input_vars.optimized_device_move.moving = true;
+        ctxa.input_vars.optimized_device_move.direction = Vec2::NEG_Y;
+        logic_move.start(&mut ctx, &mut ctxa).unwrap();
+        logic_move.update(&mut ctx, &mut ctxa).unwrap();
+
+        for ft in FrameTicker::new(0..s2f(0.4)) {
+            let (mut ctx, mut ctxa) = tenv.contexts(false);
+            ctxa.input_vars.optimized_device_move.moving = true;
+            ctxa.input_vars.optimized_device_move.direction = Vec2::NEG_X;
+
+            let ret = logic_move.update(&mut ctx, &mut ctxa).unwrap();
+            assert!(logic_move.is_activing());
+            assert_eq!(logic_move.mode, ActionMoveMode::Move);
+            assert_eq!(logic_move.current_time, ft.time(1));
+
+            assert_eq!(ret.state.fade_in_weight, 1.0);
+            assert_eq!(ret.state.animations[0].animation_id, ANIME_MOVE_ID);
+            assert_eq!(ret.state.animations[0].files, RUN_OZZ);
+            assert_eq!(ret.state.animations[0].ratio, ft.time(1) / inst_move.anim_move.duration);
+            assert_eq!(ret.state.animations[0].weight, 1.0);
+
+            let rot = ft.or_last(
+                Quat::from_axis_angle(Vec3::Y, -logic_move.yam_ang_vel * ft.time(1)),
+                Quat::from_rotation_y(-FRAC_PI_2),
+            );
+            assert_ulps_eq!(ret.new_direction.unwrap(), (rot * Vec3::Z).xz(),);
+            assert_ulps_eq!(ret.new_velocity.unwrap(), rot * Vec3A::new(0.0, 0.0, 5.0));
+            tenv.chara_physics.set_direction(ret.new_direction.unwrap());
+        }
+    }
+
+    #[test]
+    fn test_logic_move_turn() {}
+
+    #[test]
+    fn test_logic_move_stop() {
+        let mut tenv = TestEnv::new().unwrap();
+        let mut logic_move = new_move(&mut tenv).0;
+        let (mut ctx, mut ctxa) = tenv.contexts(false);
+        logic_move.start(&mut ctx, &mut ctxa).unwrap();
+
+        for ft in FrameTicker::new(0..10) {
+            let (mut ctx, mut ctxa) = tenv.contexts(false);
+            if !ft.last {
+                ctxa.input_vars.optimized_device_move.moving = true;
+                ctxa.input_vars.optimized_device_move.direction = Vec2::NEG_X;
+            } else {
+                ctxa.input_vars.optimized_device_move.moving = false;
+                ctxa.input_vars.optimized_device_move.direction = Vec2::ZERO;
+            }
+
+            let ret = logic_move.update(&mut ctx, &mut ctxa).unwrap();
+            if !ft.last {
+                assert!(logic_move.is_activing());
+            } else {
+                assert!(logic_move.is_stopping());
+            }
+            assert!(ret.derive_keeping.is_none());
+        }
     }
 }
