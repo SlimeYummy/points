@@ -1,90 +1,36 @@
 use cirtical_point_csgen::CsOut;
 
-use crate::logic::base::{ArchivedStateAny, LogicAny, LogicType, StateAny, StateAnyBase, StateType};
+use crate::logic::base::{impl_state, LogicAny, LogicType, StateBase};
 use crate::logic::game::{ContextRestore, ContextUpdate};
 use crate::utils::{extend, NumID, XResult};
 
 #[repr(C)]
-#[derive(Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
-#[archive_attr(derive(Debug))]
+#[derive(
+    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
+)]
+#[rkyv(derive(Debug))]
 #[cs_attr(Ref)]
 pub struct StateNpcInit {
-    pub _base: StateAnyBase,
+    pub _base: StateBase,
 }
 
-extend!(StateNpcInit, StateAnyBase);
+extend!(StateNpcInit, StateBase);
 
-unsafe impl StateAny for StateNpcInit {
-    #[inline]
-    fn typ(&self) -> StateType {
-        assert_eq!(self.typ, StateType::NpcInit);
-        StateType::NpcInit
-    }
-
-    #[inline]
-    fn id(&self) -> NumID {
-        self.id
-    }
-
-    #[inline]
-    fn logic_typ(&self) -> LogicType {
-        assert_eq!(self.logic_typ, LogicType::Npc);
-        LogicType::Npc
-    }
-}
-
-impl ArchivedStateAny for rkyv::Archived<StateNpcInit> {
-    #[inline]
-    fn typ(&self) -> StateType {
-        StateType::NpcInit
-    }
-
-    #[inline]
-    fn logic_typ(&self) -> LogicType {
-        LogicType::Npc
-    }
-}
+impl_state!(StateNpcInit, Npc, NpcInit, "NpcInit");
 
 #[repr(C)]
-#[derive(Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
-#[archive_attr(derive(Debug))]
+#[derive(
+    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
+)]
+#[rkyv(derive(Debug))]
 #[cs_attr(Ref)]
 pub struct StateNpcUpdate {
-    pub _base: StateAnyBase,
+    pub _base: StateBase,
 }
 
-extend!(StateNpcUpdate, StateAnyBase);
+extend!(StateNpcUpdate, StateBase);
 
-unsafe impl StateAny for StateNpcUpdate {
-    #[inline]
-    fn typ(&self) -> StateType {
-        assert!(self.typ == StateType::NpcUpdate);
-        StateType::NpcUpdate
-    }
-
-    #[inline]
-    fn id(&self) -> NumID {
-        self.id
-    }
-
-    #[inline]
-    fn logic_typ(&self) -> LogicType {
-        assert_eq!(self.logic_typ, LogicType::Npc);
-        LogicType::Npc
-    }
-}
-
-impl ArchivedStateAny for rkyv::Archived<StateNpcUpdate> {
-    #[inline]
-    fn typ(&self) -> StateType {
-        StateType::NpcUpdate
-    }
-
-    #[inline]
-    fn logic_typ(&self) -> LogicType {
-        LogicType::Npc
-    }
-}
+impl_state!(StateNpcUpdate, Npc, NpcUpdate, "NpcUpdate");
 
 #[derive(Debug)]
 pub struct LogicNpc {
