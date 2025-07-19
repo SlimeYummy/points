@@ -1,48 +1,54 @@
 use cirtical_point_csgen::CsOut;
-use jolt_physics_rs::{global_finalize, global_initialize, PhysicsSystem};
+use jolt_physics_rs::{global_initialize, PhysicsSystem};
+use log::{debug, info};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Once};
+use std::sync::Arc;
 
 use crate::instance::{assemble_player, ContextAssemble, InstPlayer};
 use crate::logic::{InputPlayerEvents, LogicLoop, StateSet};
-use crate::parameter::{verify_player, ContextVerify, ParamPlayer, ParamStage};
-use crate::script::ScriptExecutor;
+use crate::parameter::{verify_player, ContextVerify, ParamPlayer, ParamZone};
 use crate::template::TmplDatabase;
 use crate::utils::{xerr, xres, XResult};
-
-static JOLT_INIT: Once = Once::new();
 
 pub struct LogicEngine {
     tmpl_database: TmplDatabase,
     asset_path: PathBuf,
-    script_executor: Box<ScriptExecutor>,
     logic_loop: Option<LogicLoop>,
 }
 
+#[cfg(feature = "debug-print")]
 impl Drop for LogicEngine {
     fn drop(&mut self) {
-        if JOLT_INIT.is_completed() {
-            self.logic_loop = None;
-            global_finalize();
-        }
-
-        #[cfg(feature = "debug-print")]
-        println!("LogicEngine dropped");
+        debug!("LogicEngine::drop()");
     }
 }
 
 impl LogicEngine {
-    pub fn new<TP, AP>(tmpl_path: TP, asset_path: AP) -> XResult<LogicEngine>
-    where
-        TP: AsRef<Path>,
-        AP: AsRef<Path>,
-    {
+    pub fn initialize<P: AsRef<Path>>(tmpl_path: P) -> XResult<()> {
+        env_logger::init();
+        info!("LogicEngine::initialize() tmpl_path={:?}", tmpl_path.as_ref());
+
+        unsafe {
+            crate::utils::init_id_static(&tmpl_path)?;
+            crate::template::init_database_static(&tmpl_path)?;
+        };
+        global_initialize();
+
+        info!("LogicEngine::initialize() OK");
+        Ok(())
+    }
+
+    pub fn new<P: AsRef<Path>>(asset_path: P) -> XResult<LogicEngine> {
+        info!("LogicEngine::new() asset_path={:?}", asset_path.as_ref());
+
         let engine = LogicEngine {
-            tmpl_database: TmplDatabase::new(tmpl_path)?,
+            tmpl_database: TmplDatabase::new(1024 * 1024, 60)?,
             asset_path: PathBuf::from(asset_path.as_ref()),
-            script_executor: ScriptExecutor::new(),
+            // script_executor: ScriptExecutor::new(),
             logic_loop: None,
         };
+
+        info!("LogicEngine::new() OK");
         Ok(engine)
     }
 
@@ -59,7 +65,7 @@ impl LogicEngine {
 
     #[inline]
     pub fn assemble_player(&mut self, param: ParamPlayer) -> XResult<InstPlayer> {
-        let mut ctx = ContextAssemble::new(&self.tmpl_database, &mut self.script_executor);
+        let mut ctx = ContextAssemble::new(&self.tmpl_database);
         assemble_player(&mut ctx, &param)
     }
 
@@ -86,24 +92,29 @@ impl LogicEngine {
 
     pub fn start_game(
         &mut self,
-        param_stage: ParamStage,
+        param_zone: ParamZone,
         param_players: Vec<ParamPlayer>,
         save_path: Option<PathBuf>,
     ) -> XResult<Arc<StateSet>> {
+        info!(
+            "LogicEngine::new() param_zone={:?} param_players={:?} save_path={:?}",
+            &param_zone, &param_players, &save_path
+        );
+
         if self.logic_loop.is_some() {
             return xres!(Unexpected; "game already running");
         }
 
-        JOLT_INIT.call_once(|| global_initialize());
-
         let (logic_loop, state_set) = LogicLoop::new(
             self.tmpl_database.clone(),
             &self.asset_path,
-            param_stage,
+            param_zone,
             param_players,
             save_path,
         )?;
         self.logic_loop = Some(logic_loop);
+
+        info!("LogicEngine::start_game() OK");
         Ok(state_set)
     }
 
@@ -116,12 +127,16 @@ impl LogicEngine {
     }
 
     pub fn stop_game(&mut self) -> XResult<()> {
+        info!("LogicEngine::stop_game()");
+
         let logic_loop = self
             .logic_loop
             .as_mut()
             .ok_or_else(|| xerr!(Unexpected; "game not running"))?;
         logic_loop.stop()?;
         self.logic_loop = None;
+
+        info!("LogicEngine::stop_game() OK");
         Ok(())
     }
 }
