@@ -1,7 +1,9 @@
+use approx::{abs_diff_eq, abs_diff_ne, assert_abs_diff_eq};
 use cirtical_point_csgen::CsOut;
 use core::f32;
 use educe::Educe;
-use glam_ext::{Isometry3A, Quat, Vec2, Vec3, Vec3A};
+use glam::Vec3Swizzles;
+use glam_ext::{Isometry3A, Quat, Vec2, Vec3A};
 use jolt_physics_rs::{
     self as jolt, vdata, Body, BodyCreationSettings, BodyID, BodyInterface, CapsuleShapeSettings,
     CharacterContactListener, CharacterContactListenerVTable, CharacterContactSettings, CharacterVirtual,
@@ -14,20 +16,29 @@ use std::rc::Rc;
 
 use super::LogicCharaAction;
 use crate::animation::rest_poses_to_model_transforms;
-use crate::consts::FPS;
+use crate::consts::SPF;
 use crate::instance::InstPlayer;
 use crate::logic::game::{ContextRestore, ContextUpdate};
 use crate::logic::physics::PHY_LAYER_PLAYER;
-use crate::template::TmplCharacter;
-use crate::utils::{near, to_euler_degree, xerrf, xfrom, CsQuat, CsVec3A, NumID, Symbol, XResult};
+use crate::utils::{dir_xz_from_quat, quat_from_dir_xz, xerrf, xfrom, CsVec3A, NumID, Symbol, XResult};
 
 #[repr(C)]
-#[derive(Debug, Default, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
-#[archive_attr(derive(Debug))]
+#[derive(
+    Debug,
+    Default,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    CsOut,
+)]
+#[rkyv(derive(Debug))]
 pub struct StateCharaPhysics {
     pub velocity: CsVec3A,
     pub position: CsVec3A,
-    pub rotation: CsQuat,
+    pub direction: Vec2,
 }
 
 #[derive(Educe)]
@@ -37,8 +48,9 @@ pub(crate) struct LogicCharaPhysics {
     inst_player: Rc<InstPlayer>,
     velocity: Vec3A,
     position: Vec3A,
+    direction: Vec2, // direction in XZ plane
     rotation: Quat,
-    pub(crate) idle: Cell<bool>,
+    idle: Cell<bool>,
 
     #[educe(Debug(ignore))]
     character: JMut<CharacterVirtual<CharacterContactListenerImpl>>,
@@ -60,35 +72,17 @@ struct JointBinding {
 }
 
 impl LogicCharaPhysics {
-    #[cfg(test)]
-    pub(crate) fn mock(player_id: NumID, inst_player: Rc<InstPlayer>) -> LogicCharaPhysics {
-        use std::mem;
-        LogicCharaPhysics {
-            player_id,
-            inst_player,
-            velocity: Vec3A::ZERO,
-            position: Vec3A::ZERO,
-            rotation: Quat::IDENTITY,
-            idle: Cell::new(true),
-            character: unsafe { mem::zeroed() },
-            target_body: BodyID::INVALID,
-            target_shape: unsafe { mem::zeroed() },
-            target_bindings: Vec::new(),
-            cache_isometries: Vec::new(),
-        }
-    }
-
     pub fn new(
         ctx: &mut ContextUpdate<'_>,
         player_id: NumID,
         inst_player: Rc<InstPlayer>,
         position: Vec3A,
-        rotation: Quat,
+        direction: Vec2,
     ) -> XResult<LogicCharaPhysics> {
-        let tmpl_chara = ctx.tmpl_db.find_as::<TmplCharacter>(&inst_player.tmpl_character)?;
-        let character = LogicCharaPhysics::init_bounding(ctx, &tmpl_chara, position, rotation)?;
+        let rotation = quat_from_dir_xz(direction);
+        let character = LogicCharaPhysics::init_bounding(ctx, &inst_player, position, rotation)?;
         let (target_body, target_shape, target_bindings) =
-            LogicCharaPhysics::init_target(ctx, &tmpl_chara, position, rotation)?;
+            LogicCharaPhysics::init_target(ctx, &inst_player, position, rotation)?;
 
         let target_bindings_len = target_bindings.len();
         Ok(LogicCharaPhysics {
@@ -96,6 +90,7 @@ impl LogicCharaPhysics {
             inst_player,
             velocity: Vec3A::ZERO,
             position,
+            direction,
             rotation,
             idle: Cell::new(true),
             character,
@@ -110,23 +105,25 @@ impl LogicCharaPhysics {
         StateCharaPhysics {
             velocity: self.velocity.into(),
             position: self.position.into(),
-            rotation: self.rotation.into(),
+            direction: self.direction,
         }
     }
 
     pub fn restore(&mut self, _ctx: &ContextRestore, state: &StateCharaPhysics) -> XResult<()> {
+        self.velocity = state.velocity.into();
         self.position = state.position.into();
-        self.rotation = state.rotation.into();
+        self.direction = state.direction;
+        self.rotation = quat_from_dir_xz(self.direction);
         Ok(())
     }
 
     fn init_bounding(
         ctx: &mut ContextUpdate<'_>,
-        tmpl_chara: &TmplCharacter,
+        inst_player: &InstPlayer,
         position: Vec3A,
         rotation: Quat,
     ) -> XResult<JMut<CharacterVirtual<CharacterContactListenerImpl>>> {
-        let bounding = tmpl_chara.bounding_capsule;
+        let bounding = inst_player.bounding_capsule;
         let mut chara_shape =
             jolt::create_capsule_shape(&CapsuleShapeSettings::new(bounding.half_height, bounding.radius))
                 .map_err(xfrom!())?;
@@ -154,12 +151,12 @@ impl LogicCharaPhysics {
 
     fn init_target(
         ctx: &mut ContextUpdate<'_>,
-        tmpl_chara: &TmplCharacter,
+        inst_player: &InstPlayer,
         position: Vec3A,
         rotation: Quat,
     ) -> XResult<(BodyID, JMut<MutableCompoundShape>, Vec<JointBinding>)> {
-        let skeleton = ctx.asset.load_skeleton(&tmpl_chara.skeleton)?;
-        let mut loaded_target_box = ctx.asset.load_target_box(&tmpl_chara.target_box)?;
+        let skeleton = ctx.asset.load_skeleton(&inst_player.skeleton_files)?;
+        let mut loaded_target_box = ctx.asset.load_target_box(&inst_player.skeleton_files)?;
 
         let model_transforms = rest_poses_to_model_transforms(&skeleton)?;
         let mut target_bindings = Vec::with_capacity(loaded_target_box.bindings.len());
@@ -167,13 +164,13 @@ impl LogicCharaPhysics {
 
         for loaded_binding in loaded_target_box.bindings.drain(..) {
             let joint = skeleton.joint_by_name(loaded_binding.joint.as_str()).ok_or_else(
-                || xerrf!(BadAsset; "target_box={} joint={}", &tmpl_chara.target_box, &loaded_binding.joint),
+                || xerrf!(BadAsset; "target_box={}, joint={}", &inst_player.skeleton_files, &loaded_binding.joint),
             )?;
 
             let mut joint2 = SKELETON_NO_PARENT as i16;
             if !loaded_binding.joint2.is_empty() {
                 joint2 = skeleton.joint_by_name(loaded_binding.joint2.as_str()).ok_or_else(
-                    || xerrf!(BadAsset; "target_box={} joint2={}", &tmpl_chara.target_box, &loaded_binding.joint2),
+                    || xerrf!(BadAsset; "target_box={}, joint2={}", &inst_player.skeleton_files, &loaded_binding.joint2),
                 )?
             };
 
@@ -198,16 +195,6 @@ impl LogicCharaPhysics {
                 ) + transform.rotation * loaded_binding.position
             };
 
-            println!(
-                "{} >> pos:{:?}  rot:{:?}  ozz.pos:{:?}  ozz.rot:{:?}  joint.pos:{:?}",
-                joint,
-                loaded_binding.position,
-                crate::utils::to_euler_degree(loaded_binding.rotation),
-                position,
-                crate::utils::to_euler_degree(rotation),
-                transform.translation
-            );
-
             sub_shape_settings.push(SubShapeSettings::new(loaded_binding.shape, position, rotation));
         }
 
@@ -222,7 +209,7 @@ impl LogicCharaPhysics {
                     PHY_LAYER_PLAYER,
                     MotionType::Kinematic,
                     position.into(),
-                    rotation,
+                    rotation * inst_player.skeleton_rotation,
                 ),
                 false,
             )
@@ -238,11 +225,11 @@ impl LogicCharaPhysics {
     }
 
     fn update_bounding(&mut self, ctx: &mut ContextUpdate<'_>, action: &LogicCharaAction) -> XResult<()> {
-        // println!("action.new_rotation() {:?}", action.new_rotation());
-        if action.new_rotation() != self.character.get_rotation() {
-            self.character.set_rotation(action.new_rotation());
+        let new_rotation = quat_from_dir_xz(action.new_direction());
+        if new_rotation != self.character.get_rotation() {
+            self.character.set_rotation(new_rotation);
         }
-        self.character.get_listener_mut().unwrap().allow_sliding = !near!(action.new_velocity(), Vec3A::ZERO);
+        self.character.get_listener_mut().unwrap().allow_sliding = abs_diff_ne!(action.new_velocity(), Vec3A::ZERO);
 
         self.character.update_ground_velocity();
 
@@ -251,37 +238,44 @@ impl LogicCharaPhysics {
         let ground_velocity: Vec3A = self.character.get_ground_velocity();
         let moving_towards_ground = (linear_velocity.y - ground_velocity.y) < 0.1;
 
-        let mut new_velocity;
-        if self.character.get_ground_state() == GroundState::OnGround && moving_towards_ground {
-            new_velocity = ground_velocity;
-        } else {
-            new_velocity = Vec3A::new(0.0, linear_velocity.y, 0.0);
-        }
+        if abs_diff_eq!(action.new_velocity().y, 0.0) {
+            let mut new_velocity;
+            if self.character.get_ground_state() == GroundState::OnGround && moving_towards_ground {
+                new_velocity = ground_velocity;
+            } else {
+                new_velocity = Vec3A::new(0.0, linear_velocity.y, 0.0);
+            }
 
-        new_velocity += gravity * (1.0 / (FPS as f32)); // Gravity
+            new_velocity += gravity * SPF; // Gravity
 
-        if self.character.is_supported() {
-            new_velocity += action.new_velocity();
+            if self.character.is_supported() {
+                new_velocity += action.new_velocity();
+            } else {
+                let horizontal_velocity = linear_velocity - Vec3A::new(0.0, linear_velocity.y, 0.0);
+                new_velocity += horizontal_velocity;
+            }
+            self.character.set_linear_velocity(new_velocity);
         } else {
-            let horizontal_velocity = linear_velocity - Vec3A::new(0.0, linear_velocity.y, 0.0);
-            new_velocity += horizontal_velocity;
+            self.character.set_linear_velocity(action.new_velocity());
         }
-        self.character.set_linear_velocity(new_velocity.into());
 
         self.character.extended_update(
             PHY_LAYER_PLAYER,
-            1.0 / (FPS as f32),
+            SPF,
             gravity.into(),
             &ExtendedUpdateSettings::default(),
         );
-
         ctx.physics
             .body_itf()
             .set_position(self.target_body, self.character.get_position(), true);
 
         self.velocity = self.character.get_linear_velocity();
         self.position = self.character.get_position();
-        self.rotation = self.character.get_rotation();
+
+        assert_abs_diff_eq!(self.character.get_rotation().x, 0.0, epsilon = 0.01);
+        assert_abs_diff_eq!(self.character.get_rotation().z, 0.0, epsilon = 0.01);
+        self.direction = dir_xz_from_quat(self.character.get_rotation());
+        self.rotation = quat_from_dir_xz(self.direction);
         self.idle.set(true);
         Ok(())
     }
@@ -311,15 +305,56 @@ impl LogicCharaPhysics {
             .body_itf()
             .notify_shape_changed(self.target_body, previous_center_of_mass, false, true);
 
-        ctx.physics
-            .body_itf()
-            .set_position_rotation(self.target_body, self.position, self.rotation, true);
+        ctx.physics.body_itf().set_position_rotation(
+            self.target_body,
+            self.position,
+            self.rotation * self.inst_player.skeleton_rotation,
+            true,
+        );
         Ok(())
     }
+}
 
+impl LogicCharaPhysics {
     #[inline]
     pub fn position(&self) -> Vec3A {
         self.position
+    }
+
+    #[inline]
+    pub fn position_xz(&self) -> Vec3A {
+        Vec3A::new(self.position.x, 0.0, self.position.z)
+    }
+
+    #[inline]
+    pub fn position_2d(&self) -> Vec2 {
+        self.position.xz()
+    }
+
+    #[cfg(test)]
+    pub fn set_position(&mut self, position: Vec3A) {
+        self.position = position;
+    }
+
+    #[inline]
+    pub fn direction(&self) -> Vec2 {
+        self.direction
+    }
+
+    #[inline]
+    pub fn direction_3d(&self) -> Vec3A {
+        Vec3A::new(self.direction.x, 0.0, self.direction.y)
+    }
+
+    #[inline]
+    pub fn direction_xz(&self) -> Vec3A {
+        self.direction_3d()
+    }
+
+    #[cfg(test)]
+    pub fn set_direction(&mut self, direction: Vec2) {
+        self.direction = direction;
+        self.rotation = quat_from_dir_xz(self.direction);
     }
 
     #[inline]
@@ -328,25 +363,18 @@ impl LogicCharaPhysics {
     }
 
     #[inline]
-    pub fn direction(&self) -> Vec3 {
-        self.rotation * Vec3::Z
-    }
-
-    #[inline]
-    pub fn direction_2d(&self) -> Vec2 {
-        let rot_z = self.rotation * Vec3::Z;
-        println!("rot_z {:?} rotation {:?}", rot_z, to_euler_degree(self.rotation));
-        if rot_z.y.abs() < 0.99 {
-            Vec2::new(rot_z.x, rot_z.z).normalize()
-        } else {
-            let rot_y = self.rotation * Vec3::Y;
-            Vec2::new(rot_y.x, rot_y.z).normalize()
-        }
+    pub fn rotation_y(&self) -> Quat {
+        self.rotation
     }
 
     #[inline]
     pub fn is_idle(&self) -> bool {
         self.idle.get()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_idle(&self, idle: bool) {
+        self.idle.set(idle);
     }
 }
 
@@ -422,7 +450,9 @@ impl CharacterContactListener for CharacterContactListenerImpl {
         let contact_normal: Vec3A = contact_normal.into();
         let contact_velocity: Vec3A = contact_velocity.into();
         // println!("{} {} {}", self.allow_sliding, near!(contact_velocity, Vec3A::ZERO), !character.is_slope_too_steep(contact_normal));
-        if !self.allow_sliding && near!(contact_velocity, Vec3A::ZERO) && !character.is_slope_too_steep(contact_normal)
+        if !self.allow_sliding
+            && abs_diff_eq!(contact_velocity, Vec3A::ZERO)
+            && !character.is_slope_too_steep(contact_normal)
         {
             *new_character_velocity = Vec3A::ZERO;
         }
