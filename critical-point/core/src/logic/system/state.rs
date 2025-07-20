@@ -1,10 +1,11 @@
 use cirtical_point_csgen::CsOut;
+use log::debug;
 use std::collections::{vec_deque, VecDeque};
 use std::ops::{Index, RangeBounds};
 use std::sync::Arc;
 
 use super::super::base::StateAny;
-use crate::consts::FPS;
+use crate::consts::FPS_USIZE;
 use crate::utils::{xres, xresf, XResult};
 
 #[repr(C)]
@@ -19,7 +20,7 @@ pub struct StateSet {
 #[cfg(feature = "debug-print")]
 impl Drop for StateSet {
     fn drop(&mut self) {
-        println!("StateSet drop() frame:{}", self.frame);
+        debug!("StateSet::drop() frame={}", self.frame);
     }
 }
 
@@ -52,7 +53,7 @@ impl SystemState {
     #[inline]
     pub fn new() -> SystemState {
         SystemState {
-            state_sets: VecDeque::with_capacity(2 * FPS as usize),
+            state_sets: VecDeque::with_capacity(2 * FPS_USIZE),
             current_frame: 0,
             synced_frame: 0,
         }
@@ -83,7 +84,7 @@ impl SystemState {
 
     pub fn append(&mut self, state_set: Arc<StateSet>) -> XResult<()> {
         if state_set.frame != self.current_frame + 1 {
-            return xresf!(BadArgument; "state_set.frame={} current_frame={}", state_set.frame, self.current_frame);
+            return xresf!(BadArgument; "state_set.frame={}, current_frame={}", state_set.frame, self.current_frame);
         }
         self.current_frame += 1;
         self.state_sets.push_back(state_set);
@@ -93,7 +94,7 @@ impl SystemState {
     pub fn confirm(&mut self, synced_frame: u32) -> XResult<Vec<Arc<StateSet>>> {
         let mut outs = vec![];
         if synced_frame > self.current_frame {
-            return xresf!(BadArgument; "synced_frame={} current_frame={}", synced_frame, self.current_frame);
+            return xresf!(BadArgument; "synced_frame={}, current_frame={}", synced_frame, self.current_frame);
         }
         if synced_frame <= self.synced_frame {
             return Ok(outs);
@@ -116,7 +117,7 @@ impl SystemState {
 
     pub fn restore(&mut self, frame: u32) -> XResult<()> {
         if frame < self.synced_frame || frame > self.current_frame {
-            return xresf!(BadArgument; "frame={} synced_frame={} current_frame={}", frame, self.synced_frame, self.current_frame);
+            return xresf!(BadArgument; "frame={}, synced_frame={}, current_frame={}", frame, self.synced_frame, self.current_frame);
         }
         while let Some(state) = self.state_sets.back() {
             if state.frame > frame {

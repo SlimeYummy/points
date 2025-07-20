@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::consts::FPS;
+use crate::consts::FPS_USIZE;
 use crate::utils::{xres, NumID, XResult, MAX_PLAYER_ID, MIN_PLAYER_ID};
 
 const MIN_AUTO_GEN_ID: NumID = 1000;
@@ -14,7 +14,7 @@ pub struct SystemGeneration {
 impl SystemGeneration {
     pub fn new() -> SystemGeneration {
         SystemGeneration {
-            history: VecDeque::with_capacity(2 * FPS as usize),
+            history: VecDeque::with_capacity(2 * FPS_USIZE),
             player: MIN_PLAYER_ID,
             counter: MIN_AUTO_GEN_ID,
         }

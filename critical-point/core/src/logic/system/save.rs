@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use rkyv::AlignedVec;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
 use std::io::prelude::*;
@@ -35,13 +34,14 @@ pub(crate) struct SaveStateInits {
 }
 
 impl SaveStateInits {
-    fn to_rkyv_bytes(frame: u32, inits: &Vec<Arc<dyn StateAny>>) -> Result<AlignedVec> {
+    fn to_rkyv_bytes(frame: u32, inits: &Vec<Arc<dyn StateAny>>) -> Result<rkyv::util::AlignedVec> {
+        use rkyv::rancor::Failure;
+
         let mut save = SaveStateInits { frame, inits: vec![] };
         unsafe {
             ptr::copy_nonoverlapping(inits, &mut save.inits, 1);
         };
-        const RKYV_ALLOC: usize = 1024 * 32;
-        let buf = rkyv::to_bytes::<_, RKYV_ALLOC>(&save)?;
+        let buf = rkyv::to_bytes::<Failure>(&save)?;
         mem::forget(save);
         Ok(buf)
     }
@@ -54,13 +54,14 @@ pub struct SaveStateUpdates {
 }
 
 impl SaveStateUpdates {
-    fn to_rkyv_bytes(frame: u32, updates: &Vec<Box<dyn StateAny>>) -> Result<AlignedVec> {
+    fn to_rkyv_bytes(frame: u32, updates: &Vec<Box<dyn StateAny>>) -> Result<rkyv::util::AlignedVec> {
+        use rkyv::rancor::Failure;
+
         let mut save = SaveStateUpdates { frame, updates: vec![] };
         unsafe {
             ptr::copy_nonoverlapping(updates, &mut save.updates, 1);
         };
-        const RKYV_ALLOC: usize = 1024 * 64;
-        let buf = rkyv::to_bytes::<_, RKYV_ALLOC>(&save)?;
+        let buf = rkyv::to_bytes::<Failure>(&save)?;
         mem::forget(save);
         Ok(buf)
     }
@@ -150,7 +151,7 @@ impl SystemSave {
             return xres!(BadOperation; "thread stopped");
         }
         if players.frame != self.input_frame.wrapping_add(1) {
-            return xresf!(BadArgument; "player.frame={} input_frame={}", players.frame, self.input_frame);
+            return xresf!(BadArgument; "player.frame={}, input_frame={}", players.frame, self.input_frame);
         }
         self.input_frame = players.frame;
         self.sender
@@ -163,7 +164,7 @@ impl SystemSave {
             return xres!(BadOperation; "thread stopped");
         }
         if state_set.frame != self.state_frame.wrapping_add(1) {
-            return xresf!(BadArgument; "state_set.frame={} input_frame={}", state_set.frame, self.input_frame);
+            return xresf!(BadArgument; "state_set.frame={}, input_frame={}", state_set.frame, self.input_frame);
         }
         self.state_frame = state_set.frame;
         self.sender
@@ -219,8 +220,9 @@ impl SaveThread {
     }
 
     fn handle_input(&mut self, players: InputFrameEvents) -> Result<()> {
-        const RKYV_ALLOC: usize = 1024 * 8;
-        let data_buf = rkyv::to_bytes::<_, RKYV_ALLOC>(&players)?;
+        use rkyv::rancor::Failure;
+
+        let data_buf = rkyv::to_bytes::<Failure>(&players)?;
         self.input_data_file.write_all(&data_buf)?;
         self.input_data_file.flush()?;
 
