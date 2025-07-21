@@ -291,7 +291,7 @@ dependencies = [
  "enum-iterator",
  "env_logger",
  "glam",
- "glam-ext",
+ "glam-ext 0.3.0",
  "jolt-physics-rs",
  "lazy_static",
  "libc",
@@ -334,7 +334,7 @@ dependencies = [
  "chrono",
  "cirtical-point-core",
  "glam",
- "glam-ext",
+ "glam-ext 0.3.0",
  "jolt-physics-rs",
  "serde",
  "serde_json",
@@ -449,7 +449,7 @@ dependencies = [
  "cirtical-point-core",
  "const_format",
  "glam",
- "glam-ext",
+ "glam-ext 0.3.0",
  "libc",
  "ozz-animation-rs",
  "rmp-serde",
@@ -731,6 +731,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "glam-ext"
+version = "0.3.2"
+dependencies = [
+ "approx",
+ "glam",
+ "libm",
+ "rkyv",
+ "serde",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -867,7 +878,7 @@ dependencies = [
  "cxx",
  "cxx-build",
  "glam",
- "glam-ext",
+ "glam-ext 0.3.2",
  "jolt-macros",
  "libc",
  "rkyv",
@@ -996,7 +1007,7 @@ dependencies = [
  "bimap",
  "bytecheck 0.6.12",
  "glam",
- "glam-ext",
+ "glam-ext 0.3.2",
  "rkyv",
  "serde",
  "static_assertions",

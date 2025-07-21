@@ -9,8 +9,8 @@ crate-type = ["cdylib"]
 [dependencies]
 cirtical-point-core = { path = "../core" }
 const_format = "0.2"
-glam = { version = "0.29", features = ["libm", "approx", "serde", "rkyv"] }
-glam-ext = { version = "0.2", features = ["libm", "approx", "serde", "rkyv"] }
+glam = { version = "0.30", features = ["libm", "approx", "serde", "rkyv"] }
+glam-ext = { version = "0.3", features = ["libm", "approx", "serde", "rkyv"] }
 libc = "0.2"
 ozz-animation-rs = { path = "../../../ozz-animation-rs" }
 rmp-serde = "1.3"
