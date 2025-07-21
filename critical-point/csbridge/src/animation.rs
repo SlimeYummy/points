@@ -14,8 +14,8 @@ use cirtical_point_core::animation::{
     SkeletonJointMeta, SkeletonMeta,
 };
 use cirtical_point_core::consts::MAX_ACTION_ANIMATION;
-use cirtical_point_core::logic::StateAction;
-use cirtical_point_core::utils::{xerror, ASymbol, XResult};
+use cirtical_point_core::logic::StateActionAny;
+use cirtical_point_core::utils::{xerror, Symbol, XResult};
 
 use crate::utils::Return;
 
@@ -31,7 +31,7 @@ pub struct AnimatorWrapper {
 #[cfg(feature = "debug-print")]
 impl Drop for AnimatorWrapper {
     fn drop(&mut self) {
-        println!("AnimatorWrapper.drop()");
+        println!("AnimatorWrapper::drop()");
     }
 }
 
@@ -76,7 +76,7 @@ pub extern "C" fn skeletal_animator_skeleton_meta<'t>(animator: *mut AnimatorWra
 pub extern "C" fn skeletal_animator_update(
     animator: *mut AnimatorWrapper,
     frame: u32,
-    states: &[Box<dyn StateAction>],
+    states: &[Box<dyn StateActionAny>],
 ) -> Return<()> {
     let res: XResult<()> = (|| {
         let animator = as_animator(animator)?;
@@ -94,7 +94,7 @@ pub extern "C" fn skeletal_animator_update(
 pub extern "C" fn skeletal_animator_restore(
     animator: *mut AnimatorWrapper,
     frame: u32,
-    states: &[Box<dyn StateAction>],
+    states: &[Box<dyn StateActionAny>],
 ) -> Return<()> {
     let res: XResult<()> = (|| {
         let animator = as_animator(animator)?;
@@ -180,7 +180,7 @@ fn as_animator<'t>(animator: *mut AnimatorWrapper) -> XResult<&'t mut AnimatorWr
 
 pub struct SkeletalResource {
     skeleton: Rc<Skeleton>,
-    animations: HashMap<ASymbol, Rc<Animation>>,
+    animations: HashMap<Symbol, Rc<Animation>>,
     sealed: bool,
 }
 
@@ -194,17 +194,17 @@ impl SkeletalResource {
         })
     }
 
-    fn add_animation<P: AsRef<Path>>(&mut self, logic_path: ASymbol, view_path: P) -> XResult<()> {
+    fn add_animation<P: AsRef<Path>>(&mut self, logic_path: Symbol, view_path: P) -> XResult<()> {
         let animation = Rc::new(Animation::from_path(view_path)?);
         self.animations.insert(logic_path, animation);
         Ok(())
     }
 
-    fn remove_animation(&mut self, logic_path: ASymbol) {
+    fn remove_animation(&mut self, logic_path: Symbol) {
         self.animations.remove(&logic_path);
     }
 
-    fn has_animation(&self, logic_path: ASymbol) -> bool {
+    fn has_animation(&self, logic_path: Symbol) -> bool {
         self.animations.contains_key(&logic_path)
     }
 }
@@ -212,7 +212,7 @@ impl SkeletalResource {
 #[cfg(feature = "debug-print")]
 impl Drop for SkeletalResource {
     fn drop(&mut self) {
-        println!("SkeletalResource.drop()");
+        println!("SkeletalResource::drop()");
     }
 }
 
@@ -236,7 +236,7 @@ pub extern "C" fn skeletal_resource_destroy(resource: *mut SkeletalResource) {
 #[no_mangle]
 pub extern "C" fn skeletal_resource_add_animation(
     resource: *mut SkeletalResource,
-    logic_path: ASymbol,
+    logic_path: Symbol,
     view_path: *const c_char,
 ) -> Return<()> {
     let res: XResult<()> = (|| {
@@ -254,7 +254,7 @@ pub extern "C" fn skeletal_resource_add_animation(
 #[no_mangle]
 pub extern "C" fn skeletal_resource_remove_animation(
     resource: *mut SkeletalResource,
-    logic_path: ASymbol,
+    logic_path: Symbol,
 ) -> Return<()> {
     let res: XResult<()> = (|| {
         let resource = as_resource(resource)?;
@@ -270,7 +270,7 @@ pub extern "C" fn skeletal_resource_remove_animation(
 #[no_mangle]
 pub extern "C" fn skeletal_resource_has_animation(
     resource: *mut SkeletalResource,
-    logic_path: ASymbol,
+    logic_path: Symbol,
 ) -> Return<bool> {
     let res: XResult<bool> = (|| {
         let resource = as_resource(resource)?;
@@ -304,7 +304,7 @@ pub struct SkeletalPlayer {
 #[cfg(feature = "debug-print")]
 impl Drop for SkeletalPlayer {
     fn drop(&mut self) {
-        println!("SkeletalPlayer.drop()");
+        println!("SkeletalPlayer::drop()");
     }
 }
 
