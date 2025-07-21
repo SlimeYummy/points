@@ -6,10 +6,10 @@ use std::sync::Arc;
 
 use cirtical_point_core::animation::SkeletonMeta;
 use cirtical_point_core::logic::{
-    StateAction, StateActionIdle, StateAny, StateGameInit, StateGameUpdate, StatePlayerInit, StatePlayerUpdate,
-    StateStageInit, StateStageUpdate, StateNpcInit, StateNpcUpdate, StateActionMove, StateSet,
+    StateActionAny, StateActionIdle, StateAny, StateGameInit, StateGameUpdate, StatePlayerInit, StatePlayerUpdate,
+    StateZoneInit, StateZoneUpdate, StateNpcInit, StateNpcUpdate, StateActionMove, StateSet,
 };
-use cirtical_point_core::utils::{CastPtr, CastRef, Symbol};
+use cirtical_point_core::utils::{Castable, Symbol};
 
 #[no_mangle]
 pub extern "C" fn new_symbol(cstr: *const i8) -> Symbol {
@@ -50,7 +50,7 @@ macro_rules! box_ref {
         #[no_mangle]
         pub extern "C" fn $fn(base: *const $base_ty) -> *const $ty {
             let base: &$base_ty = unsafe { &*base };
-            match base.cast_ref::<$ty>() {
+            match base.cast::<$ty>() {
                 Ok(v) => v as *const $ty,
                 Err(_) => ptr::null(),
             }
@@ -65,7 +65,7 @@ macro_rules! arc_ref {
         #[no_mangle]
         pub extern "C" fn $fn(base: *const $base_ty) -> *const ArcInner {
             let base_ref: &$base_ty = unsafe { &*base };
-            match base_ref.cast_ref::<$ty>() {
+            match base_ref.cast::<$ty>() {
                 Ok(_) => unsafe { *(base as *const *const ArcInner) },
                 Err(_) => ptr::null(),
             }
@@ -78,7 +78,7 @@ macro_rules! arc_arc {
         #[no_mangle]
         pub extern "C" fn $fn(base: *const $base_ty) -> Option<Arc<$ty>> {
             let base: &$base_ty = unsafe { &*base };
-            match base.cast_to::<$ty>() {
+            match base.clone().cast::<$ty>() {
                 Ok(v) => Some(v),
                 Err(_) => None,
             }
@@ -108,19 +108,19 @@ box_ref!(state_game_update_box_ref, Box<dyn StateAny>, StateGameUpdate);
 arc_ref!(state_game_update_arc_ref, Arc<dyn StateAny>, StateGameUpdate);
 arc_arc!(state_game_update_arc_arc, Arc<dyn StateAny>, StateGameUpdate);
 
-box_drop!(state_stage_init_box_drop, StateStageInit);
-arc_clone!(state_stage_init_arc_clone, StateStageInit);
-arc_drop!(state_stage_init_arc_drop, StateStageInit);
-box_ref!(state_stage_init_box_ref, Box<dyn StateAny>, StateStageInit);
-arc_ref!(state_stage_init_arc_ref, Arc<dyn StateAny>, StateStageInit);
-arc_arc!(state_stage_init_arc_arc, Arc<dyn StateAny>, StateStageInit);
+box_drop!(state_zone_init_box_drop, StateZoneInit);
+arc_clone!(state_zone_init_arc_clone, StateZoneInit);
+arc_drop!(state_zone_init_arc_drop, StateZoneInit);
+box_ref!(state_zone_init_box_ref, Box<dyn StateAny>, StateZoneInit);
+arc_ref!(state_zone_init_arc_ref, Arc<dyn StateAny>, StateZoneInit);
+arc_arc!(state_zone_init_arc_arc, Arc<dyn StateAny>, StateZoneInit);
 
-box_drop!(state_stage_update_box_drop, StateStageUpdate);
-arc_clone!(state_stage_update_arc_clone, StateStageUpdate);
-arc_drop!(state_stage_update_arc_drop, StateStageUpdate);
-box_ref!(state_stage_update_box_ref, Box<dyn StateAny>, StateStageUpdate);
-arc_ref!(state_stage_update_arc_ref, Arc<dyn StateAny>, StateStageUpdate);
-arc_arc!(state_stage_update_arc_arc, Arc<dyn StateAny>, StateStageUpdate);
+box_drop!(state_zone_update_box_drop, StateZoneUpdate);
+arc_clone!(state_zone_update_arc_clone, StateZoneUpdate);
+arc_drop!(state_zone_update_arc_drop, StateZoneUpdate);
+box_ref!(state_zone_update_box_ref, Box<dyn StateAny>, StateZoneUpdate);
+arc_ref!(state_zone_update_arc_ref, Arc<dyn StateAny>, StateZoneUpdate);
+arc_arc!(state_zone_update_arc_arc, Arc<dyn StateAny>, StateZoneUpdate);
 
 box_drop!(state_player_init_box_drop, StatePlayerInit);
 arc_clone!(state_player_init_arc_clone, StatePlayerInit);
@@ -151,26 +151,26 @@ arc_ref!(state_npc_update_arc_ref, Arc<dyn StateAny>, StateNpcUpdate);
 arc_arc!(state_npc_update_arc_arc, Arc<dyn StateAny>, StateNpcUpdate);
 
 //
-// StateAction
+// StateActionAny
 //
 
-box_drop!(dyn_state_action_box_drop, dyn StateAction);
-arc_clone!(dyn_state_action_arc_clone, dyn StateAction);
-arc_drop!(dyn_state_action_arc_drop, dyn StateAction);
+box_drop!(dyn_state_action_box_drop, dyn StateActionAny);
+arc_clone!(dyn_state_action_arc_clone, dyn StateActionAny);
+arc_drop!(dyn_state_action_arc_drop, dyn StateActionAny);
 
 box_drop!(state_action_idle_box_drop, StateActionIdle);
 arc_clone!(state_action_idle_arc_clone, StateActionIdle);
 arc_drop!(state_action_idle_arc_drop, StateActionIdle);
-box_ref!(state_action_idle_box_ref, Box<dyn StateAction>, StateActionIdle);
-arc_ref!(state_action_idle_arc_ref, Arc<dyn StateAction>, StateActionIdle);
-arc_arc!(state_action_idle_arc_arc, Arc<dyn StateAction>, StateActionIdle);
+box_ref!(state_action_idle_box_ref, Box<dyn StateActionAny>, StateActionIdle);
+arc_ref!(state_action_idle_arc_ref, Arc<dyn StateActionAny>, StateActionIdle);
+arc_arc!(state_action_idle_arc_arc, Arc<dyn StateActionAny>, StateActionIdle);
 
 box_drop!(state_action_move_box_drop, StateActionMove);
 arc_clone!(state_action_move_arc_clone, StateActionMove);
 arc_drop!(state_action_move_arc_drop, StateActionMove);
-box_ref!(state_action_move_box_ref, Box<dyn StateAction>, StateActionMove);
-arc_ref!(state_action_move_arc_ref, Arc<dyn StateAction>, StateActionMove);
-arc_arc!(state_action_move_arc_arc, Arc<dyn StateAction>, StateActionMove);
+box_ref!(state_action_move_box_ref, Box<dyn StateActionAny>, StateActionMove);
+arc_ref!(state_action_move_arc_ref, Arc<dyn StateActionAny>, StateActionMove);
+arc_arc!(state_action_move_arc_arc, Arc<dyn StateActionAny>, StateActionMove);
 
 //
 // Others

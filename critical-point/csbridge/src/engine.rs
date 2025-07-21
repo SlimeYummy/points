@@ -8,20 +8,28 @@ use std::{mem, ptr};
 
 use cirtical_point_core::animation::SkeletonJointMeta;
 use cirtical_point_core::engine::{LogicEngine, LogicEngineStatus};
-use cirtical_point_core::logic::{InputPlayerEvents, StateAction, StateAny, StateSet};
-use cirtical_point_core::parameter::{ParamPlayer, ParamStage};
+use cirtical_point_core::logic::{InputPlayerEvents, StateActionAny, StateAny, StateSet};
+use cirtical_point_core::parameter::{ParamPlayer, ParamZone};
 use cirtical_point_core::utils::{Symbol, XResult};
 
 use crate::utils::{as_slice, Return};
 
 #[no_mangle]
-pub extern "C" fn engine_create(tmpl_path: *const c_char, asset_path: *const c_char) -> Return<*mut LogicEngine> {
+pub extern "C" fn engine_initialize(tmpl_path: *const c_char) -> Return<()> {
     check_memory_layout();
-
-    let res: XResult<*mut LogicEngine> = (|| {
+    let res: XResult<()> = (|| {
         let tmpl_path = unsafe { CStr::from_ptr(tmpl_path) }.to_str()?;
+        LogicEngine::initialize(tmpl_path)?;
+        Ok(())
+    })();
+    Return::from_result(res)
+}
+
+#[no_mangle]
+pub extern "C" fn engine_create(asset_path: *const c_char) -> Return<*mut LogicEngine> {
+    let res: XResult<*mut LogicEngine> = (|| {
         let asset_path = unsafe { CStr::from_ptr(asset_path) }.to_str()?;
-        let engine = Box::new(LogicEngine::new(tmpl_path, asset_path)?);
+        let engine = Box::new(LogicEngine::new(asset_path)?);
         Ok(Box::into_raw(engine))
     })();
     Return::from_result_with(res, ptr::null_mut())
@@ -67,18 +75,18 @@ pub extern "C" fn engine_get_game_status(engine: *mut LogicEngine) -> Return<Log
 #[no_mangle]
 pub extern "C" fn engine_start_game(
     engine: *mut LogicEngine,
-    stage_data: *const u8,
-    stage_len: u32,
+    zone_data: *const u8,
+    zone_len: u32,
     players_data: *const u8,
     players_len: u32,
 ) -> Return<Option<Arc<StateSet>>> {
     let res: XResult<Arc<StateSet>> = (|| {
         let engine = as_engine(engine)?;
-        let stage_buf = as_slice(stage_data, stage_len, "engine_start_game() stage data is null")?;
+        let zone_buf = as_slice(zone_data, zone_len, "engine_start_game() zone data is null")?;
         let players_buf = as_slice(players_data, players_len, "engine_start_game() players data is null")?;
-        let stage: ParamStage = rmp_serde::from_slice(stage_buf).map_err(|e| xerror!(BadArgument, e))?;
+        let zone: ParamZone = rmp_serde::from_slice(zone_buf).map_err(|e| xerror!(BadArgument, e))?;
         let players: Vec<ParamPlayer> = rmp_serde::from_slice(players_buf).map_err(|e| xerror!(BadArgument, e))?;
-        engine.start_game(stage, players, None)
+        engine.start_game(zone, players, None)
     })();
     assert_eq!(unsafe { mem::transmute::<Option<Arc<StateSet>>, usize>(None) }, 0);
     Return::from_result_with(res.map(|s| Some(s)), None)
@@ -184,13 +192,13 @@ fn check_memory_layout() {
     assert_eq!(vlayout.data, vec.as_ptr());
 
     let vec = Vec::with_capacity(11);
-    let vlayout: VecLayout<Box<dyn StateAction>> = unsafe { mem::transmute_copy(&vec) };
+    let vlayout: VecLayout<Box<dyn StateActionAny>> = unsafe { mem::transmute_copy(&vec) };
     assert_eq!(vlayout.len, vec.len());
     assert_eq!(vlayout.cap, vec.capacity());
     assert_eq!(vlayout.data, vec.as_ptr());
 
     let vec = Vec::with_capacity(11);
-    let vlayout: VecLayout<Arc<dyn StateAction>> = unsafe { mem::transmute_copy(&vec) };
+    let vlayout: VecLayout<Arc<dyn StateActionAny>> = unsafe { mem::transmute_copy(&vec) };
     assert_eq!(vlayout.len, vec.len());
     assert_eq!(vlayout.cap, vec.capacity());
     assert_eq!(vlayout.data, vec.as_ptr());
