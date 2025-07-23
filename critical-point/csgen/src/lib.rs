@@ -46,9 +46,9 @@ impl Generator {
         types_in.insert("u64".into(), TypeIn::new_primitive("ulong"));
         types_in.insert("f32".into(), TypeIn::new_primitive("float"));
         types_in.insert("f64".into(), TypeIn::new_primitive("double"));
+        types_in.insert("TmplID".into(), TypeIn::new_primitive("ulong"));
         types_in.insert("NumID".into(), TypeIn::new_primitive("ulong"));
-        types_in.insert("StrID".into(), TypeIn::new_primitive("string"));
-        // types_in.insert("ASymbol".into(), TypeIn::new_primitive("string"));
+        types_in.insert("Symbol".into(), TypeIn::new_primitive("string"));
         types_in.insert("[f32; 2]".into(), TypeIn::new_primitive("Vec2"));
         types_in.insert("[f32; 3]".into(), TypeIn::new_primitive("Vec3"));
         types_in.insert("Vec2".into(), TypeIn::new_primitive("Vec2"));
@@ -75,9 +75,9 @@ impl Generator {
         types_out.insert("u64".into(), TypeOut::new_value("u64", "ulong"));
         types_out.insert("f32".into(), TypeOut::new_value("f32", "float"));
         types_out.insert("f64".into(), TypeOut::new_value("f64", "double"));
+        types_out.insert("TmplID".into(), TypeOut::new_value("TmplID", "ulong"));
         types_out.insert("NumID".into(), TypeOut::new_value("NumID", "ulong"));
-        types_out.insert("AStrID".into(), TypeOut::new_value("AStrID", "ASymbol"));
-        types_out.insert("ASymbol".into(), TypeOut::new_value("ASymbol", "ASymbol"));
+        types_out.insert("Symbol".into(), TypeOut::new_value("Symbol", "Symbol"));
         types_out.insert("[f32; 2]".into(), TypeOut::new_value("[f32; 2]", "Vec2"));
         types_out.insert("[f32; 3]".into(), TypeOut::new_value("[f32; 3]", "Vec3"));
         types_out.insert("Vec2".into(), TypeOut::new_value("Vec2", "Vec2"));
@@ -96,10 +96,10 @@ impl Generator {
             TypeOut::new_value("SoaTransform", "SoaTransform"),
         );
         types_out.insert("dyn StateAny".into(), TypeOut::new_trait("StateAny"));
-        types_out.insert("dyn StateAction".into(), TypeOut::new_trait("StateAction"));
+        types_out.insert("dyn StateActionAny".into(), TypeOut::new_trait("StateActionAny"));
 
         let mut bases = HashMap::new();
-        bases.insert("StateAnyBase".into(), BaseMeta::new("StateAnyBase", "DynStateAny"));
+        bases.insert("StateBase".into(), BaseMeta::new("StateBase", "DynStateAny"));
         bases.insert(
             "StateActionBase".into(),
             BaseMeta::new("StateActionBase", "DynStateAction"),
