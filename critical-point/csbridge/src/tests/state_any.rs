@@ -1,10 +1,10 @@
 #![allow(improper_ctypes_definitions)]
 
 use cirtical_point_core::logic::{
-    LogicType, StateAny, StateAnyBase, StateCharaPhysics, StateGameInit, StateGameUpdate, StatePlayerInit,
+    LogicType, StateAny, StateBase, StateCharaPhysics, StateGameInit, StateGameUpdate, StatePlayerInit,
     StatePlayerUpdate, StateType,
 };
-use cirtical_point_core::utils::{asb, CsQuat};
+use cirtical_point_core::utils::{sb, CsQuat};
 use glam::Vec3A;
 use std::sync::Arc;
 
@@ -32,18 +32,18 @@ pub extern "C" fn mock_arc_state_player_init() -> Arc<StatePlayerInit> {
 
 fn new_state_player_init() -> StatePlayerInit {
     StatePlayerInit {
-        _base: StateAnyBase {
+        _base: StateBase {
             id: 123,
             typ: StateType::PlayerInit,
             logic_typ: LogicType::Player,
         },
-        skeleton_file: asb!("mock_skeleton.ozz"),
+        skeleton_file: sb!("mock_skeleton.ozz"),
         animation_files: vec![
-            asb!("mock_animation_0.ozz"),
-            asb!("mock_animation_1.ozz"),
-            asb!("mock_animation_2.ozz"),
+            sb!("mock_animation_0.ozz"),
+            sb!("mock_animation_1.ozz"),
+            sb!("mock_animation_2.ozz"),
         ],
-        view_model: "model.vrm".into(),
+        view_model: sb!("model.vrm"),
     }
 }
 
@@ -59,7 +59,7 @@ pub extern "C" fn mock_arc_state_game_init() -> Arc<StateGameInit> {
 
 fn new_state_game_init() -> StateGameInit {
     StateGameInit {
-        _base: StateAnyBase {
+        _base: StateBase {
             id: 4455,
             typ: StateType::GameInit,
             logic_typ: LogicType::Game,
@@ -79,7 +79,7 @@ pub extern "C" fn mock_arc_state_game_update() -> Arc<StateGameUpdate> {
 
 fn new_state_game_update() -> StateGameUpdate {
     StateGameUpdate {
-        _base: StateAnyBase {
+        _base: StateBase {
             id: 4477,
             typ: StateType::GameUpdate,
             logic_typ: LogicType::Game,
@@ -101,7 +101,7 @@ pub extern "C" fn mock_arc_state_player_update() -> Arc<StatePlayerUpdate> {
 
 fn new_state_player_update() -> StatePlayerUpdate {
     StatePlayerUpdate {
-        _base: StateAnyBase {
+        _base: StateBase {
             id: 321,
             typ: StateType::PlayerUpdate,
             logic_typ: LogicType::Player,
