@@ -1,0 +1,12 @@
+{
+    "zone": {
+        "zone": "Zone.Demo"
+    },
+    "players": [
+        {
+            "character": "Character.DemoGirl",
+            "style": "Style.DemoGirl/1",
+            "level": 1
+        }
+    ]
+}
