@@ -15,11 +15,6 @@ if "%1"=="--gd" (
     xcopy .\critical-point\target\debug\critical_point_csbridge.dll ..\G1\ /Y
     xcopy .\critical-point-cs\bridge\*.cs ..\G1\Assets\Scripts\CriticalPoint\ /Y
 
-) else if "%1"=="--pyext" (
-    cd "%~dp0\critical-point\pyext"
-    maturin build -i python %2
-    pip install --force-reinstall ..\target\wheels\critical_point_pyext-0.1.0-cp313-cp313-win_amd64.whl
-
 ) else if "%1"=="--debug" (
     cd "%~dp0\critical-point"
     cargo build
@@ -36,5 +31,4 @@ if "%1"=="--gd" (
     echo   build.bat --release
     echo   build.bat --gd --release
     echo   build.bat --u3d --release
-    echo   build.bat --pyext --release
 )
