@@ -146,18 +146,18 @@ mod tests {
         let cache = TmplIndexCache::from_file(&test_dir).unwrap();
         assert_eq!(cache.indexes.len(), 4);
         assert_eq!(cache.find(id!("Character.Aaa")).unwrap(), TmplIndex { ptr: 0, len: 1 });
-        assert_eq!(
-            cache.find(id!("Character.Aaa/1")).unwrap(),
-            TmplIndex { ptr: 2, len: 3 }
-        );
-        assert_eq!(
-            cache.find(id!("Accessory.Bbb.Ccc")).unwrap(),
-            TmplIndex { ptr: 4, len: 5 }
-        );
-        assert_eq!(
-            cache.find(id!("Accessory.Bbb.Ccc/0")).unwrap(),
-            TmplIndex { ptr: 6, len: 7 }
-        );
+        assert_eq!(cache.find(id!("Character.Aaa/1")).unwrap(), TmplIndex {
+            ptr: 2,
+            len: 3
+        });
+        assert_eq!(cache.find(id!("Accessory.Bbb.Ccc")).unwrap(), TmplIndex {
+            ptr: 4,
+            len: 5
+        });
+        assert_eq!(cache.find(id!("Accessory.Bbb.Ccc/0")).unwrap(), TmplIndex {
+            ptr: 6,
+            len: 7
+        });
     }
 
     #[test]
@@ -176,17 +176,17 @@ mod tests {
         let cache = TmplIndexCache::from_file(&test_dir).unwrap();
         assert_eq!(cache.indexes.len(), 4);
         assert_eq!(cache.find(id!("Character.Aaa")).unwrap(), TmplIndex { ptr: 0, len: 1 });
-        assert_eq!(
-            cache.find(id!("Character.Aaa/1")).unwrap(),
-            TmplIndex { ptr: 2, len: 3 }
-        );
-        assert_eq!(
-            cache.find(id!("Accessory.Bbb.Ccc")).unwrap(),
-            TmplIndex { ptr: 4, len: 5 }
-        );
-        assert_eq!(
-            cache.find(id!("Accessory.Bbb.Ccc/0")).unwrap(),
-            TmplIndex { ptr: 6, len: 7 }
-        );
+        assert_eq!(cache.find(id!("Character.Aaa/1")).unwrap(), TmplIndex {
+            ptr: 2,
+            len: 3
+        });
+        assert_eq!(cache.find(id!("Accessory.Bbb.Ccc")).unwrap(), TmplIndex {
+            ptr: 4,
+            len: 5
+        });
+        assert_eq!(cache.find(id!("Accessory.Bbb.Ccc/0")).unwrap(), TmplIndex {
+            ptr: 6,
+            len: 7
+        });
     }
 }

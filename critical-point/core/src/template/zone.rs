@@ -24,7 +24,7 @@ mod tests {
         let zone = db.find_as::<TmplZone>(id!("Zone.Demo")).unwrap();
         assert_eq!(zone.id, id!("Zone.Demo"));
         assert_eq!(zone.name, "Demo");
-        assert_eq!(zone.zone_file, "stage-demo.json");
+        assert_eq!(zone.zone_file, "demo_zone.json");
         assert_eq!(zone.view_zone_file, "stage-demo.tscn");
     }
 }

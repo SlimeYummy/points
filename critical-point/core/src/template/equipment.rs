@@ -61,41 +61,32 @@ mod tests {
         assert_eq!(equipment.slot, TmplEquipmentSlot::Slot1);
         assert_eq!(equipment.level, [1, 4].into());
 
-        assert_eq!(
-            equipment.attributes.keys().copied().collect::<Vec<TmplAttribute>>(),
-            &[
-                TmplAttribute::PhysicalAttack,
-                TmplAttribute::ElementalAttack,
-                TmplAttribute::ArcaneAttack,
-                TmplAttribute::CriticalChance,
-            ]
-        );
+        assert_eq!(equipment.attributes.keys().copied().collect::<Vec<TmplAttribute>>(), &[
+            TmplAttribute::PhysicalAttack,
+            TmplAttribute::ElementalAttack,
+            TmplAttribute::ArcaneAttack,
+            TmplAttribute::CriticalChance,
+        ]);
         assert_eq!(equipment.attributes.value_x(0).as_slice(), &[13.0, 19.0, 25.0, 31.0]);
         assert_eq!(equipment.attributes.value_x(1).as_slice(), &[8.0, 12.0, 16.0, 20.0]);
         assert_eq!(equipment.attributes.value_x(2).as_slice(), &[13.0, 18.0, 23.0, 28.0]);
         assert_eq!(equipment.attributes.value_x(3).as_slice(), &[0.02, 0.03, 0.04, 0.05]);
 
-        assert_eq!(
-            equipment.slots.as_slice(),
-            &[
-                JewelSlots::new(0, 0, 0),
-                JewelSlots::new(0, 0, 0),
-                JewelSlots::new(0, 1, 0),
-                JewelSlots::new(0, 1, 0)
-            ]
-        );
+        assert_eq!(equipment.slots.as_slice(), &[
+            JewelSlots::new(0, 0, 0),
+            JewelSlots::new(0, 0, 0),
+            JewelSlots::new(0, 1, 0),
+            JewelSlots::new(0, 1, 0)
+        ]);
 
         assert_eq!(equipment.entries.len(), 1);
         assert_eq!(equipment.entries[0].k, id!("Entry.AttackUp"));
-        assert_eq!(
-            equipment.entries[0].v.as_slice(),
-            &[
-                PiecePlus::new(1, 0),
-                PiecePlus::new(1, 1),
-                PiecePlus::new(1, 2),
-                PiecePlus::new(1, 3)
-            ]
-        );
+        assert_eq!(equipment.entries[0].v.as_slice(), &[
+            PiecePlus::new(1, 0),
+            PiecePlus::new(1, 1),
+            PiecePlus::new(1, 2),
+            PiecePlus::new(1, 3)
+        ]);
 
         // assert_eq!(
         //     equipment.script_args.key_iter().cloned().collect::<Vec<Symbol>>(),

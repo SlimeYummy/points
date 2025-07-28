@@ -1,5 +1,5 @@
 use cirtical_point_csgen::CsEnum;
-use glam::Vec2;
+use glam_ext::Vec2xz;
 
 use crate::template::attribute::TmplAttribute;
 use crate::template::base::impl_tmpl;
@@ -25,7 +25,8 @@ pub struct TmplCharacter {
     pub equipments: Vec<TmplID>,
     pub bounding_capsule: ShapeCapsule,
     pub skeleton_files: String,
-    pub skeleton_toward: Vec2,
+    pub skeleton_toward: Vec2xz,
+    pub body_file: String,
 }
 
 impl_tmpl!(TmplCharacter, Character, "Character");
@@ -84,13 +85,15 @@ mod tests {
         assert_eq!(character.name, "Character One");
         assert_eq!(character.level, [1, 6].into());
         assert_eq!(&character.styles.as_slice(), &[id!("Style.One/1"), id!("Style.One/2")]);
-        assert_eq!(
-            &character.equipments.as_slice(),
-            &[id!("Equipment.No1"), id!("Equipment.No2"), id!("Equipment.No3")]
-        );
+        assert_eq!(&character.equipments.as_slice(), &[
+            id!("Equipment.No1"),
+            id!("Equipment.No2"),
+            id!("Equipment.No3")
+        ]);
         assert_eq!(character.bounding_capsule, ShapeCapsule::new(0.5 * 1.35, 0.3));
-        assert_eq!(character.skeleton_files, "girl");
-        assert_eq!(character.skeleton_toward, Vec2::Y);
+        assert_eq!(character.skeleton_files, "girl.*");
+        assert_eq!(character.skeleton_toward, Vec2xz::Z);
+        assert_eq!(character.body_file, "body1.json");
     }
 
     #[test]
@@ -127,17 +130,14 @@ mod tests {
         assert_eq!(attrs[10].k, TmplAttribute::CriticalDamage);
         assert_eq!(attrs[10].v.as_slice(), &[0.3; 6]);
 
-        assert_eq!(
-            style.slots.as_slice(),
-            &[
-                JewelSlots::new(0, 2, 2),
-                JewelSlots::new(0, 2, 2),
-                JewelSlots::new(0, 3, 3),
-                JewelSlots::new(2, 3, 3),
-                JewelSlots::new(2, 5, 4),
-                JewelSlots::new(3, 5, 4),
-            ]
-        );
+        assert_eq!(style.slots.as_slice(), &[
+            JewelSlots::new(0, 2, 2),
+            JewelSlots::new(0, 2, 2),
+            JewelSlots::new(0, 3, 3),
+            JewelSlots::new(2, 3, 3),
+            JewelSlots::new(2, 5, 4),
+            JewelSlots::new(3, 5, 4),
+        ]);
 
         assert_eq!(style.fixed_attributes.damage_reduce_param_1, 0.05);
         assert_eq!(style.fixed_attributes.damage_reduce_param_2, 100.0);

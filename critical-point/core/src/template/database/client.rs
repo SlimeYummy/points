@@ -26,9 +26,9 @@ fn index_cache() -> &'static TmplIndexCache {
     unsafe { &*(&raw const INDEX_CACHE) }
 }
 
-pub(crate) unsafe fn init_database_static<P: AsRef<Path>>(path: P) -> XResult<()> {
+pub(crate) unsafe fn init_database_static<P: AsRef<Path>>(path: P, force_reinit: bool) -> XResult<()> {
     #[allow(static_mut_refs)]
-    if INDEX_CACHE.is_empty() {
+    if INDEX_CACHE.is_empty() || force_reinit {
         INDEX_CACHE = TmplIndexCache::from_file(path)?;
     }
     Ok(())
@@ -37,11 +37,11 @@ pub(crate) unsafe fn init_database_static<P: AsRef<Path>>(path: P) -> XResult<()
 #[cfg(test)]
 #[ctor::ctor]
 fn test_init_database_static() {
-    use crate::consts::TEST_TMP_RES_PATH;
+    use crate::consts::TEST_TMPL_PATH;
 
     unsafe {
-        crate::utils::init_id_static(TEST_TMP_RES_PATH).unwrap();
-        init_database_static(TEST_TMP_RES_PATH).unwrap();
+        crate::utils::init_id_static(TEST_TMPL_PATH, false).unwrap();
+        init_database_static(TEST_TMPL_PATH, false).unwrap();
     };
 }
 
@@ -71,9 +71,11 @@ impl TmplDatabaseInner {
 
         let (is_rkyv, file_path) = if fs::exists(&rkyv_path).unwrap_or(false) {
             (true, rkyv_path)
-        } else if fs::exists(&json_path).unwrap_or(false) {
+        }
+        else if fs::exists(&json_path).unwrap_or(false) {
             (false, json_path)
-        } else {
+        }
+        else {
             return xresf!(NotFound; "path={:?}", &path);
         };
 
@@ -99,7 +101,7 @@ impl TmplDatabaseInner {
     }
 
     fn find(&mut self, id: TmplID, database: &Rc<UnsafeCell<TmplDatabaseInner>>) -> XResult<At<dyn TmplAny>> {
-        assert!(self.is_aliving);
+        debug_assert!(self.is_aliving);
 
         let map = &mut self.map;
         let file = &mut self.file;
@@ -125,7 +127,8 @@ impl TmplDatabaseInner {
             if header.as_ref().ref_count.get() != 0 {
                 let referred = NonNull::new_unchecked(header.as_ptr() as *mut AtInnerReferred);
                 return At::<dyn TmplAny>::from_inner(referred);
-            } else {
+            }
+            else {
                 let mut cached = NonNull::new_unchecked(header.as_ptr() as *mut AtInnerCached);
                 (*cached.as_mut().next).prev = cached.as_mut().prev;
                 (*cached.as_mut().prev).next = cached.as_mut().next;
@@ -147,7 +150,8 @@ impl TmplDatabaseInner {
         let index = index_cache().find(id).ok_or_else(|| xerr!(TmplNotFound, id))?;
         let inner = if is_rkyv {
             unsafe { AtInnerReferred::new(index.len as usize, id, |buf| load_rkyv_into(file, id, index, buf))? }
-        } else {
+        }
+        else {
             let rkyv_buf = load_json_to_rkyv(file, id, index)?;
             unsafe {
                 AtInnerReferred::new(rkyv_buf.len(), id, |buf: &mut [u8]| {
@@ -170,7 +174,8 @@ impl TmplDatabaseInner {
 
             if !self.is_aliving {
                 unsafe { AtInnerCached::delete(cached) };
-            } else {
+            }
+            else {
                 unsafe {
                     cached.as_mut().cached_frame = self.current_frame;
 
@@ -239,7 +244,11 @@ pub struct TmplDatabase {
 
 impl Drop for TmplDatabase {
     fn drop(&mut self) {
-        self.inner().free_all();
+        if Rc::strong_count(&self.inner) <= 1 {
+            self.inner().free_all();
+            #[cfg(feature = "debug-print")]
+            log::debug!("TmplDatabase::drop() cleanup");
+        }
     }
 }
 
@@ -382,7 +391,7 @@ impl AtInnerReferred {
         use rkyv::boxed::ArchivedBox;
 
         unsafe {
-            assert_eq!(cached.as_ref().h.ref_count.get(), 0);
+            debug_assert_eq!(cached.as_ref().h.ref_count.get(), 0);
 
             cached.as_mut().clear();
             let mut referred = NonNull::new_unchecked(cached.as_ptr() as *mut _ as *mut AtInnerReferred);
@@ -425,7 +434,7 @@ impl AtInnerCached {
     #[inline]
     fn from_referred(mut referred: NonNull<AtInnerReferred>) -> NonNull<AtInnerCached> {
         unsafe {
-            assert_eq!(referred.as_ref().h.ref_count.get(), 0);
+            debug_assert_eq!(referred.as_ref().h.ref_count.get(), 0);
 
             referred.as_mut().clear();
             NonNull::new_unchecked(referred.as_ptr() as *mut _ as *mut AtInnerCached)
