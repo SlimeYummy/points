@@ -40,7 +40,8 @@ impl TmplJewel {
     pub fn calc_sub(&self, plus: u32) -> Option<(TmplID, PiecePlus)> {
         if let (Some(entry), Some(piece)) = (self.sub_entry.clone(), self.sub_piece) {
             Some((entry, PiecePlus::new(piece, self.calc_sub_plus(plus).unwrap())))
-        } else {
+        }
+        else {
             None
         }
     }

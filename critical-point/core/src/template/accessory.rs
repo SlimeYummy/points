@@ -35,7 +35,8 @@ impl_for!(TmplAccessoryPool, ArchivedTmplAccessoryPool, {
         let count = (self.patterns.len() + 1) as u32;
         if level % count > pos {
             u32::min(level / count + 1, MAX_ENTRY_PLUS)
-        } else {
+        }
+        else {
             u32::min(level / count, MAX_ENTRY_PLUS)
         }
     }
@@ -65,10 +66,10 @@ mod tests {
 
         let p1 = db.find_as::<TmplAccessoryPool>(id!("AccessoryPool.Rare1")).unwrap();
         assert_eq!(p1.id, id!("AccessoryPool.Rare1"));
-        assert_eq!(
-            p1.patterns.as_slice(),
-            &[TmplAccessoryPattern::B, TmplAccessoryPattern::B]
-        );
+        assert_eq!(p1.patterns.as_slice(), &[
+            TmplAccessoryPattern::B,
+            TmplAccessoryPattern::B
+        ]);
         assert!(p1.a_entries.is_empty());
         assert_eq!(p1.b_entries.len(), 2);
         assert_eq!(*p1.b_entries.get(&id!("Entry.DefenseUp")).unwrap(), 10);
@@ -76,15 +77,12 @@ mod tests {
 
         let p2 = db.find_as::<TmplAccessoryPool>(id!("AccessoryPool.Rare3")).unwrap();
         assert_eq!(p2.id, id!("AccessoryPool.Rare3"));
-        assert_eq!(
-            p2.patterns.as_slice(),
-            &[
-                TmplAccessoryPattern::A,
-                TmplAccessoryPattern::AB,
-                TmplAccessoryPattern::AB,
-                TmplAccessoryPattern::B
-            ]
-        );
+        assert_eq!(p2.patterns.as_slice(), &[
+            TmplAccessoryPattern::A,
+            TmplAccessoryPattern::AB,
+            TmplAccessoryPattern::AB,
+            TmplAccessoryPattern::B
+        ]);
         assert_eq!(p2.a_entries.len(), 2);
         assert_eq!(*p2.a_entries.get(&id!("Entry.AttackUp")).unwrap(), 10);
         assert_eq!(*p2.a_entries.get(&id!("Entry.CriticalChance")).unwrap(), 10);

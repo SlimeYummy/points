@@ -23,9 +23,9 @@ fn database_cache() -> &'static TmplDatabaseCache {
     unsafe { &*(&raw const DATABASE_CACHE) }
 }
 
-pub(crate) unsafe fn init_database_static<P: AsRef<Path>>(path: P) -> XResult<()> {
+pub(crate) unsafe fn init_database_static<P: AsRef<Path>>(path: P, force_reinit: bool) -> XResult<()> {
     #[allow(static_mut_refs)]
-    if DATABASE_CACHE.is_empty() {
+    if DATABASE_CACHE.is_empty() || force_reinit {
         DATABASE_CACHE = TmplDatabaseCache::from_file(path)?;
     }
     Ok(())
@@ -34,11 +34,11 @@ pub(crate) unsafe fn init_database_static<P: AsRef<Path>>(path: P) -> XResult<()
 #[cfg(test)]
 #[ctor::ctor]
 fn test_init_database_static() {
-    use crate::consts::TEST_TMP_RES_PATH;
+    use crate::consts::TEST_TMPL_PATH;
 
     unsafe {
-        crate::utils::init_id_static(TEST_TMP_RES_PATH).unwrap();
-        init_database_static(TEST_TMP_RES_PATH).unwrap();
+        crate::utils::init_id_static(TEST_TMPL_PATH, false).unwrap();
+        init_database_static(TEST_TMPL_PATH, false).unwrap();
     };
 }
 
@@ -62,9 +62,11 @@ impl TmplDatabaseCache {
 
         let (is_rkyv, file_path) = if fs::exists(&rkyv_path).unwrap_or(false) {
             (true, rkyv_path)
-        } else if fs::exists(&json_path).unwrap_or(false) {
+        }
+        else if fs::exists(&json_path).unwrap_or(false) {
             (false, json_path)
-        } else {
+        }
+        else {
             return Err(XError2::bad_argument("TmplDatabaseCache::from_file()"));
         };
         let mut file = File::open(&file_path).xerr_with(&path)?;
@@ -78,7 +80,8 @@ impl TmplDatabaseCache {
                         load_rkyv_into(&mut file, *id, *index, buf)
                     })?
                 }
-            } else {
+            }
+            else {
                 let rkyv_buf = load_json_to_rkyv(&mut file, *id, *index)?;
                 unsafe {
                     AtInner::new(rkyv_buf.len(), *id, |buf: &mut [u8]| {
