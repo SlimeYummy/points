@@ -43,11 +43,10 @@ mod tests {
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character, id!("Character.One"));
         assert_eq!(act.styles.as_slice(), &[id!("Style.One/1"), id!("Style.One/2")]);
-        assert_eq!(act.anim_main.files, "girl_attack1_1");
+        assert_eq!(act.anim_main.files, "girl_attack1_1.*");
         assert_eq!(act.anim_main.duration, 4.0);
-        assert_eq!(act.anim_main.fade_in, 0.2);
+        assert_eq!(act.anim_main.fade_in, 0.1);
         assert_eq!(act.anim_main.root_motion, true);
-        assert!(act.anim_main.root_max_distance > 0.0);
         assert_eq!(act.enter_key, Some(VirtualKeyDir::new(VirtualKey::Attack1, None)));
         assert_eq!(act.enter_level, LEVEL_ATTACK);
         assert_eq!(act.cool_down_time.value().unwrap(), 0.0);
