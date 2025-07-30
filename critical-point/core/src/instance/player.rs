@@ -1,8 +1,9 @@
-use glam::{Quat, Vec2};
+use glam::Quat;
+use glam_ext::Vec2xz;
 use std::collections::hash_map::Entry;
 use std::rc::Rc;
 
-use crate::instance::action::InstActionAny;
+use crate::instance::action::{InstActionAny, InstActionIdle};
 use crate::instance::values::{PanelValues, PrimaryValues, SecondaryValues};
 use crate::template::TmplHashMap;
 use crate::utils::{Castable, DtHashIndex, DtHashMap, JewelSlots, PiecePlus, ShapeCapsule, Symbol, TmplID, VirtualKey};
@@ -14,8 +15,9 @@ pub struct InstPlayer {
     pub level: u32,
 
     pub skeleton_files: Symbol,
-    pub skeleton_toward: Vec2,
+    pub skeleton_toward: Vec2xz,
     pub skeleton_rotation: Quat,
+    pub body_file: Symbol,
     pub bounding_capsule: ShapeCapsule,
 
     pub primary: PrimaryValues,
@@ -40,7 +42,8 @@ impl InstPlayer {
         if let Some(val) = self.entries.get_mut(&id) {
             val.piece += pair.piece;
             val.plus += pair.plus;
-        } else {
+        }
+        else {
             self.entries.insert(id.clone(), pair);
         }
     }

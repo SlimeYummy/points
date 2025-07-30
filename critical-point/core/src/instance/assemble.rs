@@ -1,8 +1,5 @@
-use glam::Quat;
-
-use crate::consts::DEFAULT_TOWARD_DIR_2D;
 // use crate::consts::MAX_ENTRY_PLUS;
-use crate::instance::action::{try_assemble_action, ContextActionAssemble};
+use crate::instance::action::{collect_action_keys, try_assemble_action, ContextActionAssemble};
 use crate::instance::player::InstPlayer;
 // use crate::instance::script::{AfterAssembleEnv, InstScript, OnAssembleEnv};
 // use crate::instance::values::{ExtraValues, PanelValues};
@@ -14,9 +11,7 @@ use crate::template::{
     TmplAccessory, TmplAccessoryPool, TmplCharacter, TmplDatabase, TmplEntry, TmplEquipment, TmplJewel, TmplPerk,
     TmplStyle, TmplZone,
 };
-use crate::utils::{force_mut, PiecePlus, XResult};
-
-use super::collect_action_keys;
+use crate::utils::{force_mut, quat_from_dir_xz, PiecePlus, XResult};
 
 pub struct ContextAssemble<'t> {
     pub tmpl_db: &'t TmplDatabase,
@@ -56,8 +51,8 @@ fn collect_style(ctx: &mut ContextAssemble<'_>, param: &ParamPlayer, inst: &mut 
 
     inst.skeleton_files = sb!(&chara.skeleton_files);
     inst.skeleton_toward = chara.skeleton_toward;
-    let rot = Quat::from_rotation_arc_2d(DEFAULT_TOWARD_DIR_2D, chara.skeleton_toward);
-    inst.skeleton_rotation = Quat::from_xyzw(0.0, -rot.z, 0.0, rot.w);
+    inst.skeleton_rotation = quat_from_dir_xz(chara.skeleton_toward);
+    inst.body_file = sb!(&chara.body_file);
     inst.bounding_capsule = chara.bounding_capsule.clone();
 
     let idx = chara.level_to_index(param.level);
@@ -429,7 +424,7 @@ mod tests {
         collect_actions(&mut ctx, &param, &mut inst).unwrap();
         assert_eq!(inst.actions.len(), 4);
         assert!(inst.actions.contains_key(&id!("Action.Instance.Idle/1A")));
-        assert!(inst.actions.contains_key(&id!("Action.Instance.Run/1A")));
+        assert!(inst.actions.contains_key(&id!("Action.Instance.Jog/1A")));
         assert!(inst.actions.contains_key(&id!("Action.Instance.Attack/1A")));
         assert!(inst.actions.contains_key(&id!("Action.Instance.AttackDerive/1A")));
         assert_eq!(inst.primary_keys.len(), 3);
@@ -439,7 +434,7 @@ mod tests {
         );
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Run).unwrap(),
-            &id!("Action.Instance.Run/1A")
+            &id!("Action.Instance.Jog/1A")
         );
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Attack1).unwrap(),
