@@ -7,10 +7,10 @@ use crate::utils::{TimeFragment, TmplID, VirtualDir, VirtualKey};
 #[rkyv(derive(Debug))]
 pub struct TmplAnimation {
     pub files: String,
+    pub local_id: u16,
     pub duration: f32,
     pub fade_in: f32,
     pub root_motion: bool,
-    pub root_max_distance: f32,
 }
 
 #[derive(
