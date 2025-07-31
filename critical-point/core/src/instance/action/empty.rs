@@ -33,17 +33,7 @@ impl InstActionEmpty {
     }
 
     #[inline]
-    pub fn animations(&self) -> InstActionEmptyIter<'_> {
-        InstActionEmptyIter(PhantomData::default())
-    }
-}
-
-pub struct InstActionEmptyIter<'t>(PhantomData<&'t ()>);
-
-impl<'t> Iterator for InstActionEmptyIter<'t> {
-    type Item = &'t InstAnimation;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        None
+    pub fn animations(&self) -> impl Iterator<Item = &InstAnimation> {
+        std::iter::empty()
     }
 }

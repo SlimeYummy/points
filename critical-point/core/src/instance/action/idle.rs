@@ -7,7 +7,7 @@ use crate::utils::{extend, TmplID, VirtualKey, VirtualKeyDir};
 pub struct InstActionIdle {
     pub _base: InstActionBase,
     pub anim_idle: InstAnimation,
-    pub anim_ready: InstAnimation,
+    pub anim_ready: Option<InstAnimation>,
     pub anim_randoms: Vec<InstAnimation>,
     pub auto_idle_delay: f32,
     pub derive_level: u16,
@@ -43,7 +43,10 @@ impl InstActionIdle {
                 ..Default::default()
             },
             anim_idle: InstAnimation::from_rkyv(&tmpl.anim_idle),
-            anim_ready: InstAnimation::from_rkyv(&tmpl.anim_ready),
+            anim_ready: match tmpl.anim_ready.as_ref() {
+                Some(t) => Some(InstAnimation::from_rkyv(t)),
+                None => None,
+            },
             anim_randoms: tmpl.anim_randoms.iter().map(InstAnimation::from_rkyv).collect(),
             auto_idle_delay: tmpl.auto_idle_delay.into(),
             derive_level: tmpl.derive_level.into(),
@@ -52,36 +55,19 @@ impl InstActionIdle {
     }
 
     #[inline]
-    pub fn animations(&self) -> InstActionIdleIter<'_> {
-        InstActionIdleIter::new(self)
-    }
-}
-
-pub struct InstActionIdleIter<'t> {
-    action: &'t InstActionIdle,
-    idx: usize,
-}
-
-impl<'t> InstActionIdleIter<'t> {
-    fn new(action: &'t InstActionIdle) -> Self {
-        Self { action, idx: 0 }
-    }
-}
-
-impl<'t> Iterator for InstActionIdleIter<'t> {
-    type Item = &'t InstAnimation;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let idx = self.idx;
-        self.idx += 1;
-        return match idx {
-            0 => Some(&self.action.anim_idle),
-            1 => Some(&self.action.anim_ready),
-            _ => {
-                let idx = idx - 2;
-                self.action.anim_randoms.get(idx)
-            }
-        };
+    pub fn animations(&self) -> impl Iterator<Item = &InstAnimation> {
+        std::iter::from_coroutine(
+            #[coroutine]
+            || {
+                yield &self.anim_idle;
+                if let Some(anim) = &self.anim_ready {
+                    yield anim;
+                }
+                for anim in &self.anim_randoms {
+                    yield anim;
+                }
+            },
+        )
     }
 }
 
@@ -105,12 +91,13 @@ mod tests {
         assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Idle/1A"));
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Idle, None));
         assert_eq!(inst_act.enter_level, 0);
-        assert_eq!(inst_act.anim_idle.files, sb!("girl_stand_idle"));
+        assert_eq!(inst_act.anim_idle.files, sb!("girl_stand_idle.*"));
         assert_eq!(inst_act.anim_idle.duration, 2.5);
         assert_eq!(inst_act.anim_idle.fade_in, 0.2);
-        assert_eq!(inst_act.anim_ready.files, sb!("girl_stand_ready"));
-        assert_eq!(inst_act.anim_ready.duration, 2.0);
-        assert_eq!(inst_act.anim_ready.fade_in, 0.4);
+        let anim_ready = inst_act.anim_ready.as_ref().unwrap();
+        assert_eq!(anim_ready.files, sb!("girl_stand_ready.*"));
+        assert_eq!(anim_ready.duration, 2.0);
+        assert_eq!(anim_ready.fade_in, 0.4);
         assert_eq!(inst_act.anim_randoms.len(), 0);
         assert_eq!(inst_act.auto_idle_delay, 10.0);
         assert_eq!(inst_act.derive_level, 0);
