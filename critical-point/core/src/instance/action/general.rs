@@ -1,6 +1,6 @@
 use crate::instance::action::base::{
-    calc_motion_distance_ratio, ContextActionAssemble, InstActionAny, InstActionAttributes, InstActionBase,
-    InstAnimation, InstDeriveRule, InstTimeline,
+    ContextActionAssemble, InstActionAny, InstActionAttributes, InstActionBase, InstAnimation, InstDeriveRule,
+    InstTimeline,
 };
 use crate::template::{At, TmplActionGeneral, TmplType};
 use crate::utils::{cos_degree, extend, Bitsetable, DeriveContinue, EnumBitset, TmplID, VirtualKey};
@@ -11,7 +11,7 @@ pub struct InstActionGeneral {
     pub _base: InstActionBase,
     pub anim_main: InstAnimation,
     pub attributes: InstTimeline<InstActionAttributes>,
-    pub motion_distance_ratio: [f32; 2],
+    pub motion_distance: [f32; 2],
     pub motion_toward_cos: f32,
     pub derive_levels: InstTimeline<u16>,
     pub derives: Vec<InstDeriveRule>,
@@ -68,7 +68,7 @@ impl InstActionGeneral {
             },
             derives,
             anim_main: InstAnimation::from_rkyv(&tmpl.anim_main),
-            motion_distance_ratio: calc_motion_distance_ratio(tmpl.motion_distance, &tmpl.anim_main),
+            motion_distance: [tmpl.motion_distance[0].into(), tmpl.motion_distance[1].into()],
             motion_toward_cos: cos_degree(tmpl.motion_toward.into()),
             attributes,
             derive_levels,
@@ -78,32 +78,8 @@ impl InstActionGeneral {
     }
 
     #[inline]
-    pub fn animations(&self) -> InstActionGeneralIter<'_> {
-        InstActionGeneralIter::new(self)
-    }
-}
-
-pub struct InstActionGeneralIter<'t> {
-    action: &'t InstActionGeneral,
-    idx: usize,
-}
-
-impl<'t> InstActionGeneralIter<'t> {
-    fn new(action: &'t InstActionGeneral) -> Self {
-        Self { action, idx: 0 }
-    }
-}
-
-impl<'t> Iterator for InstActionGeneralIter<'t> {
-    type Item = &'t InstAnimation;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let idx = self.idx;
-        self.idx += 1;
-        return match idx {
-            0 => Some(&self.action.anim_main),
-            _ => None,
-        };
+    pub fn animations(&self) -> impl Iterator<Item = &InstAnimation> {
+        std::iter::once(&self.anim_main)
     }
 }
 
@@ -144,18 +120,12 @@ mod tests {
                 VirtualKeyDir::new(VirtualKey::Attack1, None)
             );
             assert_eq!(inst_act.enter_level, LEVEL_ATTACK);
-            assert_eq!(inst_act.anim_main.files, sb!("girl_attack1_1"));
+            assert_eq!(inst_act.anim_main.files, sb!("girl_attack1_1.*"));
             assert_eq!(inst_act.anim_main.duration, 4.0);
-            assert_eq!(inst_act.anim_main.fade_in, 0.2);
+            assert_eq!(inst_act.anim_main.fade_in, 0.1);
             assert_eq!(inst_act.attributes.len(), 1);
-            assert_ulps_eq!(
-                inst_act.motion_distance_ratio[0],
-                0.7 / inst_act.anim_main.root_max_distance
-            );
-            assert_ulps_eq!(
-                inst_act.motion_distance_ratio[1],
-                1.2 / inst_act.anim_main.root_max_distance
-            );
+            assert_ulps_eq!(inst_act.motion_distance[0], 0.7);
+            assert_ulps_eq!(inst_act.motion_distance[1], 1.2);
             assert_ulps_eq!(inst_act.motion_toward_cos, 0.5);
             assert_eq!(inst_act.attributes[0].value.damage_rdc, 0.2);
             assert_eq!(inst_act.attributes[0].value.shield_dmg_rdc, 0.0);

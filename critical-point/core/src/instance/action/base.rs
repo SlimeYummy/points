@@ -2,6 +2,7 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::ops::Deref;
 
+use crate::ratio_safe;
 use crate::template::{
     ArchivedTmplActionAttributes, ArchivedTmplAnimation, ArchivedTmplDeriveRule, ArchivedTmplTimeline, ArchivedTmplVar,
     TmplHashMap, TmplType,
@@ -57,10 +58,10 @@ impl<'t> ContextActionAssemble<'t> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct InstAnimation {
     pub files: Symbol,
+    pub local_id: u16,
     pub duration: f32,
     pub fade_in: f32,
     pub root_motion: bool,
-    pub root_max_distance: f32,
 }
 
 impl InstAnimation {
@@ -68,16 +69,24 @@ impl InstAnimation {
     pub fn from_rkyv(archived: &ArchivedTmplAnimation) -> InstAnimation {
         InstAnimation {
             files: sb!(&archived.files),
+            local_id: archived.local_id.into(),
             duration: archived.duration.into(),
             fade_in: archived.fade_in.into(),
             root_motion: archived.root_motion,
-            root_max_distance: archived.root_max_distance.into(),
         }
     }
 
     #[inline]
-    pub fn fade_in_weight(&self, time: f32) -> f32 {
-        ratio_saturating!(time, self.fade_in)
+    pub fn fade_in_weight(&self, prev_weight: f32, time_step: f32) -> f32 {
+        match self.fade_in > 0.0 {
+            true => (prev_weight + time_step / self.fade_in).min(1.0),
+            false => 1.0,
+        }
+    }
+
+    #[inline]
+    pub fn ratio_safe(&self, time: f32) -> f32 {
+        ratio_safe!(time, self.duration)
     }
 
     #[inline]
@@ -215,17 +224,17 @@ impl InstActionAttributes {
     }
 }
 
-pub(crate) fn calc_motion_distance_ratio(raw: [rkyv::Archived<f32>; 2], anim: &ArchivedTmplAnimation) -> [f32; 2] {
-    let mut ratios = [1.0; 2];
-    ratios[0] = raw[0].into();
-    ratios[1] = raw[1].into();
-    let root_max_distance: f32 = anim.root_max_distance.into();
-    if root_max_distance > 0.0 {
-        ratios[0] /= root_max_distance;
-        ratios[1] /= root_max_distance;
-    }
-    ratios
-}
+// pub(crate) fn calc_motion_distance_ratio(raw: [rkyv::Archived<f32>; 2], anim: &ArchivedTmplAnimation) -> [f32; 2] {
+//     let mut ratios = [1.0; 2];
+//     ratios[0] = raw[0].into();
+//     ratios[1] = raw[1].into();
+//     let root_max_distance: f32 = anim.root_xz_ratio.into();
+//     if root_max_distance > 0.0 {
+//         ratios[0] /= root_max_distance;
+//         ratios[1] /= root_max_distance;
+//     }
+//     ratios
+// }
 
 macro_rules! continue_if_none {
     ($expr:expr) => {
