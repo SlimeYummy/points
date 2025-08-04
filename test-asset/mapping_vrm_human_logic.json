@@ -1,0 +1,94 @@
+{
+  "name": "Armature",
+  "skip": true,
+  "optional": true,
+  "next": {
+    "name": "Root",
+    "skip": true,
+    "optional": true,
+    "next": {
+      "name": "J_Bip_C_Hips",
+      "rename": "Hips",
+      "next": [
+        {
+          "name": "J_Bip_C_Spine",
+          "rename": "Spine",
+          "next": {
+            "name": "J_Bip_C_Chest",
+            "rename": "Chest",
+            "next": {
+              "name": "J_Bip_C_UpperChest",
+              "rename": "UpperChest",
+              "next": [
+                {
+                  "name": "J_Bip_C_Neck",
+                  "rename": "Neck",
+                  "next": {
+                    "name": "J_Bip_C_Head",
+                    "rename": "Head"
+                  }
+                },
+                {
+                  "name": "J_Bip_L_Shoulder",
+                  "rename": "LeftShoulder",
+                  "next": {
+                    "name": "J_Bip_L_UpperArm",
+                    "rename": "LeftUpperArm",
+                    "next": {
+                      "name": "J_Bip_L_LowerArm",
+                      "rename": "LeftLowerArm",
+                      "next": {
+                        "name": "J_Bip_L_Hand",
+                        "rename": "LeftHand"
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": "J_Bip_R_Shoulder",
+                  "rename": "RightShoulder",
+                  "next": {
+                    "name": "J_Bip_R_UpperArm",
+                    "rename": "RightUpperArm",
+                    "next": {
+                      "name": "J_Bip_R_LowerArm",
+                      "rename": "RightLowerArm",
+                      "next": {
+                        "name": "J_Bip_R_Hand",
+                        "rename": "RightHand"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "J_Bip_L_UpperLeg",
+          "rename": "LeftUpperLeg",
+          "next": {
+            "name": "J_Bip_L_LowerLeg",
+            "rename": "LeftLowerLeg",
+            "next": {
+              "name": "J_Bip_L_Foot",
+              "rename": "LeftFoot"
+            }
+          }
+        },
+        {
+          "name": "J_Bip_R_UpperLeg",
+          "rename": "RightUpperLeg",
+          "next": {
+            "name": "J_Bip_R_LowerLeg",
+            "rename": "RightLowerLeg",
+            "next": {
+              "name": "J_Bip_R_Foot",
+              "rename": "RightFoot"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
