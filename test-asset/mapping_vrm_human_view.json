@@ -1,0 +1,236 @@
+{
+  "name": "Armature",
+  "skip": true,
+  "optional": true,
+  "next": {
+    "name": "Root",
+    "skip": true,
+    "optional": true,
+    "next": {
+      "name": "J_Bip_C_Hips",
+      "rename": "Hips",
+      "next": [
+        {
+          "name": "J_Bip_C_Spine",
+          "rename": "Spine",
+          "next": {
+            "name": "J_Bip_C_Chest",
+            "rename": "Chest",
+            "next": {
+              "name": "J_Bip_C_UpperChest",
+              "rename": "UpperChest",
+              "next": [
+                {
+                  "name": "J_Bip_C_Neck",
+                  "rename": "Neck",
+                  "next": {
+                    "name": "J_Bip_C_Head",
+                    "rename": "Head",
+                    "next": [
+                      {
+                        "name": "J_Adj_L_FaceEye",
+                        "rename": "LeftEye"
+                      },
+                      {
+                        "name": "J_Adj_R_FaceEye",
+                        "rename": "RightEye"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "name": "J_Bip_L_Shoulder",
+                  "rename": "LeftShoulder",
+                  "next": {
+                    "name": "J_Bip_L_UpperArm",
+                    "rename": "LeftUpperArm",
+                    "next": {
+                      "name": "J_Bip_L_LowerArm",
+                      "rename": "LeftLowerArm",
+                      "next": {
+                        "name": "J_Bip_L_Hand",
+                        "rename": "LeftHand",
+                        "next": [
+                          {
+                            "name": "J_Bip_L_Index1",
+                            "rename": "LeftIndexProximal",
+                            "next": {
+                              "name": "J_Bip_L_Index2",
+                              "rename": "LeftIndexIntermediate",
+                              "next": {
+                                "name": "J_Bip_L_Index3",
+                                "rename": "LeftIndexDistal"
+                              }
+                            }
+                          },
+                          {
+                            "name": "J_Bip_L_Little1",
+                            "rename": "LeftLittleProximal",
+                            "next": {
+                              "name": "J_Bip_L_Little2",
+                              "rename": "LeftLittleIntermediate",
+                              "next": {
+                                "name": "J_Bip_L_Little3",
+                                "rename": "LeftLittleDistal"
+                              }
+                            }
+                          },
+                          {
+                            "name": "J_Bip_L_Middle1",
+                            "rename": "LeftMiddleProximal",
+                            "next": {
+                              "name": "J_Bip_L_Middle2",
+                              "rename": "LeftMiddleIntermediate",
+                              "next": {
+                                "name": "J_Bip_L_Middle3",
+                                "rename": "LeftMiddleDistal"
+                              }
+                            }
+                          },
+                          {
+                            "name": "J_Bip_L_Ring1",
+                            "rename": "LeftRingProximal",
+                            "next": {
+                              "name": "J_Bip_L_Ring2",
+                              "rename": "LeftRingIntermediate",
+                              "next": {
+                                "name": "J_Bip_L_Ring3",
+                                "rename": "LeftRingDistal"
+                              }
+                            }
+                          },
+                          {
+                            "name": "J_Bip_L_Thumb1",
+                            "rename": "LeftThumbMetacarpal",
+                            "next": {
+                              "name": "J_Bip_L_Thumb2",
+                              "rename": "LeftThumbProximal",
+                              "next": {
+                                "name": "J_Bip_L_Thumb3",
+                                "rename": "LeftThumbDistal"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": "J_Bip_R_Shoulder",
+                  "rename": "RightShoulder",
+                  "next": {
+                    "name": "J_Bip_R_UpperArm",
+                    "rename": "RightUpperArm",
+                    "next": {
+                      "name": "J_Bip_R_LowerArm",
+                      "rename": "RightLowerArm",
+                      "next": {
+                        "name": "J_Bip_R_Hand",
+                        "rename": "RightHand",
+                        "next": [
+                          {
+                            "name": "J_Bip_R_Index1",
+                            "rename": "RightIndexProximal",
+                            "next": {
+                              "name": "J_Bip_R_Index2",
+                              "rename": "RightIndexIntermediate",
+                              "next": {
+                                "name": "J_Bip_R_Index3",
+                                "rename": "RightIndexDistal"
+                              }
+                            }
+                          },
+                          {
+                            "name": "J_Bip_R_Little1",
+                            "rename": "RightLittleProximal",
+                            "next": {
+                              "name": "J_Bip_R_Little2",
+                              "rename": "RightLittleIntermediate",
+                              "next": {
+                                "name": "J_Bip_R_Little3",
+                                "rename": "RightLittleDistal"
+                              }
+                            }
+                          },
+                          {
+                            "name": "J_Bip_R_Middle1",
+                            "rename": "RightMiddleProximal",
+                            "next": {
+                              "name": "J_Bip_R_Middle2",
+                              "rename": "RightMiddleIntermediate",
+                              "next": {
+                                "name": "J_Bip_R_Middle3",
+                                "rename": "RightMiddleDistal"
+                              }
+                            }
+                          },
+                          {
+                            "name": "J_Bip_R_Ring1",
+                            "rename": "RightRingProximal",
+                            "next": {
+                              "name": "J_Bip_R_Ring2",
+                              "rename": "RightRingIntermediate",
+                              "next": {
+                                "name": "J_Bip_R_Ring3",
+                                "rename": "RightRingDistal"
+                              }
+                            }
+                          },
+                          {
+                            "name": "J_Bip_R_Thumb1",
+                            "rename": "RightThumbMetacarpal",
+                            "next": {
+                              "name": "J_Bip_R_Thumb2",
+                              "rename": "RightThumbProximal",
+                              "next": {
+                                "name": "J_Bip_R_Thumb3",
+                                "rename": "RightThumbDistal"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "J_Bip_L_UpperLeg",
+          "rename": "LeftUpperLeg",
+          "next": {
+            "name": "J_Bip_L_LowerLeg",
+            "rename": "LeftLowerLeg",
+            "next": {
+              "name": "J_Bip_L_Foot",
+              "rename": "LeftFoot",
+              "next": {
+                "name": "J_Bip_L_ToeBase",
+                "rename": "LeftToes"
+              }
+            }
+          }
+        },
+        {
+          "name": "J_Bip_R_UpperLeg",
+          "rename": "RightUpperLeg",
+          "next": {
+            "name": "J_Bip_R_LowerLeg",
+            "rename": "RightLowerLeg",
+            "next": {
+              "name": "J_Bip_R_Foot",
+              "rename": "RightFoot",
+              "next": {
+                "name": "J_Bip_R_ToeBase",
+                "rename": "RightToes"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
