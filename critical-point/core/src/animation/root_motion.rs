@@ -1,4 +1,4 @@
-use glam::{Quat, Vec3, Vec3Swizzles};
+use glam::{Quat, Vec3};
 use ozz_animation_rs::{Archive, Track};
 use std::io::Read;
 use std::path::Path;
@@ -35,11 +35,33 @@ impl RootMotionTrack {
         self.rotation.key_count() > 0
     }
 
-    pub fn max_xz_distance(&self) -> f32 {
-        let mut max2: f32 = 0.0;
-        for val in self.position.values() {
-            max2 = max2.max(val.xz().length_squared());
-        }
-        max2.sqrt()
+    #[inline]
+    pub fn first_position(&self) -> Vec3 {
+        self.position.values().first().copied().unwrap_or(Vec3::ZERO)
+    }
+
+    #[inline]
+    pub fn last_position(&self) -> Vec3 {
+        self.position.values().last().copied().unwrap_or(Vec3::ZERO)
+    }
+
+    #[inline]
+    pub fn whole_position(&self) -> Vec3 {
+        self.last_position() - self.first_position()
+    }
+
+    #[inline]
+    pub fn first_rotation(&self) -> Quat {
+        self.rotation.values().first().copied().unwrap_or(Quat::IDENTITY)
+    }
+
+    #[inline]
+    pub fn last_rotation(&self) -> Quat {
+        self.rotation.values().last().copied().unwrap_or(Quat::IDENTITY)
+    }
+
+    #[inline]
+    pub fn whole_rotation(&self) -> Quat {
+        self.last_rotation() * self.first_rotation().inverse()
     }
 }
