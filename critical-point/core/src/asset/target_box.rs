@@ -44,9 +44,8 @@ pub struct LoadedTargetBinding {
 }
 
 impl AssetLoader {
-    pub fn load_target_box(&mut self, path_prefix: &Symbol) -> XResult<LoadedTargetBox> {
-        let path = format!("{}.target.json", path_prefix);
-        let mut asset_zone = self.load_json::<AssetTargetBox, _>(&path)?;
+    pub fn load_target_box(&mut self, path: &Symbol) -> XResult<LoadedTargetBox> {
+        let mut asset_zone = self.load_json::<AssetTargetBox, _>(path.as_str())?;
 
         let mut loaded = LoadedTargetBox::default();
         loaded.parts = asset_zone.parts;
