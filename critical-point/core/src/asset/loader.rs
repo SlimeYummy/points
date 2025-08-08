@@ -20,6 +20,13 @@ pub struct AssetLoader {
     pub(super) root_motion_cache: SymbolHashMap<Rc<RootMotionTrack>>,
 }
 
+#[cfg(feature = "debug-print")]
+impl Drop for AssetLoader {
+    fn drop(&mut self) {
+        log::debug!("AssetLoader::drop()");
+    }
+}
+
 impl AssetLoader {
     pub fn new<P: AsRef<Path>>(asset_path: P) -> XResult<AssetLoader> {
         if !asset_path.as_ref().is_dir() {
