@@ -1,5 +1,3 @@
-use std::ops::{Deref, DerefMut, Index};
-
 use crate::utils::macros::{rkyv_self, serde_by};
 
 //
@@ -90,7 +88,8 @@ impl Iterator for TimeRangeStep {
             let value = self.current;
             self.current += self.step;
             Some(value)
-        } else {
+        }
+        else {
             None
         }
     }

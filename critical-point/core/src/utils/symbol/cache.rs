@@ -4,8 +4,7 @@ use std::alloc::Layout;
 use std::cell::UnsafeCell;
 use std::hash::{Hash, Hasher};
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::{alloc, fmt, mem, slice, str};
+use std::{alloc, fmt, mem, slice, str, u32};
 
 use super::base::{InnerMap, InnerNode, MAX_SYMBOL_SIZE};
 use crate::utils::{xres, XResult};
@@ -14,7 +13,6 @@ use crate::utils::{xres, XResult};
 struct SymbolNode {
     next: *mut SymbolNode,
     hash: u32,
-    ref_count: AtomicU32,
     length: u16,
     chars: [u8; 0],
 }
@@ -41,7 +39,7 @@ impl InnerNode for SymbolNode {
 
     #[inline(always)]
     fn ref_count(&self) -> u32 {
-        self.ref_count.load(Ordering::Relaxed)
+        u32::MAX
     }
 }
 
@@ -55,23 +53,12 @@ impl SymbolNode {
     fn initialize(&mut self, hash: u32, string: &str) {
         self.next = ptr::null_mut();
         self.hash = hash;
-        self.ref_count = AtomicU32::new(0);
         self.length = string.len() as u16;
         let ptr = self.chars.as_mut_ptr();
         unsafe {
             ptr.copy_from(string.as_ptr(), self.length as usize);
             ptr.add(self.length as usize).write(0);
         }
-    }
-
-    #[inline(always)]
-    fn inc_ref(&self) -> u32 {
-        self.ref_count.fetch_add(1, Ordering::Relaxed)
-    }
-
-    #[inline(always)]
-    fn dec_ref(&self) -> u32 {
-        self.ref_count.fetch_sub(1, Ordering::Release)
     }
 }
 
@@ -95,6 +82,9 @@ impl Drop for SymbolCache {
                 alloc::dealloc(node.as_ptr() as *mut u8, layout);
             });
         }
+
+        #[cfg(feature = "debug-print")]
+        log::debug!("SymbolCache::drop()");
     }
 }
 
@@ -105,7 +95,6 @@ impl SymbolCache {
             default: ptr::null_mut(),
         };
         cache.default = cache.new_symbol_node("").unwrap().as_ptr();
-        unsafe { (*cache.default).inc_ref() };
         cache
     }
 
@@ -149,6 +138,8 @@ impl SymbolCache {
 }
 
 /// Symbol can be used in current thread
+#[repr(transparent)]
+#[derive(Copy, Clone)]
 pub struct Symbol(NonNull<SymbolNode>);
 
 unsafe impl Send for Symbol {}
@@ -167,7 +158,6 @@ impl Symbol {
     pub fn new(string: &str) -> XResult<Symbol> {
         return Self::with_cache(|cache| {
             let node = cache.new_symbol_node(string)?;
-            unsafe { node.as_ref().inc_ref() };
             Ok(Symbol(node))
         });
     }
@@ -193,11 +183,6 @@ impl Symbol {
     }
 
     #[inline]
-    pub fn ref_count(&self) -> u32 {
-        return unsafe { self.0.as_ref().ref_count() };
-    }
-
-    #[inline]
     pub fn garbage_collect() {
         Self::with_cache(|cache| cache.garbage_collect());
     }
@@ -207,7 +192,6 @@ impl Default for Symbol {
     fn default() -> Symbol {
         Self::with_cache(|cache| {
             let node = cache.default_symbol_node();
-            unsafe { node.as_ref().inc_ref() };
             Symbol(node)
         })
     }
@@ -239,67 +223,53 @@ impl fmt::Display for Symbol {
     }
 }
 
-impl Clone for Symbol {
-    #[inline]
-    fn clone(&self) -> Symbol {
-        unsafe { self.0.as_ref().inc_ref() };
-        Symbol(self.0)
-    }
-}
-
-impl Drop for Symbol {
-    fn drop(&mut self) {
-        unsafe { self.0.as_ref().dec_ref() };
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_symbol_client_alloc_size() {
-        assert_eq!(SymbolNode::size(0), 19);
-        assert_eq!(SymbolNode::size(1), 20);
-        assert_eq!(SymbolNode::size(2), 21);
+        assert_eq!(SymbolNode::size(0), 15);
+        assert_eq!(SymbolNode::size(1), 16);
+        assert_eq!(SymbolNode::size(2), 17);
 
         assert!(Symbol::new("").is_ok());
         assert!(Symbol::new("1").is_ok());
         assert!(Symbol::new(&"x".repeat((1 << 16) + 1)).is_err());
     }
 
-    #[test]
-    fn test_symbol_client_ref_count() {
-        let s1 = Symbol::new("hello").unwrap();
-        assert_eq!(unsafe { s1.0.as_ref().ref_count() }, 1);
+    // #[test]
+    // fn test_symbol_client_ref_count() {
+    //     let s1 = Symbol::new("hello").unwrap();
+    //     assert_eq!(unsafe { s1.0.as_ref().ref_count() }, 1);
 
-        {
-            let s2: Symbol = Symbol::new("hello").unwrap();
-            assert_eq!(unsafe { s1.0.as_ref().ref_count() }, 2);
-            assert!(s1 == s2);
+    //     {
+    //         let s2: Symbol = Symbol::new("hello").unwrap();
+    //         assert_eq!(unsafe { s1.0.as_ref().ref_count() }, 2);
+    //         assert!(s1 == s2);
 
-            let s3 = s2.clone();
-            assert_eq!(unsafe { s1.0.as_ref().ref_count() }, 3);
-            assert!(s1 == s3);
-        }
-        assert_eq!(unsafe { s1.0.as_ref().ref_count() }, 1);
+    //         let s3 = s2.clone();
+    //         assert_eq!(unsafe { s1.0.as_ref().ref_count() }, 3);
+    //         assert!(s1 == s3);
+    //     }
+    //     assert_eq!(unsafe { s1.0.as_ref().ref_count() }, 1);
 
-        let s4 = s1;
-        assert_eq!(unsafe { s4.0.as_ref().ref_count() }, 1);
+    //     let s4 = s1;
+    //     assert_eq!(unsafe { s4.0.as_ref().ref_count() }, 1);
 
-        Symbol::garbage_collect();
-        assert_eq!(Symbol::node_count(), 2);
+    //     Symbol::garbage_collect();
+    //     assert_eq!(Symbol::node_count(), 2);
 
-        {
-            let _ = Symbol::new("world").unwrap();
-        }
+    //     {
+    //         let _ = Symbol::new("world").unwrap();
+    //     }
 
-        assert_eq!(Symbol::node_count(), 3);
-        Symbol::garbage_collect();
-        assert_eq!(Symbol::node_count(), 2);
-        Symbol::garbage_collect();
-        assert_eq!(Symbol::node_count(), 2);
-    }
+    //     assert_eq!(Symbol::node_count(), 3);
+    //     Symbol::garbage_collect();
+    //     assert_eq!(Symbol::node_count(), 2);
+    //     Symbol::garbage_collect();
+    //     assert_eq!(Symbol::node_count(), 2);
+    // }
 
     #[test]
     fn test_symbol_client_cache_grow() {
