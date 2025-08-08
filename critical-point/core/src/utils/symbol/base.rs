@@ -124,7 +124,8 @@ impl<N: InnerNode> InnerMap<N> {
                     let free_node = *node;
                     *node = *next;
                     func(NonNull::new_unchecked(free_node));
-                } else {
+                }
+                else {
                     node = next;
                 }
             }

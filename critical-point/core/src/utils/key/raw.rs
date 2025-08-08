@@ -145,18 +145,10 @@ impl RawEvent {
 
     #[inline]
     pub fn new_move(move_dir: Vec2) -> RawEvent {
-        if abs_diff_eq!(move_dir, Vec2::ZERO) {
-            RawEvent {
-                key: RawKey::Move,
-                pressed: false,
-                motion: Vec2::ZERO,
-            }
-        } else {
-            RawEvent {
-                key: RawKey::Move,
-                pressed: true,
-                motion: move_dir,
-            }
+        RawEvent {
+            key: RawKey::Move,
+            pressed: !abs_diff_eq!(move_dir, Vec2::ZERO),
+            motion: move_dir,
         }
     }
 
@@ -187,7 +179,8 @@ impl fmt::Debug for RawEvent {
                 .field("key", &self.key)
                 .field("pressed", &self.pressed)
                 .finish()
-        } else {
+        }
+        else {
             f.debug_struct("RawEvent")
                 .field("key", &self.key)
                 .field("motion", &self.motion)

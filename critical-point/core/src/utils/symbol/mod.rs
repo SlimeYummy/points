@@ -272,7 +272,6 @@ const _: () = {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rkyv::string::ArchivedString;
     use rkyv::Archived;
 
     #[test]

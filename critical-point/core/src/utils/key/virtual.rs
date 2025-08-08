@@ -1,5 +1,6 @@
 use cirtical_point_csgen::CsEnum;
-use glam::{Vec2, Vec3A};
+use glam::Vec3A;
+use glam_ext::Vec2xz;
 
 use super::raw::RawKey;
 use crate::consts::{DEFAULT_VIEW_DIR_2D, DEFAULT_VIEW_DIR_3D};
@@ -125,9 +126,9 @@ pub struct VirtualEvent {
     pub frame: u32,
     pub key: VirtualKey,
     pub pressed: bool,
-    pub view_dir_2d: Vec2,
+    pub view_dir_2d: Vec2xz,
     pub view_dir_3d: Vec3A,
-    pub world_move_dir: Vec2,
+    pub world_move_dir: Vec2xz,
 }
 
 impl VirtualEvent {
@@ -140,7 +141,7 @@ impl VirtualEvent {
             pressed,
             DEFAULT_VIEW_DIR_2D,
             DEFAULT_VIEW_DIR_3D,
-            Vec2::ZERO,
+            Vec2xz::ZERO,
         )
     }
 
@@ -150,9 +151,9 @@ impl VirtualEvent {
         frame: u32,
         key: VirtualKey,
         pressed: bool,
-        view_dir_2d: Vec2,
+        view_dir_2d: Vec2xz,
         view_dir_3d: Vec3A,
-        world_move_dir: Vec2,
+        world_move_dir: Vec2xz,
     ) -> VirtualEvent {
         VirtualEvent {
             id,
