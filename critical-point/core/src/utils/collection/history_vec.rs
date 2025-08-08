@@ -171,9 +171,11 @@ impl<T> HistoryVec<T> {
             if res < 0 {
                 new_end += 1;
                 continue;
-            } else if res == 0 {
+            }
+            else if res == 0 {
                 new_end += 1;
-            } else {
+            }
+            else {
                 break;
             }
         }
@@ -255,7 +257,8 @@ where
                     self.slice = Some(rest);
                     if (self.func)(item) {
                         return Some(item);
-                    } else {
+                    }
+                    else {
                         continue;
                     }
                 }
@@ -283,7 +286,8 @@ where
                     self.slice = Some(rest);
                     if (self.func)(item) {
                         return Some(item);
-                    } else {
+                    }
+                    else {
                         continue;
                     }
                 }
@@ -407,16 +411,13 @@ mod tests {
         assert_eq!(hv.future_len(), 1);
 
         hv.append(|_| Ok(false), || Ok(Payload::new(0, "zero"))).unwrap();
-        assert_eq!(
-            hv.iter().collect::<Vec<_>>(),
-            vec![
-                &Payload::new(1, "one"),
-                &Payload::new(2, "two"),
-                &Payload::new(3, "three-three"),
-                &Payload::new(4, "four-four"),
-                &Payload::new(0, "zero"),
-            ]
-        );
+        assert_eq!(hv.iter().collect::<Vec<_>>(), vec![
+            &Payload::new(1, "one"),
+            &Payload::new(2, "two"),
+            &Payload::new(3, "three-three"),
+            &Payload::new(4, "four-four"),
+            &Payload::new(0, "zero"),
+        ]);
     }
 
     #[test]
@@ -427,10 +428,10 @@ mod tests {
         assert_eq!(hv.current_end, 2);
         assert_eq!(hv.len(), 2);
         assert_eq!(hv.future_len(), 1);
-        assert_eq!(
-            hv.iter().collect::<Vec<_>>(),
-            vec![&Payload::new(1, "one"), &Payload::new(3, "three"),]
-        );
+        assert_eq!(hv.iter().collect::<Vec<_>>(), vec![
+            &Payload::new(1, "one"),
+            &Payload::new(3, "three"),
+        ]);
 
         let mut hv = new_history_vec();
         hv.discard(|_| false);

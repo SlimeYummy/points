@@ -31,9 +31,9 @@ fn symbol_cache() -> &'static TmplSymbolCache {
 }
 
 #[allow(dead_code)]
-pub(crate) unsafe fn init_id_static<P: AsRef<Path>>(path: P) -> XResult<()> {
+pub(crate) unsafe fn init_id_static<P: AsRef<Path>>(path: P, force_reinit: bool) -> XResult<()> {
     #[allow(static_mut_refs)]
-    if SYMBOL_CACHE.is_empty() {
+    if SYMBOL_CACHE.is_empty() || force_reinit {
         SYMBOL_CACHE = TmplSymbolCache::from_file(path)?;
     }
     Ok(())
@@ -42,9 +42,9 @@ pub(crate) unsafe fn init_id_static<P: AsRef<Path>>(path: P) -> XResult<()> {
 #[cfg(test)]
 #[ctor::ctor]
 fn test_init_id_static() {
-    use crate::consts::TEST_TMP_RES_PATH;
+    use crate::consts::TEST_TMPL_PATH;
 
-    unsafe { init_id_static(TEST_TMP_RES_PATH).unwrap() };
+    unsafe { init_id_static(TEST_TMPL_PATH, false).unwrap() };
 }
 
 struct TmplSymbol {
@@ -84,6 +84,9 @@ impl Drop for TmplSymbolCache {
         }
         self.list = Vec::new();
         self.map = Vec::new();
+
+        #[cfg(feature = "debug-print")]
+        log::debug!("TmplSymbolCache::drop()");
     }
 }
 
@@ -165,7 +168,7 @@ impl TmplSymbolCache {
 
             offset += ((string.len() + NODE_MASK) & !NODE_MASK) + NODE_SIZE;
         }
-        assert_eq!(offset, buf_size);
+        debug_assert_eq!(offset, buf_size);
 
         let regex = Regex::new(
             r"^(\#|\w+)\.([\w\-\_]+)(?:\.([\w\-\_]+))?(?:\.([\w\-\_]+))?(?:\/([0-9]?[0-9A-Z]|[A-Z][0-9]))?$",
@@ -296,6 +299,28 @@ impl FromStr for TmplPrefix {
     }
 }
 
+impl TryFrom<u8> for TmplPrefix {
+    type Error = XError;
+
+    fn try_from(value: u8) -> XResult<TmplPrefix> {
+        let prefix = match value {
+            0 => TmplPrefix::Var,
+            1 => TmplPrefix::Character,
+            2 => TmplPrefix::Style,
+            3 => TmplPrefix::Equipment,
+            4 => TmplPrefix::Entry,
+            5 => TmplPrefix::Perk,
+            6 => TmplPrefix::AccessoryPool,
+            7 => TmplPrefix::Accessory,
+            8 => TmplPrefix::Jewel,
+            9 => TmplPrefix::Action,
+            10 => TmplPrefix::Zone,
+            _ => return xres!(NotFound),
+        };
+        Ok(prefix)
+    }
+}
+
 impl AsRef<str> for TmplPrefix {
     fn as_ref(&self) -> &str {
         match self {
@@ -388,8 +413,31 @@ impl TmplID {
         self.to_string_with(symbol_cache())
     }
 
+    #[inline]
+    pub fn to_u64(&self) -> u64 {
+        self.0
+    }
+
+    #[inline]
+    pub fn try_from_u64(id: u64, cache: &TmplSymbolCache) -> XResult<TmplID> {
+        TmplPrefix::try_from((id >> 58) as u8)?; // prefix
+        let key1 = ((id >> 32) & 0xFFFF) as u16;
+        if key1 != SYMBOL_EMPTY {
+            cache.find_str(key1)?;
+        }
+        let key2 = ((id >> 16) & 0xFFFF) as u16;
+        if key2 != SYMBOL_EMPTY {
+            cache.find_str(key2)?;
+        }
+        let key3 = (id & 0xFFFF) as u16;
+        if key3 != SYMBOL_EMPTY {
+            cache.find_str(key3)?;
+        }
+        Ok(TmplID(id))
+    }
+
     fn new_with(s: &str, cache: &TmplSymbolCache) -> XResult<TmplID> {
-        let segs = Self::split_str(s).ok_or_else(|| xerr!(BadArgument; "invalid string"))?;
+        let segs = Self::split_str(s, cache).ok_or_else(|| xerr!(BadArgument; "invalid string"))?;
         let prefix = TmplPrefix::from_str(segs[0])?;
         let key1 = cache.find_id(segs[1])?;
         let key2 = cache.find_id(segs[2])?;
@@ -425,8 +473,8 @@ impl TmplID {
         }
     }
 
-    fn split_str(s: &str) -> Option<[&str; 5]> {
-        let regex = symbol_cache().regex.as_ref().unwrap();
+    fn split_str<'t>(s: &'t str, cache: &TmplSymbolCache) -> Option<[&'t str; 5]> {
+        let regex = cache.regex.as_ref()?;
         let caps = regex.captures(s)?;
         Some([
             caps.get(1)?.as_str(),
@@ -441,9 +489,11 @@ impl TmplID {
         fn parse_char(c: u8) -> Option<u16> {
             if c.is_ascii_digit() {
                 Some((c - b'0') as u16)
-            } else if c.is_ascii_uppercase() {
+            }
+            else if c.is_ascii_uppercase() {
                 Some((c - b'A') as u16 + 10)
-            } else {
+            }
+            else {
                 None
             }
         }
@@ -465,19 +515,23 @@ impl TmplID {
         let bytes = s.as_bytes();
         let num = if bytes.len() == 0 {
             SUFFIX_EMPTY
-        } else if bytes.len() == 1 {
+        }
+        else if bytes.len() == 1 {
             parse_char(bytes[0])?
-        } else if bytes.len() == 2 {
+        }
+        else if bytes.len() == 2 {
             if bytes[0].is_ascii_digit() {
                 36 + parse_digit(bytes[0])? * 36 + parse_char(bytes[1])?
-            } else {
+            }
+            else {
                 36 + 360 + parse_uppercase(bytes[0])? * 10 + parse_digit(bytes[1])?
             }
-        } else {
+        }
+        else {
             return None;
         };
 
-        assert!(num <= SUFFIX_EMPTY);
+        debug_assert!(num <= SUFFIX_EMPTY);
         Some(num)
     }
 
@@ -485,7 +539,8 @@ impl TmplID {
         fn encode_char(c: u16) -> u8 {
             if c < 10 {
                 b'0' + c as u8
-            } else {
+            }
+            else {
                 b'A' + (c - 10) as u8
             }
         }
@@ -502,20 +557,40 @@ impl TmplID {
         if n < 36 {
             buf[0] = encode_char(n);
             len = 1;
-        } else if n < 36 + 360 {
+        }
+        else if n < 36 + 360 {
             buf[0] = encode_char((n - 36) / 36);
             buf[1] = encode_char((n - 36) % 36);
             len = 2;
-        } else if n < 36 + 360 + 260 {
+        }
+        else if n < 36 + 360 + 260 {
             buf[0] = encode_uppercase((n - 36 - 360) / 10);
             buf[1] = encode_digit((n - 36 - 360) % 10);
             len = 2;
-        } else if n == SUFFIX_EMPTY {
+        }
+        else if n == SUFFIX_EMPTY {
             len = 0;
-        } else {
+        }
+        else {
             return def;
         }
         unsafe { str::from_utf8_unchecked(slice::from_raw_parts(buf.as_ptr(), len)) }
+    }
+}
+
+impl From<TmplID> for u64 {
+    #[inline]
+    fn from(id: TmplID) -> u64 {
+        id.0
+    }
+}
+
+impl TryFrom<u64> for TmplID {
+    type Error = XError;
+
+    #[inline]
+    fn try_from(id: u64) -> XResult<TmplID> {
+        TmplID::try_from_u64(id, symbol_cache())
     }
 }
 
@@ -670,15 +745,12 @@ mod tests {
         assert!(TmplSymbolCache::from_file(&test_dir).is_err());
 
         // Test common symbols
-        write_rkyv(
-            &rkyv_dir,
-            &vec![
-                "A".to_string(),
-                "BB".to_string(),
-                "CCC".to_string(),
-                "DDDDDDDDDD".to_string(),
-            ],
-        );
+        write_rkyv(&rkyv_dir, &vec![
+            "A".to_string(),
+            "BB".to_string(),
+            "CCC".to_string(),
+            "DDDDDDDDDD".to_string(),
+        ]);
         let cache = TmplSymbolCache::from_file(&test_dir).unwrap();
         assert_eq!(cache.find_id("A").unwrap(), 0);
         assert_eq!(cache.find_id("BB").unwrap(), 1);

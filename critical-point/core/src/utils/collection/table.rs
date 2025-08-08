@@ -503,10 +503,10 @@ mod tests {
         let tb1: Table<u16, Vec<f64>> = serde_json::from_str(json).unwrap();
         assert_eq!(tb1.len(), 2);
         assert_eq!(tb1.keys().copied().collect::<Vec<u16>>(), vec![123, 789]);
-        assert_eq!(
-            tb1.values().map(|x| x.to_vec()).collect::<Vec<Vec<f64>>>(),
-            vec![vec![5.0, 6.0, 7.0], vec![12.0, 13.0]]
-        );
+        assert_eq!(tb1.values().map(|x| x.to_vec()).collect::<Vec<Vec<f64>>>(), vec![
+            vec![5.0, 6.0, 7.0],
+            vec![12.0, 13.0]
+        ]);
         let text = serde_json::to_string(&tb1).unwrap();
         let tb1x: Table<u16, Vec<f64>> = serde_json::from_str(&text).unwrap();
         assert_eq!(tb1x, tb1);
@@ -518,18 +518,16 @@ mod tests {
         }"#;
         let tb2: Table<String, Vec<String>> = serde_json::from_str(json).unwrap();
         assert_eq!(tb2.len(), 3);
-        assert_eq!(
-            tb2.keys().cloned().collect::<Vec<String>>(),
-            vec!["k1".to_string(), "k2".to_string(), "k3".to_string()]
-        );
-        assert_eq!(
-            tb2.values().map(|x| x.to_vec()).collect::<Vec<Vec<String>>>(),
-            vec![
-                vec!["aaa".to_string(), "bbb".to_string()],
-                vec!["xx".to_string()],
-                vec!["xx".to_string(), "yy".to_string()]
-            ]
-        );
+        assert_eq!(tb2.keys().cloned().collect::<Vec<String>>(), vec![
+            "k1".to_string(),
+            "k2".to_string(),
+            "k3".to_string()
+        ]);
+        assert_eq!(tb2.values().map(|x| x.to_vec()).collect::<Vec<Vec<String>>>(), vec![
+            vec!["aaa".to_string(), "bbb".to_string()],
+            vec!["xx".to_string()],
+            vec!["xx".to_string(), "yy".to_string()]
+        ]);
         let text = serde_json::to_string(&tb2).unwrap();
         let tb2x: Table<String, Vec<String>> = serde_json::from_str(&text).unwrap();
         assert_eq!(tb2x, tb2);

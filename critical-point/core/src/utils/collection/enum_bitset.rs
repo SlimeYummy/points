@@ -25,7 +25,7 @@ impl<E: Bitsetable, const L: usize> Default for EnumBitset<E, L> {
 impl<E: Bitsetable, const L: usize> EnumBitset<E, L> {
     #[inline]
     pub fn new() -> Self {
-        assert!(L >= E::LEN);
+        debug_assert!(L >= E::LEN);
         Self {
             bits: [0; L],
             _phantom: PhantomData,
@@ -35,17 +35,18 @@ impl<E: Bitsetable, const L: usize> EnumBitset<E, L> {
     #[inline]
     pub fn get(&self, insert: E) -> bool {
         let insert = insert.ordinal();
-        assert!(insert < E::CARDINALITY);
+        debug_assert!(insert < E::CARDINALITY);
         self.bits[insert / 8] & (1 << (insert % 8)) != 0
     }
 
     #[inline]
     pub fn set(&mut self, insert: E, val: bool) {
         let insert = insert.ordinal();
-        assert!(insert < E::CARDINALITY);
+        debug_assert!(insert < E::CARDINALITY);
         if val {
             self.bits[insert / 8] |= 1 << (insert % 8);
-        } else {
+        }
+        else {
             self.bits[insert / 8] &= !(1 << (insert % 8));
         }
     }

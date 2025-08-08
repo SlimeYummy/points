@@ -191,7 +191,8 @@ impl<T> HistoryQueue<T> {
         for idx in self.current_start..self.current_end {
             if func(&mut self.queue[idx as usize])? {
                 new_start += 1;
-            } else {
+            }
+            else {
                 break;
             }
         }
@@ -223,9 +224,11 @@ impl<T> HistoryQueue<T> {
             new_end += 1;
             if res < 0 {
                 new_start += 1;
-            } else if res == 0 {
+            }
+            else if res == 0 {
                 break;
-            } else {
+            }
+            else {
                 return xres!(BadOperation; "start");
             }
         }
@@ -233,9 +236,11 @@ impl<T> HistoryQueue<T> {
             let res = func(&mut self.queue[new_end as usize])?;
             if res == 0 {
                 new_end += 1;
-            } else if res > 0 {
+            }
+            else if res > 0 {
                 break;
-            } else {
+            }
+            else {
                 return xres!(BadOperation; "end");
             }
         }
@@ -265,7 +270,8 @@ impl<T> HistoryQueue<T> {
             if func(&mut self.queue[0])? {
                 count += 1;
                 self.queue.pop_front();
-            } else {
+            }
+            else {
                 break;
             }
         }
@@ -444,16 +450,13 @@ mod tests {
         assert_eq!(hq.future_len(), 1);
 
         hq.enqueue(|_| Ok(false), || Ok(Payload::new(0, "zero"))).unwrap();
-        assert_eq!(
-            hq.iter().collect::<Vec<_>>(),
-            vec![
-                &Payload::new(2, "two-two"),
-                &Payload::new(3, "three-three"),
-                &Payload::new(4, "four-four"),
-                &Payload::new(5, "five-five"),
-                &Payload::new(0, "zero"),
-            ]
-        );
+        assert_eq!(hq.iter().collect::<Vec<_>>(), vec![
+            &Payload::new(2, "two-two"),
+            &Payload::new(3, "three-three"),
+            &Payload::new(4, "four-four"),
+            &Payload::new(5, "five-five"),
+            &Payload::new(0, "zero"),
+        ]);
         assert_eq!(hq.past_len(), 1);
         assert_eq!(hq.future_len(), 0);
 
@@ -470,14 +473,11 @@ mod tests {
         hq.discard(|p| p.key <= 3);
         assert_eq!(hq.current_start, 0);
         assert_eq!(hq.current_end, 3);
-        assert_eq!(
-            hq.iter_mut().collect::<Vec<_>>(),
-            vec![
-                &mut Payload::new(4, "four"),
-                &mut Payload::new(5, "five"),
-                &mut Payload::new(6, "six")
-            ]
-        );
+        assert_eq!(hq.iter_mut().collect::<Vec<_>>(), vec![
+            &mut Payload::new(4, "four"),
+            &mut Payload::new(5, "five"),
+            &mut Payload::new(6, "six")
+        ]);
 
         let mut hq = new_history_queue();
         hq.dequeue(|p| p.key <= 4);
@@ -487,14 +487,11 @@ mod tests {
         hq.restore(|_| 0).unwrap();
         assert_eq!(hq.current_start, 0);
         assert_eq!(hq.current_end, 4);
-        assert_eq!(
-            hq.iter().collect::<Vec<_>>(),
-            vec![
-                &Payload::new(3, "three"),
-                &Payload::new(4, "four"),
-                &Payload::new(5, "five"),
-                &Payload::new(6, "six"),
-            ]
-        );
+        assert_eq!(hq.iter().collect::<Vec<_>>(), vec![
+            &Payload::new(3, "three"),
+            &Payload::new(4, "four"),
+            &Payload::new(5, "five"),
+            &Payload::new(6, "six"),
+        ]);
     }
 }
