@@ -112,16 +112,12 @@ where
 
         let hash = self.state.hash_one(&key);
 
-        Self::insert_impl(
-            self.nodes,
-            self.prime as usize,
-            IndexNode {
-                hash,
-                next: u32::MAX,
-                key,
-                value,
-            },
-        );
+        Self::insert_impl(self.nodes, self.prime as usize, IndexNode {
+            hash,
+            next: u32::MAX,
+            key,
+            value,
+        });
         self.count += 1;
     }
 
@@ -151,11 +147,12 @@ where
 
         // Start loop at a None node, to keep the inserted order of nodes
         for pos in offset..(offset + prime) {
-            let node = unsafe { &mut *self.nodes.add(pos % prime) };
+            let node: &mut Option<IndexNode<K, V>> = unsafe { &mut *self.nodes.add(pos % prime) };
             if let Some(mut node) = node.take() {
                 node.next = u32::MAX;
                 Self::insert_impl(new_nodes, new_prime as usize, node);
-            } else {
+            }
+            else {
                 continue;
             }
         }
@@ -174,7 +171,7 @@ where
         let mut pos = (new.hash % (prime as u64)) as usize;
         let mut prev = None;
         loop {
-            let node = unsafe { &mut *nodes.add(pos) };
+            let node: &mut Option<IndexNode<K, V>> = unsafe { &mut *nodes.add(pos) };
             if let Some(node) = node {
                 if node.key == new.key {
                     prev = Some(pos);
@@ -184,7 +181,8 @@ where
                     }
                 }
                 pos = (pos + 1) % prime;
-            } else {
+            }
+            else {
                 *node = Some(new);
                 if let Some(prev) = prev {
                     let prev_node = unsafe { &mut *nodes.add(prev) };
@@ -209,7 +207,8 @@ where
                 Some(node) => {
                     if node.key == *key {
                         return Some(IndexValueIter { map: self, key, pos });
-                    } else {
+                    }
+                    else {
                         pos = (pos + 1) % (self.prime as usize);
                     }
                 }
@@ -375,10 +374,9 @@ mod tests {
         hi.insert(id!("#.Zzz"), 5);
         hi.insert(id!("#.Xxx"), 6);
 
-        assert_eq!(
-            hi.find(&id!("#.Xxx")).unwrap().copied().collect::<Vec<_>>(),
-            vec![1, 4, 6]
-        );
+        assert_eq!(hi.find(&id!("#.Xxx")).unwrap().copied().collect::<Vec<_>>(), vec![
+            1, 4, 6
+        ]);
         assert_eq!(hi.find(&id!("#.Yyy")).unwrap().copied().collect::<Vec<_>>(), vec![2, 3]);
         assert_eq!(hi.find(&id!("#.Zzz")).unwrap().copied().collect::<Vec<_>>(), vec![5, 5]);
     }
@@ -404,9 +402,8 @@ mod tests {
 
         assert_eq!(hi.capacity(), 59);
         assert_eq!(hi.len(), 36);
-        assert_eq!(
-            hi.find(&"a".into()).unwrap().copied().collect::<Vec<_>>(),
-            vec![999, 998, 997, 996, 999, 995]
-        );
+        assert_eq!(hi.find(&"a".into()).unwrap().copied().collect::<Vec<_>>(), vec![
+            999, 998, 997, 996, 999, 995
+        ]);
     }
 }
