@@ -1,4 +1,5 @@
 use glam::{Quat, Vec2, Vec3A, Vec4};
+use glam_ext::Vec2xz;
 use std::hint::likely;
 
 use crate::consts::{DEFAULT_TOWARD_DIR_2D, DEFAULT_TOWARD_DIR_3D, FPS};
@@ -9,8 +10,18 @@ pub fn f2s(frame: u32) -> f32 {
 }
 
 #[inline(always)]
+pub fn ff2s(frame: f32) -> f32 {
+    frame / FPS
+}
+
+#[inline(always)]
 pub fn s2f(second: f32) -> u32 {
     (second * FPS).round() as u32
+}
+
+#[inline(always)]
+pub fn s2ff(second: f32) -> f32 {
+    (second * FPS).round()
 }
 
 #[inline(always)]
@@ -19,8 +30,18 @@ pub fn s2f_round(second: f32) -> u32 {
 }
 
 #[inline(always)]
+pub fn s2ff_round(second: f32) -> f32 {
+    (second * FPS).round()
+}
+
+#[inline(always)]
 pub fn s2f_floor(second: f32) -> u32 {
     (second * FPS).floor() as u32
+}
+
+#[inline(always)]
+pub fn s2ff_floor(second: f32) -> f32 {
+    (second * FPS).floor()
 }
 
 #[inline(always)]
@@ -28,17 +49,22 @@ pub fn s2f_ceil(second: f32) -> u32 {
     (second * FPS).ceil() as u32
 }
 
+#[inline(always)]
+pub fn s2ff_ceil(second: f32) -> f32 {
+    (second * FPS).ceil()
+}
+
 /// a (- eps) <= b
 #[macro_export]
-macro_rules! loose_lt {
+macro_rules! loose_le {
     ($a:expr, $b:expr) => {
-        loose_lt!($a, $b, 1e-4)
+        loose_le!($a, $b, 1e-4)
     };
     ($a:expr, $b:expr, $eps:expr) => {
         $a - $eps <= $b
     };
 }
-pub use loose_lt;
+pub use loose_le;
 
 /// a (+ eps) < b
 #[macro_export]
@@ -54,15 +80,15 @@ pub use strict_lt;
 
 /// a (+ eps) >= b
 #[macro_export]
-macro_rules! loose_gt {
+macro_rules! loose_ge {
     ($a:expr, $b:expr) => {
-        loose_gt!($a, $b, 1e-4)
+        loose_ge!($a, $b, 1e-4)
     };
     ($a:expr, $b:expr, $eps:expr) => {
         $a + $eps >= $b
     };
 }
-pub use loose_gt;
+pub use loose_ge;
 
 /// a (- eps) > b
 #[macro_export]
@@ -77,13 +103,37 @@ macro_rules! strict_gt {
 pub use strict_gt;
 
 #[macro_export]
+macro_rules! lerp {
+    ($a:expr, $b:expr, $t:expr) => {
+        $a + ($b - $a) * $t
+    };
+}
+pub use lerp;
+
+#[macro_export]
+macro_rules! ratio_safe {
+    ($a:expr, $b:expr) => {{
+        let aa = $a as f32;
+        let bb = ($b as f32);
+        if bb > 0.0 {
+            aa / bb
+        }
+        else {
+            0.0
+        }
+    }};
+}
+pub use ratio_safe;
+
+#[macro_export]
 macro_rules! ratio_saturating {
     ($a:expr, $b:expr) => {{
         let aa = $a as f32;
         let bb = ($b as f32).abs();
         if std::hint::likely(aa > 0.0) {
             (aa / bb).min(1.0)
-        } else {
+        }
+        else {
             0.0
         }
     }};
@@ -98,9 +148,11 @@ macro_rules! ratio_warpping {
         let r = (aa % bb) / bb;
         if std::hint::likely(r >= 0.0) {
             r
-        } else if std::hint::likely(r < 0.0) {
+        }
+        else if std::hint::likely(r < 0.0) {
             r + 1.0
-        } else {
+        }
+        else {
             0.0 // NaN/Inf
         }
     }};
@@ -108,34 +160,27 @@ macro_rules! ratio_warpping {
 pub use ratio_warpping;
 
 #[inline]
-pub fn dt_sign(num: f32) -> f32 {
-    if num >= 0.0 {
-        1.0
-    } else {
-        -1.0
-    }
-}
-
-#[inline]
-pub fn quat_from_dir_xz(dir: Vec2) -> Quat {
+pub fn quat_from_dir_xz(dir: Vec2xz) -> Quat {
     // 2D coordinate system is left-handed.
     // 3D coordinate system (used by CriticalPoint) is right-handed.
     // So swap `from` and `to` parameters here.
-    let q = Quat::from_rotation_arc_2d(dir, DEFAULT_TOWARD_DIR_2D);
+    let q = Quat::from_rotation_arc_2d(dir.as_vec2(), DEFAULT_TOWARD_DIR_2D.as_vec2());
     Quat::from_xyzw(0.0, q.z, 0.0, q.w)
 }
 
 #[inline]
-pub fn dir_xz_from_quat(quat: Quat) -> Vec2 {
+pub fn dir_xz_from_quat(quat: Quat) -> Vec2xz {
     let dir = quat * DEFAULT_TOWARD_DIR_3D;
     let dir_xz = if likely(dir.y.abs() < 0.999) {
-        Vec2::new(dir.x, dir.z)
-    } else if dir.y > 0.0 {
+        Vec2xz::new(dir.x, dir.z)
+    }
+    else if dir.y > 0.0 {
         let dir = quat * Vec3A::NEG_Y;
-        Vec2::new(dir.x, dir.z)
-    } else {
+        Vec2xz::new(dir.x, dir.z)
+    }
+    else {
         let dir = quat * Vec3A::Y;
-        Vec2::new(dir.x, dir.z)
+        Vec2xz::new(dir.x, dir.z)
     };
     dir_xz.normalize()
 }
@@ -326,10 +371,8 @@ impl PartialEq<Quat> for CsQuat {
 
 #[cfg(test)]
 mod tests {
-    use approx::assert_ulps_eq;
-    use glam::Vec3;
-
     use super::*;
+    use approx::assert_ulps_eq;
     use std::f32::consts::{FRAC_PI_2, PI};
     use std::f32::{INFINITY, NAN};
 
@@ -376,13 +419,13 @@ mod tests {
 
     #[test]
     fn test_loose_strict_compare() {
-        assert_eq!(loose_lt!(1.0 + 1e-6, 1.0), true);
-        assert_eq!(loose_lt!(1.0 + 1e-3, 1.0), false);
+        assert_eq!(loose_le!(1.0 + 1e-6, 1.0), true);
+        assert_eq!(loose_le!(1.0 + 1e-3, 1.0), false);
         assert_eq!(strict_lt!(1.0 - 1e-3, 1.0), true);
         assert_eq!(strict_lt!(1.0 - 1e-6, 1.0), false);
 
-        assert_eq!(loose_gt!(1.0 - 1e-6, 1.0), true);
-        assert_eq!(loose_gt!(1.0 - 1e-3, 1.0), false);
+        assert_eq!(loose_ge!(1.0 - 1e-6, 1.0), true);
+        assert_eq!(loose_ge!(1.0 - 1e-3, 1.0), false);
         assert_eq!(strict_gt!(1.0 + 1e-3, 1.0), true);
         assert_eq!(strict_gt!(1.0 + 1e-6, 1.0), false);
     }
@@ -390,23 +433,23 @@ mod tests {
     #[test]
     fn test_quat_dir_xz() {
         assert_ulps_eq!(quat_from_dir_xz(DEFAULT_TOWARD_DIR_2D), Quat::IDENTITY);
-        assert_ulps_eq!(quat_from_dir_xz(Vec2::NEG_Y), Quat::from_rotation_y(PI));
-        assert_ulps_eq!(quat_from_dir_xz(Vec2::X), Quat::from_rotation_y(FRAC_PI_2));
-        assert_ulps_eq!(quat_from_dir_xz(Vec2::NEG_X), Quat::from_rotation_y(-FRAC_PI_2));
+        assert_ulps_eq!(quat_from_dir_xz(Vec2xz::NEG_Z), Quat::from_rotation_y(PI));
+        assert_ulps_eq!(quat_from_dir_xz(Vec2xz::X), Quat::from_rotation_y(FRAC_PI_2));
+        assert_ulps_eq!(quat_from_dir_xz(Vec2xz::NEG_X), Quat::from_rotation_y(-FRAC_PI_2));
 
         assert_ulps_eq!(dir_xz_from_quat(Quat::IDENTITY), DEFAULT_TOWARD_DIR_2D);
-        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_y(PI)), Vec2::NEG_Y);
-        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_y(FRAC_PI_2)), Vec2::X);
-        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_y(-FRAC_PI_2)), Vec2::NEG_X);
-        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_z(FRAC_PI_2)), Vec2::Y);
-        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_z(-FRAC_PI_2)), Vec2::Y);
+        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_y(PI)), Vec2xz::NEG_Z);
+        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_y(FRAC_PI_2)), Vec2xz::X);
+        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_y(-FRAC_PI_2)), Vec2xz::NEG_X);
+        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_z(FRAC_PI_2)), Vec2xz::Z);
+        assert_ulps_eq!(dir_xz_from_quat(Quat::from_rotation_z(-FRAC_PI_2)), Vec2xz::Z);
         assert_ulps_eq!(
             dir_xz_from_quat(Quat::from_rotation_y(FRAC_PI_2) * Quat::from_rotation_z(FRAC_PI_2)),
-            Vec2::X
+            Vec2xz::X
         );
         assert_ulps_eq!(
             dir_xz_from_quat(Quat::from_rotation_y(-FRAC_PI_2) * Quat::from_rotation_z(-FRAC_PI_2)),
-            Vec2::NEG_X
+            Vec2xz::NEG_X
         );
     }
 }

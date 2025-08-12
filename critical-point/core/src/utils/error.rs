@@ -5,7 +5,7 @@ use std::fmt;
 
 use crate::utils::id::TmplID;
 
-const EMPTY_ERROR: &'static str = "";
+const EMPTY_STR: &'static str = "";
 
 #[derive(Debug)]
 pub(crate) struct StaticError<T> {
@@ -36,43 +36,46 @@ impl<T> MixedError<T> {
         MixedError::Dynamic(Box::new(DynamicError { src, pos, msg }))
     }
 
-    pub(crate) fn pos(&self) -> &'static str {
+    fn pos(&self) -> &'static str {
         match self {
             MixedError::Static(e) => *e.pos,
             MixedError::Dynamic(e) => *e.pos,
         }
     }
 
-    pub(crate) fn msg(&self) -> &str {
+    fn msg(&self) -> &str {
         match self {
-            MixedError::Static(_) => EMPTY_ERROR,
+            MixedError::Static(_) => EMPTY_STR,
             MixedError::Dynamic(e) => e.msg.as_str(),
         }
     }
 
-    pub(crate) fn src(&self) -> &T {
+    fn src(&self) -> &T {
         match self {
             MixedError::Static(e) => &e.src,
             MixedError::Dynamic(e) => &e.src,
         }
     }
 
-    fn set_pos(mut self, pos: &'static &'static str) -> Self {
+    fn init_pos(mut self, pos: &'static &'static str) -> Self {
         match self {
             MixedError::Static(ref mut e) => {
+                debug_assert!(e.pos.is_empty());
                 e.pos = pos;
             }
             MixedError::Dynamic(ref mut e) => {
+                debug_assert!(e.pos.is_empty());
                 e.pos = pos;
             }
         };
         self
     }
 
-    fn set_msg(mut self, msg: String) -> Self {
+    fn init_msg(mut self, msg: String) -> Self {
         match self {
             MixedError::Static(e) => MixedError::from_dynamic(e.src, e.pos, msg),
             MixedError::Dynamic(ref mut e) => {
+                debug_assert!(e.msg.is_empty());
                 e.msg = msg;
                 self
             }
@@ -115,11 +118,13 @@ macro_rules! err_to_string {
             fn to_string(&self, f: &mut fmt::Formatter<'_>, name: &str) -> fmt::Result {
                 match self {
                     MixedError::Static(e) => write!(f, "{}({})  [P]: {}  [S]: {}", name, $err_name, e.pos, e.src),
-                    MixedError::Dynamic(e) => write!(
-                        f,
-                        "{}({})  [P]: {}  [M]: {}  [S]: {}",
-                        name, $err_name, e.pos, e.msg, e.src
-                    ),
+                    MixedError::Dynamic(e) => {
+                        write!(
+                            f,
+                            "{}({})  [P]: {}  [M]: {}  [S]: {}",
+                            name, $err_name, e.pos, e.msg, e.src
+                        )
+                    }
                 }
             }
         }
@@ -170,6 +175,8 @@ pub enum XError {
     Jolt(MixedError<JoltError>),
     Ozz(MixedError<OzzError>),
     Rkyv(MixedError<()>), // no source here
+
+    Custom(MixedError<()>),
 }
 
 impl Error for XError {
@@ -218,6 +225,7 @@ macro_rules! switch_call {
             XError::Jolt(e) => $func(e),
             XError::Ozz(e) => $func(e),
             XError::Rkyv(e) => $func(e),
+            XError::Custom(e) => $func(e),
         }
     };
 }
@@ -254,6 +262,7 @@ macro_rules! switch_new {
             XError::Jolt(e) => XError::Jolt($func(e)),
             XError::Ozz(e) => XError::Ozz($func(e)),
             XError::Rkyv(e) => XError::Rkyv($func(e)),
+            XError::Custom(e) => XError::Custom($func(e)),
         }
     };
 }
@@ -267,12 +276,12 @@ impl XError {
         switch_call!(&self, |e: &'t MixedError<_>| e.msg())
     }
 
-    pub(crate) fn set_pos(self, pos: &'static &'static str) -> XError {
-        switch_new!(self, |e: MixedError<_>| e.set_pos(pos))
+    pub fn init_pos(self, pos: &'static &'static str) -> XError {
+        switch_new!(self, |e: MixedError<_>| e.init_pos(pos))
     }
 
-    pub(crate) fn set_msg(self, msg: String) -> XError {
-        switch_new!(self, |e: MixedError<_>| e.set_msg(msg))
+    pub fn init_msg(self, msg: String) -> XError {
+        switch_new!(self, |e: MixedError<_>| e.init_msg(msg))
     }
 }
 
@@ -308,49 +317,63 @@ impl fmt::Display for XError {
             XError::Jolt(e) => e.to_string(f, "Jolt"),
             XError::Ozz(e) => e.to_string(f, "Ozz"),
             XError::Rkyv(e) => e.to_string(f, "Rkyv"),
+            XError::Custom(e) => e.to_string(f, "Custom"),
         }
     }
 }
 
 impl From<std::io::Error> for XError {
     fn from(e: std::io::Error) -> Self {
-        XError::IO(MixedError::from_static(e, &EMPTY_ERROR))
+        XError::IO(MixedError::from_static(e, &EMPTY_STR))
     }
 }
 
 impl From<std::str::Utf8Error> for XError {
     fn from(err: std::str::Utf8Error) -> Self {
-        XError::Utf8(MixedError::from_static(err, &EMPTY_ERROR))
+        XError::Utf8(MixedError::from_static(err, &EMPTY_STR))
     }
 }
 
 impl From<serde_json::Error> for XError {
     fn from(e: serde_json::Error) -> Self {
-        XError::Json(MixedError::from_static(e, &EMPTY_ERROR))
+        XError::Json(MixedError::from_static(e, &EMPTY_STR))
     }
 }
 
 impl From<zip::result::ZipError> for XError {
     fn from(e: zip::result::ZipError) -> Self {
         let io_err: std::io::Error = e.into();
-        XError::Zip(MixedError::from_static(io_err, &EMPTY_ERROR))
+        XError::Zip(MixedError::from_static(io_err, &EMPTY_STR))
     }
 }
 
 impl From<JoltError> for XError {
     fn from(e: JoltError) -> Self {
-        XError::Jolt(MixedError::from_static(e, &EMPTY_ERROR))
+        XError::Jolt(MixedError::from_static(e, &EMPTY_STR))
     }
 }
 
 impl From<OzzError> for XError {
     fn from(e: OzzError) -> Self {
-        XError::Ozz(MixedError::from_static(e, &EMPTY_ERROR))
+        XError::Ozz(MixedError::from_static(e, &EMPTY_STR))
+    }
+}
+
+impl From<String> for XError {
+    fn from(s: String) -> Self {
+        XError::Custom(MixedError::from_dynamic((), &EMPTY_STR, s))
+    }
+}
+
+impl From<&str> for XError {
+    fn from(s: &str) -> Self {
+        XError::Custom(MixedError::from_dynamic((), &EMPTY_STR, s.to_string()))
     }
 }
 
 pub type XResult<T> = Result<T, XError>;
 
+#[macro_export]
 macro_rules! xpos {
     () => {
         &const_format::formatcp!("{}:{}", file!(), line!())
@@ -359,109 +382,103 @@ macro_rules! xpos {
         &const_format::formatcp!("{}:{}({})", file!(), line!(), $extra)
     };
 }
-pub(crate) use xpos;
+pub use xpos;
 
+#[macro_export]
 macro_rules! xerr {
     ($variant:ident) => {
-        crate::utils::XError::$variant(crate::utils::MixedError::from_static(
+        $crate::utils::XError::$variant($crate::utils::MixedError::from_static(
             (),
             &const_format::formatcp!("{}:{}", file!(), line!()),
         ))
     };
     ($variant:ident, $source:expr) => {
-        crate::utils::XError::$variant(crate::utils::MixedError::from_static(
+        $crate::utils::XError::$variant($crate::utils::MixedError::from_static(
             $source,
             &const_format::formatcp!("{}:{}", file!(), line!()),
         ))
     };
     ($variant:ident; $extra:expr) => {
-        crate::utils::XError::$variant(crate::utils::MixedError::from_static(
+        $crate::utils::XError::$variant($crate::utils::MixedError::from_static(
             (),
             &const_format::formatcp!("{}:{} ({})", file!(), line!(), $extra),
         ))
     };
     ($variant:ident, $source:expr; $extra:expr) => {
-        crate::utils::XError::$variant(crate::utils::MixedError::from_static(
+        $crate::utils::XError::$variant($crate::utils::MixedError::from_static(
             $source,
             &const_format::formatcp!("{}:{} ({})", file!(), line!(), $extra),
         ))
     };
 }
-pub(crate) use xerr;
+pub use xerr;
 
+#[macro_export]
 macro_rules! xerrf {
     ($variant:ident; $($args:tt)*) => {
-        crate::utils::XError::$variant(
-            crate::utils::MixedError::from_static(
+        $crate::utils::XError::$variant(
+            $crate::utils::MixedError::from_static(
                 (),
                 &const_format::formatcp!("{}:{}", file!(), line!())
             )
-        ).set_msg(format!($($args)*))
+        ).init_msg(format!($($args)*))
     };
     ($variant:ident, $source:expr; $($args:tt)*) => {
-        crate::utils::XError::$variant(
-            crate::utils::MixedError::from_static(
+        $crate::utils::XError::$variant(
+            $crate::utils::MixedError::from_static(
                 $source,
                 &const_format::formatcp!("{}:{}", file!(), line!())
             )
-        ).set_msg(format!($($args)*))
+        ).init_msg(format!($($args)*))
     };
 }
-pub(crate) use xerrf;
-
-macro_rules! xres {
-    ($variant:ident) => {
-        Err(crate::utils::xerr!($variant))
-    };
-    ($variant:ident, $source:expr) => {
-        Err(crate::utils::xerr!($variant, $source))
-    };
-    ($variant:ident; $extra:expr) => {
-        Err(crate::utils::xerr!($variant; $extra))
-    };
-    ($variant:ident, $source:expr; $extra:expr) => {
-        Err(crate::utils::xerr!($variant, $source; $extra))
-    };
-}
-pub(crate) use xres;
-
-macro_rules! xresf {
-    ($variant:ident; $($args:tt)*) => {
-        Err(crate::utils::xerrf!($variant; $($args)*))
-    };
-    ($variant:ident, $source:expr; $($args:tt)*) => {
-        Err(crate::utils::xerrf!($variant, $source; $($args)*))
-    };
-}
-pub(crate) use xresf;
-
-macro_rules! xfrom {
-    () => {
-        |e| crate::utils::XError::from(e).set_pos(crate::utils::xpos!())
-    };
-    ($extra:expr) => {
-        |e| crate::utils::XError::from(e).set_pos(crate::utils::xpos!($extra))
-    };
-}
-pub(crate) use xfrom;
-
-macro_rules! xfromf {
-    ($($args:tt)*) => {
-        |e| crate::utils::XError::from(e)
-            .set_pos(crate::utils::xpos!())
-            .set_msg(format!($($args)*))
-    };
-}
-pub(crate) use xfromf;
+pub use xerrf;
 
 #[macro_export]
-macro_rules! xerror {
-    ($variant:ident, $msg:expr) => {
-        cirtical_point_core::utils::XError::$variant(cirtical_point_core::utils::MixedError::from_dynamic(
-            (),
-            &const_format::formatcp!("{}:{}", file!(), line!()),
-            $msg.to_string(),
-        ))
+macro_rules! xres {
+    ($variant:ident) => {
+        Err($crate::utils::xerr!($variant))
+    };
+    ($variant:ident, $source:expr) => {
+        Err($crate::utils::xerr!($variant, $source))
+    };
+    ($variant:ident; $extra:expr) => {
+        Err($crate::utils::xerr!($variant; $extra))
+    };
+    ($variant:ident, $source:expr; $extra:expr) => {
+        Err($crate::utils::xerr!($variant, $source; $extra))
     };
 }
-pub use xerror;
+pub use xres;
+
+#[macro_export]
+macro_rules! xresf {
+    ($variant:ident; $($args:tt)*) => {
+        Err($crate::utils::xerrf!($variant; $($args)*))
+    };
+    ($variant:ident, $source:expr; $($args:tt)*) => {
+        Err($crate::utils::xerrf!($variant, $source; $($args)*))
+    };
+}
+pub use xresf;
+
+#[macro_export]
+macro_rules! xfrom {
+    () => {
+        |e| $crate::utils::XError::from(e).init_pos($crate::utils::xpos!())
+    };
+    ($extra:expr) => {
+        |e| $crate::utils::XError::from(e).init_pos($crate::utils::xpos!($extra))
+    };
+}
+pub use xfrom;
+
+#[macro_export]
+macro_rules! xfromf {
+    ($($args:tt)*) => {
+        |e| $crate::utils::XError::from(e)
+            .init_pos($crate::utils::xpos!())
+            .init_msg(format!($($args)*))
+    };
+}
+pub use xfromf;

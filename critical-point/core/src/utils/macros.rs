@@ -7,7 +7,8 @@ macro_rules! ifelse {
     ($c:expr, $a:expr, $b:expr) => {
         if $c {
             $a
-        } else {
+        }
+        else {
             $b
         }
     };
