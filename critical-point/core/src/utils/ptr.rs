@@ -37,7 +37,8 @@ impl<'t, TO: ?Sized + Any> Castable for &'t TO {
     fn cast<T: 'static>(self) -> XResult<&'t T> {
         if (*self).type_id() == TypeId::of::<T>() {
             Ok(unsafe { self.cast_unchecked() })
-        } else {
+        }
+        else {
             xres!(BadType; "invalid cast")
         }
     }
@@ -56,7 +57,8 @@ impl<'t, TO: ?Sized + Any> Castable for &'t mut TO {
     fn cast<T: 'static>(self) -> XResult<&'t mut T> {
         if (*self).type_id() == TypeId::of::<T>() {
             Ok(unsafe { self.cast_unchecked() })
-        } else {
+        }
+        else {
             xres!(BadType; "invalid cast")
         }
     }
@@ -75,7 +77,8 @@ impl<TO: ?Sized + Any> Castable for Box<TO> {
     fn cast<T: 'static>(self) -> XResult<Box<T>> {
         if (*self).type_id() == TypeId::of::<T>() {
             Ok(unsafe { self.cast_unchecked() })
-        } else {
+        }
+        else {
             xres!(BadType; "invalid cast")
         }
     }
@@ -94,7 +97,8 @@ impl<TO: ?Sized + Any> Castable for Rc<TO> {
     fn cast<T: 'static>(self) -> XResult<Rc<T>> {
         if (*self).type_id() == TypeId::of::<T>() {
             Ok(unsafe { self.cast_unchecked() })
-        } else {
+        }
+        else {
             xres!(BadType; "invalid cast")
         }
     }
@@ -113,7 +117,8 @@ impl<TO: ?Sized + Any> Castable for Arc<TO> {
     fn cast<T: 'static>(self) -> XResult<Arc<T>> {
         if (*self).type_id() == TypeId::of::<T>() {
             Ok(unsafe { self.cast_unchecked() })
-        } else {
+        }
+        else {
             xres!(BadType; "invalid cast")
         }
     }

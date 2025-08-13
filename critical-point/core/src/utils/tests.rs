@@ -74,7 +74,8 @@ impl<I: Iterator<Item = u32>> Iterator for FrameTicker<I> {
             self.time += SPF;
             tick.last = self.frame.is_none();
             Some(tick)
-        } else {
+        }
+        else {
             None
         }
     }
@@ -98,7 +99,8 @@ impl FrameTick {
             for _ in 0..frame {
                 time += SPF;
             }
-        } else {
+        }
+        else {
             for _ in frame..0 {
                 time -= SPF;
             }
