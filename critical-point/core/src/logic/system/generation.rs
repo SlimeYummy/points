@@ -45,7 +45,8 @@ impl SystemGeneration {
         while let Some((fr, id)) = self.history.back() {
             if *fr > frame {
                 self.history.pop_back();
-            } else {
+            }
+            else {
                 self.counter = *id;
                 break;
             }
@@ -56,7 +57,8 @@ impl SystemGeneration {
         while let Some((fr, _)) = self.history.front() {
             if *fr <= frame {
                 self.history.pop_front();
-            } else {
+            }
+            else {
                 break;
             }
         }

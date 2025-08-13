@@ -38,9 +38,8 @@ impl ScriptExecutor {
         hook_typ: ScriptBlockType,
         context: &mut C,
     ) -> XResult<()> {
-        let hook_block = match blocks.hook(hook_typ) {
-            Some(block) => block,
-            None => return xres!(ScriptNoHook),
+        let Some(hook_block) = blocks.hook(hook_typ) else {
+            return xres!(ScriptNoHook)
         };
 
         self.num_segs.set_segment(SEGMENT_CLOSURE, context.closure_segment());

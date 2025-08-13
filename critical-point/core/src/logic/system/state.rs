@@ -1,5 +1,4 @@
 use cirtical_point_csgen::CsOut;
-use log::debug;
 use std::collections::{vec_deque, VecDeque};
 use std::ops::{Index, RangeBounds};
 use std::sync::Arc;
@@ -20,7 +19,7 @@ pub struct StateSet {
 #[cfg(feature = "debug-print")]
 impl Drop for StateSet {
     fn drop(&mut self) {
-        debug!("StateSet::drop() frame={}", self.frame);
+        log::debug!("StateSet::drop() frame={}", self.frame);
     }
 }
 
@@ -103,11 +102,12 @@ impl SystemState {
         while let Some(state) = self.state_sets.front() {
             if state.frame < synced_frame {
                 let state_set = self.state_sets.pop_front();
-                assert!(state_set.is_some());
+                debug_assert!(state_set.is_some());
                 if let Some(state_set) = state_set {
                     outs.push(state_set);
                 }
-            } else {
+            }
+            else {
                 break;
             }
         }
@@ -122,7 +122,8 @@ impl SystemState {
         while let Some(state) = self.state_sets.back() {
             if state.frame > frame {
                 self.state_sets.pop_front();
-            } else {
+            }
+            else {
                 break;
             }
         }

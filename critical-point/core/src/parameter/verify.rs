@@ -59,7 +59,8 @@ fn verify_equipments(ctx: &mut ContextVerify<'_>, param: &ParamPlayer) -> XResul
 
         if equipments.contains(&Some(equipment.slot)) {
             return xresf!(BadParameter; "equipment.id={}, slot={:?}", equipment.id, equipment.slot);
-        } else {
+        }
+        else {
             equipments[idx] = Some(equipment.slot);
         }
 
@@ -89,9 +90,8 @@ fn verify_perks(ctx: &mut ContextVerify<'_>, param: &ParamPlayer) -> XResult<Jew
             return xresf!(BadParameter; "perk.id={}, level={}", perk.id, level);
         }
 
-        match perk.slots.get(*level as usize - 1) {
-            Some(slot) => slots.append(&slot),
-            None => return xresf!(BadParameter; "perk.id={}, level={}", perk.id, level),
+        if let Some(slot) = perk.slots.get(*level as usize - 1) {
+            slots.append(&slot);
         }
     }
     Ok(slots)
@@ -255,7 +255,7 @@ mod tests {
             ParamAccessory {
                 id: id!("Accessory.AttackUp/1"),
                 level: 1,
-                entries: vec![id!("Entry.DefenseUp")],
+                entries: vec![id!("Entry.DefenseUp")]
             };
             5
         ];
