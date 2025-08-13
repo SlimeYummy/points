@@ -1,6 +1,7 @@
 use approx::abs_diff_ne;
 use cirtical_point_csgen::CsIn;
 use glam::{Vec2, Vec2Swizzles, Vec3A};
+use glam_ext::Vec2xz;
 use std::cell::RefCell;
 use std::collections::{vec_deque, VecDeque};
 use std::f32::consts::{FRAC_PI_2, PI};
@@ -147,6 +148,9 @@ impl SystemInput {
 
     // Returns the frame which the game should restore to.
     pub fn produce(&mut self, player_events: &[InputPlayerEvents]) -> XResult<u32> {
+        if player_events.is_empty() {
+            return xres!(BadArgument; "empty events");
+        }
         let base_frame = player_events.iter().map(|e| e.frame.wrapping_sub(1)).min().unwrap_or(0);
 
         for events in player_events {
@@ -203,7 +207,7 @@ impl SystemInput {
 pub struct InputMoveState {
     pub moving: bool,
     pub slow: bool,
-    pub direction: Vec2, // device direction
+    pub direction: Vec2, // device direction, in 2d croodinate, W:+Y S:-Y A:-X S:+X
 }
 
 impl InputMoveState {
@@ -221,7 +225,8 @@ impl InputMoveState {
                 slow: direction.length_squared() < 0.25,
                 direction: direction.normalize(),
             }
-        } else {
+        }
+        else {
             InputMoveState {
                 moving: false,
                 slow: false,
@@ -229,9 +234,29 @@ impl InputMoveState {
             }
         }
     }
+}
 
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+pub struct WorldMoveState {
+    pub moving: bool,
+    pub slow: bool,
+    pub direction: Vec2xz, // world direction, in XZ plane
+}
+
+impl WorldMoveState {
     #[inline]
-    pub fn move_dir(&self) -> Option<Vec2> {
+    pub fn move_dir(&self) -> Option<Vec2xz> {
         match self.moving {
             true => Some(self.direction),
             false => None,
@@ -252,7 +277,7 @@ impl InputMoveState {
 )]
 pub struct InputVariables {
     pub view_rads: Vec2,
-    pub view_dir_2d: Vec2,
+    pub view_dir_2d: Vec2xz,
     pub view_dir_3d: Vec3A,
     pub device_move: InputMoveState,
     pub optimized_device_move: InputMoveState,
@@ -283,13 +308,14 @@ impl InputVariables {
         self.optimized_device_move
     }
 
-    pub fn world_move(&self) -> InputMoveState {
+    pub fn world_move(&self) -> WorldMoveState {
         if !self.device_move.moving {
-            InputMoveState::EMPTY
-        } else {
-            let angle = self.device_move.direction.yx(); // Adjust angle dir, +Y -> 0°
+            WorldMoveState::default()
+        }
+        else {
+            let angle = Vec2xz::from_vec2(self.device_move.direction.yx()); // Adjust angle dir, +Y -> 0°
             let direction = angle.rotate(self.view_dir_2d);
-            InputMoveState {
+            WorldMoveState {
                 moving: true,
                 slow: self.device_move.slow,
                 direction,
@@ -297,13 +323,14 @@ impl InputVariables {
         }
     }
 
-    pub fn optimized_world_move(&self) -> InputMoveState {
+    pub fn optimized_world_move(&self) -> WorldMoveState {
         if !self.optimized_device_move.moving {
-            self.optimized_device_move
-        } else {
-            let angle = self.optimized_device_move.direction.yx(); // Adjust angle dir, +Y -> 0°
+            WorldMoveState::default()
+        }
+        else {
+            let angle = Vec2xz::from_vec2(self.optimized_device_move.direction.yx()); // Adjust angle dir, +Y -> 0°
             let direction = angle.rotate(self.view_dir_2d);
-            InputMoveState {
+            WorldMoveState {
                 moving: true,
                 slow: self.optimized_device_move.slow,
                 direction,
@@ -420,31 +447,32 @@ impl InputEventQueue {
             // View
             if event.key == RawKey::View {
                 self.variables.view_rads = Vec2::new(event.motion.x % (2.0 * PI), event.motion.y % FRAC_PI_2);
-                self.variables.view_dir_2d = Vec2::from_angle(event.motion.x);
+                self.variables.view_dir_2d = Vec2xz::from_angle(event.motion.x);
                 let cos_x = self.variables.view_dir_2d.x;
-                let sin_x = self.variables.view_dir_2d.y;
+                let sin_x = self.variables.view_dir_2d.z;
                 let (sin_y, cos_y) = libm::sincosf(self.variables.view_rads.y);
                 self.variables.view_dir_3d = Vec3A::new(cos_y * cos_x, sin_y, cos_y * sin_x);
-
+            }
             // Move
-            } else if event.key == RawKey::Move {
+            else if event.key == RawKey::Move {
                 if event.pressed {
                     self.variables.device_move = InputMoveState::new(event.motion);
                     self.variables.optimized_device_move = self.variables.device_move;
-                } else {
-                    self.variables.device_move = InputMoveState::default();
+                }
+                else {
+                    self.variables.device_move = InputMoveState::EMPTY;
                     // Ignore Up event, if a Down-Up pair is the last operation.
                     let ignore = (n == events.len() - 1)
                         && (n >= 1)
                         && events[n - 1].key == RawKey::Move
                         && events[n - 1].pressed;
                     if !ignore {
-                        self.variables.optimized_device_move = InputMoveState::default();
+                        self.variables.optimized_device_move = InputMoveState::EMPTY;
                     }
                 }
-
+            }
             // Other events
-            } else {
+            else {
                 self.events.push_back(VirtualEvent::new_ex(
                     self.id_counter,
                     current_frame,
@@ -484,7 +512,7 @@ impl InputEventQueue {
 
         for frame in self.base_frame..base_frame {
             let meta = self.metas.pop_front();
-            assert!(meta.map(|m| m.frame == frame) == Some(true));
+            debug_assert!(meta.map(|m| m.frame == frame) == Some(true));
         }
 
         let new_base_id = match self.metas.front() {
@@ -493,9 +521,10 @@ impl InputEventQueue {
         };
         while let Some(event) = self.events.front() {
             if event.id < new_base_id {
-                assert!(event.frame >= self.base_frame && event.frame < base_frame);
+                debug_assert!(event.frame >= self.base_frame && event.frame < base_frame);
                 self.events.pop_front();
-            } else {
+            }
+            else {
                 break;
             }
         }
@@ -527,20 +556,23 @@ impl InputEventQueue {
 
         let end_id = if frame > self.current_frame {
             current_meta.end_next_event_id
-        } else {
+        }
+        else {
             current_meta.start_event_id
         };
 
         let mut start_id;
         if let Some(window_start_meta) = self.index_meta(frame.wrapping_sub(self.input_window)) {
             start_id = window_start_meta.start_event_id
-        } else if frame < self.base_frame + self.input_window {
+        }
+        else if frame < self.base_frame + self.input_window {
             // frame - input_window < base_frame
             start_id = match self.metas.front() {
                 Some(meta) => meta.start_event_id,
                 None => FIRST_EVENT_ID,
             };
-        } else {
+        }
+        else {
             // frame - input_window > current_frame
             return Ok(self.events.range(0..0));
         };
@@ -624,15 +656,12 @@ mod tests {
 
         iq.produce(1, &[]).unwrap();
         assert_eq!(iq.current_frame, 1);
-        assert_eq!(
-            iq.metas,
-            vec![InputFrameMeta {
-                frame: 1,
-                start_event_id: 1,
-                end_next_event_id: 1,
-                variables: InputVariables::EMPTY
-            }]
-        );
+        assert_eq!(iq.metas, vec![InputFrameMeta {
+            frame: 1,
+            start_event_id: 1,
+            end_next_event_id: 1,
+            variables: InputVariables::EMPTY
+        }]);
         assert!(iq.iter_current(0).is_err());
         assert_eq!(iq.iter_current(1).unwrap().count(), 0);
         assert_eq!(iq.iter_current(100).unwrap().count(), 0);
@@ -673,17 +702,17 @@ mod tests {
         assert_eq!(collect_xend_event_id(&iq), vec![3]);
         assert!(iq.iter_current(0).is_err());
 
-        assert_eq!(
-            iq.iter_current(1).unwrap().collect::<Vec<_>>(),
-            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
-        );
+        assert_eq!(iq.iter_current(1).unwrap().collect::<Vec<_>>(), vec![
+            &evt(1, 1, a1_down),
+            &evt(2, 1, a1_up)
+        ]);
         assert_eq!(iq.iter_preinput(1, 0).unwrap().count(), 0);
 
         assert_eq!(iq.iter_current(2).unwrap().count(), 0);
-        assert_eq!(
-            iq.iter_preinput(2, 0).unwrap().collect::<Vec<_>>(),
-            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
-        );
+        assert_eq!(iq.iter_preinput(2, 0).unwrap().collect::<Vec<_>>(), vec![
+            &evt(1, 1, a1_down),
+            &evt(2, 1, a1_up)
+        ]);
 
         assert_eq!(iq.iter_current(4).unwrap().count(), 0);
         assert_eq!(iq.iter_preinput(4, 0).unwrap().count(), 2);
@@ -703,26 +732,24 @@ mod tests {
         assert_eq!(collect_xend_event_id(&iq), vec![3, 3, 4]);
         assert!(iq.iter_current(0).is_err());
 
-        assert_eq!(
-            iq.iter_current(1).unwrap().collect::<Vec<_>>(),
-            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
-        );
+        assert_eq!(iq.iter_current(1).unwrap().collect::<Vec<_>>(), vec![
+            &evt(1, 1, a1_down),
+            &evt(2, 1, a1_up)
+        ]);
         assert_eq!(iq.iter_preinput(1, 0).unwrap().count(), 0);
 
-        assert_eq!(
-            iq.iter_current(3).unwrap().collect::<Vec<_>>(),
-            vec![&evt(3, 3, a2_down)]
-        );
-        assert_eq!(
-            iq.iter_preinput(3, 0).unwrap().collect::<Vec<_>>(),
-            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
-        );
+        assert_eq!(iq.iter_current(3).unwrap().collect::<Vec<_>>(), vec![&evt(
+            3, 3, a2_down
+        )]);
+        assert_eq!(iq.iter_preinput(3, 0).unwrap().collect::<Vec<_>>(), vec![
+            &evt(1, 1, a1_down),
+            &evt(2, 1, a1_up)
+        ]);
 
         assert_eq!(iq.iter_current(5).unwrap().count(), 0);
-        assert_eq!(
-            iq.iter_preinput(5, 0).unwrap().collect::<Vec<_>>(),
-            vec![&evt(3, 3, a2_down)]
-        );
+        assert_eq!(iq.iter_preinput(5, 0).unwrap().collect::<Vec<_>>(), vec![&evt(
+            3, 3, a2_down
+        )]);
 
         assert_eq!(iq.iter_preinput(7, 0).unwrap().count(), 0);
 
@@ -734,29 +761,28 @@ mod tests {
         assert_eq!(collect_start_event_id(&iq), vec![1, 3, 3, 4, 5, 5]);
         assert_eq!(collect_xend_event_id(&iq), vec![3, 3, 4, 5, 5, 7]);
 
-        assert_eq!(
-            iq.iter_current(1).unwrap().collect::<Vec<_>>(),
-            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
-        );
+        assert_eq!(iq.iter_current(1).unwrap().collect::<Vec<_>>(), vec![
+            &evt(1, 1, a1_down),
+            &evt(2, 1, a1_up)
+        ]);
         assert_eq!(iq.iter_preinput(1, 0).unwrap().count(), 0);
 
-        assert_eq!(
-            iq.iter_current(3).unwrap().collect::<Vec<_>>(),
-            vec![&evt(3, 3, a2_down)]
-        );
-        assert_eq!(
-            iq.iter_preinput(3, 0).unwrap().collect::<Vec<_>>(),
-            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up)]
-        );
+        assert_eq!(iq.iter_current(3).unwrap().collect::<Vec<_>>(), vec![&evt(
+            3, 3, a2_down
+        )]);
+        assert_eq!(iq.iter_preinput(3, 0).unwrap().collect::<Vec<_>>(), vec![
+            &evt(1, 1, a1_down),
+            &evt(2, 1, a1_up)
+        ]);
 
-        assert_eq!(
-            iq.iter_current(6).unwrap().collect::<Vec<_>>(),
-            vec![&evt(5, 6, s1_down), &evt(6, 6, s1_up)]
-        );
-        assert_eq!(
-            iq.iter_preinput(6, 0).unwrap().collect::<Vec<_>>(),
-            vec![&evt(3, 3, a2_down), &evt(4, 4, a2_up)]
-        );
+        assert_eq!(iq.iter_current(6).unwrap().collect::<Vec<_>>(), vec![
+            &evt(5, 6, s1_down),
+            &evt(6, 6, s1_up)
+        ]);
+        assert_eq!(iq.iter_preinput(6, 0).unwrap().collect::<Vec<_>>(), vec![
+            &evt(3, 3, a2_down),
+            &evt(4, 4, a2_up)
+        ]);
         assert_eq!(iq.iter_preinput(6, 3).unwrap().count(), 2);
         assert_eq!(iq.iter_preinput(6, 4).unwrap().count(), 1);
         assert_eq!(iq.iter_preinput(6, 5).unwrap().count(), 0);
@@ -787,17 +813,17 @@ mod tests {
         assert_eq!(collect_xend_event_id(&iq), vec![3]);
         assert!(iq.iter_current(0).is_err());
 
-        assert_eq!(
-            iq.iter_current(1).unwrap().collect::<Vec<_>>(),
-            vec![&evt(1, 1, s1_down), &evt(2, 1, s1_up)]
-        );
+        assert_eq!(iq.iter_current(1).unwrap().collect::<Vec<_>>(), vec![
+            &evt(1, 1, s1_down),
+            &evt(2, 1, s1_up)
+        ]);
         assert_eq!(iq.iter_preinput(1, 0).unwrap().count(), 0);
 
         assert_eq!(iq.iter_current(2).unwrap().count(), 0);
-        assert_eq!(
-            iq.iter_preinput(2, 0).unwrap().collect::<Vec<_>>(),
-            vec![&evt(1, 1, s1_down), &evt(2, 1, s1_up)]
-        );
+        assert_eq!(iq.iter_preinput(2, 0).unwrap().collect::<Vec<_>>(), vec![
+            &evt(1, 1, s1_down),
+            &evt(2, 1, s1_up)
+        ]);
 
         assert_eq!(iq.iter_current(4).unwrap().count(), 0);
         assert_eq!(iq.iter_preinput(4, 0).unwrap().count(), 2);
@@ -830,10 +856,11 @@ mod tests {
         assert_eq!(collect_xend_event_id(&iq), vec![4, 6, 6, 6]);
 
         assert_eq!(iq.iter_current(4).unwrap().count(), 0);
-        assert_eq!(
-            iq.iter_preinput(4, 0).unwrap().collect::<Vec<_>>(),
-            vec![&evt(3, 2, s2_down), &evt(4, 3, s2_down), &evt(5, 3, aim)]
-        );
+        assert_eq!(iq.iter_preinput(4, 0).unwrap().collect::<Vec<_>>(), vec![
+            &evt(3, 2, s2_down),
+            &evt(4, 3, s2_down),
+            &evt(5, 3, aim)
+        ]);
         assert_eq!(iq.iter_preinput(6, 0).unwrap().count(), 2);
 
         // produce=7
@@ -848,19 +875,18 @@ mod tests {
         assert_eq!(collect_xend_event_id(&iq), vec![6, 6, 6, 7, 9]);
 
         assert_eq!(iq.iter_current(6).unwrap().collect::<Vec<_>>(), vec![&evt(6, 6, shoot)]);
-        assert_eq!(
-            iq.iter_preinput(6, 0).unwrap().collect::<Vec<_>>(),
-            vec![&evt(4, 3, s2_down), &evt(5, 3, aim)]
-        );
+        assert_eq!(iq.iter_preinput(6, 0).unwrap().collect::<Vec<_>>(), vec![
+            &evt(4, 3, s2_down),
+            &evt(5, 3, aim)
+        ]);
 
-        assert_eq!(
-            iq.iter_current(7).unwrap().collect::<Vec<_>>(),
-            vec![&evt(7, 7, s2_down), &evt(8, 7, s2_up)]
-        );
-        assert_eq!(
-            iq.iter_preinput(7, 0).unwrap().collect::<Vec<_>>(),
-            vec![&evt(6, 6, shoot)]
-        );
+        assert_eq!(iq.iter_current(7).unwrap().collect::<Vec<_>>(), vec![
+            &evt(7, 7, s2_down),
+            &evt(8, 7, s2_up)
+        ]);
+        assert_eq!(iq.iter_preinput(7, 0).unwrap().collect::<Vec<_>>(), vec![&evt(
+            6, 6, shoot
+        )]);
 
         assert_eq!(iq.iter_current(10).unwrap().count(), 0);
         assert_eq!(iq.iter_preinput(10, 0).unwrap().count(), 2);
@@ -882,43 +908,37 @@ mod tests {
         let s1_up = RawEvent::new_button(RawKey::Skill1, false);
 
         let mut iq = InputEventQueue::new(0, 3);
-        iq.produce(
-            1,
-            &[
-                a5_down,
-                RawEvent::new_view(Vec2::new(PI, 0.0)),
-                RawEvent::new_move(Vec2::new(0.0, -1.0)),
-                a5_up,
-                RawEvent::new_move(Vec2::new(0.0, 0.0)),
-                a1_down,
-            ],
-        )
+        iq.produce(1, &[
+            a5_down,
+            RawEvent::new_view(Vec2::new(PI, 0.0)),
+            RawEvent::new_move(Vec2::new(0.0, -1.0)),
+            a5_up,
+            RawEvent::new_move(Vec2::new(0.0, 0.0)),
+            a1_down,
+        ])
         .unwrap();
         let events = iq.iter_current(1).unwrap().collect::<Vec<_>>();
         assert_eq!(events.len(), 3);
         assert_eq!(events[0].key, VirtualKey::Attack5);
-        assert_ulps_eq!(events[0].view_dir_2d, Vec2::NEG_Y);
+        assert_ulps_eq!(events[0].view_dir_2d, Vec2xz::NEG_Z);
         assert_ulps_eq!(events[0].view_dir_3d, Vec3A::NEG_Z);
-        assert_ulps_eq!(events[0].world_move_dir, Vec2::ZERO);
+        assert_ulps_eq!(events[0].world_move_dir, Vec2xz::ZERO);
         assert_eq!(events[1].key, VirtualKey::Attack5);
-        assert_ulps_eq!(events[1].view_dir_2d, Vec2::NEG_X);
+        assert_ulps_eq!(events[1].view_dir_2d, Vec2xz::NEG_X);
         assert_ulps_eq!(events[1].view_dir_3d, Vec3A::NEG_X);
-        assert_ulps_eq!(events[1].world_move_dir, Vec2::X);
+        assert_ulps_eq!(events[1].world_move_dir, Vec2xz::X);
         assert_eq!(events[2].key, VirtualKey::Attack1);
-        assert_ulps_eq!(events[2].view_dir_2d, Vec2::NEG_X);
+        assert_ulps_eq!(events[2].view_dir_2d, Vec2xz::NEG_X);
         assert_ulps_eq!(events[2].view_dir_3d, Vec3A::NEG_X);
-        assert_ulps_eq!(events[2].world_move_dir, Vec2::ZERO);
+        assert_ulps_eq!(events[2].world_move_dir, Vec2xz::ZERO);
         assert_eq!(iq.variables.view_rads, Vec2::new(PI, 0.0));
         assert_eq!(iq.variables.device_move, InputMoveState::new(Vec2::ZERO));
         assert_eq!(iq.variables.optimized_device_move, InputMoveState::new(Vec2::ZERO));
 
-        iq.produce(
-            2,
-            &[
-                RawEvent::new_move(Vec2::new(1.0, 0.0)),
-                RawEvent::new_move(Vec2::new(0.0, 0.0)),
-            ],
-        )
+        iq.produce(2, &[
+            RawEvent::new_move(Vec2::new(1.0, 0.0)),
+            RawEvent::new_move(Vec2::new(0.0, 0.0)),
+        ])
         .unwrap();
         assert_eq!(iq.iter_current(2).unwrap().count(), 0);
         assert_eq!(iq.variables.view_rads, Vec2::new(PI, 0.0));
@@ -932,14 +952,11 @@ mod tests {
         assert_eq!(iq.variables.device_move, InputMoveState::new(Vec2::ZERO));
         assert_eq!(iq.variables.optimized_device_move, InputMoveState::new(Vec2::ZERO));
 
-        iq.produce(
-            4,
-            &[
-                RawEvent::new_move(Vec2::new(0.3, 0.3)),
-                RawEvent::new_view(Vec2::new(0.0, PI / 4.0)),
-                a1_up,
-            ],
-        )
+        iq.produce(4, &[
+            RawEvent::new_move(Vec2::new(0.3, 0.3)),
+            RawEvent::new_view(Vec2::new(0.0, PI / 4.0)),
+            a1_up,
+        ])
         .unwrap();
         assert_eq!(iq.variables.view_rads, Vec2::new(0.0, PI / 4.0));
         assert_eq!(iq.variables.device_move, InputMoveState::new(Vec2::new(0.3, 0.3)));
@@ -950,21 +967,21 @@ mod tests {
         let events = iq.iter_current(4).unwrap().collect::<Vec<_>>();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].key, VirtualKey::Attack1);
-        assert_ulps_eq!(events[0].view_dir_2d, Vec2::X);
+        assert_ulps_eq!(events[0].view_dir_2d, Vec2xz::X);
         assert_ulps_eq!(events[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
-        assert_ulps_eq!(events[0].world_move_dir, Vec2::new(1.0, 1.0).normalize());
+        assert_ulps_eq!(events[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
 
         iq.produce(5, &[s1_down, s1_up]).unwrap();
         let events = iq.iter_current(5).unwrap().collect::<Vec<_>>();
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].key, VirtualKey::Skill1);
-        assert_ulps_eq!(events[0].view_dir_2d, Vec2::X);
+        assert_ulps_eq!(events[0].view_dir_2d, Vec2xz::X);
         assert_ulps_eq!(events[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
-        assert_ulps_eq!(events[0].world_move_dir, Vec2::new(1.0, 1.0).normalize());
+        assert_ulps_eq!(events[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
         assert_eq!(events[1].key, VirtualKey::Skill1);
-        assert_ulps_eq!(events[0].view_dir_2d, Vec2::X);
+        assert_ulps_eq!(events[0].view_dir_2d, Vec2xz::X);
         assert_ulps_eq!(events[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
-        assert_ulps_eq!(events[0].world_move_dir, Vec2::new(1.0, 1.0).normalize());
+        assert_ulps_eq!(events[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
     }
 
     #[test]
@@ -997,10 +1014,10 @@ mod tests {
         si.confirm().unwrap();
         assert_eq!(si.synced_frame(), 0);
         assert_eq!(si.unsynced_frame(), 1);
-        assert_eq!(
-            player0.borrow().iter_current(1).unwrap().collect::<Vec<_>>(),
-            vec![&evt(1, 1, a1_down), &evt(2, 1, a1_up),]
-        );
+        assert_eq!(player0.borrow().iter_current(1).unwrap().collect::<Vec<_>>(), vec![
+            &evt(1, 1, a1_down),
+            &evt(2, 1, a1_up),
+        ]);
         assert_eq!(player0.borrow().iter_preinput(1, 0).unwrap().count(), 0);
         assert_eq!(player1.borrow().iter_current(1).unwrap().count(), 0);
         assert_eq!(player1.borrow().iter_preinput(1, 0).unwrap().count(), 0);
@@ -1017,10 +1034,9 @@ mod tests {
         assert_eq!(si.unsynced_frame(), 2);
         assert_eq!(player0.borrow().iter_current(1).unwrap().count(), 2);
         assert_eq!(player0.borrow().iter_preinput(1, 0).unwrap().count(), 0);
-        assert_eq!(
-            player1.borrow().iter_current(1).unwrap().collect::<Vec<_>>(),
-            vec![&evt(1, 1, s1_down)]
-        );
+        assert_eq!(player1.borrow().iter_current(1).unwrap().collect::<Vec<_>>(), vec![
+            &evt(1, 1, s1_down)
+        ]);
         assert_eq!(player1.borrow().iter_preinput(1, 0).unwrap().count(), 0);
 
         // p1=3, p2=1
@@ -1064,46 +1080,41 @@ mod tests {
     #[test]
     fn test_input_variables() {
         let mut iv = InputVariables::default();
+        assert_eq!(iv.view_dir_2d, DEFAULT_VIEW_DIR_2D);
         assert_eq!(iv.device_move(), InputMoveState::new(Vec2::ZERO));
         assert_eq!(iv.optimized_device_move(), InputMoveState::new(Vec2::ZERO));
 
         iv.device_move.moving = true;
         iv.device_move.direction = Vec2::Y;
-        assert_eq!(
-            iv.world_move(),
-            InputMoveState {
-                moving: true,
-                slow: false,
-                direction: Vec2::NEG_Y,
-            }
-        );
+        assert_eq!(iv.world_move(), WorldMoveState {
+            moving: true,
+            slow: false,
+            direction: Vec2xz::NEG_Z
+        });
         iv.device_move.direction = Vec2::NEG_Y;
-        assert_eq!(iv.world_move().direction, Vec2::Y);
+        assert_eq!(iv.world_move().direction, Vec2xz::Z);
         iv.device_move.direction = Vec2::X;
-        assert_eq!(iv.world_move().direction, Vec2::X);
+        assert_eq!(iv.world_move().direction, Vec2xz::X);
         iv.device_move.direction = Vec2::NEG_X;
-        assert_eq!(iv.world_move().direction, Vec2::NEG_X);
+        assert_eq!(iv.world_move().direction, Vec2xz::NEG_X);
         iv.device_move.direction = Vec2::new(1.0, 1.0).normalize();
-        assert_eq!(iv.world_move().direction, Vec2::new(1.0, -1.0).normalize());
+        assert_eq!(iv.world_move().direction, Vec2xz::new(1.0, -1.0).normalize());
         iv.device_move.direction = Vec2::new(-1.0, 1.0).normalize();
-        assert_eq!(iv.world_move().direction, Vec2::new(-1.0, -1.0).normalize());
+        assert_eq!(iv.world_move().direction, Vec2xz::new(-1.0, -1.0).normalize());
 
-        iv.view_dir_2d = Vec2::X;
+        iv.view_dir_2d = Vec2xz::X;
         iv.optimized_device_move.moving = true;
         iv.optimized_device_move.direction = Vec2::Y;
-        assert_eq!(
-            iv.optimized_world_move(),
-            InputMoveState {
-                moving: true,
-                slow: false,
-                direction: Vec2::X,
-            }
-        );
+        assert_eq!(iv.optimized_world_move(), WorldMoveState {
+            moving: true,
+            slow: false,
+            direction: Vec2xz::X
+        });
         iv.optimized_device_move.direction = Vec2::NEG_Y;
-        assert_eq!(iv.optimized_world_move().direction, Vec2::NEG_X);
+        assert_eq!(iv.optimized_world_move().direction, Vec2xz::NEG_X);
         iv.optimized_device_move.direction = Vec2::X;
-        assert_eq!(iv.optimized_world_move().direction, Vec2::Y);
+        assert_eq!(iv.optimized_world_move().direction, Vec2xz::Z);
         iv.optimized_device_move.direction = Vec2::NEG_X;
-        assert_eq!(iv.optimized_world_move().direction, Vec2::NEG_Y);
+        assert_eq!(iv.optimized_world_move().direction, Vec2xz::NEG_Z);
     }
 }

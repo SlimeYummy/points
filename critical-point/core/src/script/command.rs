@@ -335,9 +335,8 @@ const _: () = {
             let buf_len = decoded_len_estimate(b64.len());
             let mut code = Vec::<u16>::with_capacity((buf_len + 1) / 2);
             let raw = unsafe { slice::from_raw_parts_mut(code.as_mut_ptr() as *mut u8, buf_len) };
-            let real_len = match b64_engine.decode_slice(b64, raw) {
-                Ok(real_len) => real_len,
-                Err(err) => return Err(E::custom(format!("Decode base64 {:?}", err))),
+            let Ok(real_len) = b64_engine.decode_slice(b64, raw) else {
+                return Err(E::custom(format!("Decode base64 {:?}", err)));
             };
             unsafe { code.set_len((real_len + 1) / 2) };
             Ok(ScriptByteCode(code))

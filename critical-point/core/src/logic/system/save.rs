@@ -87,6 +87,8 @@ impl Drop for SystemSave {
             let _ = self.sender.send(SaveMessage::Exit(false));
             self.thread = None;
         }
+        #[cfg(feature = "debug-print")]
+        log::debug!("SystemSave::drop()");
     }
 }
 
@@ -236,6 +238,7 @@ impl SaveThread {
         self.input_index_file.flush()?;
         self.input_index_file.seek(SeekFrom::Current(-1))?;
 
+        // log::debug!("Save input frame({}) size({})", players.frame, data_buf.len());
         Ok(())
     }
 
@@ -272,6 +275,8 @@ impl SaveThread {
         self.state_index_file.write(tail_json.as_bytes())?;
         self.state_index_file.flush()?;
         self.state_index_file.seek(SeekFrom::Start(index_pos))?;
+
+        // log::debug!("Save state frame({}) size({})", state_set.frame, update_buf.len());
         Ok(())
     }
 
