@@ -1,6 +1,6 @@
 use approx::abs_diff_ne;
 use cirtical_point_csgen::CsOut;
-use glam::{Quat, Vec3A};
+use glam::{Quat, Vec3A, Vec3Swizzles};
 use std::fmt::Debug;
 use std::rc::Rc;
 
@@ -9,12 +9,12 @@ use crate::logic::action::base::{
     impl_state_action, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase, StateActionAnimation,
     StateActionAny, StateActionBase, StateActionType,
 };
+use crate::logic::action::root_motion::{LogicRootMotion, StateRootMotion};
+use crate::logic::action::DeriveKeeping;
 use crate::logic::game::ContextUpdate;
+use crate::ratio_saturating;
 use crate::template::TmplType;
 use crate::utils::{dir_xz_from_quat, extend, strict_lt, xresf, Castable, XResult, LEVEL_IDLE};
-
-use super::root_motion::{LogicRootMotion, StateRootMotion};
-use super::DeriveKeeping;
 
 #[repr(C)]
 #[derive(
@@ -24,8 +24,8 @@ use super::DeriveKeeping;
 #[cs_attr(Ref)]
 pub struct StateActionGeneral {
     pub _base: StateActionBase,
-    pub current_time: f32,
     pub root_motion: StateRootMotion,
+    pub current_time: f32,
 }
 
 extend!(StateActionGeneral, StateActionBase);
@@ -36,17 +36,16 @@ impl_state_action!(StateActionGeneral, ActionGeneral, General, "General");
 pub(crate) struct LogicActionGeneral {
     _base: LogicActionBase,
     inst: Rc<InstActionGeneral>,
+    root_motion: LogicRootMotion,
     current_time: f32,
     start_rotation: Quat,
     distance_ratio: f32,
-    root_motion: LogicRootMotion,
 }
 
 extend!(LogicActionGeneral, LogicActionBase);
 
 impl LogicActionGeneral {
     pub fn new(ctx: &mut ContextUpdate<'_>, inst_act: Rc<InstActionGeneral>) -> XResult<LogicActionGeneral> {
-        let track = ctx.asset.load_root_motion(&inst_act.anim_main.files)?;
         Ok(LogicActionGeneral {
             _base: LogicActionBase {
                 derive_level: *inst_act.derive_levels.value_by_time(0.0).unwrap_or(&LEVEL_IDLE),
@@ -57,10 +56,10 @@ impl LogicActionGeneral {
                 ..LogicActionBase::new(ctx.gene.gen_id(), inst_act.clone())
             },
             inst: inst_act.clone(),
+            root_motion: LogicRootMotion::new(ctx, &inst_act.anim_main, 0.0)?,
             current_time: 0.0,
             start_rotation: Quat::IDENTITY,
             distance_ratio: 1.0,
-            root_motion: LogicRootMotion::new(track, false, inst_act.anim_main.root_max_distance)?,
         })
     }
 }
@@ -83,19 +82,24 @@ unsafe impl LogicActionAny for LogicActionGeneral {
         let state = state.cast::<StateActionGeneral>()?;
 
         self._base.restore(&state._base);
-        self.current_time = state.current_time;
         self.root_motion.restore(&state.root_motion);
+        self.current_time = state.current_time;
         Ok(())
     }
 
     fn start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
         self._base.start(ctx, ctxa)?;
-        self.current_time = -ctxa.time_step;
+        self.current_time = 0.0;
         self.start_rotation = ctxa.chara_physics.rotation_y();
+
+        self.fade_in_weight = self.inst.anim_main.fade_in_weight(self.fade_in_weight, ctxa.time_step);
+
+        let distance_xz = self.root_motion.track().whole_position().xz().length();
         if ctxa.input_vars.optimized_world_move().moving {
-            self.distance_ratio = self.inst.motion_distance_ratio[1];
-        } else {
-            self.distance_ratio = self.inst.motion_distance_ratio[0];
+            self.distance_ratio = self.inst.motion_distance[1] / distance_xz;
+        }
+        else {
+            self.distance_ratio = self.inst.motion_distance[0] / distance_xz;
         }
         Ok(())
     }
@@ -115,16 +119,15 @@ unsafe impl LogicActionAny for LogicActionGeneral {
         };
 
         if self.fade_in_weight < 1.0 {
-            self.fade_in_weight += ctxa.time_step / self.inst.anim_main.fade_in;
-            self.fade_in_weight = self.fade_in_weight.min(1.0);
+            self.fade_in_weight = self.inst.anim_main.fade_in_weight(self.fade_in_weight, ctxa.time_step);
         }
 
         self.root_motion
-            .update(self.current_time / self.inst.anim_main.duration)?;
+            .update(ratio_saturating!(self.current_time, self.inst.anim_main.duration))?;
         let rotation = self.start_rotation * self.root_motion.rotation();
         let direction = dir_xz_from_quat(rotation);
 
-        let delta_pos = self.root_motion.delta_position();
+        let delta_pos = self.root_motion.position_delta();
         let mut velocity =
             self.start_rotation * (Vec3A::new(delta_pos.x, 0.0, delta_pos.z) * self.distance_ratio / ctxa.time_step);
         if abs_diff_ne!(delta_pos.y, 0.0) {
@@ -133,10 +136,11 @@ unsafe impl LogicActionAny for LogicActionGeneral {
 
         let mut ret;
         if strict_lt!(self.current_time, self.inst.anim_main.duration) {
-            ret = ActionUpdateReturn::new(self.save());
-        } else {
+            ret = ActionUpdateReturn::new();
+        }
+        else {
             self.stop(ctx, ctxa)?;
-            ret = ActionUpdateReturn::new(self.save());
+            ret = ActionUpdateReturn::new();
 
             if self.inst.derive_levels.end_time() > self.current_time {
                 ret.derive_keeping = Some(DeriveKeeping {
@@ -158,15 +162,14 @@ unsafe impl LogicActionAny for LogicActionGeneral {
             current_time: self.current_time,
             root_motion: self.root_motion.save(),
         });
+        state.fade_in_weight = self.fade_in_weight;
 
         state.animations[0] = StateActionAnimation {
-            animation_id: 0,
+            animation_id: self.inst.anim_main.local_id,
             files: self.inst.anim_main.files.clone(),
             ratio: self.inst.anim_main.ratio_saturating(self.current_time),
             weight: 1.0,
         };
-
-        state.fade_in_weight = self.fade_in_weight;
         state
     }
 }
@@ -226,7 +229,7 @@ mod tests {
         (logic_gen, inst_gen)
     }
 
-    static ATTACK1_OZZ: &str = "girl_attack1_1";
+    static ATTACK1_OZZ: &str = "girl_attack1_1.*";
 
     #[test]
     fn test_logic_new() {
@@ -248,35 +251,38 @@ mod tests {
         let (mut ctx, mut ctxa) = tenv.contexts(true);
 
         logic_gen.start(&mut ctx, &mut ctxa).unwrap();
-        for ft in FrameTicker::new(0..=s2f(4.0)) {
+        for ft in FrameTicker::new(0..s2f(4.0)) {
             println!("{}", ft.time);
             ctx.time = ft.time;
             let ret = logic_gen.update(&mut ctx, &mut ctxa).unwrap();
             if !ft.last {
                 assert!(logic_gen.is_activing());
                 assert!(ret.derive_keeping.is_none());
-            } else {
+            }
+            else {
                 assert!(logic_gen.is_stopping());
                 assert_eq!(ret.derive_keeping.unwrap().action_id, inst_gen.tmpl_id);
                 assert_eq!(ret.derive_keeping.unwrap().derive_level, LEVEL_ATTACK);
                 assert_eq!(ret.derive_keeping.unwrap().end_time, 4.5);
             }
-            assert_eq!(logic_gen.current_time, ft.time);
+            assert_eq!(logic_gen.current_time, ft.time(1));
 
-            let fade_in_weight = ratio_saturating!(ft.time(1), inst_gen.anim_main.fade_in);
-            assert_ulps_eq!(ret.state.fade_in_weight, fade_in_weight);
+            let state = logic_gen.save();
+            let fade_in_weight = ratio_saturating!(ft.time(2), inst_gen.anim_main.fade_in);
+            assert_ulps_eq!(state.fade_in_weight, fade_in_weight);
             if ft.time < 2.5 {
-                assert_eq!(ret.state.derive_level, LEVEL_ACTION);
-            } else {
-                assert_eq!(ret.state.derive_level, LEVEL_ATTACK);
+                assert_eq!(state.derive_level, LEVEL_ACTION);
             }
-            assert_eq!(ret.state.poise_level, 1);
+            else {
+                assert_eq!(state.derive_level, LEVEL_ATTACK);
+            }
+            assert_eq!(state.poise_level, 1);
 
-            assert_eq!(ret.state.animations[0].animation_id, 0);
-            assert_eq!(ret.state.animations[0].files, ATTACK1_OZZ);
-            assert_eq!(ret.state.animations[0].ratio, ft.time / inst_gen.anim_main.duration);
-            assert_eq!(ret.state.animations[0].weight, 1.0);
-            assert!(ret.state.animations[1].is_empty());
+            assert_eq!(state.animations[0].animation_id, 0);
+            assert_eq!(state.animations[0].files, ATTACK1_OZZ);
+            assert_eq!(state.animations[0].ratio, ft.time(1) / inst_gen.anim_main.duration);
+            assert_eq!(state.animations[0].weight, 1.0);
+            assert!(state.animations[1].is_empty());
         }
     }
 }

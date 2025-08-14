@@ -12,6 +12,7 @@ pub use empty::*;
 pub use general::*;
 pub use idle::*;
 pub use r#move::*;
+pub use root_motion::*;
 
 use std::rc::Rc;
 

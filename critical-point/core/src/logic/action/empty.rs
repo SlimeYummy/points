@@ -80,7 +80,7 @@ unsafe impl LogicActionAny for LogicActionEmpty {
 
     fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
-        Ok(ActionUpdateReturn::new(self.save()))
+        Ok(ActionUpdateReturn::new())
     }
 
     fn stop(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
