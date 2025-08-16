@@ -9,10 +9,7 @@ use crate::logic::action::base::{
 };
 use crate::logic::game::ContextUpdate;
 use crate::template::TmplType;
-use crate::utils::{extend, loose_gt, ratio_saturating, ratio_warpping, xresf, Castable, XResult};
-
-const ANIME_IDLE_ID: u32 = 1;
-const ANIME_READY_ID: u32 = 2;
+use crate::utils::{extend, loose_ge, ratio_saturating, ratio_warpping, xresf, Castable, XResult};
 
 #[repr(u8)]
 #[derive(
@@ -118,27 +115,41 @@ unsafe impl LogicActionAny for LogicActionIdle {
     fn start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
         self._base.start(ctx, ctxa)?;
 
-        if ctxa.chara_physics.is_idle() {
-            self.mode = ActionIdleMode::Idle;
-            self.idle_time = -ctxa.time_step;
-        } else {
-            self.mode = ActionIdleMode::Ready;
-            self.ready_time = -ctxa.time_step;
+        if let Some(anim_ready) = &self.inst.anim_ready {
+            if !ctxa.chara_physics.is_idle() {
+                // Starts in ready state
+                self.mode = ActionIdleMode::Ready;
+                self.ready_time = 0.0;
+                self.fade_in_weight = anim_ready.fade_in_weight(self.fade_in_weight, ctxa.time_step);
+                return Ok(());
+            }
         }
+
+        // Starts in idle state
+        self.mode = ActionIdleMode::Idle;
+        self.idle_time = 0.0;
+        self.fade_in_weight = self.inst.anim_idle.fade_in_weight(self.fade_in_weight, ctxa.time_step);
         Ok(())
     }
 
     fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
 
+        let anim_idle = &self.inst.anim_idle;
+        let anim_ready = self.inst.anim_ready.as_ref().unwrap_or(&anim_idle);
+        let has_ready = self.inst.anim_ready.is_some();
+
         // Update mode
         let is_idle = ctxa.chara_physics.is_idle();
         match self.mode {
             ActionIdleMode::Idle => {
-                if !is_idle {
+                if has_ready && !is_idle {
                     self.mode = ActionIdleMode::IdleToReady;
-                    self.ready_time = -ctxa.time_step;
-                    self.switch_time = 0.0;
+                    self.ready_time = 0.0;
+                    self.switch_time = ctxa.time_step;
+                }
+                else {
+                    self.idle_time += ctxa.time_step;
                 }
             }
             ActionIdleMode::Ready => {
@@ -149,41 +160,37 @@ unsafe impl LogicActionAny for LogicActionIdle {
                 if self.auto_idle_time > self.inst.auto_idle_delay {
                     // TODO: Optimized the animation order in the state
                     self.mode = ActionIdleMode::ReadyToIdle;
-                    self.idle_time = -ctxa.time_step;
-                    self.switch_time = 0.0;
+                    self.idle_time = 0.0;
+                    self.switch_time = ctxa.time_step;
                     self.auto_idle_time = 0.0;
                 }
-            }
-            ActionIdleMode::ReadyToIdle => {
-                if !is_idle {
-                    self.mode = ActionIdleMode::IdleToReady;
-                    let progress = ratio_saturating!(self.switch_time, self.inst.anim_idle.fade_in);
-                    self.switch_time = (1.0 - progress) * self.inst.anim_ready.fade_in;
+                else {
+                    self.ready_time += ctxa.time_step;
                 }
             }
-            _ => { /* do nothing */ }
-        };
-
-        // Update animation time
-        match self.mode {
-            ActionIdleMode::Idle => self.idle_time += ctxa.time_step,
-            ActionIdleMode::Ready => self.ready_time += ctxa.time_step,
             ActionIdleMode::IdleToReady => {
                 self.switch_time += ctxa.time_step;
                 self.ready_time += ctxa.time_step;
-                if loose_gt!(self.switch_time, self.inst.anim_ready.fade_in) {
+                if loose_ge!(self.switch_time, anim_ready.fade_in) {
                     self.mode = ActionIdleMode::Ready;
                     self.idle_time = 0.0;
                     self.switch_time = 0.0;
                 }
             }
             ActionIdleMode::ReadyToIdle => {
-                self.switch_time += ctxa.time_step;
-                self.idle_time += ctxa.time_step;
-                if loose_gt!(self.switch_time, self.inst.anim_idle.fade_in) {
-                    self.mode = ActionIdleMode::Idle;
-                    self.ready_time = 0.0;
-                    self.switch_time = 0.0;
+                if !is_idle {
+                    self.mode = ActionIdleMode::IdleToReady;
+                    let progress = ratio_saturating!(self.switch_time, anim_idle.fade_in);
+                    self.switch_time = (1.0 - progress) * anim_ready.fade_in + ctxa.time_step;
+                }
+                else {
+                    self.switch_time += ctxa.time_step;
+                    self.idle_time += ctxa.time_step;
+                    if loose_ge!(self.switch_time, anim_idle.fade_in) {
+                        self.mode = ActionIdleMode::Idle;
+                        self.ready_time = 0.0;
+                        self.switch_time = 0.0;
+                    }
                 }
             }
         };
@@ -192,19 +199,21 @@ unsafe impl LogicActionAny for LogicActionIdle {
         if self.fade_in_weight < 1.0 {
             match self.mode {
                 ActionIdleMode::Idle | ActionIdleMode::IdleToReady => {
-                    self.fade_in_weight += ctxa.time_step / self.inst.anim_idle.fade_in;
+                    self.fade_in_weight = anim_idle.fade_in_weight(self.fade_in_weight, ctxa.time_step);
                 }
                 ActionIdleMode::Ready | ActionIdleMode::ReadyToIdle => {
-                    self.fade_in_weight += ctxa.time_step / self.inst.anim_ready.fade_in;
+                    self.fade_in_weight = anim_ready.fade_in_weight(self.fade_in_weight, ctxa.time_step);
                 }
             }
-            self.fade_in_weight = self.fade_in_weight.min(1.0);
         }
 
-        Ok(ActionUpdateReturn::new(self.save()))
+        Ok(ActionUpdateReturn::new())
     }
 
     fn save(&self) -> Box<dyn StateActionAny> {
+        let anim_idle = &self.inst.anim_idle;
+        let anim_ready = self.inst.anim_ready.as_ref().unwrap_or(&anim_idle);
+
         let mut state = Box::new(StateActionIdle {
             _base: self._base.save(self.typ(), self.tmpl_typ()),
             mode: self.mode,
@@ -217,47 +226,47 @@ unsafe impl LogicActionAny for LogicActionIdle {
         match self.mode {
             ActionIdleMode::Idle => {
                 state.animations[0] = StateActionAnimation {
-                    animation_id: ANIME_IDLE_ID,
-                    files: self.inst.anim_idle.files.clone(),
-                    ratio: ratio_warpping!(self.idle_time, self.inst.anim_idle.duration),
+                    animation_id: anim_idle.local_id,
+                    files: anim_idle.files.clone(),
+                    ratio: ratio_warpping!(self.idle_time, anim_idle.duration),
                     weight: 1.0,
                 }
             }
             ActionIdleMode::Ready => {
                 state.animations[0] = StateActionAnimation {
-                    animation_id: ANIME_READY_ID,
-                    files: self.inst.anim_ready.files.clone(),
-                    ratio: ratio_warpping!(self.ready_time, self.inst.anim_ready.duration),
+                    animation_id: anim_ready.local_id,
+                    files: anim_ready.files.clone(),
+                    ratio: ratio_warpping!(self.ready_time, anim_ready.duration),
                     weight: 1.0,
                 };
             }
             ActionIdleMode::IdleToReady => {
-                let switch_weight = ratio_saturating!(self.switch_time, self.inst.anim_ready.fade_in);
+                let switch_weight = ratio_saturating!(self.switch_time, anim_ready.fade_in);
                 state.animations[0] = StateActionAnimation {
-                    animation_id: ANIME_IDLE_ID,
-                    files: self.inst.anim_idle.files.clone(),
-                    ratio: ratio_warpping!(self.idle_time, self.inst.anim_idle.duration),
+                    animation_id: anim_idle.local_id,
+                    files: anim_idle.files.clone(),
+                    ratio: ratio_warpping!(self.idle_time, anim_idle.duration),
                     weight: 1.0 - switch_weight,
                 };
                 state.animations[1] = StateActionAnimation {
-                    animation_id: ANIME_READY_ID,
-                    files: self.inst.anim_ready.files.clone(),
-                    ratio: ratio_warpping!(self.ready_time, self.inst.anim_ready.duration),
+                    animation_id: anim_ready.local_id,
+                    files: anim_ready.files.clone(),
+                    ratio: ratio_warpping!(self.ready_time, anim_ready.duration),
                     weight: switch_weight,
                 };
             }
             ActionIdleMode::ReadyToIdle => {
-                let switch_weight = ratio_saturating!(self.switch_time, self.inst.anim_idle.fade_in);
+                let switch_weight = ratio_saturating!(self.switch_time, anim_idle.fade_in);
                 state.animations[0] = StateActionAnimation {
-                    animation_id: ANIME_READY_ID,
-                    files: self.inst.anim_ready.files.clone(),
-                    ratio: ratio_warpping!(self.ready_time, self.inst.anim_ready.duration),
+                    animation_id: anim_ready.local_id,
+                    files: anim_ready.files.clone(),
+                    ratio: ratio_warpping!(self.ready_time, anim_ready.duration),
                     weight: 1.0 - switch_weight,
                 };
                 state.animations[1] = StateActionAnimation {
-                    animation_id: ANIME_IDLE_ID,
-                    files: self.inst.anim_idle.files.clone(),
-                    ratio: ratio_warpping!(self.idle_time, self.inst.anim_idle.duration),
+                    animation_id: anim_idle.local_id,
+                    files: anim_idle.files.clone(),
+                    ratio: ratio_warpping!(self.idle_time, anim_idle.duration),
                     weight: switch_weight,
                 };
             }
@@ -277,6 +286,9 @@ mod tests {
     use crate::utils::tests::FrameTicker;
     use crate::utils::{id, s2f, sb};
     use approx::assert_ulps_eq;
+
+    const ANIME_IDLE_ID: u16 = 0;
+    const ANIME_READY_ID: u16 = 1;
 
     #[test]
     fn test_state_rkyv() {
@@ -330,13 +342,15 @@ mod tests {
         (logic_act, inst_act)
     }
 
-    static IDLE_OZZ: &str = "girl_stand_idle";
-    static READY_OZZ: &str = "girl_stand_ready";
+    static IDLE_OZZ: &str = "girl_stand_idle.*";
+    static READY_OZZ: &str = "girl_stand_ready.*";
 
     #[test]
     fn logic_new() {
         let mut tenv = TestEnv::new().unwrap();
-        let logic_idle = new_idle(&mut tenv).0;
+        let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
+        let (mut ctx, mut ctxa) = tenv.contexts(true);
+        ctxa.chara_physics.set_idle(true);
 
         assert_eq!(logic_idle.tmpl_id(), id!("Action.Instance.Idle/1A"));
         assert!(logic_idle.is_starting());
@@ -348,6 +362,31 @@ mod tests {
         assert_eq!(logic_idle.ready_time, 0.0);
         assert_eq!(logic_idle.auto_idle_time, 0.0);
         assert_eq!(logic_idle.switch_time, 0.0);
+
+        logic_idle.start(&mut ctx, &mut ctxa).unwrap();
+        assert!(logic_idle.is_activing());
+        assert_eq!(logic_idle.first_frame, TestEnv::FRAME);
+        assert_eq!(logic_idle.last_frame, u32::MAX);
+        assert_eq!(logic_idle.fade_in_weight, SPF / inst_idle.anim_idle.fade_in);
+        assert_eq!(logic_idle.mode, ActionIdleMode::Idle);
+        assert_eq!(logic_idle.idle_time, 0.0);
+        assert_eq!(logic_idle.ready_time, 0.0);
+        assert_eq!(logic_idle.auto_idle_time, 0.0);
+        assert_eq!(logic_idle.switch_time, 0.0);
+
+        let state = logic_idle.save();
+        assert_eq!(state.id, logic_idle.id);
+        assert_eq!(state.tmpl_id, id!("Action.Instance.Idle/1A"));
+        assert_eq!(state.typ, StateActionType::Idle);
+        assert_eq!(state.tmpl_typ, TmplType::ActionIdle);
+        assert_eq!(state.status, LogicActionStatus::Activing);
+        assert_eq!(state.first_frame, TestEnv::FRAME);
+        assert_eq!(state.last_frame, u32::MAX);
+        assert_eq!(state.animations[0].animation_id, ANIME_IDLE_ID);
+        assert_eq!(state.animations[0].files, IDLE_OZZ);
+        assert_eq!(state.animations[0].ratio, 0.0);
+        assert_eq!(state.animations[0].weight, 1.0);
+        assert!(state.animations[1].is_empty());
     }
 
     #[test]
@@ -356,7 +395,7 @@ mod tests {
 
         // first action
         {
-            let mut logic_idle = new_idle(&mut tenv).0;
+            let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
             let (mut ctx, mut ctxa) = tenv.contexts(false);
             ctxa.chara_physics.set_idle(true);
 
@@ -367,23 +406,24 @@ mod tests {
             assert_eq!(logic_idle.last_frame, u32::MAX);
             assert_eq!(logic_idle.fade_in_weight, 1.0);
             assert_eq!(logic_idle.mode, ActionIdleMode::Idle);
-            assert_eq!(logic_idle.idle_time, 0.0);
+            assert_eq!(logic_idle.idle_time, SPF);
             assert_eq!(logic_idle.ready_time, 0.0);
             assert_eq!(logic_idle.auto_idle_time, 0.0);
             assert_eq!(logic_idle.switch_time, 0.0);
 
-            assert_eq!(ret.state.id, logic_idle.id);
-            assert_eq!(ret.state.tmpl_id, id!("Action.Instance.Idle/1A"));
-            assert_eq!(ret.state.typ, StateActionType::Idle);
-            assert_eq!(ret.state.tmpl_typ, TmplType::ActionIdle);
-            assert_eq!(ret.state.status, LogicActionStatus::Activing);
-            assert_eq!(ret.state.first_frame, TestEnv::FRAME);
-            assert_eq!(ret.state.last_frame, u32::MAX);
-            assert_eq!(ret.state.animations[0].animation_id, ANIME_IDLE_ID);
-            assert_eq!(ret.state.animations[0].files, IDLE_OZZ);
-            assert_eq!(ret.state.animations[0].ratio, 0.0);
-            assert_eq!(ret.state.animations[0].weight, 1.0);
-            assert!(ret.state.animations[1].is_empty());
+            let state = logic_idle.save();
+            assert_eq!(state.id, logic_idle.id);
+            assert_eq!(state.tmpl_id, id!("Action.Instance.Idle/1A"));
+            assert_eq!(state.typ, StateActionType::Idle);
+            assert_eq!(state.tmpl_typ, TmplType::ActionIdle);
+            assert_eq!(state.status, LogicActionStatus::Activing);
+            assert_eq!(state.first_frame, TestEnv::FRAME);
+            assert_eq!(state.last_frame, u32::MAX);
+            assert_eq!(state.animations[0].animation_id, ANIME_IDLE_ID);
+            assert_eq!(state.animations[0].files, IDLE_OZZ);
+            assert_eq!(state.animations[0].ratio, inst_idle.anim_idle.ratio_warpping(SPF));
+            assert_eq!(state.animations[0].weight, 1.0);
+            assert!(state.animations[1].is_empty());
             assert!(ret.new_velocity.is_none());
             assert!(ret.new_direction.is_none());
             assert!(ret.derive_keeping.is_none());
@@ -391,7 +431,7 @@ mod tests {
 
         // derive action
         {
-            let mut logic_idle = new_idle(&mut tenv).0;
+            let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
             let (mut ctx, mut ctxa) = tenv.contexts(true);
             ctxa.chara_physics.set_idle(false);
 
@@ -400,18 +440,22 @@ mod tests {
             assert!(logic_idle.is_activing());
             assert_eq!(logic_idle.first_frame, TestEnv::FRAME);
             assert_eq!(logic_idle.last_frame, u32::MAX);
-            assert_eq!(logic_idle.fade_in_weight, 1.0 / s2f(0.4) as f32);
+            assert_eq!(logic_idle.fade_in_weight, 2.0 / s2f(0.4) as f32);
             assert_eq!(logic_idle.mode, ActionIdleMode::Ready);
             assert_eq!(logic_idle.idle_time, 0.0);
-            assert_eq!(logic_idle.ready_time, 0.0);
+            assert_eq!(logic_idle.ready_time, SPF);
             assert_eq!(logic_idle.auto_idle_time, 0.0);
             assert_eq!(logic_idle.switch_time, 0.0);
 
-            assert_eq!(ret.state.animations[0].animation_id, ANIME_READY_ID);
-            assert_eq!(ret.state.animations[0].files, READY_OZZ);
-            assert_eq!(ret.state.animations[0].ratio, 0.0);
-            assert_eq!(ret.state.animations[0].weight, 1.0);
-            assert!(ret.state.animations[1].is_empty());
+            let state = logic_idle.save();
+            assert_eq!(state.animations[0].animation_id, ANIME_READY_ID);
+            assert_eq!(state.animations[0].files, READY_OZZ);
+            assert_eq!(
+                state.animations[0].ratio,
+                inst_idle.anim_ready.as_ref().unwrap().ratio_warpping(SPF)
+            );
+            assert_eq!(state.animations[0].weight, 1.0);
+            assert!(state.animations[1].is_empty());
             assert!(ret.new_velocity.is_none());
             assert!(ret.new_direction.is_none());
             assert!(ret.derive_keeping.is_none());
@@ -426,19 +470,17 @@ mod tests {
         ctxa.chara_physics.set_idle(true);
 
         logic_idle.start(&mut ctx, &mut ctxa).unwrap();
-        for ft in FrameTicker::new(0..s2f(7.0)) {
-            let ret = logic_idle.update(&mut ctx, &mut ctxa).unwrap();
+        for ft in FrameTicker::new(1..s2f(7.0)) {
+            logic_idle.update(&mut ctx, &mut ctxa).unwrap();
             assert_eq!(logic_idle.mode, ActionIdleMode::Idle);
             assert_ulps_eq!(logic_idle.idle_time, ft.time);
 
-            assert_eq!(ret.state.animations[0].animation_id, ANIME_IDLE_ID);
-            assert_eq!(ret.state.animations[0].files, IDLE_OZZ);
-            assert_ulps_eq!(
-                ret.state.animations[0].ratio,
-                inst_idle.anim_idle.ratio_warpping(ft.time)
-            );
-            assert_eq!(ret.state.animations[0].weight, 1.0);
-            assert!(ret.state.animations[1].is_empty());
+            let state = logic_idle.save();
+            assert_eq!(state.animations[0].animation_id, ANIME_IDLE_ID);
+            assert_eq!(state.animations[0].files, IDLE_OZZ);
+            assert_ulps_eq!(state.animations[0].ratio, inst_idle.anim_idle.ratio_warpping(ft.time));
+            assert_eq!(state.animations[0].weight, 1.0);
+            assert!(state.animations[1].is_empty());
         }
     }
 
@@ -450,19 +492,20 @@ mod tests {
         ctxa.chara_physics.set_idle(false);
 
         logic_idle.start(&mut ctx, &mut ctxa).unwrap();
-        for ft in FrameTicker::new(0..s2f(7.0)) {
-            let ret = logic_idle.update(&mut ctx, &mut ctxa).unwrap();
+        for ft in FrameTicker::new(1..s2f(7.0)) {
+            logic_idle.update(&mut ctx, &mut ctxa).unwrap();
             assert_eq!(logic_idle.mode, ActionIdleMode::Ready);
             assert_ulps_eq!(logic_idle.ready_time, ft.time);
 
-            assert_eq!(ret.state.animations[0].animation_id, ANIME_READY_ID);
-            assert_eq!(ret.state.animations[0].files, READY_OZZ);
+            let state = logic_idle.save();
+            assert_eq!(state.animations[0].animation_id, ANIME_READY_ID);
+            assert_eq!(state.animations[0].files, READY_OZZ);
             assert_ulps_eq!(
-                ret.state.animations[0].ratio,
-                inst_idle.anim_ready.ratio_warpping(ft.time)
+                state.animations[0].ratio,
+                inst_idle.anim_ready.as_ref().unwrap().ratio_warpping(ft.time)
             );
-            assert_eq!(ret.state.animations[0].weight, 1.0);
-            assert!(ret.state.animations[1].is_empty());
+            assert_eq!(state.animations[0].weight, 1.0);
+            assert!(state.animations[1].is_empty());
         }
     }
 
@@ -470,6 +513,7 @@ mod tests {
     fn logic_idle_to_ready() {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
+        let anim_ready = inst_idle.anim_ready.as_ref().unwrap();
         let (mut ctx, mut ctxa) = tenv.contexts(true);
         ctxa.chara_physics.set_idle(true);
         logic_idle.start(&mut ctx, &mut ctxa).unwrap();
@@ -477,32 +521,35 @@ mod tests {
         ctxa.chara_physics.set_idle(false);
 
         for ft in FrameTicker::new(0..s2f(0.4)) {
-            let ret = logic_idle.update(&mut ctx, &mut ctxa).unwrap();
+            logic_idle.update(&mut ctx, &mut ctxa).unwrap();
+            let state = logic_idle.save();
+
             if !ft.last {
                 assert_eq!(logic_idle.mode, ActionIdleMode::IdleToReady);
                 assert_eq!(logic_idle.switch_time, ft.time(1));
 
-                assert_eq!(ret.state.animations[0].animation_id, ANIME_IDLE_ID);
-                assert_eq!(ret.state.animations[0].files, IDLE_OZZ);
-                assert_eq!(ret.state.animations[0].ratio, 0.0);
-                let idle_weight = 1.0 - logic_idle.switch_time / inst_idle.anim_ready.fade_in;
-                assert_eq!(ret.state.animations[0].weight, idle_weight);
+                assert_eq!(state.animations[0].animation_id, ANIME_IDLE_ID);
+                assert_eq!(state.animations[0].files, IDLE_OZZ);
+                assert_eq!(state.animations[0].ratio, SPF / inst_idle.anim_idle.duration);
+                let idle_weight = 1.0 - logic_idle.switch_time / anim_ready.fade_in;
+                assert_eq!(state.animations[0].weight, idle_weight);
 
-                assert_eq!(ret.state.animations[1].animation_id, ANIME_READY_ID);
-                assert_eq!(ret.state.animations[1].files, READY_OZZ);
-                assert_eq!(ret.state.animations[1].ratio, ft.time / inst_idle.anim_ready.duration);
-                let ready_weight = logic_idle.switch_time / inst_idle.anim_ready.fade_in;
-                assert_eq!(ret.state.animations[1].weight, ready_weight);
-                assert!(ret.state.animations[2].is_empty());
-            } else {
+                assert_eq!(state.animations[1].animation_id, ANIME_READY_ID);
+                assert_eq!(state.animations[1].files, READY_OZZ);
+                assert_eq!(state.animations[1].ratio, ft.time / anim_ready.duration);
+                let ready_weight = logic_idle.switch_time / anim_ready.fade_in;
+                assert_eq!(state.animations[1].weight, ready_weight);
+                assert!(state.animations[2].is_empty());
+            }
+            else {
                 assert_eq!(logic_idle.mode, ActionIdleMode::Ready);
                 assert_eq!(logic_idle.switch_time, 0.0);
 
-                assert_eq!(ret.state.animations[0].animation_id, ANIME_READY_ID);
-                assert_eq!(ret.state.animations[0].files, READY_OZZ);
-                assert_eq!(ret.state.animations[0].ratio, ft.time / inst_idle.anim_ready.duration);
-                assert_eq!(ret.state.animations[0].weight, 1.0);
-                assert!(ret.state.animations[1].is_empty());
+                assert_eq!(state.animations[0].animation_id, ANIME_READY_ID);
+                assert_eq!(state.animations[0].files, READY_OZZ);
+                assert_eq!(state.animations[0].ratio, ft.time / anim_ready.duration);
+                assert_eq!(state.animations[0].weight, 1.0);
+                assert!(state.animations[1].is_empty());
             }
         }
     }
@@ -525,7 +572,8 @@ mod tests {
         }
 
         for ft in FrameTicker::new(0..s2f(0.2)) {
-            let ret = logic_idle.update(&mut ctx, &mut ctxa).unwrap();
+            logic_idle.update(&mut ctx, &mut ctxa).unwrap();
+            let state = logic_idle.save();
             assert_eq!(logic_idle.auto_idle_time, 0.0);
 
             if !ft.last {
@@ -533,27 +581,31 @@ mod tests {
                 assert_eq!(logic_idle.switch_time, ft.time(1));
 
                 assert_eq!(logic_idle.mode, ActionIdleMode::ReadyToIdle);
-                assert_eq!(ret.state.animations[0].animation_id, ANIME_READY_ID);
-                assert_eq!(ret.state.animations[0].files, READY_OZZ);
-                assert_eq!(ret.state.animations[0].ratio, 5.0 / FPS / inst_idle.anim_ready.duration);
+                assert_eq!(state.animations[0].animation_id, ANIME_READY_ID);
+                assert_eq!(state.animations[0].files, READY_OZZ);
+                assert_eq!(
+                    state.animations[0].ratio,
+                    6.0 / FPS / inst_idle.anim_ready.as_ref().unwrap().duration
+                );
                 let ready_weight = 1.0 - logic_idle.switch_time / inst_idle.anim_idle.fade_in;
-                assert_eq!(ret.state.animations[0].weight, ready_weight);
+                assert_eq!(state.animations[0].weight, ready_weight);
 
-                assert_eq!(ret.state.animations[1].animation_id, ANIME_IDLE_ID);
-                assert_eq!(ret.state.animations[1].files, IDLE_OZZ);
-                assert_eq!(ret.state.animations[1].ratio, ft.time / inst_idle.anim_idle.duration);
+                assert_eq!(state.animations[1].animation_id, ANIME_IDLE_ID);
+                assert_eq!(state.animations[1].files, IDLE_OZZ);
+                assert_eq!(state.animations[1].ratio, ft.time / inst_idle.anim_idle.duration);
                 let idle_weight = logic_idle.switch_time / inst_idle.anim_idle.fade_in;
-                assert_eq!(ret.state.animations[1].weight, idle_weight);
-                assert!(ret.state.animations[2].is_empty());
-            } else {
+                assert_eq!(state.animations[1].weight, idle_weight);
+                assert!(state.animations[2].is_empty());
+            }
+            else {
                 assert_eq!(logic_idle.mode, ActionIdleMode::Idle);
                 assert_eq!(logic_idle.switch_time, 0.0);
 
-                assert_eq!(ret.state.animations[0].animation_id, ANIME_IDLE_ID);
-                assert_eq!(ret.state.animations[0].files, IDLE_OZZ);
-                assert_eq!(ret.state.animations[0].ratio, ft.time / inst_idle.anim_idle.duration);
-                assert_eq!(ret.state.animations[0].weight, 1.0);
-                assert!(ret.state.animations[1].is_empty());
+                assert_eq!(state.animations[0].animation_id, ANIME_IDLE_ID);
+                assert_eq!(state.animations[0].files, IDLE_OZZ);
+                assert_eq!(state.animations[0].ratio, ft.time / inst_idle.anim_idle.duration);
+                assert_eq!(state.animations[0].weight, 1.0);
+                assert!(state.animations[1].is_empty());
             }
         }
     }
@@ -562,6 +614,7 @@ mod tests {
     fn logic_ready_to_idle_2() {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
+        let anim_ready = inst_idle.anim_ready.as_ref().unwrap();
         let (mut ctx, mut ctxa) = tenv.contexts(true);
         ctxa.chara_physics.set_idle(false);
         logic_idle.start(&mut ctx, &mut ctxa).unwrap();
@@ -576,42 +629,38 @@ mod tests {
         }
 
         ctxa.chara_physics.set_idle(false);
-        let switch_base = inst_idle.anim_ready.fade_in * (1.0 / 3.0);
+        let switch_base = anim_ready.fade_in * (1.0 / 3.0);
         for ft in FrameTicker::new(0..s2f(0.266667)) {
-            let ret = logic_idle.update(&mut ctx, &mut ctxa).unwrap();
+            logic_idle.update(&mut ctx, &mut ctxa).unwrap();
+            let state = logic_idle.save();
 
             if !ft.last {
                 assert_eq!(logic_idle.mode, ActionIdleMode::IdleToReady);
                 assert_ulps_eq!(logic_idle.switch_time, switch_base + ft.time(1));
 
                 assert_eq!(logic_idle.mode, ActionIdleMode::IdleToReady);
-                assert_eq!(ret.state.animations[0].animation_id, ANIME_IDLE_ID);
-                assert_eq!(ret.state.animations[0].files, IDLE_OZZ);
-                assert_ulps_eq!(ret.state.animations[0].ratio, 3.0 / FPS / inst_idle.anim_idle.duration);
-                let ready_weight = 1.0 - logic_idle.switch_time / inst_idle.anim_ready.fade_in;
-                assert_eq!(ret.state.animations[0].weight, ready_weight);
+                assert_eq!(state.animations[0].animation_id, ANIME_IDLE_ID);
+                assert_eq!(state.animations[0].files, IDLE_OZZ);
+                assert_ulps_eq!(state.animations[0].ratio, 3.0 / FPS / inst_idle.anim_idle.duration);
+                let ready_weight = 1.0 - logic_idle.switch_time / anim_ready.fade_in;
+                assert_eq!(state.animations[0].weight, ready_weight);
 
-                assert_eq!(ret.state.animations[1].animation_id, ANIME_READY_ID);
-                assert_eq!(ret.state.animations[1].files, READY_OZZ);
-                assert_eq!(
-                    ret.state.animations[1].ratio,
-                    ft.time(1) / inst_idle.anim_ready.duration
-                );
-                let idle_weight = logic_idle.switch_time / inst_idle.anim_ready.fade_in;
-                assert_eq!(ret.state.animations[1].weight, idle_weight);
-                assert!(ret.state.animations[2].is_empty());
-            } else {
+                assert_eq!(state.animations[1].animation_id, ANIME_READY_ID);
+                assert_eq!(state.animations[1].files, READY_OZZ);
+                assert_eq!(state.animations[1].ratio, ft.time(1) / anim_ready.duration);
+                let idle_weight = logic_idle.switch_time / anim_ready.fade_in;
+                assert_eq!(state.animations[1].weight, idle_weight);
+                assert!(state.animations[2].is_empty());
+            }
+            else {
                 assert_eq!(logic_idle.mode, ActionIdleMode::Ready);
                 assert_eq!(logic_idle.switch_time, 0.0);
 
-                assert_eq!(ret.state.animations[0].animation_id, ANIME_READY_ID);
-                assert_eq!(ret.state.animations[0].files, READY_OZZ);
-                assert_eq!(
-                    ret.state.animations[0].ratio,
-                    ft.time(1) / inst_idle.anim_ready.duration
-                );
-                assert_eq!(ret.state.animations[0].weight, 1.0);
-                assert!(ret.state.animations[1].is_empty());
+                assert_eq!(state.animations[0].animation_id, ANIME_READY_ID);
+                assert_eq!(state.animations[0].files, READY_OZZ);
+                assert_eq!(state.animations[0].ratio, ft.time(1) / anim_ready.duration);
+                assert_eq!(state.animations[0].weight, 1.0);
+                assert!(state.animations[1].is_empty());
             }
         }
     }
