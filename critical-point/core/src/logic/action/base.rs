@@ -1,7 +1,7 @@
 use cirtical_point_csgen::{CsEnum, CsOut};
 use enum_iterator::{cardinality, Sequence};
-use glam::{Quat, Vec2, Vec3A};
-use log::debug;
+use glam::Vec3A;
+use glam_ext::Vec2xz;
 use std::alloc::Layout;
 use std::any::Any;
 use std::fmt::Debug;
@@ -9,7 +9,7 @@ use std::hint::unlikely;
 use std::rc::Rc;
 use std::{mem, u32};
 
-use crate::consts::{DEFAULT_TOWARD_DIR_2D, FPS, MAX_ACTION_ANIMATION, SPF};
+use crate::consts::{FPS, MAX_ACTION_ANIMATION, SPF};
 use crate::instance::InstActionAny;
 use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::ContextUpdate;
@@ -128,7 +128,7 @@ interface!(StateActionAny, StateActionBase);
 #[cfg(feature = "debug-print")]
 impl Drop for StateActionBase {
     fn drop(&mut self) {
-        debug!("StateActionBase::drop() id={} tmpl_id={}", self.id, self.tmpl_id);
+        log::debug!("StateActionBase::drop() id={} tmpl_id={}", self.id, self.tmpl_id);
     }
 }
 
@@ -172,14 +172,14 @@ pub trait ArchivedStateActionAny: Debug + Any {
 #[rkyv(derive(Debug))]
 pub struct StateActionAnimation {
     pub files: Symbol,
-    pub animation_id: u32,
+    pub animation_id: u16,
     pub ratio: f32,
     pub weight: f32,
 }
 
 impl StateActionAnimation {
     #[inline]
-    pub fn new(files: Symbol, animation_id: u32, ratio: f32, weight: f32) -> Self {
+    pub fn new(files: Symbol, animation_id: u16, ratio: f32, weight: f32) -> Self {
         StateActionAnimation {
             files,
             animation_id,
@@ -390,7 +390,7 @@ macro_rules! impl_state_action {
 
                 #[inline]
                 fn typ(&self) -> $crate::logic::action::StateActionType {
-                    assert_eq!(
+                    debug_assert_eq!(
                         self._base.typ,
                         $crate::logic::action::StateActionType::$state_enum
                     );
@@ -399,7 +399,7 @@ macro_rules! impl_state_action {
 
                 #[inline]
                 fn tmpl_typ(&self) -> $crate::template::TmplType {
-                    assert_eq!(self._base.tmpl_typ, $crate::template::TmplType::$tmpl_enum);
+                    debug_assert_eq!(self._base.tmpl_typ, $crate::template::TmplType::$tmpl_enum);
                     $crate::template::TmplType::$tmpl_enum
                 }
 
@@ -417,7 +417,7 @@ macro_rules! impl_state_action {
 
                 #[inline]
                 fn typ(&self) -> $crate::logic::action::StateActionType {
-                    assert_eq!(
+                    debug_assert_eq!(
                         self._base.typ,
                         $crate::logic::action::StateActionType::$state_enum
                     );
@@ -426,7 +426,7 @@ macro_rules! impl_state_action {
 
                 #[inline]
                 fn tmpl_typ(&self) -> $crate::template::TmplType {
-                    assert_eq!(self._base.tmpl_typ, $crate::template::TmplType::$tmpl_enum);
+                    debug_assert_eq!(self._base.tmpl_typ, $crate::template::TmplType::$tmpl_enum);
                     $crate::template::TmplType::$tmpl_enum
                 }
             }
@@ -491,28 +491,22 @@ pub struct LogicActionBase {
 
 interface!(LogicActionAny, LogicActionBase);
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ActionUpdateReturn {
-    pub state: Box<dyn StateActionAny>,
     pub new_velocity: Option<Vec3A>,
-    pub new_direction: Option<Vec2>,
+    pub new_direction: Option<Vec2xz>,
     pub derive_keeping: Option<DeriveKeeping>,
 }
 
 impl ActionUpdateReturn {
     #[inline]
-    pub fn new(state: Box<dyn StateActionAny>) -> ActionUpdateReturn {
-        ActionUpdateReturn {
-            state,
-            new_velocity: None,
-            new_direction: None,
-            derive_keeping: None,
-        }
+    pub fn new() -> ActionUpdateReturn {
+        ActionUpdateReturn::default()
     }
 
     #[inline]
-    pub fn set_velocity_2d(&mut self, velocity_xz: Vec2) {
-        self.new_velocity = Some(Vec3A::new(velocity_xz.x, 0.0, velocity_xz.y));
+    pub fn set_velocity_2d(&mut self, velocity: Vec2xz) {
+        self.new_velocity = Some(velocity.as_vec3a());
     }
 
     #[inline]
@@ -521,7 +515,7 @@ impl ActionUpdateReturn {
     }
 
     #[inline]
-    pub fn set_direction(&mut self, direction: Vec2) {
+    pub fn set_direction(&mut self, direction: Vec2xz) {
         self.new_direction = Some(direction);
     }
 }
