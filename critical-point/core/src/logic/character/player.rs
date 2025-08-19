@@ -167,7 +167,7 @@ mod tests {
         assert_eq!(logic_player.inst.tmpl_style, id!("Style.Instance/1A"));
 
         assert_eq!(state_init.id, 100);
-        assert_eq!(state_init.skeleton_file, "girl");
+        assert_eq!(state_init.skeleton_file, "girl.*");
         assert_eq!(state_init.animation_files.len(), 4);
         let excepted_files = [
             sb!("girl_stand_idle"),

@@ -2,8 +2,8 @@ use approx::{abs_diff_eq, abs_diff_ne, assert_abs_diff_eq};
 use cirtical_point_csgen::CsOut;
 use core::f32;
 use educe::Educe;
-use glam::Vec3Swizzles;
-use glam_ext::{Isometry3A, Quat, Vec2, Vec3A};
+use glam::{Quat, Vec3A, Vec3Swizzles};
+use glam_ext::{Isometry3A, Transform3A, Vec2xz};
 use jolt_physics_rs::{
     self as jolt, vdata, Body, BodyCreationSettings, BodyID, BodyInterface, CapsuleShapeSettings,
     CharacterContactListener, CharacterContactListenerVTable, CharacterContactSettings, CharacterVirtual,
@@ -38,7 +38,7 @@ use crate::utils::{dir_xz_from_quat, quat_from_dir_xz, xerrf, xfrom, CsVec3A, Nu
 pub struct StateCharaPhysics {
     pub velocity: CsVec3A,
     pub position: CsVec3A,
-    pub direction: Vec2,
+    pub direction: Vec2xz,
 }
 
 #[derive(Educe)]
@@ -48,7 +48,7 @@ pub(crate) struct LogicCharaPhysics {
     inst_player: Rc<InstPlayer>,
     velocity: Vec3A,
     position: Vec3A,
-    direction: Vec2, // direction in XZ plane
+    direction: Vec2xz,
     rotation: Quat,
     idle: Cell<bool>,
 
@@ -77,7 +77,7 @@ impl LogicCharaPhysics {
         player_id: NumID,
         inst_player: Rc<InstPlayer>,
         position: Vec3A,
-        direction: Vec2,
+        direction: Vec2xz,
     ) -> XResult<LogicCharaPhysics> {
         let rotation = quat_from_dir_xz(direction);
         let character = LogicCharaPhysics::init_bounding(ctx, &inst_player, position, rotation)?;
@@ -155,10 +155,11 @@ impl LogicCharaPhysics {
         position: Vec3A,
         rotation: Quat,
     ) -> XResult<(BodyID, JMut<MutableCompoundShape>, Vec<JointBinding>)> {
-        let skeleton = ctx.asset.load_skeleton(&inst_player.skeleton_files)?;
-        let mut loaded_target_box = ctx.asset.load_target_box(&inst_player.skeleton_files)?;
+        let skeleton = ctx.asset.load_skeleton(inst_player.skeleton_files)?;
+        let mut loaded_target_box = ctx.asset.load_target_box(&inst_player.body_file)?;
 
-        let model_transforms = rest_poses_to_model_transforms(&skeleton)?;
+        let mut model_transforms = vec![Transform3A::ZERO; skeleton.num_joints()];
+        rest_poses_to_model_transforms(&skeleton, &mut model_transforms)?;
         let mut target_bindings = Vec::with_capacity(loaded_target_box.bindings.len());
         let mut sub_shape_settings = Vec::with_capacity(loaded_target_box.bindings.len());
 
@@ -187,7 +188,8 @@ impl LogicCharaPhysics {
             let rotation = transform.rotation * loaded_binding.rotation;
             let position = if joint2 < 0 {
                 transform.translation + transform.rotation * loaded_binding.position
-            } else {
+            }
+            else {
                 Vec3A::lerp(
                     transform.translation,
                     model_transforms[joint2 as usize].translation,
@@ -242,7 +244,8 @@ impl LogicCharaPhysics {
             let mut new_velocity;
             if self.character.get_ground_state() == GroundState::OnGround && moving_towards_ground {
                 new_velocity = ground_velocity;
-            } else {
+            }
+            else {
                 new_velocity = Vec3A::new(0.0, linear_velocity.y, 0.0);
             }
 
@@ -250,12 +253,14 @@ impl LogicCharaPhysics {
 
             if self.character.is_supported() {
                 new_velocity += action.new_velocity();
-            } else {
+            }
+            else {
                 let horizontal_velocity = linear_velocity - Vec3A::new(0.0, linear_velocity.y, 0.0);
                 new_velocity += horizontal_velocity;
             }
             self.character.set_linear_velocity(new_velocity);
-        } else {
+        }
+        else {
             self.character.set_linear_velocity(action.new_velocity());
         }
 
@@ -274,7 +279,7 @@ impl LogicCharaPhysics {
 
         assert_abs_diff_eq!(self.character.get_rotation().x, 0.0, epsilon = 0.01);
         assert_abs_diff_eq!(self.character.get_rotation().z, 0.0, epsilon = 0.01);
-        self.direction = dir_xz_from_quat(self.character.get_rotation());
+        self.direction = action.new_direction();
         self.rotation = quat_from_dir_xz(self.direction);
         self.idle.set(true);
         Ok(())
@@ -289,7 +294,8 @@ impl LogicCharaPhysics {
             let rotation = transform.rotation * binding.rotation;
             let position = if binding.joint2 < 0 {
                 transform.translation + transform.rotation * binding.position
-            } else {
+            }
+            else {
                 Vec3A::lerp(
                     transform.translation,
                     model_transforms[binding.joint2 as usize].translation,
@@ -327,8 +333,8 @@ impl LogicCharaPhysics {
     }
 
     #[inline]
-    pub fn position_2d(&self) -> Vec2 {
-        self.position.xz()
+    pub fn position_2d(&self) -> Vec2xz {
+        Vec2xz::from_vec2(self.position.xz())
     }
 
     #[cfg(test)]
@@ -337,13 +343,13 @@ impl LogicCharaPhysics {
     }
 
     #[inline]
-    pub fn direction(&self) -> Vec2 {
+    pub fn direction(&self) -> Vec2xz {
         self.direction
     }
 
     #[inline]
     pub fn direction_3d(&self) -> Vec3A {
-        Vec3A::new(self.direction.x, 0.0, self.direction.y)
+        self.direction.as_vec3a()
     }
 
     #[inline]
@@ -352,7 +358,7 @@ impl LogicCharaPhysics {
     }
 
     #[cfg(test)]
-    pub fn set_direction(&mut self, direction: Vec2) {
+    pub fn set_direction(&mut self, direction: Vec2xz) {
         self.direction = direction;
         self.rotation = quat_from_dir_xz(self.direction);
     }
@@ -449,7 +455,6 @@ impl CharacterContactListener for CharacterContactListenerImpl {
     ) {
         let contact_normal: Vec3A = contact_normal.into();
         let contact_velocity: Vec3A = contact_velocity.into();
-        // println!("{} {} {}", self.allow_sliding, near!(contact_velocity, Vec3A::ZERO), !character.is_slope_too_steep(contact_normal));
         if !self.allow_sliding
             && abs_diff_eq!(contact_velocity, Vec3A::ZERO)
             && !character.is_slope_too_steep(contact_normal)
