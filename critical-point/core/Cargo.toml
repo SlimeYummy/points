@@ -14,14 +14,13 @@ cirtical-point-csgen = { path = "../csgen" }
 const_format = "0.2"
 educe = { version = "0.6", features = ["Debug", "Default"] }
 enum-iterator = "2.1"
-env_logger = "0.11.8"
 glam = { version = "0.30", features = ["libm", "approx", "serde", "rkyv"] }
 glam-ext = { version = "0.3", features = ["libm", "approx", "serde", "rkyv"] }
 jolt-physics-rs = { path = "../../../jolt-physics-rs", features = ["deterministic", "glam-ext", "serde", "rkyv"] }
 lazy_static = "1.4"
 libc = "0.2"
 libm = "0.2"
-log = "0.4.27"
+log = "0.4"
 mimalloc = "0.1.42"
 ozz-animation-rs = { path = "../../../ozz-animation-rs", features = ["rkyv"] }
 paste = "1.0"

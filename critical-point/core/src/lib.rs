@@ -1,9 +1,10 @@
-#![deny(rust_2018_idioms)]
 #![feature(ptr_metadata)]
-#![feature(trivial_bounds)]
 #![feature(allocator_api)]
-#![feature(error_generic_member_access)]
 #![feature(likely_unlikely)]
+#![feature(coroutines, coroutine_trait, stmt_expr_attributes, iter_from_coroutine)]
+#![feature(const_pathbuf_osstring_new)]
+#![feature(test)]
+extern crate test;
 
 #[cfg(not(debug_assertions))]
 use mimalloc::MiMalloc;
