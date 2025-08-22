@@ -1,6 +1,5 @@
 use cirtical_point_csgen::{CsEnum, CsOut};
 use enum_iterator::{cardinality, Sequence};
-use log::debug;
 use std::alloc::Layout;
 use std::any::Any;
 use std::fmt::Debug;
@@ -161,7 +160,7 @@ pub struct StateBase {
 #[cfg(feature = "debug-print")]
 impl Drop for StateBase {
     fn drop(&mut self) {
-        debug!("StateBas::drop() id={}  typ={:?}", self.id, self.typ);
+        log::debug!("StateBase::drop() id={}  typ={:?}", self.id, self.typ);
     }
 }
 
@@ -398,13 +397,13 @@ macro_rules! impl_state {
 
                 #[inline]
                 fn typ(&self) -> $crate::logic::StateType {
-                    assert_eq!(self._base.typ, $crate::logic::StateType::$state_enum);
+                    debug_assert_eq!(self._base.typ, $crate::logic::StateType::$state_enum);
                     $crate::logic::StateType::$state_enum
                 }
 
                 #[inline]
                 fn logic_typ(&self) -> $crate::logic::LogicType {
-                    assert_eq!(self._base.logic_typ, $crate::logic::LogicType::$logic_enum);
+                    debug_assert_eq!(self._base.logic_typ, $crate::logic::LogicType::$logic_enum);
                     $crate::logic::LogicType::$logic_enum
                 }
 
@@ -422,13 +421,13 @@ macro_rules! impl_state {
 
                 #[inline]
                 fn typ(&self) -> $crate::logic::StateType {
-                    assert_eq!(self._base.typ, $crate::logic::StateType::$state_enum);
+                    debug_assert_eq!(self._base.typ, $crate::logic::StateType::$state_enum);
                     $crate::logic::StateType::$state_enum
                 }
 
                 #[inline]
                 fn logic_typ(&self) -> $crate::logic::LogicType {
-                    assert_eq!(self._base.logic_typ, $crate::logic::LogicType::$logic_enum);
+                    debug_assert_eq!(self._base.logic_typ, $crate::logic::LogicType::$logic_enum);
                     $crate::logic::LogicType::$logic_enum
                 }
             }
@@ -447,7 +446,8 @@ mod tests {
     use crate::logic::zone::{StateZoneInit, StateZoneUpdate};
     use crate::utils::{sb, Castable};
     use anyhow::Result;
-    use glam::{Vec2, Vec3A};
+    use glam::Vec3A;
+    use glam_ext::Vec2xz;
 
     fn test_rkyv(state: Box<dyn StateAny>, typ: StateType, logic_typ: LogicType) -> Result<Box<dyn StateAny>> {
         use rkyv::rancor::Failure;
@@ -550,10 +550,10 @@ mod tests {
         assert_eq!(state_player_new.typ, StateType::PlayerInit);
         assert_eq!(state_player_new.logic_typ, LogicType::Player);
         assert_eq!(state_player_new.skeleton_file, "skeleton_file.ozz");
-        assert_eq!(
-            state_player_new.animation_files,
-            vec!["animation_file_1.ozz".to_owned(), "animation_file_2.ozz".to_owned()]
-        );
+        assert_eq!(state_player_new.animation_files, vec![
+            "animation_file_1.ozz".to_owned(),
+            "animation_file_2.ozz".to_owned()
+        ]);
         assert_eq!(state_player_new.view_model, "model.vrm");
 
         let state_player_update = test_rkyv(
@@ -562,7 +562,7 @@ mod tests {
                 physics: StateCharaPhysics {
                     velocity: Vec3A::ONE.into(),
                     position: Vec3A::new(1.0, 2.0, 3.0).into(),
-                    direction: Vec2::X,
+                    direction: Vec2xz::X,
                 },
                 actions: Vec::new(),
             }),
@@ -577,7 +577,7 @@ mod tests {
         assert_eq!(state_player_update.logic_typ, LogicType::Player);
         assert_eq!(state_player_update.physics.velocity, Vec3A::ONE);
         assert_eq!(state_player_update.physics.position, Vec3A::new(1.0, 2.0, 3.0));
-        assert_eq!(state_player_update.physics.direction, Vec2::X);
+        assert_eq!(state_player_update.physics.direction, Vec2xz::X);
         assert_eq!(state_player_update.actions.len(), 0);
     }
 

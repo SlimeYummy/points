@@ -119,7 +119,7 @@ impl LogicPlayback {
             let archived = unsafe { rkyv::archived_root::<InputFrameEvents>(&data_buf) };
             let mut deserializer = rkyv::Infallible;
             let players_inputs: InputFrameEvents = archived.deserialize(&mut deserializer).unwrap();
-            assert_eq!(players_inputs.frame, self.input_ptr + 1); // Input frame starts from 1
+            debug_assert_eq!(players_inputs.frame, self.input_ptr + 1); // Input frame starts from 1
 
             self.input_ptr += 1;
             Ok(Some(players_inputs))
@@ -149,7 +149,7 @@ impl LogicPlayback {
                 let init_archived = unsafe { rkyv::archived_root::<SaveStateInits>(&init_buf) };
                 let mut init_deserializer = rkyv::de::deserializers::SharedDeserializeMap::new();
                 state_inits = init_archived.deserialize(&mut init_deserializer).unwrap();
-                assert_eq!(state_inits.frame, self.state_ptr);
+                debug_assert_eq!(state_inits.frame, self.state_ptr);
             }
 
             let update_buf_len = (end - update_pos) as usize;
@@ -162,7 +162,7 @@ impl LogicPlayback {
             let update_archived = unsafe { rkyv::archived_root::<SaveStateUpdates>(&update_buf) };
             let mut update_deserializer = rkyv::Infallible;
             let state_updates: SaveStateUpdates = update_archived.deserialize(&mut update_deserializer).unwrap();
-            assert_eq!(state_updates.frame, self.state_ptr);
+            debug_assert_eq!(state_updates.frame, self.state_ptr);
 
             self.state_ptr += 1;
             Ok(Some(Arc::new(StateSet {

@@ -98,7 +98,7 @@ impl LogicZone {
     }
 
     pub fn restore(&mut self, ctx: &ContextRestore) -> XResult<()> {
-        assert!(ctx.find(self.id).is_ok());
+        debug_assert!(ctx.find(self.id).is_ok());
         Ok(())
     }
 

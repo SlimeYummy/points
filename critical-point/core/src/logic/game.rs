@@ -28,8 +28,17 @@ use crate::utils::{bubble_sort_by, extend, xres, Castable, HistoryVec, NumID, XR
 
 pub struct LogicLoop {
     systems: LogicSystems,
-    game: Box<LogicGame>,
+    game: Option<Box<LogicGame>>,
     frame: u32, // The current game frame for library user's side
+}
+
+impl Drop for LogicLoop {
+    fn drop(&mut self) {
+        self.game = None; // Ensure game is dropped before systems (especially PhysicsSystem)
+
+        #[cfg(feature = "debug-print")]
+        log::debug!("LogicLoop::drop()");
+    }
 }
 
 impl LogicLoop {
@@ -49,19 +58,21 @@ impl LogicLoop {
 
         let logic_loop = LogicLoop {
             systems,
-            game,
+            game: Some(game),
             frame: 0,
         };
         Ok((logic_loop, state_set))
     }
 
-    pub fn update(&mut self, mut player_events: Vec<InputPlayerEvents>) -> XResult<Vec<Arc<StateSet>>> {
+    pub fn update(&mut self, mut player_events: Vec<InputPlayerEvents>) -> XResult<Arc<StateSet>> {
         if self.systems.stopped {
             return xres!(Unexpected; "system stopped");
         }
 
+        println!("--------------------{}--------------------", self.frame);
+
         let systems = &mut self.systems;
-        let game = &mut self.game;
+        let game = self.game.as_mut().unwrap();
         self.frame += 1;
 
         if let Some(save) = systems.save.as_mut() {
@@ -83,7 +94,7 @@ impl LogicLoop {
 
             let ctx = ContextRestore::new(systems.state[base_frame].clone());
             game.restore(&ctx)?;
-            assert_eq!(game.frame, base_frame);
+            debug_assert_eq!(game.frame, base_frame);
         }
 
         // Update frame to current
@@ -96,7 +107,7 @@ impl LogicLoop {
 
             systems.gene.update(frame);
         }
-        let ret_states = systems.state.range(base_frame + 1..)?.cloned().collect();
+        let res_state = systems.state[game.frame].clone();
 
         systems.input.confirm()?;
         let state_sets = systems.state.confirm(systems.input.synced_frame())?;
@@ -104,7 +115,7 @@ impl LogicLoop {
             save.save_states(state_sets)?;
         }
 
-        Ok(ret_states)
+        Ok(res_state)
     }
 
     pub fn stop(&mut self) -> XResult<()> {
@@ -142,6 +153,13 @@ pub struct LogicSystems {
     pub input: SystemInput,
     pub state: SystemState,
     pub save: Option<SystemSave>,
+}
+
+#[cfg(feature = "debug-print")]
+impl Drop for LogicSystems {
+    fn drop(&mut self) {
+        log::debug!("LogicSystems::drop()");
+    }
 }
 
 impl LogicSystems {
@@ -310,7 +328,7 @@ impl_state!(StateGameUpdate, Game, GameUpdate, "GameUpdate");
 pub struct LogicGame {
     id: NumID,
     frame: u32, // Internal logical restorable frame
-    stage: Box<LogicZone>,
+    zone: Box<LogicZone>,
     players: HistoryVec<Box<LogicPlayer>>,
     npces: HistoryVec<Box<LogicNpc>>,
 }
@@ -350,9 +368,9 @@ impl LogicGame {
         });
         state_set.inits.push(game_init);
 
-        // new stage
-        let (stage, stage_init) = LogicZone::new(ctx, &param_zone)?;
-        state_set.inits.push(stage_init);
+        // new zone
+        let (zone, zone_init) = LogicZone::new(ctx, &param_zone)?;
+        state_set.inits.push(zone_init);
 
         // new players
         let mut logic_players = HistoryVec::with_capacity(param_players.len());
@@ -368,7 +386,7 @@ impl LogicGame {
         let mut game = Box::new(LogicGame {
             id: GAME_ID,
             frame: 0,
-            stage,
+            zone,
             players: logic_players,
             npces: logic_enemies,
         });
@@ -380,14 +398,16 @@ impl LogicGame {
 
     fn restore(&mut self, ctx: &ContextRestore) -> XResult<()> {
         self.frame = ctx.frame;
-        self.stage.restore(ctx)?;
+        self.zone.restore(ctx)?;
 
         self.players.restore_when(|player| {
             if player.death_frame() < self.frame {
                 Ok(-1)
-            } else if player.spawn_frame() > self.frame {
+            }
+            else if player.spawn_frame() > self.frame {
                 return Ok(1);
-            } else {
+            }
+            else {
                 player.restore(ctx)?;
                 return Ok(0);
             }
@@ -412,7 +432,7 @@ impl LogicGame {
             player.update(ctx)?;
         }
 
-        self.stage.update(ctx)?;
+        self.zone.update(ctx)?;
 
         for npc in self.npces.iter_mut_by(|p| p.is_alive()) {
             npc.update_ai(ctx)?;
@@ -426,7 +446,13 @@ impl LogicGame {
 
     fn collect_states_updates(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<Vec<Box<dyn StateAny>>> {
         let mut updates: Vec<Box<dyn StateAny>> = Vec::with_capacity(1 + self.players.len() + self.npces.len());
-        updates.push(self.stage.state());
+        updates.push(Box::new(StateGameUpdate {
+            _base: StateBase::new(self.id, StateType::GameUpdate, LogicType::Game),
+            frame: self.frame,
+            id_gen_counter: ctx.gene.counter(),
+        }));
+
+        updates.push(self.zone.state());
 
         for player in self.players.iter_mut() {
             updates.push(player.state()?);
@@ -435,12 +461,6 @@ impl LogicGame {
         for npc in self.npces.iter_mut() {
             updates.push(npc.state());
         }
-
-        updates.push(Box::new(StateGameUpdate {
-            _base: StateBase::new(self.id, StateType::GameUpdate, LogicType::Game),
-            frame: self.frame,
-            id_gen_counter: ctx.gene.counter(),
-        }));
         Ok(updates)
     }
 }
@@ -451,14 +471,19 @@ mod tests {
     use crate::consts::TEST_ASSET_PATH;
     use crate::utils::{id, RawEvent, RawKey};
 
+    #[ctor::ctor]
+    fn test_init_jolt_physics() {
+        jolt_physics_rs::global_initialize();
+    }
+
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_logic_loop_common() {
         let tmpl_db = TmplDatabase::new(10240, 150).unwrap();
         let param_zone = ParamZone { zone: id!("Zone.Demo") };
         let param_player = ParamPlayer {
-            character: id!("Character.No1"),
-            style: id!("Style.No1-1"),
+            character: id!("Character.One"),
+            style: id!("Style.One/1"),
             level: 4,
             ..Default::default()
         };
@@ -469,6 +494,9 @@ mod tests {
             events: vec![RawEvent::new_button(RawKey::Attack1, true)],
         }])
         .unwrap();
+        // ll.update(vec![]).unwrap();
+        // ll.update(vec![]).unwrap();
+        // // ll.update(vec![]).unwrap();
         // ll.stop().unwrap();
     }
 }
