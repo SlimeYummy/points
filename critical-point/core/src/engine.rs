@@ -1,6 +1,6 @@
 use cirtical_point_csgen::CsOut;
-use jolt_physics_rs::{global_initialize, PhysicsSystem};
-use log::{debug, info};
+use jolt_physics_rs::{self, PhysicsSystem};
+use log::info;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -10,40 +10,56 @@ use crate::parameter::{verify_player, ContextVerify, ParamPlayer, ParamZone};
 use crate::template::TmplDatabase;
 use crate::utils::{xerr, xres, XResult};
 
+#[derive(Debug)]
+pub struct EnvPath {
+    pub tmpl_path: PathBuf,
+    pub asset_path: PathBuf,
+}
+
+pub static mut ENV_PATH: EnvPath = EnvPath {
+    tmpl_path: PathBuf::new(),
+    asset_path: PathBuf::new(),
+};
+
 pub struct LogicEngine {
     tmpl_database: TmplDatabase,
-    asset_path: PathBuf,
     logic_loop: Option<LogicLoop>,
 }
 
-#[cfg(feature = "debug-print")]
 impl Drop for LogicEngine {
     fn drop(&mut self) {
-        debug!("LogicEngine::drop()");
+        log::info!("LogicEngine::drop()");
     }
 }
 
 impl LogicEngine {
-    pub fn initialize<P: AsRef<Path>>(tmpl_path: P) -> XResult<()> {
-        env_logger::init();
-        info!("LogicEngine::initialize() tmpl_path={:?}", tmpl_path.as_ref());
+    pub fn initialize<TP: AsRef<Path>, AP: AsRef<Path>>(tmpl_path: TP, asset_path: AP) -> XResult<()> {
+        info!(
+            "LogicEngine::initialize() tmpl_path={:?} asset_path={:?}",
+            tmpl_path.as_ref(),
+            asset_path.as_ref()
+        );
+        unsafe {
+            ENV_PATH.tmpl_path = PathBuf::from(tmpl_path.as_ref());
+            ENV_PATH.asset_path = PathBuf::from(asset_path.as_ref());
+        }
 
         unsafe {
-            crate::utils::init_id_static(&tmpl_path)?;
-            crate::template::init_database_static(&tmpl_path)?;
+            crate::utils::init_id_static(&tmpl_path, true)?;
+            crate::template::init_database_static(&tmpl_path, true)?;
         };
-        global_initialize();
+
+        jolt_physics_rs::global_initialize();
 
         info!("LogicEngine::initialize() OK");
         Ok(())
     }
 
-    pub fn new<P: AsRef<Path>>(asset_path: P) -> XResult<LogicEngine> {
-        info!("LogicEngine::new() asset_path={:?}", asset_path.as_ref());
+    pub fn new() -> XResult<LogicEngine> {
+        info!("LogicEngine::new()");
 
         let engine = LogicEngine {
             tmpl_database: TmplDatabase::new(1024 * 1024, 60)?,
-            asset_path: PathBuf::from(asset_path.as_ref()),
             // script_executor: ScriptExecutor::new(),
             logic_loop: None,
         };
@@ -107,7 +123,10 @@ impl LogicEngine {
 
         let (logic_loop, state_set) = LogicLoop::new(
             self.tmpl_database.clone(),
-            &self.asset_path,
+            #[allow(static_mut_refs)]
+            unsafe {
+                ENV_PATH.asset_path.clone()
+            },
             param_zone,
             param_players,
             save_path,
@@ -118,7 +137,8 @@ impl LogicEngine {
         Ok(state_set)
     }
 
-    pub fn update_game(&mut self, player_events: Vec<InputPlayerEvents>) -> XResult<Vec<Arc<StateSet>>> {
+    pub fn update_game(&mut self, player_events: Vec<InputPlayerEvents>) -> XResult<Arc<StateSet>> {
+        // info!("player_events {:?}", player_events);
         let logic_loop = self
             .logic_loop
             .as_mut()
