@@ -1,7 +1,41 @@
 import { checkArray, checkOrder, float, int } from './builtin';
-import { FPS } from './config';
+import { ENABLE_TIME_WARNING, FPS, LOGIC_SPF } from './config';
 
 const RE_TIME = /^(\d+(?:\.\d+)*)(s|m|min|h|hr|ms|F)$/;
+
+export function parseTime(
+    raw: float | string,
+    where: string,
+    opts: {
+        min?: float;
+        max?: float;
+        ignore_warning?: boolean;
+    } = {},
+): float {
+    let res = 0;
+    if (typeof raw === 'number') {
+        res = raw;
+    } else if (typeof raw === 'string') {
+        res = str2time(raw, where);
+    } else {
+        throw new Error(`${where}: must be a float/time`);
+    }
+
+    if (opts.min !== undefined && res < opts.min) {
+        throw new Error(`${where}: must >= ${opts.min}`);
+    }
+    if (opts.max !== undefined && res > opts.max) {
+        throw new Error(`${where}: must <= ${opts.max}`);
+    }
+
+    if (ENABLE_TIME_WARNING && !opts.ignore_warning) {
+        const x = res / LOGIC_SPF;
+        if (Math.abs(Math.round(x) - x) > 0.01) {
+            console.warn(`Warning: ${where}: unaccurate time (${raw})`);
+        }
+    }
+    return res;
+}
 
 function unit2time(unit: string, where: string): float {
     switch (unit) {
@@ -21,32 +55,6 @@ function unit2time(unit: string, where: string): float {
         default:
             throw new Error(`${where}: invalid time`);
     }
-}
-
-export function parseTime(
-    raw: float | string,
-    where: string,
-    opts: {
-        min?: float;
-        max?: float;
-    } = {},
-): float {
-    let res = 0;
-    if (typeof raw === 'number') {
-        res = raw;
-    } else if (typeof raw === 'string') {
-        res = str2time(raw, where);
-    } else {
-        throw new Error(`${where}: must be a float/time`);
-    }
-
-    if (opts.min !== undefined && res < opts.min) {
-        throw new Error(`${where}: must >= ${opts.min}`);
-    }
-    if (opts.max !== undefined && res > opts.max) {
-        throw new Error(`${where}: must <= ${opts.max}`);
-    }
-    return res;
 }
 
 function str2time(str: string, where: string): float {
@@ -70,6 +78,7 @@ export function parseTimeArray(
         max_len?: float;
         ascend?: boolean;
         descend?: boolean;
+        ignore_warning?: boolean;
     } = {},
 ): ReadonlyArray<float> {
     checkArray(raw, where, opts);
@@ -80,6 +89,7 @@ export function parseTimeArray(
             parseTime(item, `${where}[${idx}]`, {
                 min: opts.min,
                 max: opts.max,
+                ignore_warning: opts.ignore_warning,
             }),
         );
     }
@@ -96,6 +106,7 @@ export function parseTimeRange(
     opts: {
         min?: float;
         max?: float;
+        ignore_warning?: boolean;
     } = {},
 ): readonly [float, float] {
     const rawArray = typeof raw === 'string' ? str2range(raw, where) : raw;
@@ -143,6 +154,7 @@ export class TimeFragment {
         opts: {
             duration: float;
             over_duration?: float;
+            ignore_warning?: boolean;
         },
     ): ReadonlyArray<TimeFragment> {
         checkArray(raw, where, { min_len: 1 });
@@ -153,6 +165,7 @@ export class TimeFragment {
         const range_opts = {
             min: 0,
             max: opts.over_duration || opts.duration,
+            ignore_warning: opts.ignore_warning,
         };
         for (const [idx, item] of raw.entries()) {
             const range = parseTimeRange(item, `${where}[${idx}]`, range_opts);
@@ -279,6 +292,7 @@ export function parseTimeline<R, T extends TimeFragment>(
     opts: {
         min?: float;
         max?: float;
+        ignore_warning?: boolean;
     },
     parse: (raw: R, where: string, opts: Record<string, any>) => T,
 ): {} {
