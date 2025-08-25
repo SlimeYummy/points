@@ -45,14 +45,16 @@ export type CharacterArgs = {
     bounding_capsule: Capsule;
 
     /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
-     * - xxx.logic-skel.ozz 逻辑骨骼
-     * - xxx.view-skel.ozz 视图骨骼
-     * - xxx.target.rkyv (.json)角色判定体（包围盒）
+     * - xxx.ls-ozz 逻辑骨骼
+     * - xxx.vs-ozz 视图骨骼
      */
     skeleton_files: FilePath;
 
     /** 模型在XZ平面上的朝向（正面方向） */
     skeleton_toward: readonly [float, float];
+
+    /** 角色角色判定体（包围盒） xxx.rkyv (.json) */
+    body_file: FilePath;
 };
 
 /**
@@ -86,11 +88,17 @@ export class Character extends Resource {
     /** 用于移动的包围胶囊体 */
     public readonly bounding_capsule: Capsule;
 
-    /** 用于骨骼动画的模型文件(ozz) */
+    /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
+     * - xxx.ls-ozz 逻辑骨骼
+     * - xxx.vs-ozz 视图骨骼
+     */
     public readonly skeleton_files: FilePath;
 
     /** 模型在XZ平面上的朝向（正面方向） */
     public readonly skeleton_toward: readonly [float, float];
+    
+    /** 角色角色判定体（包围盒） xxx.rkyv (.json) */
+    public readonly body_file: FilePath;
 
     public constructor(id: ID, args: CharacterArgs) {
         super(id);
@@ -103,10 +111,11 @@ export class Character extends Resource {
             Capsule,
             this.w('bounding_capsule'),
         );
-        this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'));
+        this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), { extension: '.*' });
         this.skeleton_toward = parseVec2(args.skeleton_toward, this.w('skeleton_toward'), {
             normalized: true,
         });
+        this.body_file = parseFile(args.body_file, this.w('body_file'), { extension: '.json' });
     }
 
     public override verify() {
@@ -214,7 +223,7 @@ export class Style extends Resource {
         this.perks = parseIDArray(args.perks, 'Perk', this.w('perks'));
         this.usable_perks = this.parseUsablePerks(args.usable_perks, args.perks);
         this.actions = parseIDArray(args.actions, 'Action', this.w('actions'));
-        this.view_model = parseFile(args.view_model, this.w('view_model'), { extension: '.vrm' });
+        this.view_model = parseFile(args.view_model, this.w('view_model'), { extension: ['.vrm', '.prefab'] });
     }
 
     private parseUsablePerks(

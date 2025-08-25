@@ -1,5 +1,6 @@
 export * from './accessory';
 export * from './action';
+export * from './asset';
 export * from './attribute';
 export * from './common';
 export * from './character';
