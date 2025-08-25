@@ -99,5 +99,6 @@ export abstract class Resource {
         fs.writeFileSync(`${folder}/symbol.json`, JSON.stringify(symbols));
         fs.writeFileSync(`${folder}/index.json`, JSON.stringify(indexes));
         fs.writeFileSync(`${folder}/data.json`, resources.join(''));
+        console.log(`Templates: ${folder}`);
     }
 }

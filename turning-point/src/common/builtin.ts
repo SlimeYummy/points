@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { FPS } from './config';
 
 export type int = number;
 export type float = number;
@@ -271,6 +270,7 @@ export function parseString(
     opts: {
         min_len?: int;
         max_len?: int;
+        includes?: string[];
         regex?: RegExp;
     } = {},
 ): string {
@@ -283,6 +283,9 @@ export function parseString(
     if (opts.max_len !== undefined && raw.length > opts.max_len) {
         throw new Error(`${where}: length must <= ${opts.max_len}`);
     }
+    if (opts.includes && !opts.includes.includes(raw)) {
+        throw new Error(`${where}: must include ${opts.includes}`);
+    }
     if (opts.regex && !opts.regex.test(raw)) {
         throw new Error(`${where}: must match ${opts.regex}`);
     }
@@ -293,16 +296,25 @@ export function parseFile(
     raw: string,
     where: string,
     opts: {
-        extension?: string;
+        extension?: string | string[];
         can_absolute?: boolean;
     } = {},
 ): string {
     if (typeof raw !== 'string') {
         throw new Error(`${where}: must be a string`);
     }
-    if (opts.extension && path.extname(raw) !== opts.extension) {
-        throw new Error(`${where}: must have extension ${opts.extension}`);
+    
+    if (Array.isArray(opts.extension)) {
+        const ext = path.extname(raw)
+        if (!opts.extension.includes(ext)) {
+            throw new Error(`${where}: must have extension ${opts.extension}`);
+        }
+    } else if (opts.extension) {
+        if (path.extname(raw) !== opts.extension) {
+            throw new Error(`${where}: must have extension ${opts.extension}`);
+        }
     }
+    
     if (!opts.can_absolute && path.isAbsolute(raw)) {
         throw new Error(`${where}: must be a relative path`);
     }
