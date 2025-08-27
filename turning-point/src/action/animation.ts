@@ -1,36 +1,37 @@
-import { float, int, parseBool, parseFile, parseTime } from '../common';
+import { FilePath, float, int, parseBool, parseFile, parseTime } from '../common';
 import * as native from '../native';
 
 export type AniamtionArgs = {
     /**
      * 动画文件 一个通配的路径前缀 以xxx为例对应如下文件
-     * - xxx.logic-anim.ozz 逻辑动画
-     * - xxx.logic-moti.ozz 逻辑RootMotion
-     * - xxx.view-anim.ozz 视图动画
-     * - xxx.view-moti.ozz 视图RootMotion
+     * - xxx.la-ozz 逻辑动画
+     * - xxx.va-ozz 视图动画
+     * - xxx.m-ozz 逻辑RootMotion
      */
-    files: string;
+    files: FilePath;
 
     /** 动画时长（单位秒） */
-    duration: float | string;
+    duration?: float | string;
 
     /** 淡入动画时间（单位秒） */
     fade_in?: float | string;
 
-    /** 是否启用RootMotion */
+    /** 是否启用RootMotion 启用类型 */
     root_motion?: boolean;
 };
 
 export class Aniamtion {
     /**
      * 动画文件 一个通配的路径前缀 以xxx为例对应如下文件
-     * - xxx.logic-anim.ozz 逻辑动画
-     * - xxx.logic-moti.ozz 逻辑RootMotion
-     * - xxx.view-anim.ozz 视图动画
-     * - xxx.view-moti.ozz 视图RootMotion
+     * - xxx.la-ozz 逻辑动画
+     * - xxx.va-ozz 视图动画
+     * - xxx.m-ozz 逻辑RootMotion
      * - xxx.hits.rkyv (.json)判定时间轴
      */
-    public readonly files: string;
+    public readonly files: FilePath;
+
+    /** 动作内部的短ID */
+    public readonly local_id: int;
 
     /**
      * 动画时长（单位秒）
@@ -43,9 +44,6 @@ export class Aniamtion {
 
     /** 是否启用RootMotion */
     public readonly root_motion: boolean;
-
-    /** RootMotion中Root在xz平面的最大移动距离 */
-    public readonly root_max_distance: float;
 
     public constructor(
         args: AniamtionArgs,
@@ -61,11 +59,17 @@ export class Aniamtion {
             const where: string = arguments[1];
             const opts = arguments[2] || {};
 
-            this.files = parseFile(args.files, `${where}.files`);
-            this.duration = parseTime(args.duration, `${where}.duration`, { min: 0 });
+            this.files = parseFile(args.files, `${where}.files`, { extension: '.*' });
+            const anim = native.loadAnimationMeta(this.files); // 确保动画存在
+
+            this.duration = parseTime(
+                args.duration == null ? anim.duration : args.duration,
+                `${where}.duration`,
+                { min: 0 },
+            );
             this.fade_in =
                 args.fade_in == null
-                    ? 0.2
+                    ? 0.1
                     : parseTime(args.fade_in, `${where}.fade_in`, { min: 0 });
 
             this.root_motion =
@@ -83,11 +87,10 @@ export class Aniamtion {
         }
 
         if (this.root_motion) {
-            const { max_distance } = native.loadRootMotionMeta(this.files);
-            this.root_max_distance = max_distance;
-        } else {
-            this.root_max_distance = 0;
+            native.loadRootMotionMeta(this.files); // 确保RootMotion存在
         }
+
+        this.local_id = 65535;
     }
 
     public static fromFile(_file: string, _where: string): Aniamtion {
@@ -99,5 +102,13 @@ export class Aniamtion {
         where: string,
     ): ReadonlyArray<Aniamtion> {
         return raw.map((args, idx) => new Aniamtion(args, `${where}[${idx}]`));
+    }
+
+    public static generateLocalID(animation: Array<Aniamtion | undefined | null>) {
+        for (let pos = 0; pos < animation.length; ++pos) {
+            if (animation[pos]) {
+                (animation[pos] as any).local_id = pos;
+            }
+        }
     }
 }
