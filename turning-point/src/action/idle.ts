@@ -7,7 +7,7 @@ export type ActionIdleArgs = ActionArgs & {
     anim_idle: AniamtionArgs;
 
     /** 战斗状态站立动画 */
-    anim_ready: AniamtionArgs;
+    anim_ready?: AniamtionArgs;
 
     /** 非战斗状态 随机小动作动画 */
     anim_randoms?: ReadonlyArray<AniamtionArgs>;
@@ -24,7 +24,7 @@ export class ActionIdle extends Action {
     public readonly anim_idle: Aniamtion;
 
     /** 战斗状态站立动画 */
-    public readonly anim_ready: Aniamtion;
+    public readonly anim_ready?: Aniamtion;
 
     /** 非战斗状态 随机小动作动画 */
     public readonly anim_randoms?: ReadonlyArray<Aniamtion>;
@@ -47,9 +47,11 @@ export class ActionIdle extends Action {
     public constructor(id: ID, args: ActionIdleArgs) {
         super(id, args);
         this.anim_idle = new Aniamtion(args.anim_idle, this.w('anim_idle'), { root_motion: false });
-        this.anim_ready = new Aniamtion(args.anim_ready, this.w('anim_ready'), {
-            root_motion: false,
-        });
+        this.anim_ready = !args.anim_ready
+            ? undefined
+            : new Aniamtion(args.anim_ready, this.w('anim_ready'), {
+                  root_motion: false,
+              });
         this.anim_randoms = !args.anim_randoms
             ? undefined
             : args.anim_randoms.map(
@@ -63,5 +65,7 @@ export class ActionIdle extends Action {
                 ? true
                 : parseBool(args.derive_keeping, this.w('derive_keeping'));
         this.poise_level = 0;
+
+        Aniamtion.generateLocalID([this.anim_idle, this.anim_ready, ...(this.anim_randoms || [])]);
     }
 }

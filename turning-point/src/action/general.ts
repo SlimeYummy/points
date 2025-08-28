@@ -9,6 +9,7 @@ import {
     TimelineArgs,
 } from '../common';
 import { Resource } from '../resource';
+import * as native from '../native';
 import { parseVarFloat, parseVarInt, Var, VarValueArgs } from '../variable';
 import { Aniamtion, AniamtionArgs } from './animation';
 import {
@@ -200,6 +201,8 @@ export class ActionGeneral extends Action {
         this.derive_continues = !args.derive_continues
             ? undefined
             : parseVarDeriveContinueSet(args.derive_continues, this.w('derive_continues'));
+
+        Aniamtion.generateLocalID([this.anim_main]);
     }
 
     private parseMotionDistance(
@@ -207,8 +210,12 @@ export class ActionGeneral extends Action {
         anim_main: Aniamtion,
     ): readonly [float, float] {
         if (motion_distance == null) {
-            const num = anim_main.root_max_distance;
-            return [num, num];
+            if (anim_main.root_motion) {
+                const meta = native.loadRootMotionMeta(anim_main.files);
+                return [meta.whole_distance_xz, meta.whole_distance_xz];
+            } else {
+                return [0, 0];
+            }
         } else if (typeof motion_distance === 'number') {
             const num = parseFloat(motion_distance, this.w('motion_distance'), {
                 min: 0,
