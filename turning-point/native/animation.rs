@@ -5,7 +5,7 @@ use ozz_animation_rs::{Animation, Archive, Skeleton, Track};
 use std::collections::HashMap;
 use cirtical_point_core::animation::RootMotionTrack;
 
-use crate::error::{cp_err, ozz_err};
+use crate::error::{cp_err_msg, ozz_err_msg};
 
 #[napi(object)]
 pub struct SkeletonMeta {
@@ -20,8 +20,14 @@ pub struct SkeletonMeta {
 
 #[napi]
 pub fn load_skeleton_meta(path: String, with_joints: bool) -> Result<SkeletonMeta> {
-    let mut archive = Archive::from_path(path).map_err(ozz_err)?;
-    let ozz_meta = Skeleton::read_meta(&mut archive, with_joints).map_err(ozz_err)?;
+    let mut archive = match Archive::from_path(&path) {
+        Ok(archive) => archive,
+        Err(err) => return Err(ozz_err_msg(err, &path)),
+    };
+    let ozz_meta = match Skeleton::read_meta(&mut archive, with_joints) {
+        Ok(meta) => meta,
+        Err(err) => return Err(ozz_err_msg(err, &path)),
+    };
 
     Ok(SkeletonMeta {
         version: Skeleton::version(),
@@ -48,8 +54,14 @@ pub struct AnimationMeta {
 
 #[napi]
 pub fn load_animation_meta(path: String) -> Result<AnimationMeta> {
-    let mut archive = Archive::from_path(path).map_err(ozz_err)?;
-    let ozz_meta = Animation::read_meta(&mut archive).map_err(ozz_err)?;
+    let mut archive = match Archive::from_path(&path) {
+        Ok(archive) => archive,
+        Err(err) => return Err(ozz_err_msg(err, &path)),
+    };
+    let ozz_meta = match Animation::read_meta(&mut archive) {
+        Ok(meta) => meta,
+        Err(err) => return Err(ozz_err_msg(err, &path)),
+    };
 
     Ok(AnimationMeta {
         version: Animation::version(),
@@ -69,17 +81,26 @@ pub struct RootMotionMeta {
     pub has_position: bool,
     #[napi(js_name = "has_rotation")]
     pub has_rotation: bool,
-    #[napi(js_name = "max_distance")]
-    pub max_distance: f64,
+    #[napi(js_name = "whole_distance")]
+    pub whole_distance: f64,
+    #[napi(js_name = "whole_distance_xz")]
+    pub whole_distance_xz: f64,
+    #[napi(js_name = "whole_distance_y")]
+    pub whole_distance_y: f64,
 }
 
 #[napi]
 pub fn load_root_motion_meta(path: String) -> Result<RootMotionMeta> {
-    let root_motion = RootMotionTrack::from_path(path).map_err(cp_err)?;
+    let root_motion = match RootMotionTrack::from_path(&path) {
+        Ok(root_motion) => root_motion,
+        Err(err) => return Err(cp_err_msg(err, &path)),
+    };
     Ok(RootMotionMeta {
         version: Track::<Vec3>::version(),
         has_position: root_motion.has_position(),
         has_rotation: root_motion.has_rotation(),
-        max_distance: root_motion.max_xz_distance() as f64,
+        whole_distance: root_motion.whole_position().length() as f64,
+        whole_distance_xz: root_motion.whole_position().xz().length() as f64,
+        whole_distance_y: root_motion.whole_position().y as f64,
     })
 }
