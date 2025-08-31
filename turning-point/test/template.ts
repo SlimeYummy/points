@@ -21,6 +21,7 @@ import {
     Rare1,
     Rare2,
     Rare3,
+    Run,
     Slot1,
     Slot3,
     Special,
@@ -58,8 +59,9 @@ const ONE = new Character('Character.One', {
     styles: ['Style.One/1', 'Style.One/2'],
     equipments: ['Equipment.No1', 'Equipment.No2', 'Equipment.No3'],
     bounding_capsule: new Capsule(0.5 * 1.35, 0.3),
-    skeleton_files: 'girl',
+    skeleton_files: 'girl.*',
     skeleton_toward: [0, 1],
+    body_file: 'body1.json',
 });
 
 new Style('Style.One/1', {
@@ -82,7 +84,13 @@ new Style('Style.One/1', {
     fixed_attributes,
     perks: ['Perk.One.NormalAttack.Branch', 'Perk.One.AttackUp'],
     usable_perks: ['Perk.One.FinalPerk'],
-    actions: ['Action.One.Idle', 'Action.One.Run', 'Action.One.Attack/1', 'Action.One.Attack/2'],
+    actions: [
+        'Action.One.Idle',
+        'Action.One.IdleX',
+        'Action.One.Jog',
+        'Action.One.Attack/1',
+        'Action.One.Attack/2',
+    ],
     view_model: 'StyleOne-1.vrm',
 });
 
@@ -94,7 +102,7 @@ new Style('Style.One/2', {
     fixed_attributes,
     perks: ['Perk.One.FinalPerk'],
     usable_perks: ['Perk.One.AttackUp'],
-    actions: ['Action.One.Idle', 'Action.One.Run', 'Action.One.Attack/1'],
+    actions: ['Action.One.Idle', 'Action.One.Jog', 'Action.One.Attack/1'],
     view_model: 'OneType-2.vrm',
 });
 
@@ -104,8 +112,9 @@ new Character('Character.Two', {
     styles: ['Style.Two/1'],
     equipments: ['Equipment.No4'],
     bounding_capsule: new Capsule(0.5 * 1.35, 0.3),
-    skeleton_files: 'girl',
+    skeleton_files: 'girl.*',
     skeleton_toward: [0, 1],
+    body_file: 'body2.json',
 });
 
 new Style('Style.Two/1', {
@@ -192,30 +201,83 @@ new ActionIdle('Action.One.Idle', {
     character: ONE.id,
     styles: ONE.styles,
     anim_idle: {
-        files: 'girl_stand_idle',
+        files: 'girl_stand_idle.*',
         duration: '2.5s',
     },
     anim_ready: {
-        files: 'girl_stand_ready',
+        files: 'girl_stand_ready.*',
         duration: '2s',
     },
 });
 
-new ActionMove('Action.One.Run', {
+new ActionIdle('Action.One.IdleX', {
+    character: ONE.id,
+    styles: ['Style.One/1'],
+    anim_idle: {
+        files: 'girl_stand_idle.*',
+        duration: '2.5s',
+    },
+});
+
+new ActionMove('Action.One.Jog', {
     character: ONE.id,
     styles: ONE.styles,
+    enter_key: Run,
     anim_move: {
-        files: 'girl_run',
-        duration: '3s',
-        fade_in: '0.2s',
+        files: 'girl_jog.*',
+        fade_in: '4F',
+        root_motion: true,
     },
-    yam_time: '0.333s',
-    turn_time: '1s',
+    move_speed: 3,
+    starts: [
+        {
+            enter_angle: ['L15', 'R15'],
+            files: 'girl_jog_start.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '2F',
+            quick_stop_end: '20F',
+        },
+        {
+            enter_angle: ['L15', 'L180'],
+            files: 'girl_jog_start_turn_l180.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '8F',
+            quick_stop_end: '26F',
+        },
+        {
+            enter_angle: ['R15', 'R180'],
+            files: 'girl_jog_start_turn_r180.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '8F',
+            quick_stop_end: '26F',
+        },
+    ],
+    turn_time: '10F',
+    stops: [
+        {
+            enter_phase_table: [[0.75, 0.25, '2F']],
+            files: 'girl_jog_stop_l.*',
+            fade_in: '4F',
+            root_motion: true,
+            speed_down_end: '12F',
+        },
+        {
+            enter_phase_table: [[0.25, 0.75, '2F']],
+            files: 'girl_jog_stop_r.*',
+            fade_in: '4F',
+            root_motion: true,
+            speed_down_end: '12F',
+        },
+    ],
+    quick_stop_time: 0,
 });
 
 new ActionGeneral('Action.One.Attack/1', {
     anim_main: {
-        files: 'girl_attack1_1',
+        files: 'girl_attack1_1.*',
         duration: 4,
         root_motion: true,
     },
@@ -244,7 +306,7 @@ new ActionGeneral('Action.One.Attack/1', {
 
 new ActionGeneral('Action.One.Attack/2', {
     anim_main: {
-        files: 'girl_attack2_1',
+        files: 'girl_attack2_1.*',
         duration: '5s',
         root_motion: true,
     },
@@ -490,6 +552,6 @@ new Entry('Entry.Variable', {
 
 new Zone('Zone.Demo', {
     name: 'Demo',
-    zone_file: 'stage-demo.json',
+    zone_file: 'demo_zone.json',
     view_zone_file: 'stage-demo.tscn',
 });
