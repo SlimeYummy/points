@@ -16,8 +16,9 @@ new Character('Character.Verify/1', {
     styles: ['Style.Verify/1A', 'Style.Verify/1B'],
     equipments: ['Equipment.Verify/1A', 'Equipment.Verify/1B', 'Equipment.Verify/1C'],
     bounding_capsule: new Capsule(0.5 * 1.35, 0.3),
-    skeleton_files: 'girl',
+    skeleton_files: 'girl.*',
     skeleton_toward: [0, 1],
+    body_file: 'body1.json',
 });
 
 new Style('Style.Verify/1A', {
@@ -49,8 +50,9 @@ new Character('Character.Verify/2', {
     styles: ['Style.Verify/2'],
     equipments: ['Equipment.Verify/2A'],
     bounding_capsule: new Capsule(0.5 * 1.35, 0.3),
-    skeleton_files: 'skel',
+    skeleton_files: 'skel.*',
     skeleton_toward: [0, 1],
+    body_file: 'body2.json',
 });
 
 new Style('Style.Verify/2', {
