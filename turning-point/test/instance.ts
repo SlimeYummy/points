@@ -12,6 +12,7 @@ import {
     LEVEL_ACTION,
     LEVEL_ATTACK,
     Perk,
+    Run,
     Slot1,
     Slot3,
     Style,
@@ -41,8 +42,9 @@ new Character('Character.Instance/1', {
     styles: ['Style.Instance/1A'],
     equipments: ['Equipment.Instance/1A', 'Equipment.Instance/1B'],
     bounding_capsule: new Capsule(0.5 * 1.35, 0.3),
-    skeleton_files: 'girl',
+    skeleton_files: 'girl.*',
     skeleton_toward: [0, 1],
+    body_file: 'body1.json',
 });
 
 new Style('Style.Instance/1A', {
@@ -66,7 +68,7 @@ new Style('Style.Instance/1A', {
     perks: ['Perk.Instance/1A', 'Perk.Instance/1B'],
     actions: [
         'Action.Instance.Idle/1A',
-        'Action.Instance.Run/1A',
+        'Action.Instance.Jog/1A',
         'Action.Instance.Attack/1A',
         'Action.Instance.AttackDerive/1A',
         'Action.Instance.AttackUnused/1A',
@@ -157,33 +159,78 @@ new ActionIdle('Action.Instance.Idle/1A', {
     character: 'Character.Instance/1',
     styles: ['Style.Instance/1A'],
     anim_idle: {
-        files: 'girl_stand_idle',
+        files: 'girl_stand_idle.*',
         duration: '2.5s',
+        fade_in: 0.2,
     },
     anim_ready: {
-        files: 'girl_stand_ready',
+        files: 'girl_stand_ready.*',
         duration: 2,
         fade_in: 0.4,
     },
 });
 
-new ActionMove('Action.Instance.Run/1A', {
+new ActionMove('Action.Instance.Jog/1A', {
     character: 'Character.Instance/1',
     styles: ['Style.Instance/1A'],
+    enter_key: Run,
     anim_move: {
-        files: 'girl_run',
-        duration: 3,
-        fade_in: 0.2,
+        files: 'girl_jog.*',
+        fade_in: '4F',
+        root_motion: true,
     },
-    yam_time: 0.4,
-    turn_time: 1,
+    move_speed: 3,
+    starts: [
+        {
+            enter_angle: ['L15', 'R15'],
+            files: 'girl_jog_start.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '2F',
+            quick_stop_end: '20F',
+        },
+        {
+            enter_angle: ['L15', 'L180'],
+            files: 'girl_jog_start_turn_l180.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '8F',
+            quick_stop_end: '26F',
+        },
+        {
+            enter_angle: ['R15', 'R180'],
+            files: 'girl_jog_start_turn_r180.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '8F',
+            quick_stop_end: '26F',
+        },
+    ],
+    turn_time: '10F',
+    stops: [
+        {
+            enter_phase_table: [[0.75, 0.25, '2F']],
+            files: 'girl_jog_stop_l.*',
+            fade_in: '4F',
+            root_motion: true,
+            speed_down_end: '12F',
+        },
+        {
+            enter_phase_table: [[0.25, 0.75, '2F']],
+            files: 'girl_jog_stop_r.*',
+            fade_in: '4F',
+            root_motion: true,
+            speed_down_end: '12F',
+        },
+    ],
+    quick_stop_time: 0,
 });
 
 new ActionGeneral('Action.Instance.Attack/1A', {
     character: 'Character.Instance/1',
     styles: ['Style.Instance/1A'],
     anim_main: {
-        files: 'girl_attack1_1',
+        files: 'girl_attack1_1.*',
         duration: 4,
         root_motion: true,
     },
@@ -213,7 +260,7 @@ new ActionGeneral('Action.Instance.AttackDerive/1A', {
     character: 'Character.Instance/1',
     styles: ['Style.Instance/1A'],
     anim_main: {
-        files: 'girl_attack1_2',
+        files: 'girl_attack1_2.*',
         duration: '5s',
         root_motion: true,
     },
@@ -231,7 +278,7 @@ new ActionGeneral('Action.Instance.AttackUnused/1A', {
     character: 'Character.Instance/1',
     styles: ['Style.Instance/1A'],
     anim_main: {
-        files: 'girl_attack1_2',
+        files: 'girl_attack1_2.*',
         duration: '5s',
         root_motion: true,
     },
