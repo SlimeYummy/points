@@ -9,14 +9,15 @@ import {
     LEVEL_ACTION,
     LEVEL_ATTACK,
     Resource,
+    Run,
     Style,
     Zone,
 } from '../src';
 
 new Zone('Zone.Demo', {
     name: 'Demo',
-    zone_file: 'stage-demo.json',
-    view_zone_file: 'stage-demo.tscn',
+    zone_file: 'demo_zone.json',
+    view_zone_file: 'DemoZone.unity',
 });
 
 const ONE = new Character('Character.DemoGirl', {
@@ -25,8 +26,9 @@ const ONE = new Character('Character.DemoGirl', {
     styles: ['Style.DemoGirl/1'],
     equipments: [],
     bounding_capsule: new Capsule(0.5 * 1.0, 0.3),
-    skeleton_files: 'girl',
+    skeleton_files: 'girl.*',
     skeleton_toward: [0, 1],
+    body_file: 'body1.json',
 });
 
 const fixed_attributes = {
@@ -61,7 +63,7 @@ new Style('Style.DemoGirl/1', {
     usable_perks: [],
     actions: [
         'Action.DemoGirl.Idle',
-        'Action.DemoGirl.Run',
+        'Action.DemoGirl.Jog',
         'Action.DemoGirl.Attack1/1',
         'Action.DemoGirl.Attack2/1',
     ],
@@ -72,30 +74,101 @@ new ActionIdle('Action.DemoGirl.Idle', {
     character: ONE.id,
     styles: ONE.styles,
     anim_idle: {
-        files: 'girl_stand_idle',
-        duration: '3s',
-    },
-    anim_ready: {
-        files: 'girl_stand_ready',
-        duration: '2s',
+        files: 'girl_idle.*',
     },
 });
 
-new ActionMove('Action.DemoGirl.Run', {
+new ActionMove('Action.DemoGirl.Jog', {
     character: ONE.id,
     styles: ONE.styles,
+    enter_key: Run,
     anim_move: {
-        files: 'girl_run',
-        duration: '0.9s',
-        fade_in: '0.2s',
+        files: 'girl_jog.*',
+        fade_in: '4F',
+        root_motion: true,
     },
-    yam_time: '0.15s',
-    turn_time: '0.3s',
+    move_speed: 3,
+    starts: [
+        {
+            enter_angle: ['L15', 'R15'],
+            files: 'girl_jog_start.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '2F',
+            quick_stop_end: '20F',
+        },
+        {
+            enter_angle: ['L15', 'L60'],
+            files: 'girl_jog_start_turn_l45.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '4F',
+            quick_stop_end: '22F',
+        },
+        {
+            enter_angle: ['R15', 'R60'],
+            files: 'girl_jog_start_turn_l45.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '4F',
+            quick_stop_end: '22F',
+        },
+        {
+            enter_angle: ['L60', 'L120'],
+            files: 'girl_jog_start_turn_l90.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '5F',
+            quick_stop_end: '23F',
+        },
+        {
+            enter_angle: ['R60', 'R120'],
+            files: 'girl_jog_start_turn_r90.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '5F',
+            quick_stop_end: '23F',
+        },
+        {
+            enter_angle: ['L120', 'L180'],
+            files: 'girl_jog_start_turn_l180.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '6F',
+            quick_stop_end: '24F',
+        },
+        {
+            enter_angle: ['R120', 'R180'],
+            files: 'girl_jog_start_turn_r180.*',
+            fade_in: 0,
+            root_motion: true,
+            turn_in_place_end: '6F',
+            quick_stop_end: '24F',
+        },
+    ],
+    turn_time: '12F',
+    stops: [
+        {
+            enter_phase_table: [[0.75, 0.25, '2F']],
+            files: 'girl_jog_stop_l.*',
+            fade_in: '4F',
+            root_motion: true,
+            speed_down_end: '12F',
+        },
+        {
+            enter_phase_table: [[0.25, 0.75, '2F']],
+            files: 'girl_jog_stop_r.*',
+            fade_in: '4F',
+            root_motion: true,
+            speed_down_end: '12F',
+        },
+    ],
+    quick_stop_time: 0,
 });
 
 new ActionGeneral('Action.DemoGirl.Attack1/1', {
     anim_main: {
-        files: 'girl_attack1_1',
+        files: 'girl_attack1_1.*',
         duration: '1.3s',
         root_motion: true,
     },
@@ -120,7 +193,7 @@ new ActionGeneral('Action.DemoGirl.Attack1/1', {
 
 new ActionGeneral('Action.DemoGirl.Attack2/1', {
     anim_main: {
-        files: 'girl_attack2_1',
+        files: 'girl_attack2_1.*',
         duration: '2.2s',
         root_motion: true,
     },
@@ -143,3 +216,4 @@ new ActionGeneral('Action.DemoGirl.Attack2/1', {
 
 declare const __dirname: string;
 Resource.write(`${__dirname}/../../test-tmp/demo-template`);
+console.log('\nGenerate templates done\n');
