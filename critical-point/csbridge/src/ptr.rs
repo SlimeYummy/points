@@ -1,6 +1,5 @@
 #![allow(improper_ctypes_definitions)]
 
-use std::ffi::CStr;
 use std::{ptr, mem};
 use std::sync::Arc;
 
@@ -9,13 +8,7 @@ use cirtical_point_core::logic::{
     StateActionAny, StateActionIdle, StateAny, StateGameInit, StateGameUpdate, StatePlayerInit, StatePlayerUpdate,
     StateZoneInit, StateZoneUpdate, StateNpcInit, StateNpcUpdate, StateActionMove, StateSet,
 };
-use cirtical_point_core::utils::{Castable, Symbol};
-
-#[no_mangle]
-pub extern "C" fn new_symbol(cstr: *const i8) -> Symbol {
-    let str = unsafe { CStr::from_ptr(cstr) }.to_str().unwrap();
-    return Symbol::new(str).unwrap();
-}
+use cirtical_point_core::utils::Castable;
 
 macro_rules! box_drop {
     ($fn:ident, $ty:ty) => {
@@ -50,7 +43,7 @@ macro_rules! box_ref {
         #[no_mangle]
         pub extern "C" fn $fn(base: *const $base_ty) -> *const $ty {
             let base: &$base_ty = unsafe { &*base };
-            match base.cast::<$ty>() {
+            match base.as_ref().cast::<$ty>() {
                 Ok(v) => v as *const $ty,
                 Err(_) => ptr::null(),
             }
@@ -65,7 +58,7 @@ macro_rules! arc_ref {
         #[no_mangle]
         pub extern "C" fn $fn(base: *const $base_ty) -> *const ArcInner {
             let base_ref: &$base_ty = unsafe { &*base };
-            match base_ref.cast::<$ty>() {
+            match base_ref.as_ref().cast::<$ty>() {
                 Ok(_) => unsafe { *(base as *const *const ArcInner) },
                 Err(_) => ptr::null(),
             }
@@ -154,9 +147,9 @@ arc_arc!(state_npc_update_arc_arc, Arc<dyn StateAny>, StateNpcUpdate);
 // StateActionAny
 //
 
-box_drop!(dyn_state_action_box_drop, dyn StateActionAny);
-arc_clone!(dyn_state_action_arc_clone, dyn StateActionAny);
-arc_drop!(dyn_state_action_arc_drop, dyn StateActionAny);
+box_drop!(dyn_state_action_any_box_drop, dyn StateActionAny);
+arc_clone!(dyn_state_action_any_arc_clone, dyn StateActionAny);
+arc_drop!(dyn_state_action_any_arc_drop, dyn StateActionAny);
 
 box_drop!(state_action_idle_box_drop, StateActionIdle);
 arc_clone!(state_action_idle_arc_clone, StateActionIdle);
