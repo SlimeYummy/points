@@ -1,4 +1,4 @@
-use cirtical_point_core::xerror;
+use cirtical_point_core::xresf;
 use libc::c_char;
 use std::cell::RefCell;
 use std::ffi::CString;
@@ -57,8 +57,9 @@ impl<T> Return<T> {
 
 pub fn as_slice<'t, T>(ptr: *const T, len: u32, err_msg: &'static str) -> XResult<&'t [T]> {
     if ptr.is_null() {
-        Err(xerror!(BadArgument, err_msg))
-    } else {
+        xresf!(BadArgument; "{}", err_msg)
+    }
+    else {
         Ok(unsafe { std::slice::from_raw_parts(ptr, len as usize) })
     }
 }
