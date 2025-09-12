@@ -1,7 +1,7 @@
-#![feature(concat_idents)]
+#![feature(likely_unlikely)]
 
-mod animation;
 mod engine;
+mod id_str;
 #[rustfmt::skip]
 mod ptr;
 mod skeletal;
