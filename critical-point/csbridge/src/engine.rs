@@ -1,35 +1,107 @@
 #![allow(improper_ctypes_definitions)]
 
-use cirtical_point_core::xerror;
+use chrono::Local;
+use cirtical_point_core::{xerrf, xres};
 use libc::c_char;
+use log::{error, LevelFilter};
+use std::backtrace::Backtrace;
 use std::ffi::CStr;
 use std::sync::Arc;
-use std::{mem, ptr};
+use std::{mem, ptr, panic};
 
 use cirtical_point_core::animation::SkeletonJointMeta;
 use cirtical_point_core::engine::{LogicEngine, LogicEngineStatus};
 use cirtical_point_core::logic::{InputPlayerEvents, StateActionAny, StateAny, StateSet};
 use cirtical_point_core::parameter::{ParamPlayer, ParamZone};
-use cirtical_point_core::utils::{Symbol, XResult};
+use cirtical_point_core::utils::{Symbol, XError, XResult};
 
+use crate::skeletal::resource::SKELETAL_RESOURCE;
 use crate::utils::{as_slice, Return};
 
 #[no_mangle]
-pub extern "C" fn engine_initialize(tmpl_path: *const c_char) -> Return<()> {
+pub extern "C" fn engine_initialize(
+    tmpl_path: *const c_char,
+    asset_path: *const c_char,
+    log_file: *const c_char,
+    log_level: u32,
+) -> Return<()> {
     check_memory_layout();
+
     let res: XResult<()> = (|| {
+        let log_file = unsafe { CStr::from_ptr(log_file) }.to_str()?;
+        init_log(log_file, log_level)?;
+
+        catch_panic();
+
+        log::error!("-------------------- Critical Point --------------------");
+
         let tmpl_path = unsafe { CStr::from_ptr(tmpl_path) }.to_str()?;
-        LogicEngine::initialize(tmpl_path)?;
+        let asset_path = unsafe { CStr::from_ptr(asset_path) }.to_str()?;
+        LogicEngine::initialize(tmpl_path, asset_path)?;
+
+        SKELETAL_RESOURCE.write().unwrap().clear_all();
         Ok(())
     })();
     Return::from_result(res)
 }
 
+fn init_log(log_file: &str, log_level: u32) -> XResult<()> {
+    let log_level: LevelFilter = match log_level {
+        0 => LevelFilter::Off,
+        1 => LevelFilter::Error,
+        2 => LevelFilter::Warn,
+        3 => LevelFilter::Info,
+        4 => LevelFilter::Debug,
+        5 => LevelFilter::Trace,
+        _ => LevelFilter::Info,
+    };
+
+    if log_level != LevelFilter::Off {
+        let mut dispatch = fern::Dispatch::new()
+            .format(|out, message, record| {
+                out.finish(format_args!(
+                    "[{} {}] {}",
+                    Local::now().format("%y-%m-%d %H:%M:%S%.3f"),
+                    record.level(),
+                    message
+                ))
+            })
+            .level(log_level);
+
+        if log_file.is_empty() {
+            dispatch = dispatch.chain(std::io::stdout());
+        }
+        else {
+            dispatch = dispatch.chain(fern::log_file(log_file)?);
+        }
+
+        if let Err(e) = dispatch.apply() {
+            if e.to_string() != "attempted to set a logger after the logging system was already initialized" {
+                return Err(XError::from(e.to_string()));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn catch_panic() {
+    panic::set_hook(Box::new(|info| {
+        let mut msg = "";
+        if let Some(s) = info.payload().downcast_ref::<&str>() {
+            msg = s;
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            msg = s;
+        }
+        
+        error!("Panic!!!!! {} {:?} {:?}", msg, info.location(), Backtrace::force_capture());
+    }));
+}
+
 #[no_mangle]
-pub extern "C" fn engine_create(asset_path: *const c_char) -> Return<*mut LogicEngine> {
+pub extern "C" fn engine_create() -> Return<*mut LogicEngine> {
     let res: XResult<*mut LogicEngine> = (|| {
-        let asset_path = unsafe { CStr::from_ptr(asset_path) }.to_str()?;
-        let engine = Box::new(LogicEngine::new(asset_path)?);
+        let engine = Box::new(LogicEngine::new()?);
         Ok(Box::into_raw(engine))
     })();
     Return::from_result_with(res, ptr::null_mut())
@@ -51,7 +123,7 @@ pub extern "C" fn engine_verify_player(
     let res: XResult<()> = (|| {
         let engine = as_engine(engine)?;
         let player_buf = as_slice(player_data, player_len, "engine_verify_player() player data is null")?;
-        let player: ParamPlayer = rmp_serde::from_slice(player_buf).map_err(|e| xerror!(BadArgument, e))?;
+        let player: ParamPlayer = rmp_serde::from_slice(player_buf).map_err(|e| xerrf!(BadArgument; "{}", e))?;
         engine.verify_player(&player)
     })();
     Return::from_result(res)
@@ -84,8 +156,8 @@ pub extern "C" fn engine_start_game(
         let engine = as_engine(engine)?;
         let zone_buf = as_slice(zone_data, zone_len, "engine_start_game() zone data is null")?;
         let players_buf = as_slice(players_data, players_len, "engine_start_game() players data is null")?;
-        let zone: ParamZone = rmp_serde::from_slice(zone_buf).map_err(|e| xerror!(BadArgument, e))?;
-        let players: Vec<ParamPlayer> = rmp_serde::from_slice(players_buf).map_err(|e| xerror!(BadArgument, e))?;
+        let zone: ParamZone = rmp_serde::from_slice(zone_buf).map_err(|e| xerrf!(BadArgument; "{}", e))?;
+        let players: Vec<ParamPlayer> = rmp_serde::from_slice(players_buf).map_err(|e| xerrf!(BadArgument; "{}", e))?;
         engine.start_game(zone, players, None)
     })();
     assert_eq!(unsafe { mem::transmute::<Option<Arc<StateSet>>, usize>(None) }, 0);
@@ -97,14 +169,15 @@ pub extern "C" fn engine_update_game(
     engine: *mut LogicEngine,
     events_data: *const u8,
     events_len: u32,
-) -> Return<Vec<Arc<StateSet>>> {
-    let res: XResult<Vec<Arc<StateSet>>> = (|| {
+) -> Return<Option<Arc<StateSet>>> {
+    let res: XResult<Arc<StateSet>> = (|| {
         let engine = as_engine(engine)?;
         let events_buf = as_slice(events_data, events_len, "engine_update_game() events data is null")?;
-        let events: Vec<InputPlayerEvents> = rmp_serde::from_slice(events_buf).map_err(|e| xerror!(BadArgument, e))?;
+        let events: Vec<InputPlayerEvents> =
+            rmp_serde::from_slice(events_buf).map_err(|e| xerrf!(BadArgument; "{}", e))?;
         engine.update_game(events)
     })();
-    Return::from_result(res)
+    Return::from_result_with(res.map(|s| Some(s)), None)
 }
 
 #[no_mangle]
@@ -123,7 +196,7 @@ pub extern "C" fn engine_stop_game(engine: *mut LogicEngine) -> Return<()> {
 
 fn as_engine<'t>(engine: *mut LogicEngine) -> XResult<&'t mut LogicEngine> {
     if engine.is_null() {
-        return Err(xerror!(BadArgument, "engine=null"));
+        return xres!(BadArgument; "engine=null");
     }
     Ok(unsafe { &mut *engine })
 }
