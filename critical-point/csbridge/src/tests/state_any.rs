@@ -4,11 +4,12 @@ use cirtical_point_core::logic::{
     LogicType, StateAny, StateBase, StateCharaPhysics, StateGameInit, StateGameUpdate, StatePlayerInit,
     StatePlayerUpdate, StateType,
 };
-use cirtical_point_core::utils::{sb, CsQuat};
+use cirtical_point_core::utils::sb;
 use glam::Vec3A;
+use glam_ext::Vec2xz;
 use std::sync::Arc;
 
-use super::state_action::{new_state_action_idle, new_state_action_move};
+use super::state_action_any::{new_state_action_idle, new_state_action_move};
 
 #[no_mangle]
 pub extern "C" fn mock_box_dyn_state_any() -> Box<dyn StateAny> {
@@ -107,9 +108,9 @@ fn new_state_player_update() -> StatePlayerUpdate {
             logic_typ: LogicType::Player,
         },
         physics: StateCharaPhysics {
-            position: Vec3A::new(1.0, 2.0, 3.0).into(),
-            rotation: CsQuat::IDENTITY,
             velocity: Vec3A::new(4.0, 5.0, 6.0).into(),
+            position: Vec3A::new(1.0, 2.0, 3.0).into(),
+            direction: Vec2xz::new(0.0, -1.0),
         },
         actions: vec![Box::new(new_state_action_idle()), Box::new(new_state_action_move())],
     }

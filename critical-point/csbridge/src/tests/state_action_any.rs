@@ -1,19 +1,22 @@
 #![allow(improper_ctypes_definitions)]
 
 use cirtical_point_core::logic::{
-    ActionIdleMode, ActionMoveMode, LogicActionStatus, StateActionAnimation, StateActionAny, StateActionBase, StateActionGeneral, StateActionIdle, StateActionMove, StateActionType
+    ActionIdleMode, ActionMoveMode, LogicActionStatus, StateActionAnimation, StateActionAny, StateActionBase,
+    StateActionGeneral, StateActionIdle, StateActionMove, StateActionType, StateMultiRootMotion, StateRootMotion,
 };
 use cirtical_point_core::template::TmplType;
-use cirtical_point_core::utils::{sb, id};
+use cirtical_point_core::utils::{id, sb};
+use glam::{Quat, Vec3};
+use glam_ext::Vec2xz;
 use std::sync::Arc;
 
 #[no_mangle]
-pub extern "C" fn mock_box_dyn_state_action() -> Box<dyn StateActionAny> {
+pub extern "C" fn mock_box_dyn_state_action_any() -> Box<dyn StateActionAny> {
     Box::new(new_state_action_idle())
 }
 
 #[no_mangle]
-pub extern "C" fn mock_arc_dyn_state_action() -> Arc<dyn StateActionAny> {
+pub extern "C" fn mock_arc_dyn_state_action_any() -> Arc<dyn StateActionAny> {
     Arc::new(new_state_action_idle())
 }
 
@@ -37,18 +40,18 @@ pub fn new_state_action_idle() -> StateActionIdle {
             status: LogicActionStatus::Activing,
             first_frame: 555,
             last_frame: u32::MAX,
-            fade_in_ratio: 0.207,
+            fade_in_weight: 0.207,
             derive_level: 50,
             poise_level: 100,
             animations: [
                 StateActionAnimation {
-                    file: sb!("mock_action_idle_1.ozz"),
+                    files: sb!("mock_action_idle_1"),
                     animation_id: 9999,
                     ratio: 0.125,
                     weight: 0.333,
                 },
                 StateActionAnimation {
-                    file: sb!("mock_action_idle_2.ozz"),
+                    files: sb!("mock_action_idle_2"),
                     animation_id: 3456,
                     ratio: 0.6,
                     weight: 0.7,
@@ -79,24 +82,24 @@ pub fn new_state_action_move() -> StateActionMove {
     StateActionMove {
         _base: StateActionBase {
             id: 23893,
-            tmpl_id: id!("Action.One.Run"),
+            tmpl_id: id!("Action.One.Jog"),
             typ: StateActionType::Move,
             tmpl_typ: TmplType::ActionMove,
             status: LogicActionStatus::Stopping,
             first_frame: 891,
             last_frame: u32::MAX,
-            fade_in_ratio: 0.342,
+            fade_in_weight: 0.342,
             derive_level: 40,
             poise_level: 40,
             animations: [
                 StateActionAnimation {
-                    file: sb!("mock_action_move_1.ozz"),
+                    files: sb!("mock_action_move_1"),
                     animation_id: 888,
                     ratio: 0.371,
                     weight: 0.287,
                 },
                 StateActionAnimation {
-                    file: sb!("mock_action_move_2.ozz"),
+                    files: sb!("mock_action_move_2"),
                     animation_id: 3456,
                     ratio: 0.72,
                     weight: 0.46,
@@ -106,8 +109,22 @@ pub fn new_state_action_move() -> StateActionMove {
             ],
         },
         mode: ActionMoveMode::Move,
-        switch_time: 0.1,
-        current_time: 6.7,
+        current_time: 1.5,
+        start_anim_idx: 1,
+        turn_anim_idx: 2,
+        stop_anim_idx: 3,
+        root_motion: StateMultiRootMotion {
+            local_id: 0,
+            ratio: 0.0,
+            position: Vec3::new(-5.0, -4.0, -3.0),
+            position_delta: Vec3::ONE,
+            rotation_cursor: (-Quat::IDENTITY).into(),
+            rotation: Quat::IDENTITY.into(),
+            rotation_delta: Quat::IDENTITY.into(),
+        },
+        start_turn_angle_step: Vec2xz::NEG_Z,
+        local_fade_in_weight: 1.0,
+        anim_offset_time: 0.57,
     }
 }
 
@@ -131,18 +148,18 @@ pub fn new_state_action_general() -> StateActionGeneral {
             status: LogicActionStatus::Activing,
             first_frame: 891,
             last_frame: u32::MAX,
-            fade_in_ratio: 0.342,
+            fade_in_weight: 0.342,
             derive_level: 40,
             poise_level: 40,
             animations: [
                 StateActionAnimation {
-                    file: sb!("mock_action_move_1.ozz"),
+                    files: sb!("mock_action_move_1"),
                     animation_id: 888,
                     ratio: 0.371,
                     weight: 0.287,
                 },
                 StateActionAnimation {
-                    file: sb!("mock_action_move_2.ozz"),
+                    files: sb!("mock_action_move_2"),
                     animation_id: 3456,
                     ratio: 0.72,
                     weight: 0.46,
@@ -152,5 +169,13 @@ pub fn new_state_action_general() -> StateActionGeneral {
             ],
         },
         current_time: 0.98,
+        root_motion: StateRootMotion {
+            ratio: 0.9,
+            position: Vec3::new(1.0, 2.0, 3.0),
+            position_delta: Vec3::new(4.0, 5.0, 6.0),
+            rotation_cursor: Quat::IDENTITY.into(),
+            rotation: Quat::IDENTITY.into(),
+            rotation_delta: (-Quat::IDENTITY).into(),
+        },
     }
 }
