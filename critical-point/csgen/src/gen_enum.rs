@@ -35,7 +35,8 @@ pub fn parse_enum(input: &ItemEnum) -> Result<(String, Box<dyn Task>, TypeIn, Ty
                 item: variant.ident.to_string(),
                 expr: Some(TokenStream::from(quote! { #expr }).to_string()),
             });
-        } else {
+        }
+        else {
             task.items.push(EnumItem {
                 item: variant.ident.to_string(),
                 expr: None,

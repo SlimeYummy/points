@@ -75,7 +75,8 @@ fn parse_type_path_in(path: &TypePath) -> Result<ParsedPathIn> {
     let code = path.to_token_stream().to_string();
     if RE_COMMON.is_match(&code) {
         Ok(ParsedPathIn::Type(code))
-    } else if let Some(caps) = RE_GENERIC.captures(&code) {
+    }
+    else if let Some(caps) = RE_GENERIC.captures(&code) {
         let name = caps.get(1).unwrap().as_str().into();
         let args = caps
             .iter()
@@ -83,7 +84,8 @@ fn parse_type_path_in(path: &TypePath) -> Result<ParsedPathIn> {
             .filter_map(|m| m.map(|m| m.as_str().into()))
             .collect();
         Ok(ParsedPathIn::Generic(name, args))
-    } else {
+    }
+    else {
         Err(anyhow::anyhow!("Unsupported type: {}", code))
     }
 }
@@ -103,7 +105,8 @@ fn parse_type_array(array: &TypeArray, consts: &HashMap<String, u32>) -> Result<
     };
     if typ == "f32" && len == 2 {
         Ok(ParsedArray::Type("[f32; 2]".into()))
-    } else {
+    }
+    else {
         Ok(ParsedArray::Array(typ, len))
     }
 }
@@ -252,7 +255,8 @@ pub fn parse_struct_out(
                         }
                         if rs_type == "String" {
                             task.fields.push(FieldOut::String { field });
-                        } else {
+                        }
+                        else {
                             task.fields.push(FieldOut::Type { field, rs_type });
                         }
                     }
@@ -276,7 +280,8 @@ pub fn parse_struct_out(
                                 field,
                                 rs_type: args[0].clone(),
                             });
-                        } else {
+                        }
+                        else {
                             return Err(anyhow!("Unknown generic type ({})", rs_type));
                         }
                     }
@@ -298,7 +303,8 @@ pub fn parse_struct_out(
 
     if task.is_value {
         Ok((rs_name.clone(), base, task, TypeOut::new_value(&rs_name, &rs_name)))
-    } else {
+    }
+    else {
         Ok((rs_name.clone(), base, task, TypeOut::new_reference(&rs_name)))
     }
 }
@@ -320,19 +326,24 @@ fn parse_type_path_out(path: &TypePath) -> Result<ParsedPathOut> {
     let code = path.to_token_stream().to_string();
     if RE_COMMON.is_match(&code) {
         Ok(ParsedPathOut::Type(code))
-    } else if let Some(caps) = RE_BOX.captures(&code) {
+    }
+    else if let Some(caps) = RE_BOX.captures(&code) {
         let name = caps.get(1).unwrap().as_str().into();
         Ok(ParsedPathOut::Reference(name, ReferenceType::Box))
-    } else if let Some(caps) = RE_ARC.captures(&code) {
+    }
+    else if let Some(caps) = RE_ARC.captures(&code) {
         let name = caps.get(1).unwrap().as_str().into();
         Ok(ParsedPathOut::Reference(name, ReferenceType::Arc))
-    } else if let Some(caps) = RE_VEC_BOX.captures(&code) {
+    }
+    else if let Some(caps) = RE_VEC_BOX.captures(&code) {
         let name = caps.get(1).unwrap().as_str().into();
         Ok(ParsedPathOut::VecReference(name, ReferenceType::Box))
-    } else if let Some(caps) = RE_VEC_ARC.captures(&code) {
+    }
+    else if let Some(caps) = RE_VEC_ARC.captures(&code) {
         let name = caps.get(1).unwrap().as_str().into();
         Ok(ParsedPathOut::VecReference(name, ReferenceType::Arc))
-    } else if let Some(caps) = RE_GENERIC.captures(&code) {
+    }
+    else if let Some(caps) = RE_GENERIC.captures(&code) {
         let name = caps.get(1).unwrap().as_str().into();
         let args = caps
             .iter()
@@ -340,7 +351,8 @@ fn parse_type_path_out(path: &TypePath) -> Result<ParsedPathOut> {
             .filter_map(|m| m.map(|m| m.as_str().into()))
             .collect();
         Ok(ParsedPathOut::Generic(name, args))
-    } else {
+    }
+    else {
         Err(anyhow::anyhow!("Unsupported type: {}", code))
     }
 }
@@ -424,7 +436,8 @@ impl Task for TaskStructOut {
                 code += &self
                     .gen_ref_type_base(ctx, meta)
                     .with_context(|| "TaskStructOut::gen_ref_type_base()")?;
-            } else {
+            }
+            else {
                 code += &self
                     .gen_ref_type(ctx)
                     .with_context(|| "TaskStructOut::gen_ref_type()")?;
@@ -447,7 +460,8 @@ impl TaskStructOut {
     fn cs_name(&self) -> String {
         if self.is_value {
             self.rs_name.clone()
-        } else {
+        }
+        else {
             format!("Rs{}", self.rs_name)
         }
     }
@@ -477,7 +491,8 @@ impl TaskStructOut {
                         TypeOut::Value(v) => {
                             if v.cs_name == "bool" {
                                 ls += f!("    [MarshalAs(UnmanagedType.U1)] public bool {};", field);
-                            } else {
+                            }
+                            else {
                                 ls += f!("    public {0} {1};", v.cs_name, field);
                             }
                         }
@@ -489,7 +504,8 @@ impl TaskStructOut {
                         TypeOut::Value(v) => {
                             if v.is_primitive {
                                 ls += f!("    private fixed {} {}[{}];", v.cs_name, field, len);
-                            } else {
+                            }
+                            else {
                                 for idx in 0..*len {
                                     ls += f!("    private {} {}_{};", v.cs_name, field, idx);
                                 }
@@ -539,7 +555,8 @@ impl TaskStructOut {
                                     r.rs_name,
                                     field
                                 );
-                            } else {
+                            }
+                            else {
                                 ls += f!("    private RsVec<RsArcDyn{0}> _{1};", r.rs_name, field);
                                 ls += f!(
                                     "    public RefVecArc{0} {1} => new RefVecArc{0}(_{1});",
@@ -547,7 +564,8 @@ impl TaskStructOut {
                                     field
                                 );
                             }
-                        } else {
+                        }
+                        else {
                             if *ref_type == ReferenceType::Box {
                                 ls += f!("    private RsVec<RsBox{0}> _{1};", r.rs_name, field);
                                 ls += f!(
@@ -555,7 +573,8 @@ impl TaskStructOut {
                                     r.rs_name,
                                     field
                                 );
-                            } else {
+                            }
+                            else {
                                 ls += f!("    private RsVec<RsArc{0}> _{1};", r.rs_name, field);
                                 ls += f!(
                                     "    public RefVecArc{0} {1} => new RefVecArc{0}(_{1});",
@@ -752,7 +771,7 @@ impl TaskStructOut {
         ls += f!("  }}\r\n");
 
         // Arc
-        ls += f!("  public unsafe class Arc{} {{", rs_name);
+        ls += f!("  public unsafe class Arc{} : IDisposable {{", rs_name);
         ls += f!("    private RsArcInner<Rs{}>* _ptr;", rs_name);
         self.gen_ref_fields(ctx, &mut ls, "_ptr->data.")?;
         ls += f!("");
@@ -845,7 +864,8 @@ impl TaskStructOut {
                     TypeOut::Reference(r) => {
                         if *ref_type == ReferenceType::Box {
                             *ls += f!("    public RefVecBox{0} {1} => {2}{1};", r.rs_name, field, visitor);
-                        } else {
+                        }
+                        else {
                             *ls += f!("    public RefVecArc{0} {1} => {2}{1};", r.rs_name, field, visitor);
                         }
                     }
