@@ -46,7 +46,7 @@ impl Generator {
         types_in.insert("u64".into(), TypeIn::new_primitive("ulong"));
         types_in.insert("f32".into(), TypeIn::new_primitive("float"));
         types_in.insert("f64".into(), TypeIn::new_primitive("double"));
-        types_in.insert("TmplID".into(), TypeIn::new_primitive("ulong"));
+        types_in.insert("TmplID".into(), TypeIn::new_primitive("TmplID"));
         types_in.insert("NumID".into(), TypeIn::new_primitive("ulong"));
         types_in.insert("Symbol".into(), TypeIn::new_primitive("string"));
         types_in.insert("[f32; 2]".into(), TypeIn::new_primitive("Vec2"));
@@ -75,12 +75,13 @@ impl Generator {
         types_out.insert("u64".into(), TypeOut::new_value("u64", "ulong"));
         types_out.insert("f32".into(), TypeOut::new_value("f32", "float"));
         types_out.insert("f64".into(), TypeOut::new_value("f64", "double"));
-        types_out.insert("TmplID".into(), TypeOut::new_value("TmplID", "ulong"));
+        types_out.insert("TmplID".into(), TypeOut::new_value("TmplID", "TmplID"));
         types_out.insert("NumID".into(), TypeOut::new_value("NumID", "ulong"));
         types_out.insert("Symbol".into(), TypeOut::new_value("Symbol", "Symbol"));
         types_out.insert("[f32; 2]".into(), TypeOut::new_value("[f32; 2]", "Vec2"));
         types_out.insert("[f32; 3]".into(), TypeOut::new_value("[f32; 3]", "Vec3"));
         types_out.insert("Vec2".into(), TypeOut::new_value("Vec2", "Vec2"));
+        types_out.insert("Vec2xz".into(), TypeOut::new_value("Vec2xz", "Vec2"));
         types_out.insert("Vec3".into(), TypeOut::new_value("Vec3", "Vec3"));
         types_out.insert("CsVec3A".into(), TypeOut::new_value("CsVec3A", "Vec3A"));
         types_out.insert("CsVec4".into(), TypeOut::new_value("CsVec4", "Vec4"));
@@ -102,7 +103,7 @@ impl Generator {
         bases.insert("StateBase".into(), BaseMeta::new("StateBase", "DynStateAny"));
         bases.insert(
             "StateActionBase".into(),
-            BaseMeta::new("StateActionBase", "DynStateAction"),
+            BaseMeta::new("StateActionBase", "DynStateActionAny"),
         );
 
         unsafe { libc::atexit(Generator::on_exit) };
@@ -138,7 +139,8 @@ impl Generator {
         if !base.is_empty() {
             if let Some(meta) = self.bases.get_mut(&base) {
                 meta.rs_derives.push(rs_name);
-            } else {
+            }
+            else {
                 return Err(anyhow!("Base ({}) not found", base));
             }
         }
