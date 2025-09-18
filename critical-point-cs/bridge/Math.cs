@@ -45,6 +45,9 @@ namespace CriticalPoint {
 
         public bool Equals(Vec2 other) => x == other.x && y == other.y;
 
+        public static bool operator ==(Vec2 a, Vec2 b) => a.x == b.x && a.y == b.y;
+        public static bool operator !=(Vec2 a, Vec2 b) => a.x != b.x || a.y != b.y;
+
         public static explicit operator Vec2(Cs.Vector2 v) => new Vec2(v.X, v.Y);
         public static explicit operator Cs.Vector2(Vec2 v) => new Cs.Vector2(v.x, v.y);
 
@@ -118,6 +121,11 @@ namespace CriticalPoint {
 
         public bool Equals(Vec3 other) => x == other.x && y == other.y && z == other.z;
         public bool Equals(Vec3A other) => x == other.x && y == other.y && z == other.z;
+
+        public static bool operator ==(Vec3 a, Vec3 b) => a.x == b.x && a.y == b.y && a.z == b.z;
+        public static bool operator !=(Vec3 a, Vec3 b) => a.x != b.x || a.y != b.y || a.z != b.z;
+        public static bool operator ==(Vec3 a, Vec3A b) => a.x == b.x && a.y == b.y && a.z == b.z;
+        public static bool operator !=(Vec3 a, Vec3A b) => a.x != b.x || a.y != b.y || a.z != b.z;
 
         public static explicit operator Vec3(Cs.Vector3 v) => new Vec3(v.X, v.Y, v.Z);
         public static explicit operator Cs.Vector3(Vec3 v) => new Cs.Vector3(v.x, v.y, v.z);
@@ -197,6 +205,11 @@ namespace CriticalPoint {
 
         public bool Equals(Vec3A other) => x == other.x && y == other.y && z == other.z;
         public bool Equals(Vec3 other) => x == other.x && y == other.y && z == other.z;
+
+        public static bool operator ==(Vec3A a, Vec3A b) => a.x == b.x && a.y == b.y && a.z == b.z;
+        public static bool operator !=(Vec3A a, Vec3A b) => a.x != b.x || a.y != b.y || a.z != b.z;
+        public static bool operator ==(Vec3A a, Vec3 b) => a.x == b.x && a.y == b.y && a.z == b.z;
+        public static bool operator !=(Vec3A a, Vec3 b) => a.x != b.x || a.y != b.y || a.z != b.z;
 
         public static explicit operator Vec3A(Cs.Vector3 v) => new Vec3A(v.X, v.Y, v.Z);
         public static explicit operator Cs.Vector3(Vec3A v) => new Cs.Vector3(v.x, v.y, v.z);
@@ -278,6 +291,9 @@ namespace CriticalPoint {
 
         public bool Equals(Vec4 other) => x == other.x && y == other.y && z == other.z && w == other.w;
 
+        public static bool operator ==(Vec4 a, Vec4 b) => a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+        public static bool operator !=(Vec4 a, Vec4 b) => a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
+
         public static explicit operator Vec4(Cs.Vector4 v) => new Vec4(v.X, v.Y, v.Z, v.W);
         public static explicit operator Cs.Vector4(Vec4 v) => new Cs.Vector4(v.x, v.y, v.z, v.w);
 
@@ -336,6 +352,9 @@ namespace CriticalPoint {
         }
 
         public bool Equals(Quat other) => x == other.x && y == other.y && z == other.z && w == other.w;
+
+        public static bool operator ==(Quat a, Quat b) => a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+        public static bool operator !=(Quat a, Quat b) => a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
 
         public static explicit operator Quat(Cs.Quaternion q) => new Quat(q.X, q.Y, q.Z, q.W);
         public static explicit operator Cs.Quaternion(Quat q) => new Cs.Quaternion(q.x, q.y, q.z, q.w);
@@ -412,6 +431,18 @@ namespace CriticalPoint {
             z_axis.Equals(other.z_axis) &&
             w_axis.Equals(other.w_axis);
         
+        public static bool operator ==(Mat4 a, Mat4 b) =>
+            a.x_axis == b.x_axis &&
+            a.y_axis == b.y_axis &&
+            a.z_axis == b.z_axis &&
+            a.w_axis == b.w_axis;
+        
+        public static bool operator !=(Mat4 a, Mat4 b) =>
+            a.x_axis != b.x_axis ||
+            a.y_axis != b.y_axis ||
+            a.z_axis != b.z_axis ||
+            a.w_axis != b.w_axis;
+        
         // C# math library uses row-major matrices
         public static explicit operator Mat4(Cs.Matrix4x4 m) => new Mat4(
             m.M11, m.M21, m.M31, m.M41,
@@ -422,7 +453,7 @@ namespace CriticalPoint {
 
         // C# math library uses row-major matrices
         public static explicit operator Cs.Matrix4x4(Mat4 m) => new Cs.Matrix4x4(
-            m.x_axis.x, m.y_axis.y, m.z_axis.z, m.w_axis.w,
+            m.x_axis.x, m.y_axis.x, m.z_axis.x, m.w_axis.x,
             m.x_axis.y, m.y_axis.y, m.z_axis.y, m.w_axis.y,
             m.x_axis.z, m.y_axis.z, m.z_axis.z, m.w_axis.z,
             m.x_axis.w, m.y_axis.w, m.z_axis.w, m.w_axis.w
