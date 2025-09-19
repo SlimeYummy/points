@@ -1,39 +1,151 @@
-﻿using System;
+﻿using MessagePack;
+using MessagePack.Formatters;
+using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace CriticalPoint {
+    public struct TmplID {
+        private ulong _id;
 
-    public struct ASymbol {
-        private nint _n;
+        public static readonly TmplID INVALID = new TmplID { _id = ulong.MaxValue };
 
-        public bool IsNull { get => _n == 0; }
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return<ulong> tmpl_id_create([MarshalAs(UnmanagedType.LPStr)] string str);
 
-        public static bool operator ==(ASymbol lhs, ASymbol rhs) => lhs._n == rhs._n;
-        public static bool operator !=(ASymbol lhs, ASymbol rhs) => lhs._n != rhs._n;
+        // public TmplID() => this._id = ulong.MaxValue;
 
-        public override bool Equals(object? obj) => obj is ASymbol s && _n == s._n;
+        internal TmplID(ulong id) => this._id = id;
 
-        public static explicit operator nint(ASymbol s) => s._n;
+        public TmplID(string str) => this._id = tmpl_id_create(str).Unwrap();
 
-        public override int GetHashCode() => _n.GetHashCode();
+        public static TmplID FromNullableString(string? str) {
+            if (str != null) {
+                return new TmplID(str);
+            } else {
+                return INVALID;
+            }
+        }
 
-        public override string ToString() => _n.ToString();
+        [DllImport("critical_point_csbridge.dll")]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private static extern unsafe bool tmpl_id_is_valid(ulong cid);
+
+        public bool IsValid { get => tmpl_id_is_valid(this._id); }
+
+        public bool IsInvalid { get => !tmpl_id_is_valid(this._id); }
+
+        public static bool operator ==(TmplID lhs, TmplID rhs) => lhs._id == rhs._id;
+        public static bool operator !=(TmplID lhs, TmplID rhs) => lhs._id != rhs._id;
+
+        public override bool Equals(object? obj) => obj is TmplID id && _id == id._id;
+
+        public static explicit operator ulong(TmplID id) => id._id;
+
+        public override int GetHashCode() => _id.GetHashCode();
+
+        public override string ToString() => _id.ToString();
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return<IntPtr> tmpl_id_to_string(ulong cid);
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe void tmpl_id_free_string(IntPtr cstr);
 
         public string TryRead() {
-            if (_n == 0) {
+            StringBuilder sb = new StringBuilder(256);
+            IntPtr cptr = tmpl_id_to_string(_id).Unwrap();
+            string str = Marshal.PtrToStringAnsi(cptr) ?? "";
+            tmpl_id_free_string(cptr);
+            return str;
+        }
+    }
+
+    public class TmplIDFormatter : IMessagePackFormatter<TmplID> {
+        public void Serialize(ref MessagePackWriter writer, TmplID id, MessagePackSerializerOptions options) {
+            writer.Write(id.TryRead());
+        }
+
+        public TmplID Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) {
+            return TmplID.FromNullableString(reader.ReadString());
+        }
+    }
+
+    public class TmplIDLevelFormatter : IMessagePackFormatter<TmplIDLevel> {
+        public void Serialize(ref MessagePackWriter writer, TmplIDLevel idLevel, MessagePackSerializerOptions options) {
+            writer.WriteArrayHeader(2);
+            writer.Write(idLevel.id.TryRead());
+            writer.Write(idLevel.level);
+        }
+
+        public TmplIDLevel Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) {
+            if (reader.TryReadNil()) {
+                return new TmplIDLevel { id = TmplID.INVALID, level = 0 };
+            }
+            int count = reader.ReadArrayHeader();
+            if (count != 2) {
+                throw new MessagePackSerializationException("Invalid Vec2 format");
+            }
+            return new TmplIDLevel {
+                id = TmplID.FromNullableString(reader.ReadString()),
+                level = reader.ReadUInt32(),
+            };
+        }
+    }
+
+    public class TmplIDPlusFormatter : IMessagePackFormatter<TmplIDPlus> {
+        public void Serialize(ref MessagePackWriter writer, TmplIDPlus idPlus, MessagePackSerializerOptions options) {
+            writer.WriteArrayHeader(2);
+            writer.Write(idPlus.id.TryRead());
+            writer.Write(idPlus.plus);
+        }
+
+        public TmplIDPlus Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) {
+            if (reader.TryReadNil()) {
+                return new TmplIDPlus { id = TmplID.INVALID, plus = 0 };
+            }
+            int count = reader.ReadArrayHeader();
+            if (count != 2) {
+                throw new MessagePackSerializationException("Invalid Vec2 format");
+            }
+            return new TmplIDPlus {
+                id = TmplID.FromNullableString(reader.ReadString()),
+                plus = reader.ReadUInt32(),
+            };
+        }
+    }
+
+    public struct Symbol {
+        private nint _ptr;
+
+        public bool IsNull { get => _ptr == 0; }
+
+        public static bool operator ==(Symbol lhs, Symbol rhs) => lhs._ptr == rhs._ptr;
+        public static bool operator !=(Symbol lhs, Symbol rhs) => lhs._ptr != rhs._ptr;
+
+        public override bool Equals(object? obj) => obj is Symbol s && _ptr == s._ptr;
+
+        public static explicit operator nint(Symbol s) => s._ptr;
+
+        public override int GetHashCode() => _ptr.GetHashCode();
+
+        public override string ToString() => _ptr.ToString();
+
+        public string TryRead() {
+            if (_ptr == 0) {
                 return "";
             }
             unsafe {
-                var inner = (SymbolInner*)_n;
+                var inner = (SymbolNode*)_ptr;
                 return Marshal.PtrToStringUTF8((IntPtr)inner->chars, inner->length) ?? "";
             }
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe ASymbol new_symbol([MarshalAs(UnmanagedType.LPStr)] string str);
+        private static extern unsafe nint symbol_create([MarshalAs(UnmanagedType.LPStr)] string str);
 
-        internal ASymbol(string str) => this = new_symbol(str);
+        internal Symbol(string str) => this._ptr = symbol_create(str);
     }
 
     internal struct Return<T> where T : unmanaged {
@@ -81,10 +193,9 @@ namespace CriticalPoint {
     //
 
     [StructLayout(LayoutKind.Sequential)]
-    internal unsafe struct SymbolInner {
-        private SymbolInner* _next;
-        private ulong _hash;
-        private uint _ref_count;
+    internal unsafe struct SymbolNode {
+        private SymbolNode* _next;
+        private uint _hash;
         internal ushort length;
         internal fixed byte chars[1];
     };
@@ -504,15 +615,15 @@ namespace CriticalPoint {
         }
     }
 
-    public ref struct RefVecBoxStateAction {
-        private RsVec<RsBoxDynStateAction> _vec;
+    public ref struct RefVecBoxStateActionAny {
+        private RsVec<RsBoxDynStateActionAny> _vec;
 
-        internal RefVecBoxStateAction(RsVec<RsBoxDynStateAction> vec) => _vec = vec;
+        internal RefVecBoxStateActionAny(RsVec<RsBoxDynStateActionAny> vec) => _vec = vec;
 
         public int Length { get => (int)_vec.len; }
         public bool IsEmpty { get => _vec.len == UIntPtr.Zero; }
 
-        public RefDynStateAction this[int index] {
+        public RefDynStateActionAny this[int index] {
             get {
                 if ((uint)index >= (uint)_vec.len) {
                     string msg = string.Format("index:{0} len:{1}", index, _vec.len);
@@ -524,20 +635,20 @@ namespace CriticalPoint {
             }
         }
 
-        internal RsSlice<RsBoxDynStateAction> AsSlice() => new RsSlice<RsBoxDynStateAction>(_vec);
+        internal RsSlice<RsBoxDynStateActionAny> AsSlice() => new RsSlice<RsBoxDynStateActionAny>(_vec);
 
         public Enumerator GetEnumerator() => new Enumerator(this);
 
         public ref struct Enumerator {
-            private RefVecBoxStateAction _vec;
+            private RefVecBoxStateActionAny _vec;
             private int _index;
 
-            public Enumerator(RefVecBoxStateAction vec) {
+            public Enumerator(RefVecBoxStateActionAny vec) {
                 _vec = vec;
                 _index = -1;
             }
 
-            public RefDynStateAction Current { get => _vec[_index]; }
+            public RefDynStateActionAny Current { get => _vec[_index]; }
 
             public bool MoveNext() => ++_index < _vec.Length;
         }
