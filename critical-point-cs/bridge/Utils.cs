@@ -12,6 +12,9 @@ namespace CriticalPoint {
         private Static() {
             var resolver = CompositeResolver.Create(
                 new IMessagePackFormatter[] {
+                    new TmplIDFormatter(),
+                    new TmplIDLevelFormatter(),
+                    new TmplIDPlusFormatter(),
                     new Vec2Formatter(),
                     new Vec3Formatter(),
                     new Vec4Formatter(),

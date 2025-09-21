@@ -4,18 +4,70 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
+#if GODOT
+using Godot;
+#elif UNITY_EDITOR || UNITY_STANDALONE
+using UnityEngine;
+#endif
+
 namespace CriticalPoint {
     public class LogicEngine : IDisposable {
-        private IntPtr _engine;
+        /// frames per second
+        public const float FPS = 30f;
+        /// frames per second
+        public const double FPS_D = 30;
+
+        /// seconds per frame
+        public const float SPF = 1.0f / FPS;
+        /// seconds per frame
+        public const double SPF_D = 1.0 / FPS_D;
+
+        public const float CFG_FPS = 60f;
+        public const double CFG_FPS_D = 60;
+
+        public const float CFG_SPF = 1.0f / CFG_FPS;
+        public const double CFG_SPF_D = 1.0f / CFG_FPS_D;
+
+#if GODOT
+#elif UNITY_EDITOR || UNITY_STANDALONE
+        /// default camera direction
+        public static readonly Vector2 DEFAULT_VIEW_DIR_2D = new Vector2(0, -1);
+        /// default camera direction
+        public static readonly Vector3 DEFAULT_VIEW_DIR_3D = Vector3.back;
+
+        /// default character toward direction
+        public static readonly Vector2 DEFAULT_TOWARD_DIR_2D = new Vector2(0, 1);
+        /// default character toward direction
+        public static readonly Vector3 DEFAULT_TOWARD_DIR_3D = Vector3.forward;
+#endif
         
+        public const uint LOG_OFF = 0;
+        public const uint LOG_ERROR = 1;
+        public const uint LOG_WARN = 2;
+        public const uint LOG_INFO = 3;
+        public const uint LOG_DEBUG = 4;
+        public const uint LOG_TRACE = 5;
+
+        private IntPtr _engine;
+
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Return<IntPtr> engine_create(
+        private static extern unsafe Return0 engine_initialize(
             [MarshalAs(UnmanagedType.LPStr)] string tmpl_path,
-            [MarshalAs(UnmanagedType.LPStr)] string asset_path
+            [MarshalAs(UnmanagedType.LPStr)] string asset_path,
+            [MarshalAs(UnmanagedType.LPStr)] string log_file,
+            uint log_level
         );
 
-        public LogicEngine(string tmpl_path, string asset_path) {
-            _engine = engine_create(tmpl_path, asset_path).Unwrap();
+        public static void Initialize(string tmpl_path, string asset_path, string log_file, uint log_level)
+        {
+            engine_initialize(tmpl_path, asset_path, log_file, log_level).Unwrap();
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return<IntPtr> engine_create();
+
+        public LogicEngine() {
+            _engine = engine_create().Unwrap();
         }
 
         [DllImport("critical_point_csbridge.dll")]
@@ -40,7 +92,7 @@ namespace CriticalPoint {
         // Return "OK" success
         // Return error message if failed
         public string VerifyPlayer(ParamPlayer player) {
-            byte[] bytes = MessagePackSerializer.Serialize(player);
+            byte[] bytes = MessagePackSerializer.Serialize(player, Static.MsgPackOpts);
             unsafe {
                 fixed (byte* ptr = bytes) {
                     Return0 ret = engine_verify_player(_engine, ptr, (uint)bytes.Length);
@@ -62,36 +114,36 @@ namespace CriticalPoint {
         [DllImport("critical_point_csbridge.dll")]
         private static extern unsafe Return<RsArcStateSet> engine_start_game(
             IntPtr engine,
-            byte* stage_data,
-            uint stage_len,
+            byte* zone_data,
+            uint zone_len,
             byte* players_data,
             uint players_len
         );
 
-        public ArcStateSet StartGame(ParamStage stage, List<ParamPlayer> players) {
-            byte[] stage_bytes = MessagePackSerializer.Serialize(stage, Static.MsgPackOpts);
+        public ArcStateSet StartGame(ParamZone zone, List<ParamPlayer> players) {
+            byte[] zone_bytes = MessagePackSerializer.Serialize(zone, Static.MsgPackOpts);
             byte[] players_bytes = MessagePackSerializer.Serialize(players, Static.MsgPackOpts);
             unsafe {
-                fixed (byte* stage_ptr = stage_bytes, players_ptr = players_bytes) {
-                    var raw = engine_start_game(_engine, stage_ptr, (uint)stage_bytes.Length, players_ptr, (uint)players_bytes.Length).Unwrap();
+                fixed (byte* zone_ptr = zone_bytes, players_ptr = players_bytes) {
+                    var raw = engine_start_game(_engine, zone_ptr, (uint)zone_bytes.Length, players_ptr, (uint)players_bytes.Length).Unwrap();
                     return raw.MakeArc();
                 }
             }
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Return<RsVec<RsArcStateSet>> engine_update_game(
+        private static extern unsafe Return<RsArcStateSet> engine_update_game(
             IntPtr engine,
             byte* events_data,
             uint events_len
         );
 
-        public VecArcStateSet UpdateGame(List<InputPlayerEvents> events) {
+        public ArcStateSet UpdateGame(List<InputPlayerEvents> events) {
             byte[] events_bytes = MessagePackSerializer.Serialize(events, Static.MsgPackOpts);
             unsafe {
                 fixed (byte* events_ptr = events_bytes) {
                     var raw = engine_update_game(_engine, events_ptr, (uint)events_bytes.Length).Unwrap();
-                    return new VecArcStateSet(raw);
+                    return raw.MakeArc();
                 }
             }
         }
