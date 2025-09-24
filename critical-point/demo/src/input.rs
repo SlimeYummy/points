@@ -89,6 +89,7 @@ const COMB_SKILL_ANY: u32 = 0x7;
 pub struct InputHandler {
     character: CharacterType,
     xkeys_state: Vec<bool>,
+    mkeys_state: Vec<bool>,
     move_dir: Vec2,        // last move direction
     view_rads: Vec2,       // last view radius (yaw, pitch)
     combination_keys: u32, // any combination key down
@@ -104,6 +105,7 @@ impl InputHandler {
         InputHandler {
             character,
             xkeys_state: vec![false; KEYS.len()],
+            mkeys_state: vec![false; 4],
             move_dir: Vec2::ZERO,
             view_rads: Vec2::new(f32::NAN, f32::NAN),
             combination_keys: 0,
@@ -158,7 +160,8 @@ impl InputHandler {
                     JoltMean::Item7 => self.start_common(mean, RawKey::Item7),
                     JoltMean::Item8 => self.start_common(mean, RawKey::Item8),
                 };
-            } else {
+            }
+            else {
                 match mean {
                     JoltMean::CombExtra => self.cancel_extra(),
                     JoltMean::CombSkill1 => self.cancel_comb_skill(COMB_SKILL1),
@@ -190,28 +193,48 @@ impl InputHandler {
     }
 
     fn handle_move(&mut self, keyboard: &mut DebugKeyboard) {
-        let mut move_dir = Vec2::ZERO;
-        if keyboard.is_key_pressed(DIK_W) {
-            move_dir.y += 1.0;
-        }
-        if keyboard.is_key_pressed(DIK_S) {
-            move_dir.y -= 1.0;
-        }
-        if keyboard.is_key_pressed(DIK_A) {
-            move_dir.x -= 1.0;
-        }
-        if keyboard.is_key_pressed(DIK_D) {
-            move_dir.x += 1.0;
+        let mut key_events = [None; 4];
+        for (idx, key) in [DIK_A, DIK_D, DIK_S, DIK_W].iter().enumerate() {
+            let pressed = keyboard.is_key_pressed(*key);
+            let prev_state = self.mkeys_state[idx];
+            self.mkeys_state[idx] = pressed;
+            match (prev_state, pressed) {
+                (false, true) => key_events[idx] = Some(true),
+                (true, false) => key_events[idx] = Some(false),
+                _ => (),
+            }
         }
 
+        let prev_move_dir = self.move_dir;
+        match key_events[0] {
+            Some(true) => self.move_dir.x = -1.0,
+            Some(false) if self.move_dir.x == -1.0 => self.move_dir.x = 0.0,
+            _ => (),
+        }
+        match key_events[1] {
+            Some(true) => self.move_dir.x = 1.0,
+            Some(false) if self.move_dir.x == 1.0 => self.move_dir.x = 0.0,
+            _ => (),
+        }
+        match key_events[2] {
+            Some(true) => self.move_dir.y = -1.0,
+            Some(false) if self.move_dir.y == -1.0 => self.move_dir.y = 0.0,
+            _ => (),
+        }
+        match key_events[3] {
+            Some(true) => self.move_dir.y = 1.0,
+            Some(false) if self.move_dir.y == 1.0 => self.move_dir.y = 0.0,
+            _ => (),
+        }
+
+        if self.move_dir == prev_move_dir {
+            return;
+        }
+
+        let mut move_dir = self.move_dir;
         if move_dir != Vec2::ZERO {
             move_dir = move_dir.normalize();
         }
-        if abs_diff_eq!(move_dir, self.move_dir) {
-            return;
-        }
-        self.move_dir = move_dir;
-
         if let Some(last) = self.events.last_mut() {
             if last.key == RawKey::Move {
                 last.motion = move_dir;
@@ -289,24 +312,28 @@ impl InputHandler {
                     RawKey::Attack1
                 );
                 derive = ifelse!((self.combination_keys & COMB_EXTRA) != 0, None, Some(RawKey::Derive1));
-            } else if code == RawKey::Attack2 {
+            }
+            else if code == RawKey::Attack2 {
                 code = ifelse!(
                     (self.combination_keys & COMB_EXTRA) != 0,
                     RawKey::Attack4,
                     RawKey::Attack2
                 );
                 derive = ifelse!((self.combination_keys & COMB_EXTRA) != 0, None, Some(RawKey::Derive2));
-            } else if code == RawKey::Attack5 {
+            }
+            else if code == RawKey::Attack5 {
                 code = ifelse!(
                     (self.combination_keys & COMB_EXTRA) != 0,
                     RawKey::Attack6,
                     RawKey::Attack5
                 );
                 derive = ifelse!((self.combination_keys & COMB_EXTRA) != 0, None, Some(RawKey::Derive3));
-            } else {
+            }
+            else {
                 return;
             }
-        } else if self.character == CharacterType::Magic {
+        }
+        else if self.character == CharacterType::Magic {
             if code == RawKey::Attack1 {
                 code = ifelse!(
                     (self.combination_keys & COMB_EXTRA) != 0,
@@ -314,14 +341,16 @@ impl InputHandler {
                     RawKey::Attack1
                 );
                 derive = ifelse!((self.combination_keys & COMB_EXTRA) != 0, None, Some(RawKey::Derive1));
-            } else if code == RawKey::Attack2 {
+            }
+            else if code == RawKey::Attack2 {
                 code = ifelse!(
                     (self.combination_keys & COMB_EXTRA) != 0,
                     RawKey::Attack4,
                     RawKey::Attack2
                 );
                 derive = ifelse!((self.combination_keys & COMB_EXTRA) != 0, None, Some(RawKey::Derive2));
-            } else {
+            }
+            else {
                 return;
             }
         }
