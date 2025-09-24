@@ -31,7 +31,6 @@ namespace CriticalPointTests {
 
         [TestMethod]
         public void TestArcDynStateAny() {
-            ;
             var any = mock_arc_dyn_state_any().MakeArc();
 
             Assert.AreEqual(123ul, any.id);
@@ -214,13 +213,14 @@ namespace CriticalPointTests {
             Assert.AreEqual(StateType.PlayerUpdate, update.typ);
             Assert.AreEqual(LogicType.Player, update.logic_typ);
 
-            Assert.AreEqual(new Vec3(1.0f, 2.0f, 3.0f), update.physics.position);
-            Assert.AreEqual(Quat.IDENTITY, update.physics.rotation);
+            Assert.AreEqual(new Vec3A(4.0f, 5.0f, 6.0f), update.physics.velocity);
+            Assert.AreEqual(new Vec3A(1.0f, 2.0f, 3.0f), update.physics.position);
+            Assert.AreEqual(new Vec2(0.0f, -1.0f), update.physics.direction);
             Assert.AreEqual(2, update.actions.Length);
-            Assert.AreEqual("Mock.ActionIdle", update.actions[0].tmpl_id.TryRead());
-            Assert.AreEqual(21u, update.actions[0].AsRefStateActionIdle().switch_progress);
-            Assert.AreEqual("Mock.ActionMove", update.actions[1].tmpl_id.TryRead());
-            Assert.AreEqual(893u, update.actions[1].AsRefStateActionMove().event_idx);
+            Assert.AreEqual("Action.One.Idle", update.actions[0].tmpl_id.TryRead());
+            Assert.AreEqual(0.207f, update.actions[0].AsRefStateActionIdle().fade_in_weight);
+            Assert.AreEqual("Action.One.Jog", update.actions[1].tmpl_id.TryRead());
+            Assert.AreEqual(40u, update.actions[1].AsRefStateActionMove().derive_level);
 
             var ref_update = update.Ref();
             Assert.AreEqual(2, ref_update.actions.Length);
@@ -239,13 +239,14 @@ namespace CriticalPointTests {
             Assert.AreEqual(StateType.PlayerUpdate, update.typ);
             Assert.AreEqual(LogicType.Player, update.logic_typ);
 
-            Assert.AreEqual(new Vec3(1.0f, 2.0f, 3.0f), update.physics.position);
-            Assert.AreEqual(Quat.IDENTITY, update.physics.rotation);
+            Assert.AreEqual(new Vec3A(4.0f, 5.0f, 6.0f), update.physics.velocity);
+            Assert.AreEqual(new Vec3A(1.0f, 2.0f, 3.0f), update.physics.position);
+            Assert.AreEqual(new Vec2(0.0f, -1.0f), update.physics.direction);
             Assert.AreEqual(2, update.actions.Length);
-            Assert.AreEqual("Mock.ActionIdle", update.actions[0].tmpl_id.TryRead());
-            Assert.AreEqual(21u, update.actions[0].AsRefStateActionIdle().switch_progress);
-            Assert.AreEqual("Mock.ActionMove", update.actions[1].tmpl_id.TryRead());
-            Assert.AreEqual(893u, update.actions[1].AsRefStateActionMove().event_idx);
+            Assert.AreEqual("Action.One.Idle", update.actions[0].tmpl_id.TryRead());
+            Assert.AreEqual(0.207f, update.actions[0].AsRefStateActionIdle().fade_in_weight);
+            Assert.AreEqual("Action.One.Jog", update.actions[1].tmpl_id.TryRead());
+            Assert.AreEqual(40u, update.actions[1].AsRefStateActionMove().derive_level);
 
             var update2 = update.Arc();
             Assert.AreEqual(2, update.actions.Length);
