@@ -3,23 +3,25 @@
 namespace CriticalPointTests {
     [TestClass]
     public class TestEngine {
-        const string TMPL_PATH = "../../../../../turning-point/test-templates";
-        const string ASSET_PATH = "../../../../../turning-point/test-assets";
+        const string TMPL_PATH = "../../../../../test-tmp/test-template";
+        const string ASSET_PATH = "../../../../../test-tmp/test-asset";
+        const string LOG_PATH = "../../../../../test-tmp/test_cs.log";
+
+        [AssemblyInitialize]
+        public static void AssemblyInit(TestContext context) {
+            LogicEngine.Initialize(TMPL_PATH, ASSET_PATH, LOG_PATH, LogicEngine.LOG_DEBUG);
+        }
 
         [TestMethod]
         public void TestNewDelete() {
-            Assert.ThrowsException<EngineException>(() => {
-                LogicEngine engine = new LogicEngine("./test-templates", "./test-assets");
-            });
-
-            LogicEngine engine = new LogicEngine(TMPL_PATH, ASSET_PATH);
+            LogicEngine engine = new LogicEngine();
             Assert.IsNotNull(engine);
             engine.Dispose();
         }
 
         [TestMethod]
         public void TestVerifyPlayer() {
-            using (var engine = new LogicEngine(TMPL_PATH, ASSET_PATH)) {
+            using (var engine = new LogicEngine()) {
                 var player1 = NewParamPlayer();
                 Assert.AreEqual("OK", engine.VerifyPlayer(player1));
 
@@ -28,9 +30,9 @@ namespace CriticalPointTests {
                 Assert.AreNotEqual("OK", engine.VerifyPlayer(player2));
 
                 var player3 = NewParamPlayer();
-                player3.equipments = new List<IDLevel> {
-                    new IDLevel { id = "Equipment.No1", level = 1 },
-                    new IDLevel { id = "Equipment.No3", level = 0 },
+                player3.equipments = new List<TmplIDLevel> {
+                    new TmplIDLevel { id = new TmplID("Equipment.No1"), level = 1 },
+                    new TmplIDLevel { id = new TmplID("Equipment.No3"), level = 0 },
                 };
                 Assert.AreNotEqual("OK", engine.VerifyPlayer(player3));
             }
@@ -38,48 +40,51 @@ namespace CriticalPointTests {
 
         ParamPlayer NewParamPlayer() {
             return new ParamPlayer {
-                character = "Character.No1",
-                style = "Style.No1-1",
+                character = new TmplID("Character.One"),
+                style = new TmplID("Style.One/1"),
                 level = 6,
-                equipments = new List<IDLevel> {
-                    new IDLevel { id = "Equipment.No1", level = 4 },
-                    new IDLevel { id = "Equipment.No2", level = 3 },
+                equipments = new List<TmplIDLevel> {
+                    new TmplIDLevel { id = new TmplID("Equipment.No1"), level = 4 },
+                    new TmplIDLevel { id = new TmplID("Equipment.No2"), level = 3 },
                 },
-                perks = new List<string> {
-                    "Perk.No1.AttackUp",
-                    "Perk.No1.Slot",
+                perks = new List<TmplIDLevel> {
+                    new TmplIDLevel { id = new TmplID("Perk.One.AttackUp"), level = 1 },
+                    new TmplIDLevel { id = new TmplID("Perk.One.NormalAttack.Branch"), level = 1 },
                 },
                 accessories = new List<ParamAccessory> {
-                    new ParamAccessory { id = "Accessory.AttackUp.Variant1", level = 0, entries = new List<string> {"Entry.DefenseUp"} },
+                    new ParamAccessory {
+                        id = new TmplID("Accessory.AttackUp/1"), level = 0,
+                        entries = new List<TmplID> { new TmplID("Entry.DefenseUp")},
+                    },
                 },
-                jewels = new List<IDPlus> {
-                    new IDPlus { id = "Jewel.AttackUp.Variant1", plus = 0 },
+                jewels = new List<TmplIDPlus> {
+                    new TmplIDPlus { id = new TmplID("Jewel.DefenseUp/1"), plus = 0 },
                 },
             };
         }
 
-        ParamStage NewParamStage() {
-            return new ParamStage {
-                stage = "Stage.Demo",
+        ParamZone NewParamZone() {
+            return new ParamZone {
+                zone = new TmplID("Zone.Demo"),
             };
         }
 
         [TestMethod]
         public void TestStartGame() {
-            using (var engine = new LogicEngine(TMPL_PATH, ASSET_PATH)) {
-                var stage = NewParamStage();
+            using (var engine = new LogicEngine()) {
+                var zone = NewParamZone();
                 var player = NewParamPlayer();
 
-                var state_set = engine.StartGame(stage, new List<ParamPlayer> { player });
+                var state_set = engine.StartGame(zone, new List<ParamPlayer> { player });
                 Assert.AreEqual(state_set.inits.Length, 3);
                 state_set.Dispose();
 
-                var state_sets = engine.UpdateGame(new List<PlayerEvents> {
-                    new PlayerEvents {
+                var state_sets = engine.UpdateGame(new List<InputPlayerEvents> {
+                    new InputPlayerEvents {
                         frame = 1,
                         player_id = 100,
-                        events = new List<KeyEvent> {
-                             new KeyEvent { key = RawKey.Attack1, pressed = true },
+                        events = new List<RawEvent> {
+                             new RawEvent { key = RawKey.Attack1, pressed = true },
                         },
                     }
                 });
