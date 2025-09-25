@@ -48,17 +48,17 @@ impl Config {
 }
 
 struct Testbed {
-    engine: Box<LogicEngine>,
     state_set: Arc<StateSet>,
     input_handler: InputHandler,
     logic_frame: u32,
     current_secs: f32,
     view_rads: Vec2,
+    engine: Box<LogicEngine>,
 }
 
 impl Testbed {
     fn new(opt: &Opt, cfg: Config) -> Testbed {
-        let mut engine = Box::new(LogicEngine::new(&opt.asset).unwrap());
+        let mut engine = Box::new(LogicEngine::new().unwrap());
         let save_path = match &opt.save {
             Some(p) => Some(p.join(format!("save_{}", Local::now().format("%Y%m%d_%H%M%S")))),
             None => None,
@@ -96,16 +96,12 @@ impl DebugApp for Testbed {
             return true;
         }
 
-        // println!("{}", self.engine.phy_system().unwrap().count_ref());
-
         self.logic_frame += 1;
         let events = self.input_handler.take_events();
-        // println!("frame:{} events:{:?}", self.logic_frame, events);
-        let mut state_sets = self
+        self.state_set = self
             .engine
             .update_game(vec![InputPlayerEvents::new(100, self.logic_frame, events)])
             .unwrap();
-        self.state_set = state_sets.pop().unwrap();
         true
     }
 
@@ -115,8 +111,7 @@ impl DebugApp for Testbed {
     }
 
     fn get_camera_pivot(&mut self, heading: f32, pitch: f32) -> Vec3A {
-        self.view_rads = Vec2::new(heading, pitch);
-        // println!("get_camera_pivot heading:{} {}", -heading, Vec2::new(0.0, -1.0).to_angle());
+        self.view_rads = Vec2::new(-heading, pitch);
 
         if self.state_set.updates.len() == 0 {
             return Vec3A::ZERO;
@@ -132,8 +127,6 @@ impl DebugApp for Testbed {
             .cast::<StatePlayerUpdate>()
             .unwrap();
 
-        // println!("{:?}", player.physics.rotation);
-
         let fwd = Vec3A::new(pitch.cos() * heading.cos(), pitch.sin(), pitch.cos() * heading.sin());
         let pos = player.physics.position;
         Vec3A::new(pos.x, pos.y + 1.0, pos.z) - 3.0 * fwd
@@ -141,12 +134,26 @@ impl DebugApp for Testbed {
 }
 
 fn main() {
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{} {}] {}",
+                Local::now().format("%y-%m-%d %H:%M:%S%.3f"),
+                record.level(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Debug)
+        .chain(std::io::stdout())
+        .apply()
+        .unwrap();
+
     std::env::set_current_dir("/project/points/critical-point/demo").unwrap();
 
     let opt = Opt::from_args();
     // let opt = Opt {
     //     template: PathBuf::from("/project/points/test-tmp/demo-template"),
-    //     asset: PathBuf::from("/project/points/test-asset"),
+    //     asset: PathBuf::from("/project/points/test-tmp/test-asset"),
     //     save: None,
     //     config: PathBuf::from("./config.json"),
     // };
@@ -156,7 +163,7 @@ fn main() {
     if !opt.asset.is_dir() {
         panic!("asset not found: {:?}", opt.asset);
     }
-    LogicEngine::initialize(&opt.template).unwrap();
+    LogicEngine::initialize(&opt.template, &opt.asset).unwrap();
 
     let cfg = Config::from_path(&opt.config).unwrap();
     let testbed = Box::new(Testbed::new(&opt, cfg));
