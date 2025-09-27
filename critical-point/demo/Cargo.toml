@@ -7,10 +7,12 @@ edition = "2021"
 anyhow = "1.0"
 approx = "0.5"
 chrono = "0.4"
-cirtical-point-core = { path = "../core" }
+cirtical-point-core = { path = "../core", features = [] }
+fern = "0.7"
 glam = { version = "0.30", features = ["libm", "approx", "serde", "rkyv"] }
-glam-ext = { version = "0.3", features = ["libm", "approx", "serde", "rkyv"] }
+glam-ext = { path = "../../../glam-ext", features = ["libm", "approx", "serde", "rkyv"] }
 jolt-physics-rs = { path = "../../../jolt-physics-rs", features = ["deterministic", "debug-renderer"] } # "debug-print"
+log = "0.4"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 structopt = "0.3"
