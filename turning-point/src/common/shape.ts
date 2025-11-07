@@ -36,3 +36,18 @@ export class Capsule extends Shape {
         this.radius = parseFloat(radius, 'Capsule.radius', { min: 0 });
     }
 }
+
+export class TaperedCapsule extends Shape {
+    public readonly half_height: number;
+    public readonly top_radius: number;
+    public readonly bottom_radius: number;
+
+    public constructor(half_height: number, top_radius: number, bottom_radius: number) {
+        super();
+        this.half_height = parseFloat(half_height, 'TaperedCapsule.half_height', {
+            min: 0,
+        });
+        this.top_radius = parseFloat(top_radius, 'Capsule.top_radius', { min: 0 });
+        this.bottom_radius = parseFloat(bottom_radius, 'Capsule.bottom_radius', { min: 0 });
+    }
+}
