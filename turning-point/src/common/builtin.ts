@@ -292,6 +292,36 @@ export function parseString(
     return raw;
 }
 
+export function parseStringArray(
+    raw: ReadonlyArray<string>,
+    where: string,
+    opts: {
+        min_len?: int;
+        max_len?: int;
+        includes?: string[];
+        regex?: RegExp;
+        deduplicate?: boolean;
+    } = {},
+): ReadonlyArray<string> {
+    checkArray(raw, where, opts);
+
+    const res: Array<string> = [];
+    for (const [idx, item] of raw.entries()) {
+        if (opts.deduplicate && res.includes(item)) {
+            throw new Error(`${where}[${idx}]: must be unique`);
+        }
+        res.push(
+            parseString(item, `${where}[${idx}]`, {
+                min_len: opts.min_len,
+                max_len: opts.max_len,
+                includes: opts.includes,
+                regex: opts.regex,
+            }),
+        );
+    }
+    return res;
+}
+
 export function parseFile(
     raw: string,
     where: string,
@@ -303,9 +333,9 @@ export function parseFile(
     if (typeof raw !== 'string') {
         throw new Error(`${where}: must be a string`);
     }
-    
+
     if (Array.isArray(opts.extension)) {
-        const ext = path.extname(raw)
+        const ext = path.extname(raw);
         if (!opts.extension.includes(ext)) {
             throw new Error(`${where}: must have extension ${opts.extension}`);
         }
@@ -314,7 +344,7 @@ export function parseFile(
             throw new Error(`${where}: must have extension ${opts.extension}`);
         }
     }
-    
+
     if (!opts.can_absolute && path.isAbsolute(raw)) {
         throw new Error(`${where}: must be a relative path`);
     }
