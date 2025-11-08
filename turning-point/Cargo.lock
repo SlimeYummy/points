@@ -3,10 +3,10 @@
 version = 4
 
 [[package]]
-name = "adler"
-version = "1.0.2"
+name = "adler2"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
+checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "ahash"
@@ -176,55 +176,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "cirtical-point-core"
-version = "0.1.0"
-dependencies = [
- "ahash",
- "anyhow",
- "approx",
- "base64",
- "bytecheck 0.6.12",
- "byteorder",
- "cirtical-point-csgen",
- "const_format",
- "educe",
- "enum-iterator",
- "glam",
- "glam-ext",
- "jolt-physics-rs",
- "lazy_static",
- "libc",
- "libm",
- "log",
- "mimalloc",
- "ozz-animation-rs",
- "paste",
- "pest",
- "pest_derive",
- "ptr_meta 0.3.0",
- "recastnavigation-rs",
- "regex",
- "rkyv",
- "serde",
- "serde_json",
- "static_assertions",
- "typetag",
- "zip",
-]
-
-[[package]]
-name = "cirtical-point-csgen"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "case",
- "libc",
- "quote",
- "regex",
- "syn 2.0.100",
-]
-
-[[package]]
 name = "clap"
 version = "4.5.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -306,6 +257,55 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a97769d94ddab943e4510d138150169a2758b5ef3eb191a9ee688de3e23ef7b3"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "critical-point-core"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "anyhow",
+ "approx",
+ "base64",
+ "bytecheck 0.6.12",
+ "byteorder",
+ "const_format",
+ "critical-point-csgen",
+ "educe",
+ "enum-iterator",
+ "glam",
+ "glam-ext",
+ "jolt-physics-rs",
+ "lazy_static",
+ "libc",
+ "libm",
+ "log",
+ "mimalloc",
+ "ozz-animation-rs",
+ "paste",
+ "pest",
+ "pest_derive",
+ "ptr_meta 0.3.0",
+ "recastnavigation-rs",
+ "regex",
+ "rkyv",
+ "serde",
+ "serde_json",
+ "static_assertions",
+ "typetag",
+ "zip",
+]
+
+[[package]]
+name = "critical-point-csgen"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "case",
+ "libc",
+ "quote",
+ "regex",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -633,7 +633,7 @@ dependencies = [
  "rkyv",
  "serde",
  "static_assertions",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "vcvars",
 ]
 
@@ -707,11 +707,11 @@ dependencies = [
 
 [[package]]
 name = "miniz_oxide"
-version = "0.7.4"
+version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8a240ddb74feaf34a79a7add65a741f3167852fba007066dcac1ca548d89c08"
+checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
 dependencies = [
- "adler",
+ "adler2",
 ]
 
 [[package]]
@@ -811,13 +811,13 @@ name = "ozz-animation-rs"
 version = "0.11.0"
 dependencies = [
  "bimap",
- "bytecheck 0.6.12",
+ "bytecheck 0.8.1",
  "glam",
  "glam-ext",
  "rkyv",
  "serde",
  "static_assertions",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -960,7 +960,7 @@ dependencies = [
  "miniz_oxide",
  "rkyv",
  "static_assertions",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -1212,7 +1212,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 name = "turining-point-node"
 version = "0.0.0"
 dependencies = [
- "cirtical-point-core",
+ "critical-point-core",
  "glam",
  "napi",
  "napi-build",
