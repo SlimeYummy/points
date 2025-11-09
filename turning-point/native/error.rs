@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use cirtical_point_core::utils::XError;
+use critical_point_core::utils::XError;
 use napi::{Error, Status};
 use ozz_animation_rs::OzzError;
 

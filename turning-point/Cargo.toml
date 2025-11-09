@@ -8,7 +8,7 @@ path = "native/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-cirtical-point-core = { path = "../critical-point/core" }
+critical-point-core = { path = "../critical-point/core" }
 glam = { version = "0.30", features = ["libm", "approx"] }
 napi = { version = "2.12.2", default-features = false, features = ["napi4"] }
 napi-derive = "2.12.2"

@@ -1,9 +1,9 @@
-use glam::{Quat, Vec3, Vec3Swizzles};
+use critical_point_core::animation::{WeaponMotionTrackSet, RootMotionTrack};
+use glam::{Vec3, Vec3Swizzles};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use ozz_animation_rs::{Animation, Archive, Skeleton, Track};
 use std::collections::HashMap;
-use cirtical_point_core::animation::RootMotionTrack;
 
 use crate::error::{cp_err_msg, ozz_err_msg};
 
@@ -102,5 +102,27 @@ pub fn load_root_motion_meta(path: String) -> Result<RootMotionMeta> {
         whole_distance: root_motion.whole_position().length() as f64,
         whole_distance_xz: root_motion.whole_position().xz().length() as f64,
         whole_distance_y: root_motion.whole_position().y as f64,
+    })
+}
+
+#[napi(object)]
+pub struct WeaponTrajectoryMeta {
+    pub version: u32,
+    pub count: u32,
+    pub names: Vec<String>,
+    // pub joints: Vec<String>,
+}
+
+#[napi]
+pub fn load_weapon_trajectory_meta(path: String) -> Result<WeaponTrajectoryMeta> {
+    let weapon_motion = match WeaponMotionTrackSet::from_path(&path) {
+        Ok(weapon_motion) => weapon_motion,
+        Err(err) => return Err(cp_err_msg(err, &path)),
+    };
+    Ok(WeaponTrajectoryMeta {
+        version: Track::<Vec3>::version(),
+        count: weapon_motion.len() as u32,
+        names: weapon_motion.iter().map(|w| w.name().to_string()).collect(),
+        // joints: weapon_motion.iter().map(|w| w.joint().to_string()).collect(),
     })
 }
