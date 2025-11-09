@@ -27,6 +27,7 @@ export function gltf2ozz(
     gltfFile: string,
     configFile: string,
     MappingPair: MappingPair,
+    weaponPrefix: string,
     dstPattern: string,
 ) {
     const tmpName = tmp
@@ -48,12 +49,23 @@ export function gltf2ozz(
         }
     });
 
+    let jsonTracks: { json: string; filename: string }[] = [];
+    if (weaponPrefix) {
+        jsonTracks = fs.readdirSync(gltfFile + '/..')
+            .filter((f) => f.startsWith(weaponPrefix) && f.endsWith('.json'))
+            .map((f) => ({
+                json: f,
+                filename: f.replace('.json', '.wm-ozz').replace(weaponPrefix, dstPattern),
+            }));
+    }
+
     const logicCfg = loadConfig(configFile, {
         skeleton_suffix: 'ls',
         animation_suffix: 'la',
         prefix: dstPattern,
         clipped_file: tmpName,
-        motion: true,
+        root_motion: true,
+        json_tracks: jsonTracks,
     });
     execute(gltfFile, logicCfg, MappingPair.logicFile, true);
 
@@ -62,7 +74,8 @@ export function gltf2ozz(
         animation_suffix: 'va',
         prefix: dstPattern,
         clipped_file: tmpName,
-        motion: false,
+        root_motion: false,
+        json_tracks: []
     });
     execute(gltfFile, viewCfg, MappingPair.viewFile, false);
 }

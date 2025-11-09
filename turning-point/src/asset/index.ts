@@ -178,10 +178,10 @@ export class Asset {
     public static gltf2ozz(
         srcDir: string,
         dstDir: string,
-        files: [string, string, animation.MappingPair, string][],
+        files: [string, string, animation.MappingPair, string, string][],
     ) {
         fs.mkdirSync(path.join(OUTPUT_ASSET, dstDir), { recursive: true });
-        for (const [gltf, config, mapping, pattern] of files) {
+        for (const [gltf, config, mapping, jsonTrack, pattern] of files) {
             const gltfFile = path.join(INPUT_ASSET, srcDir, gltf);
             const configFile = path.join(INPUT_ASSET, srcDir, config);
             const mappingPair = {
@@ -192,7 +192,7 @@ export class Asset {
             Asset.incrementUpdate(
                 `gltf: ${dstPattern}`,
                 [gltfFile, configFile, mappingPair.logicFile, mappingPair.viewFile],
-                () => animation.gltf2ozz(gltfFile, configFile, mappingPair, dstPattern),
+                () => animation.gltf2ozz(gltfFile, configFile, mappingPair, jsonTrack, dstPattern),
             );
         }
     }

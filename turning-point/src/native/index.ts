@@ -21,6 +21,13 @@ export function loadAnimationMeta(path: string) {
 const loadRootMotionMetaMemoize = memoize(native.loadRootMotionMeta);
 
 export function loadRootMotionMeta(path: string) {
-    const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.m-ozz')}`;
+    const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.rm-ozz')}`;
     return loadRootMotionMetaMemoize(realPath);
+}
+
+const loadWeaponTrajectoryMetaMemoize = memoize(native.loadWeaponTrajectoryMeta);
+
+export function loadWeaponTrajectoryMeta(path: string) {
+    const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.wm-ozz')}`;
+    return loadWeaponTrajectoryMetaMemoize(realPath);
 }
