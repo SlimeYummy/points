@@ -55,7 +55,10 @@ export class ActionIdle extends Action {
         this.anim_randoms = !args.anim_randoms
             ? undefined
             : args.anim_randoms.map(
-                  (args) => new Aniamtion(args, this.w('anim_randoms'), { root_motion: false }),
+                  (args) =>
+                      new Aniamtion(args, this.w('anim_randoms'), {
+                          root_motion: false,
+                      }),
               );
         this.auto_idle_delay = parseTime(args.auto_idle_delay || '10s', this.w('auto_idle_delay'));
         this.enter_level = LEVEL_IDLE;

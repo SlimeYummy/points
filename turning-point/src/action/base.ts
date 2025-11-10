@@ -1,4 +1,5 @@
 import {
+    FilePath,
     float,
     ID,
     IDPrefix,
@@ -8,7 +9,9 @@ import {
     parseIDArray,
     parseInt,
     parseIntArray,
+    parseStringArray,
 } from '../common';
+import * as native from '../native';
 import { Resource } from '../resource';
 import { Character, Style } from '../character';
 import {
@@ -180,6 +183,9 @@ export type ActionArgs = {
 
     /** 可以使用该动作的角色风格 */
     styles: ReadonlyArray<ID>;
+
+    /** 标签 */
+    tags?: ReadonlyArray<string>;
 };
 
 /**
@@ -205,11 +211,18 @@ export abstract class Action extends Resource {
     /** 可以使用该动作的角色风格 */
     public readonly styles: ReadonlyArray<ID>;
 
+    /** 标签 */
+    public readonly tags: ReadonlyArray<string>;
+
     public constructor(id: ID, args: ActionArgs) {
         super(id);
         this.enabled = parseVarBool(args.enabled || true, this.w('enabled'));
         this.character = parseID(args.character, 'Character', this.w('character'));
         this.styles = parseIDArray(args.styles, 'Style', this.w('styles'));
+        this.tags = parseStringArray(args.tags || [], this.w('tags'), {
+            // includes: ['Idle', 'Run', 'Walk', 'Attack', 'Skill'],
+            deduplicate: true,
+        });
     }
 
     public override verify() {
