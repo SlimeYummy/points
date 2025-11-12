@@ -7,11 +7,12 @@ import {
     parseAngleXZRange,
     parseBool,
     parseFloat,
+    parseIDArray,
     parseString,
     parseTime,
 } from '../common';
 import { Aniamtion, AniamtionArgs } from './animation';
-import { Action, ActionArgs, LEVEL_MOVE } from './base';
+import { Action, ActionArgs, LEVEL_MOVE, parseActionLevel } from './base';
 
 export type ActionMoveStartArgs = AniamtionArgs & {
     /** 进入该动画的角度（右手系XZ平面） */
@@ -34,14 +35,8 @@ export class ActionMoveStart extends Aniamtion {
     /** 可以触发快速停止的结束时间 */
     public quick_stop_end: float;
 
-    public constructor(
-        args: ActionMoveStartArgs,
-        where: string,
-        opts?: {
-            root_motion?: boolean;
-        },
-    ) {
-        super(args, where, opts);
+    public constructor(args: ActionMoveStartArgs, where: string) {
+        super(args, where, { root_motion: true });
         this.enter_angle = parseAngleXZRange(args.enter_angle, `${where}.enter_angle`);
         this.turn_in_place_end = parseTime(
             args.turn_in_place_end || 0,
@@ -70,21 +65,9 @@ export class ActionMoveTurn extends Aniamtion {
     /** 进入该动画的角度（右手系XZ平面） */
     public enter_angle: readonly [float, float];
 
-    /** 转身开始时原地转身的结束时间 */
-    public turn_in_place_end: float;
-
-    public constructor(
-        args: ActionMoveTurnArgs,
-        where: string,
-        opts?: {
-            root_motion?: boolean;
-        },
-    ) {
-        super(args, where, opts);
+    public constructor(args: ActionMoveTurnArgs, where: string) {
+        super(args, where, { root_motion: true });
         this.enter_angle = parseAngleXZRange(args.enter_angle, `${where}.enter_angle`);
-        this.turn_in_place_end = parseTime(args.turn_in_place_end, `${where}.turn_in_place_end`, {
-            min: 0,
-        });
     }
 }
 
@@ -103,14 +86,8 @@ export class ActionMoveStop extends Aniamtion {
     /** 停止动画减速阶段的结束时间 */
     public speed_down_end: float;
 
-    public constructor(
-        args: ActionMoveStopArgs,
-        where: string,
-        opts?: {
-            root_motion?: boolean;
-        },
-    ) {
-        super(args, where, opts);
+    public constructor(args: ActionMoveStopArgs, where: string) {
+        super(args, where, { root_motion: true });
         this.enter_phase_table = this.parseEnterPhaseTable(
             args.enter_phase_table,
             this.duration,
@@ -140,6 +117,20 @@ export type ActionMoveArgs = ActionArgs & {
     /** 进入按键 */
     enter_key: 'Run' | 'Walk' | 'Dash';
 
+    /** 进入等级 */
+    enter_level?: int;
+
+    /** 通常状态派生等级 */
+    derive_level?: int;
+
+    /**
+     * 特殊状态派生等级 包括：
+     * - Start [0, turn_in_place_end] 的转身阶段
+     * - Stop [0, speed_down_end] 的停止减速阶段
+     * - Turn 全部阶段
+     **/
+    special_derive_level?: int;
+
     /** 前向移动动画 */
     anim_move: AniamtionArgs;
 
@@ -147,19 +138,19 @@ export type ActionMoveArgs = ActionArgs & {
     move_speed: float;
 
     /** 移动开始动画 */
-    starts?: Array<ActionMoveStartArgs>;
+    starts?: ReadonlyArray<ActionMoveStartArgs>;
 
     /** 移动开始时间 仅在未匹配到starts时生效 */
     start_time?: float | string;
 
     /** 转身动画 */
-    turns?: Array<ActionMoveTurnArgs>;
+    turns?: ReadonlyArray<ActionMoveTurnArgs>;
 
     /** 转身180°所需时间 仅在未匹配到turns时生效 */
     turn_time: float | string;
 
     /** 移动停止动画 */
-    stops?: Array<ActionMoveStopArgs>;
+    stops?: ReadonlyArray<ActionMoveStopArgs>;
 
     /** 移动停止时间 仅在未匹配到stops时生效 */
     stop_time?: float | string;
@@ -169,9 +160,37 @@ export type ActionMoveArgs = ActionArgs & {
 
     /** 是否继承上个动作派生 */
     derive_keeping?: boolean | int;
+
+    /**
+     * 平滑切换移动动作列表
+     * 从下列移动动作进入时 不会从Start开始 而是参考前一个动作的状态：
+     * - 前移动状态为Move 进入当前Move状态
+     * - 前移动状态为Start 且不在[0, turn_in_place_end] 进入当前Start状态
+     */
+    smooth_move_froms?: ReadonlyArray<ID>;
+
+    /** 平滑切换移动持续时间 */
+    smooth_move_duration?: float | string;
 };
 
 export class ActionMove extends Action {
+    /** 进入按键 */
+    public readonly enter_key?: 'Run' | 'Walk' | 'Dash';
+
+    /** 进入等级 */
+    public readonly enter_level: int;
+
+    /** 通常状态派生等级 */
+    public readonly derive_level: int;
+
+    /**
+     * 特殊状态派生等级 包括：
+     * - Start [0, turn_in_place_end] 的转身阶段
+     * - Stop [0, speed_down_end] 的停止减速阶段
+     * - Turn [0, turn_in_place_end] 的转身阶段
+     **/
+    public readonly special_derive_level: int;
+
     /** 前向移动动画 */
     public readonly anim_move: Aniamtion;
 
@@ -198,15 +217,6 @@ export class ActionMove extends Action {
 
     /** 快速停止时间 */
     public readonly quick_stop_time: float;
-    
-    /** 进入按键 */
-    public readonly enter_key?: 'Run' | 'Walk' | 'Dash';
-
-    /** 进入等级 */
-    public readonly enter_level: int;
-
-    /** 派生等级 */
-    public readonly derive_level: int;
 
     /** 是否继承上个动作派生 */
     public readonly derive_keeping: boolean;
@@ -214,35 +224,76 @@ export class ActionMove extends Action {
     /** 韧性等级 */
     public readonly poise_level: int;
 
+    /**
+     * 平滑切换移动动作列表
+     * 从下列移动动作进入时 不会从Start开始 而是参考前一个动作的状态：
+     * - 前移动状态为Move 进入当前Move状态
+     * - 前移动状态为Start 且不在[0, turn_in_place_end] 进入当前Start状态
+     */
+    public readonly smooth_move_froms: ReadonlyArray<ID>;
+
+    /** 平滑切换移动持续时间 */
+    public readonly smooth_move_duration: float;
+
     public constructor(id: ID, args: ActionMoveArgs) {
         super(id, args);
-        this.anim_move = new Aniamtion(args.anim_move, this.w('anim_move'), { root_motion: true });
+        this.enter_key = parseString(args.enter_key as string, this.w('enter_key'), {
+            includes: ['Run', 'Walk', 'Dash'],
+        }) as any;
+        this.enter_level = parseActionLevel(args.enter_level || LEVEL_MOVE, this.w('enter_level'));
+        this.derive_level = parseActionLevel(
+            args.enter_level || LEVEL_MOVE - 10,
+            this.w('enter_level'),
+        );
+        this.special_derive_level = parseActionLevel(
+            args.special_derive_level || LEVEL_MOVE + 10,
+            this.w('special_derive_level'),
+        );
+        this.anim_move = new Aniamtion(args.anim_move, this.w('anim_move'), {
+            root_motion: true,
+        });
         this.move_speed = parseFloat(args.move_speed, this.w('move_speed'), { min: 0, max: 1000 });
         this.starts = (args.starts || []).map(
-            (args, idx) =>
-                new ActionMoveStart(args, this.w(`starts[${idx}]`), { root_motion: true }),
+            (args, idx) => new ActionMoveStart(args, this.w(`starts[${idx}]`)),
         );
         this.start_time = parseTime(args.start_time || '4F', this.w('start_time'), { min: 0 });
         this.turns = (args.turns || []).map(
-            (args, idx) => new ActionMoveTurn(args, this.w(`turns[${idx}]`), { root_motion: true }),
+            (args, idx) => new ActionMoveTurn(args, this.w(`turns[${idx}]`)),
         );
-        this.turn_time = parseTime(args.turn_time || '8F', this.w('turn_time'), { min: 0 });
+        this.turn_time = parseTime(args.turn_time || '10F', this.w('turn_time'), { min: 0 });
         this.stops = (args.stops || []).map(
-            (args, idx) => new ActionMoveStop(args, this.w(`stops[${idx}]`), { root_motion: true }),
+            (args, idx) => new ActionMoveStop(args, this.w(`stops[${idx}]`)),
         );
-        this.stop_time = parseTime(args.stop_time || '4F', this.w('stop_time'), { min: 0 });
+        this.stop_time = parseTime(args.stop_time || '6F', this.w('stop_time'), { min: 0 });
         this.quick_stop_time = parseTime(args.quick_stop_time || 0, this.w('quick_stop_time'), {
             min: 0,
         });
-        this.enter_key = parseString(args.enter_key as string, this.w('enter_key'), { includes: ['Run', 'Walk', 'Dash'] }) as any;
-        this.enter_level = LEVEL_MOVE;
-        this.derive_level = LEVEL_MOVE;
         this.derive_keeping =
             args.derive_keeping == null
                 ? true
                 : parseBool(args.derive_keeping, this.w('derive_keeping'));
         this.poise_level = 0;
+        this.smooth_move_froms = parseIDArray(
+            args.smooth_move_froms || [],
+            'Action',
+            this.w('smooth_move_froms'),
+        );
+        this.smooth_move_duration = parseTime(
+            args.smooth_move_duration || '10F',
+            this.w('smooth_move_duration'),
+            { min: 0 },
+        );
 
         Aniamtion.generateLocalID([this.anim_move, ...this.starts, ...this.turns, ...this.stops]);
+    }
+
+    public override verify() {
+        super.verify();
+        for (const [idx, id] of this.smooth_move_froms.entries()) {
+            const act = Action.find(id, this.w(`smooth_move_froms[${idx}]`));
+            if (!(act instanceof ActionMove)) {
+                throw this.e(`smooth_move_froms[${idx}]`, 'must not be ActionMove');
+            }
+        }
     }
 }

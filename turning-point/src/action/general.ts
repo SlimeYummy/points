@@ -90,7 +90,7 @@ export type ActionGeneralArgs = ActionArgs & {
     /** 初始冷却轮数 初始状态下储存的释放次数 */
     cool_down_init_round?: int | VarValueArgs<int>;
 
-    /** 运动(最大/极限)距离范围 */
+    /** 运动极限距离范围 [min,max] */
     motion_distance?: float | readonly [float, float];
 
     /** 运动朝向角度范围 XZ平面内的旋转角度 */
@@ -142,7 +142,7 @@ export class ActionGeneral extends Action {
     /** 初始冷却轮数 初始状态下储存的释放次数 */
     public readonly cool_down_init_round: int | Var<int>;
 
-    /** 运动(最大/极限)距离范围 */
+    /** 运动极限距离范围 [min,max] */
     public readonly motion_distance: readonly [float, float];
 
     /** 运动朝向角度范围 XZ平面内的旋转角度 */
