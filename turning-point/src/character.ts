@@ -1,5 +1,4 @@
 import {
-    Capsule,
     checkType,
     FilePath,
     float,
@@ -13,7 +12,9 @@ import {
     parseIDArray,
     parseIntRange,
     parseString,
+    parseStringArray,
     parseVec2,
+    TaperedCapsule,
 } from './common';
 import { Resource } from './resource';
 import { Action } from './action';
@@ -42,7 +43,7 @@ export type CharacterArgs = {
     equipments: ReadonlyArray<ID>;
 
     /** 用于移动的包围胶囊体 */
-    bounding_capsule: Capsule;
+    bounding: TaperedCapsule;
 
     /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
@@ -86,7 +87,7 @@ export class Character extends Resource {
     public readonly equipments: ReadonlyArray<ID>;
 
     /** 用于移动的包围胶囊体 */
-    public readonly bounding_capsule: Capsule;
+    public readonly bounding: TaperedCapsule;
 
     /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
@@ -96,7 +97,7 @@ export class Character extends Resource {
 
     /** 模型在XZ平面上的朝向（正面方向） */
     public readonly skeleton_toward: readonly [float, float];
-    
+
     /** 角色角色判定体（包围盒） xxx.rkyv (.json) */
     public readonly body_file: FilePath;
 
@@ -106,12 +107,10 @@ export class Character extends Resource {
         this.level = parseIntRange(args.level, this.w('level'), { min: 0 });
         this.styles = parseIDArray(args.styles, 'Style', this.w('styles'));
         this.equipments = parseIDArray(args.equipments, 'Equipment', this.w('equipments'));
-        this.bounding_capsule = checkType(
-            args.bounding_capsule,
-            Capsule,
-            this.w('bounding_capsule'),
-        );
-        this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), { extension: '.*' });
+        this.bounding = checkType(args.bounding, TaperedCapsule, this.w('bounding'));
+        this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), {
+            extension: '.*',
+        });
         this.skeleton_toward = parseVec2(args.skeleton_toward, this.w('skeleton_toward'), {
             normalized: true,
         });
@@ -141,6 +140,9 @@ export type StyleArgs = {
 
     /** 所属角色ID */
     character: ID;
+
+    /** 标签 */
+    tags?: ReadonlyArray<string>;
 
     /** 每一级的属性 */
     attributes: Readonly<
@@ -183,6 +185,9 @@ export class Style extends Resource {
     /** 所属角色ID */
     public readonly character: ID;
 
+    /** 标签 */
+    public readonly tags: ReadonlyArray<string>;
+
     /** 每级的属性列表 */
     public readonly attributes: Readonly<
         Partial<Record<PrimaryAttribute | SecondaryAttribute, ReadonlyArray<float>>>
@@ -210,6 +215,10 @@ export class Style extends Resource {
         super(id);
         this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
         this.character = parseID(args.character, 'Character', this.w('character'));
+        this.tags = parseStringArray(args.tags || [], this.w('tags'), {
+            // includes: ['Player'],
+            deduplicate: true,
+        });
         this.attributes = parseAttributeTable<PrimaryAttribute | SecondaryAttribute>(
             args.attributes,
             [PRIMARY_ATTRIBUTES, SECONDARY_ATTRIBUTES],
@@ -223,7 +232,9 @@ export class Style extends Resource {
         this.perks = parseIDArray(args.perks, 'Perk', this.w('perks'));
         this.usable_perks = this.parseUsablePerks(args.usable_perks, args.perks);
         this.actions = parseIDArray(args.actions, 'Action', this.w('actions'));
-        this.view_model = parseFile(args.view_model, this.w('view_model'), { extension: ['.vrm', '.prefab'] });
+        this.view_model = parseFile(args.view_model, this.w('view_model'), {
+            extension: ['.vrm', '.prefab'],
+        });
     }
 
     private parseUsablePerks(

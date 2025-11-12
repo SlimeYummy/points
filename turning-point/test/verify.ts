@@ -1,4 +1,4 @@
-import { Capsule, Character, Equipment, Perk, Slot1, Slot3, Style } from '../src';
+import { Character, Equipment, Perk, Slot1, Slot3, Style, TaperedCapsule } from '../src';
 
 const fixed_attributes = {
     damage_reduce_param_1: 0.05,
@@ -15,7 +15,7 @@ new Character('Character.Verify/1', {
     level: [1, 3],
     styles: ['Style.Verify/1A', 'Style.Verify/1B'],
     equipments: ['Equipment.Verify/1A', 'Equipment.Verify/1B', 'Equipment.Verify/1C'],
-    bounding_capsule: new Capsule(0.5 * 1.35, 0.3),
+    bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'girl.*',
     skeleton_toward: [0, 1],
     body_file: 'body1.json',
@@ -49,7 +49,7 @@ new Character('Character.Verify/2', {
     level: [1, 3],
     styles: ['Style.Verify/2'],
     equipments: ['Equipment.Verify/2A'],
-    bounding_capsule: new Capsule(0.5 * 1.35, 0.3),
+    bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'skel.*',
     skeleton_toward: [0, 1],
     body_file: 'body2.json',
