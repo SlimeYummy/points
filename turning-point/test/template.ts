@@ -7,7 +7,6 @@ import {
     Attack,
     Attack1,
     Attack2,
-    Capsule,
     Character,
     Defense,
     Entry,
@@ -26,6 +25,7 @@ import {
     Slot3,
     Special,
     Style,
+    TaperedCapsule,
     Var,
     Variant1,
     Variant2,
@@ -58,7 +58,7 @@ const ONE = new Character('Character.One', {
     level: [1, 6],
     styles: ['Style.One/1', 'Style.One/2'],
     equipments: ['Equipment.No1', 'Equipment.No2', 'Equipment.No3'],
-    bounding_capsule: new Capsule(0.5 * 1.35, 0.3),
+    bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'girl.*',
     skeleton_toward: [0, 1],
     body_file: 'body1.json',
@@ -67,6 +67,7 @@ const ONE = new Character('Character.One', {
 new Style('Style.One/1', {
     name: 'Character One Type-1',
     character: 'Character.One',
+    tags: ['Player'],
     attributes: {
         MaxHealth: [400, 550, 700, 850, 1000, 1200],
         MaxPosture: [100, 115, 130, 145, 160, 180],
@@ -87,7 +88,7 @@ new Style('Style.One/1', {
     actions: [
         'Action.One.Idle',
         'Action.One.IdleX',
-        'Action.One.Jog',
+        'Action.One.Run',
         'Action.One.Attack/1',
         'Action.One.Attack/2',
     ],
@@ -97,12 +98,13 @@ new Style('Style.One/1', {
 new Style('Style.One/2', {
     name: 'Character One Type-2',
     character: 'Character.One',
+    tags: ['Player'],
     attributes: {},
     slots: ['A1', 'A1', 'A1', 'A1', 'A1', 'A1'],
     fixed_attributes,
     perks: ['Perk.One.FinalPerk'],
     usable_perks: ['Perk.One.AttackUp'],
-    actions: ['Action.One.Idle', 'Action.One.Jog', 'Action.One.Attack/1'],
+    actions: ['Action.One.Idle', 'Action.One.Run', 'Action.One.Attack/1'],
     view_model: 'OneType-2.vrm',
 });
 
@@ -111,7 +113,7 @@ new Character('Character.Two', {
     level: [0, 5],
     styles: ['Style.Two/1'],
     equipments: ['Equipment.No4'],
-    bounding_capsule: new Capsule(0.5 * 1.35, 0.3),
+    bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'girl.*',
     skeleton_toward: [0, 1],
     body_file: 'body2.json',
@@ -120,6 +122,7 @@ new Character('Character.Two', {
 new Style('Style.Two/1', {
     name: 'Character Two Type-1',
     character: 'Character.Two',
+    tags: ['Player'],
     attributes: {},
     slots: ['A1', 'A1', 'A1', 'A1', 'A1', 'A1'],
     fixed_attributes,
@@ -200,6 +203,7 @@ new Equipment('Equipment.No4', {
 new ActionIdle('Action.One.Idle', {
     character: ONE.id,
     styles: ONE.styles,
+    tags: ['Idle'],
     anim_idle: {
         files: 'girl_stand_idle.*',
         duration: '2.5s',
@@ -213,18 +217,20 @@ new ActionIdle('Action.One.Idle', {
 new ActionIdle('Action.One.IdleX', {
     character: ONE.id,
     styles: ['Style.One/1'],
+    tags: ['Idle'],
     anim_idle: {
         files: 'girl_stand_idle.*',
         duration: '2.5s',
     },
 });
 
-new ActionMove('Action.One.Jog', {
+new ActionMove('Action.One.Run', {
     character: ONE.id,
     styles: ONE.styles,
+    tags: ['Run'],
     enter_key: Run,
     anim_move: {
-        files: 'girl_jog.*',
+        files: 'girl_run.*',
         fade_in: '4F',
         root_motion: true,
     },
@@ -232,7 +238,7 @@ new ActionMove('Action.One.Jog', {
     starts: [
         {
             enter_angle: ['L15', 'R15'],
-            files: 'girl_jog_start.*',
+            files: 'girl_run_start.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '2F',
@@ -240,7 +246,7 @@ new ActionMove('Action.One.Jog', {
         },
         {
             enter_angle: ['L15', 'L180'],
-            files: 'girl_jog_start_turn_l180.*',
+            files: 'girl_run_start_turn_l180.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -248,7 +254,7 @@ new ActionMove('Action.One.Jog', {
         },
         {
             enter_angle: ['R15', 'R180'],
-            files: 'girl_jog_start_turn_r180.*',
+            files: 'girl_run_start_turn_r180.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -259,20 +265,21 @@ new ActionMove('Action.One.Jog', {
     stops: [
         {
             enter_phase_table: [[0.75, 0.25, '2F']],
-            files: 'girl_jog_stop_l.*',
+            files: 'girl_run_stop_l.*',
             fade_in: '4F',
             root_motion: true,
             speed_down_end: '12F',
         },
         {
             enter_phase_table: [[0.25, 0.75, '2F']],
-            files: 'girl_jog_stop_r.*',
+            files: 'girl_run_stop_r.*',
             fade_in: '4F',
             root_motion: true,
             speed_down_end: '12F',
         },
     ],
     quick_stop_time: 0,
+    smooth_move_froms: ['Action.One.Run'],
 });
 
 new ActionGeneral('Action.One.Attack/1', {
@@ -282,6 +289,7 @@ new ActionGeneral('Action.One.Attack/1', {
         root_motion: true,
     },
     character: ONE.id,
+    tags: ['Attack'],
     styles: ['Style.One/1', 'Style.One/2'],
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,
@@ -312,6 +320,7 @@ new ActionGeneral('Action.One.Attack/2', {
     },
     enabled: ['#.One.NormalAttack.Branch', [false, true, true]],
     character: ONE.id,
+    tags: ['Attack'],
     styles: ['Style.One/1'],
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,

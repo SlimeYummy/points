@@ -4,11 +4,9 @@ import {
     ActionMove,
     Attack1,
     Attack2,
-    Capsule,
     Character,
     Equipment,
     Forward,
-    FPS,
     LEVEL_ACTION,
     LEVEL_ATTACK,
     Perk,
@@ -16,6 +14,7 @@ import {
     Slot1,
     Slot3,
     Style,
+    TaperedCapsule,
     Var,
 } from '../src';
 
@@ -41,7 +40,7 @@ new Character('Character.Instance/1', {
     level: [1, 6],
     styles: ['Style.Instance/1A'],
     equipments: ['Equipment.Instance/1A', 'Equipment.Instance/1B'],
-    bounding_capsule: new Capsule(0.5 * 1.35, 0.3),
+    bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'girl.*',
     skeleton_toward: [0, 1],
     body_file: 'body1.json',
@@ -50,6 +49,7 @@ new Character('Character.Instance/1', {
 new Style('Style.Instance/1A', {
     name: 'Style 1',
     character: 'Character.Instance/1',
+    tags: ['Player'],
     attributes: {
         MaxHealth: [400, 550, 700, 850, 1000, 1200],
         MaxPosture: [100, 115, 130, 145, 160, 180],
@@ -68,7 +68,7 @@ new Style('Style.Instance/1A', {
     perks: ['Perk.Instance/1A', 'Perk.Instance/1B'],
     actions: [
         'Action.Instance.Idle/1A',
-        'Action.Instance.Jog/1A',
+        'Action.Instance.Run/1A',
         'Action.Instance.Attack/1A',
         'Action.Instance.AttackDerive/1A',
         'Action.Instance.AttackUnused/1A',
@@ -158,6 +158,7 @@ new Perk('Perk.Instance/1B', {
 new ActionIdle('Action.Instance.Idle/1A', {
     character: 'Character.Instance/1',
     styles: ['Style.Instance/1A'],
+    tags: ['Idle'],
     anim_idle: {
         files: 'girl_stand_idle.*',
         duration: '2.5s',
@@ -170,12 +171,13 @@ new ActionIdle('Action.Instance.Idle/1A', {
     },
 });
 
-new ActionMove('Action.Instance.Jog/1A', {
+new ActionMove('Action.Instance.Run/1A', {
     character: 'Character.Instance/1',
     styles: ['Style.Instance/1A'],
+    tags: ['Run'],
     enter_key: Run,
     anim_move: {
-        files: 'girl_jog.*',
+        files: 'girl_run.*',
         fade_in: '4F',
         root_motion: true,
     },
@@ -183,7 +185,7 @@ new ActionMove('Action.Instance.Jog/1A', {
     starts: [
         {
             enter_angle: ['L15', 'R15'],
-            files: 'girl_jog_start.*',
+            files: 'girl_run_start.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '2F',
@@ -191,7 +193,7 @@ new ActionMove('Action.Instance.Jog/1A', {
         },
         {
             enter_angle: ['L15', 'L180'],
-            files: 'girl_jog_start_turn_l180.*',
+            files: 'girl_run_start_turn_l180.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -199,7 +201,7 @@ new ActionMove('Action.Instance.Jog/1A', {
         },
         {
             enter_angle: ['R15', 'R180'],
-            files: 'girl_jog_start_turn_r180.*',
+            files: 'girl_run_start_turn_r180.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -210,14 +212,14 @@ new ActionMove('Action.Instance.Jog/1A', {
     stops: [
         {
             enter_phase_table: [[0.75, 0.25, '2F']],
-            files: 'girl_jog_stop_l.*',
+            files: 'girl_run_stop_l.*',
             fade_in: '4F',
             root_motion: true,
             speed_down_end: '12F',
         },
         {
             enter_phase_table: [[0.25, 0.75, '2F']],
-            files: 'girl_jog_stop_r.*',
+            files: 'girl_run_stop_r.*',
             fade_in: '4F',
             root_motion: true,
             speed_down_end: '12F',
@@ -229,6 +231,7 @@ new ActionMove('Action.Instance.Jog/1A', {
 new ActionGeneral('Action.Instance.Attack/1A', {
     character: 'Character.Instance/1',
     styles: ['Style.Instance/1A'],
+    tags: ['Attack'],
     anim_main: {
         files: 'girl_attack1_1.*',
         duration: 4,
@@ -258,6 +261,7 @@ new ActionGeneral('Action.Instance.Attack/1A', {
 new ActionGeneral('Action.Instance.AttackDerive/1A', {
     enabled: ['#.Action.Instance.AttackDerive/1A', [false, false, true]],
     character: 'Character.Instance/1',
+    tags: ['Attack'],
     styles: ['Style.Instance/1A'],
     anim_main: {
         files: 'girl_attack1_2.*',
@@ -276,6 +280,7 @@ new ActionGeneral('Action.Instance.AttackDerive/1A', {
 new ActionGeneral('Action.Instance.AttackUnused/1A', {
     enabled: ['#.Action.Instance.AttackUnused/1A', [false, true]],
     character: 'Character.Instance/1',
+    tags: ['Attack'],
     styles: ['Style.Instance/1A'],
     anim_main: {
         files: 'girl_attack1_2.*',
