@@ -10,6 +10,7 @@ pub struct TmplActionIdle {
     pub enabled: TmplVar<bool>,
     pub character: TmplID,
     pub styles: Vec<TmplID>,
+    pub tags: Vec<String>,
     pub anim_idle: TmplAnimation,
     #[serde(default)]
     pub anim_ready: Option<TmplAnimation>,
@@ -38,15 +39,18 @@ mod tests {
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character, id!("Character.One"));
         assert_eq!(act.styles.as_slice(), &[id!("Style.One/1"), id!("Style.One/2")]);
+        assert_eq!(act.tags.as_slice(), &["Idle"]);
         assert_eq!(act.anim_idle.files, "girl_stand_idle.*");
         assert_eq!(act.anim_idle.duration, 2.5);
         assert_eq!(act.anim_idle.fade_in, 0.1);
         assert_eq!(act.anim_idle.root_motion, false);
+        assert_eq!(act.anim_idle.weapon_motion, false);
         let anim_ready = act.anim_ready.as_ref().unwrap();
         assert_eq!(anim_ready.files, "girl_stand_ready.*");
         assert_eq!(anim_ready.duration, 2.0);
         assert_eq!(anim_ready.fade_in, 0.1);
         assert_eq!(anim_ready.root_motion, false);
+        assert_eq!(anim_ready.weapon_motion, false);
         assert!(act.anim_randoms.is_empty());
         assert_eq!(act.auto_idle_delay, 10.0);
         assert_eq!(act.enter_level, LEVEL_IDLE);
