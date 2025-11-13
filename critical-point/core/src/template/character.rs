@@ -1,9 +1,9 @@
-use cirtical_point_csgen::CsEnum;
+use critical_point_csgen::CsEnum;
 use glam_ext::Vec2xz;
 
 use crate::template::attribute::TmplAttribute;
 use crate::template::base::impl_tmpl;
-use crate::utils::{impl_for, rkyv_self, JewelSlots, LevelRange, ShapeCapsule, Table, TmplID};
+use crate::utils::{impl_for, rkyv_self, JewelSlots, LevelRange, ShapeTaperedCapsule, Table, TmplID};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
 #[repr(u8)]
@@ -23,7 +23,7 @@ pub struct TmplCharacter {
     pub level: LevelRange,
     pub styles: Vec<TmplID>,
     pub equipments: Vec<TmplID>,
-    pub bounding_capsule: ShapeCapsule,
+    pub bounding: ShapeTaperedCapsule,
     pub skeleton_files: String,
     pub skeleton_toward: Vec2xz,
     pub body_file: String,
@@ -44,6 +44,7 @@ pub struct TmplStyle {
     pub id: TmplID,
     pub name: String,
     pub character: TmplID,
+    pub tags: Vec<String>,
     pub attributes: Table<TmplAttribute, Vec<f32>>,
     pub slots: Vec<JewelSlots>,
     pub fixed_attributes: TmplFixedAttributes,
@@ -90,7 +91,7 @@ mod tests {
             id!("Equipment.No2"),
             id!("Equipment.No3")
         ]);
-        assert_eq!(character.bounding_capsule, ShapeCapsule::new(0.5 * 1.35, 0.3));
+        assert_eq!(character.bounding, ShapeTaperedCapsule::new(0.6, 0.3, 0.1));
         assert_eq!(character.skeleton_files, "girl.*");
         assert_eq!(character.skeleton_toward, Vec2xz::Z);
         assert_eq!(character.body_file, "body1.json");
@@ -104,6 +105,7 @@ mod tests {
         assert_eq!(style.id(), id!("Style.One/1"));
         assert_eq!(style.name, "Character One Type-1");
         assert_eq!(style.character, id!("Character.One"));
+        assert_eq!(&style.tags.as_slice(), &["Player"]);
 
         let attrs = &style.attributes;
         assert_eq!(attrs.len(), 11);

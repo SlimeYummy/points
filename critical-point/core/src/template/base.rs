@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsEnum;
+use critical_point_csgen::CsEnum;
 use enum_iterator::{cardinality, Sequence};
 use std::alloc::Layout;
 use std::any::Any;

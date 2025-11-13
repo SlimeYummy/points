@@ -10,6 +10,7 @@ pub struct TmplActionGeneral {
     pub enabled: TmplVar<bool>,
     pub character: TmplID,
     pub styles: Vec<TmplID>,
+    pub tags: Vec<String>,
     pub anim_main: TmplAnimation,
     pub enter_key: Option<VirtualKeyDir>,
     pub enter_level: u16,
@@ -43,6 +44,7 @@ mod tests {
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character, id!("Character.One"));
         assert_eq!(act.styles.as_slice(), &[id!("Style.One/1"), id!("Style.One/2")]);
+        assert_eq!(act.tags.as_slice(), &["Attack"]);
         assert_eq!(act.anim_main.files, "girl_attack1_1.*");
         assert_eq!(act.anim_main.duration, 4.0);
         assert_eq!(act.anim_main.fade_in, 0.1);
