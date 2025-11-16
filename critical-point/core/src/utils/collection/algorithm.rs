@@ -31,7 +31,7 @@ pub fn find_offset<'t, T: PartialEq>(slice: &'t [T], offset: usize, value: &T) -
 #[inline]
 pub fn find_offset_by<'t, T, F>(slice: &'t [T], offset: usize, pred: F) -> (Option<&'t T>, usize)
 where
-    F: Fn(&T) -> bool
+    F: Fn(&T) -> bool,
 {
     for idx in 0..slice.len() {
         let pos = (offset + idx) % slice.len();
@@ -50,7 +50,7 @@ pub fn find_mut_offset<'t, T: PartialEq>(slice: &'t mut [T], offset: usize, valu
 #[inline]
 pub fn find_mut_offset_by<'t, T, F>(slice: &'t mut [T], offset: usize, pred: F) -> (Option<&'t mut T>, usize)
 where
-    F: Fn(&T) -> bool
+    F: Fn(&T) -> bool,
 {
     for idx in 0..slice.len() {
         let pos = (offset + idx) % slice.len();

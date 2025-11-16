@@ -4,7 +4,7 @@ use std::mem::MaybeUninit;
 use std::ops::{Index, IndexMut};
 use std::{fmt, mem, ptr, slice};
 
-use crate::utils::{XResult, xres};
+use crate::utils::{xres, XResult};
 
 // #[macro_export]
 // macro_rules! array_vec {
@@ -108,14 +108,15 @@ impl<T, const C: usize> TinyVec<T, C> {
     #[inline(always)]
     pub fn try_push(&mut self, val: T) -> XResult<()> {
         let data = unsafe { self.data.assume_init_mut() };
-        let Some(itemref) = data.get_mut(self.len as usize) else {
-            return xres!(Overflow)
+        let Some(itemref) = data.get_mut(self.len as usize)
+        else {
+            return xres!(Overflow);
         };
         *itemref = val;
         self.len += 1;
         Ok(())
     }
-    
+
     #[inline(always)]
     pub fn pop(&mut self) -> Option<T> {
         if self.len > 0 {
@@ -129,7 +130,7 @@ impl<T, const C: usize> TinyVec<T, C> {
             None
         }
     }
-    
+
     #[inline(always)]
     pub fn clear(&mut self) {
         if mem::needs_drop::<T>() {
@@ -172,7 +173,7 @@ impl<T, const C: usize> TinyVec<T, C> {
 
         let data = unsafe { self.data.assume_init_mut() };
         let item = unsafe { ptr::read(&mut data[pos]) };
-        for idx in pos..(self.len-1) as usize {
+        for idx in pos..(self.len - 1) as usize {
             data.swap(idx, idx + 1);
         }
         self.len -= 1;
