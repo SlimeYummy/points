@@ -1,6 +1,6 @@
 use std::collections::{vec_deque, VecDeque};
 use std::fmt;
-use std::ops::{Index, IndexMut};
+use std::ops::{Bound, Index, IndexMut, RangeBounds};
 
 use crate::utils::{xres, XResult};
 
@@ -107,6 +107,35 @@ impl<T> HistoryQueue<T> {
         None
     }
 
+    // return (len-2, len-1)
+    pub fn last2(&mut self) -> (Option<&T>, Option<&T>) {
+        if self.len() >= 2 {
+            let current_end = self.current_end as usize;
+            (Some(&self.queue[current_end - 2]), Some(&self.queue[current_end - 1]))
+        }
+        else if self.len() == 1 {
+            (None, Some(&mut self.queue[(self.current_end as usize) - 1]))
+        }
+        else {
+            (None, None)
+        }
+    }
+
+    // return (len-2, len-1)
+    pub fn last2_mut(&mut self) -> (Option<&mut T>, Option<&mut T>) {
+        if self.len() >= 2 {
+            let current_end = self.current_end as usize;
+            let mut range = self.queue.range_mut(current_end - 2..current_end);
+            (range.next(), range.next())
+        }
+        else if self.len() == 1 {
+            (None, Some(&mut self.queue[(self.current_end as usize) - 1]))
+        }
+        else {
+            (None, None)
+        }
+    }
+
     #[inline]
     pub fn iter(&self) -> vec_deque::Iter<'_, T> {
         return self.queue.range(self.current_start as usize..self.current_end as usize);
@@ -117,6 +146,42 @@ impl<T> HistoryQueue<T> {
         return self
             .queue
             .range_mut(self.current_start as usize..self.current_end as usize);
+    }
+
+    #[inline]
+    pub fn range<R>(&mut self, range: R) -> vec_deque::Iter<'_, T>
+    where
+        R: RangeBounds<usize>,
+    {
+        let start = match range.start_bound() {
+            Bound::Included(idx) => self.current_start as usize + *idx,
+            Bound::Excluded(idx) => self.current_start as usize + *idx + 1,
+            Bound::Unbounded => self.current_start as usize,
+        };
+        let end = match range.end_bound() {
+            Bound::Included(idx) => self.current_start as usize + *idx + 1,
+            Bound::Excluded(idx) => self.current_start as usize + *idx,
+            Bound::Unbounded => self.current_end as usize,
+        };
+        self.queue.range(start..end)
+    }
+
+    #[inline]
+    pub fn range_mut<R>(&mut self, range: R) -> vec_deque::IterMut<'_, T>
+    where
+        R: RangeBounds<usize>,
+    {
+        let start = match range.start_bound() {
+            Bound::Included(idx) => self.current_start as usize + *idx,
+            Bound::Excluded(idx) => self.current_start as usize + *idx + 1,
+            Bound::Unbounded => self.current_start as usize,
+        };
+        let end = match range.end_bound() {
+            Bound::Included(idx) => self.current_start as usize + *idx + 1,
+            Bound::Excluded(idx) => self.current_start as usize + *idx,
+            Bound::Unbounded => self.current_end as usize,
+        };
+        self.queue.range_mut(start..end)
     }
 
     #[inline]
