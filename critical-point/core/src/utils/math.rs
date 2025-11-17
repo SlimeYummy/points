@@ -1,8 +1,8 @@
-use glam::{Quat, Vec2, Vec3A, Vec4};
+use glam::{Quat, Vec3A, Vec4};
 use glam_ext::Vec2xz;
 use std::hint::likely;
 
-use crate::consts::{DEFAULT_TOWARD_DIR_2D, DEFAULT_TOWARD_DIR_3D, FPS};
+use crate::consts::{CFG_FPS, DEFAULT_TOWARD_DIR_2D, DEFAULT_TOWARD_DIR_3D, FPS};
 
 #[inline(always)]
 pub fn f2s(frame: u32) -> f32 {
@@ -12,6 +12,16 @@ pub fn f2s(frame: u32) -> f32 {
 #[inline(always)]
 pub fn ff2s(frame: f32) -> f32 {
     frame / FPS
+}
+
+#[inline(always)]
+pub fn cf2s(frame: u32) -> f32 {
+    frame as f32 / CFG_FPS
+}
+
+#[inline(always)]
+pub fn cff2s(frame: f32) -> f32 {
+    frame / CFG_FPS
 }
 
 #[inline(always)]
@@ -158,6 +168,11 @@ macro_rules! ratio_warpping {
     }};
 }
 pub use ratio_warpping;
+
+#[inline(always)]
+pub fn calc_fade_in(prev_weight: f32, time_step: f32, duration: f32) -> f32 {
+    (prev_weight + time_step / duration).min(1.0)
+}
 
 #[inline]
 pub fn quat_from_dir_xz(dir: Vec2xz) -> Quat {

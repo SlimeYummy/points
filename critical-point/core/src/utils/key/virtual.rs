@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsEnum;
+use critical_point_csgen::CsEnum;
 use glam::Vec3A;
 use glam_ext::Vec2xz;
 

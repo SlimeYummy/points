@@ -1,5 +1,5 @@
 use approx::abs_diff_eq;
-use cirtical_point_csgen::{CsEnum, CsIn};
+use critical_point_csgen::{CsEnum, CsIn};
 use glam::Vec2;
 use std::fmt;
 

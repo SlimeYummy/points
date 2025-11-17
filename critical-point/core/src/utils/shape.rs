@@ -44,3 +44,23 @@ impl ShapeCapsule {
         ShapeCapsule { half_height, radius }
     }
 }
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ShapeTaperedCapsule {
+    pub half_height: f32,
+    pub top_radius: f32,
+    pub bottom_radius: f32,
+}
+
+rkyv_self!(ShapeTaperedCapsule);
+
+impl ShapeTaperedCapsule {
+    #[inline]
+    pub fn new(half_height: f32, top_radius: f32, bottom_radius: f32) -> ShapeTaperedCapsule {
+        ShapeTaperedCapsule {
+            half_height,
+            top_radius,
+            bottom_radius,
+        }
+    }
+}
