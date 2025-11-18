@@ -1,3 +1,4 @@
+use critical_point_csgen::{CsEnum};
 use enum_iterator::Sequence;
 
 use crate::utils::collection::Bitsetable;

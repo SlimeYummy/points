@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsIn;
+use critical_point_csgen::CsIn;
 use std::ops::RangeInclusive;
 
 use crate::utils::id::TmplID;
