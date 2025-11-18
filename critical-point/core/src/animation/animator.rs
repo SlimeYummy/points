@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsOut;
+use critical_point_csgen::CsOut;
 use glam_ext::{Mat4, Transform3A};
 use ozz_animation_rs::{
     ozz_rc_buf, Animation, BlendingJob, BlendingLayer, LocalToModelJob, SamplingContext, SamplingJob, Skeleton,
@@ -621,7 +621,13 @@ impl SamplingArena {
                 sd.next = prev_len + idx + 1;
                 self.arena.push(sd);
             }
-            log::info!("{} {} {} {}", self.arena.len(), prev_len * 2 - 1, prev_len, self.init_cap);
+            log::info!(
+                "{} {} {} {}",
+                self.arena.len(),
+                prev_len * 2 - 1,
+                prev_len,
+                self.init_cap
+            );
             self.arena.last_mut().unwrap().next = u32::MAX;
             self.free = prev_len;
 
