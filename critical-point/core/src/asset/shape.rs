@@ -1,9 +1,9 @@
 use glam::{Quat, Vec3, Vec3A};
 use jolt_physics_rs::{
     self as jolt, BoxShapeSettings, CapsuleShapeSettings, ConvexHullShapeSettings, CylinderShapeSettings,
-    IndexedTriangle, JRef, MeshShapeSettings, Plane, PlaneShapeSettings, RotatedTranslatedShapeSettings,
-    ScaledShapeSettings, Shape, SphereShapeSettings, TaperedCapsuleShapeSettings, TaperedCylinderShapeSettings,
-    TriangleShapeSettings,
+    HeightFieldShapeSettings, IndexedTriangle, JRef, MeshShapeSettings, Plane, PlaneShapeSettings,
+    RotatedTranslatedShapeSettings, ScaledShapeSettings, Shape, SphereShapeSettings, TaperedCapsuleShapeSettings,
+    TaperedCylinderShapeSettings, TriangleShapeSettings,
 };
 
 use crate::asset::loader::AssetLoader;
@@ -43,6 +43,7 @@ pub enum AssetShape {
     Plane(AssetShapePlane),
     MeshEmbedded(AssetShapeMeshEmbedded),
     Mesh(AssetShapeMesh),
+    HeightFieldEmbedded(AssetShapeHeightFieldEmbedded),
     HeightField(AssetShapeHeightField),
 }
 
@@ -242,8 +243,27 @@ pub struct AssetShapeMesh {
 #[derive(
     Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
+pub struct AssetShapeHeightFieldEmbedded {
+    pub sample_count: u32,
+    pub min_height: f32,
+    pub max_height: f32,
+    pub heights: Vec<f32>,
+    #[serde(default = "default_scale")]
+    pub scale: Vec3A,
+    #[serde(default = "default_position")]
+    pub position: Vec3A,
+    #[serde(default = "default_rotation")]
+    pub rotation: Quat,
+}
+
+#[derive(
+    Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
+)]
 pub struct AssetShapeHeightField {
     pub file: Symbol,
+    pub sample_count: u32,
+    pub min_height: f32,
+    pub max_height: f32,
     #[serde(default = "default_scale")]
     pub scale: Vec3A,
     #[serde(default = "default_position")]
@@ -266,6 +286,7 @@ impl AssetLoader {
             AssetShape::Plane(shape) => self.load_shape_plane(&shape),
             AssetShape::MeshEmbedded(shape) => self.load_shape_mesh_embedded(&shape),
             AssetShape::Mesh(shape) => self.load_shape_mesh(&shape),
+            AssetShape::HeightFieldEmbedded(shape) => self.load_shape_height_field_embedded(&shape),
             AssetShape::HeightField(shape) => self.load_shape_height_field(&shape),
         }
     }
@@ -351,6 +372,14 @@ impl AssetLoader {
 
     fn load_shape_mesh(&mut self, _shape: &AssetShapeMesh) -> XResult<JRef<Shape>> {
         unimplemented!()
+    }
+
+    fn load_shape_height_field_embedded(&mut self, shape: &AssetShapeHeightFieldEmbedded) -> XResult<JRef<Shape>> {
+        let mut settings = HeightFieldShapeSettings::new(&shape.heights, shape.sample_count);
+        settings.min_height_value = shape.min_height;
+        settings.max_height_value = shape.max_height;
+        let jolt_shape = jolt::create_height_field_shape(&settings).map_err(xfrom!())?;
+        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
     }
 
     fn load_shape_height_field(&mut self, _shape: &AssetShapeHeightField) -> XResult<JRef<Shape>> {

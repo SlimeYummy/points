@@ -1,4 +1,5 @@
-use cirtical_point_csgen::CsIn;
+use critical_point_csgen::CsIn;
+use glam::Vec3A;
 
 use crate::utils::{TmplID, TmplIDLevel, TmplIDPlus};
 
@@ -19,6 +20,8 @@ pub struct ParamPlayer {
     pub accessories: Vec<ParamAccessory>,
     #[serde(default)]
     pub jewels: Vec<TmplIDPlus>,
+    #[serde(default)]
+    pub position: Vec3A,
 }
 
 #[derive(

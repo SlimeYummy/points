@@ -6,7 +6,7 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use crate::animation::RootMotionTrack;
+use crate::animation::{RootMotionTrack, WeaponMotionTrackSet};
 use crate::utils::{xfromf, xresf, SymbolHashMap, XResult};
 
 pub struct AssetLoader {
@@ -18,6 +18,7 @@ pub struct AssetLoader {
     pub(super) skeleton_cache: SymbolHashMap<Rc<Skeleton>>,
     pub(super) animation_cache: SymbolHashMap<Rc<Animation>>,
     pub(super) root_motion_cache: SymbolHashMap<Rc<RootMotionTrack>>,
+    pub(super) weapon_motion_cache: SymbolHashMap<Rc<WeaponMotionTrackSet>>,
 }
 
 #[cfg(feature = "debug-print")]
@@ -42,6 +43,7 @@ impl AssetLoader {
             skeleton_cache: SymbolHashMap::with_capacity(64),
             animation_cache: SymbolHashMap::with_capacity(512),
             root_motion_cache: SymbolHashMap::with_capacity(384),
+            weapon_motion_cache: SymbolHashMap::with_capacity(384),
         });
     }
 
