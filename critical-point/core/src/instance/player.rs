@@ -3,10 +3,12 @@ use glam_ext::Vec2xz;
 use std::collections::hash_map::Entry;
 use std::rc::Rc;
 
-use crate::instance::action::{InstActionAny, InstActionIdle};
+use crate::instance::action::InstActionAny;
 use crate::instance::values::{PanelValues, PrimaryValues, SecondaryValues};
 use crate::template::TmplHashMap;
-use crate::utils::{Castable, DtHashIndex, DtHashMap, JewelSlots, PiecePlus, ShapeCapsule, Symbol, TmplID, VirtualKey};
+use crate::utils::{
+    Castable, DtHashIndex, DtHashMap, JewelSlots, PiecePlus, ShapeTaperedCapsule, Symbol, TmplID, VirtualKey,
+};
 
 #[derive(Debug, Default)]
 pub struct InstPlayer {
@@ -14,11 +16,12 @@ pub struct InstPlayer {
     pub tmpl_style: TmplID,
     pub level: u32,
 
+    pub tags: Vec<Symbol>,
     pub skeleton_files: Symbol,
     pub skeleton_toward: Vec2xz,
     pub skeleton_rotation: Quat,
     pub body_file: Symbol,
-    pub bounding_capsule: ShapeCapsule,
+    pub bounding: ShapeTaperedCapsule,
 
     pub primary: PrimaryValues,
     pub secondary: SecondaryValues,

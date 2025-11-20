@@ -8,8 +8,7 @@ use crate::template::{
     TmplHashMap, TmplType,
 };
 use crate::utils::{
-    interface, ratio_saturating, ratio_warpping, sb, Symbol, TimeRange, TimeRangeWith, TmplID, VirtualDir, VirtualKey,
-    VirtualKeyDir,
+    calc_fade_in, interface, ratio_saturating, ratio_warpping, sb, AnimationFileMeta, Symbol, TimeRange, TimeRangeWith, TmplID, VirtualDir, VirtualKey, VirtualKeyDir
 };
 
 pub unsafe trait InstActionAny: Debug + Any {
@@ -21,6 +20,7 @@ pub unsafe trait InstActionAny: Debug + Any {
 #[derive(Default, Debug)]
 pub struct InstActionBase {
     pub tmpl_id: TmplID,
+    pub tags: Vec<Symbol>,
     // pub scripts: Script,
     pub enter_key: Option<VirtualKeyDir>,
     pub enter_level: u16,
@@ -62,6 +62,7 @@ pub struct InstAnimation {
     pub duration: f32,
     pub fade_in: f32,
     pub root_motion: bool,
+    pub weapon_motion: bool,
 }
 
 impl InstAnimation {
@@ -73,15 +74,13 @@ impl InstAnimation {
             duration: archived.duration.into(),
             fade_in: archived.fade_in.into(),
             root_motion: archived.root_motion,
+            weapon_motion: archived.weapon_motion,
         }
     }
 
     #[inline]
     pub fn fade_in_weight(&self, prev_weight: f32, time_step: f32) -> f32 {
-        match self.fade_in > 0.0 {
-            true => (prev_weight + time_step / self.fade_in).min(1.0),
-            false => 1.0,
-        }
+        calc_fade_in(prev_weight, time_step, self.fade_in)
     }
 
     #[inline]
@@ -97,6 +96,15 @@ impl InstAnimation {
     #[inline]
     pub fn ratio_warpping(&self, time: f32) -> f32 {
         ratio_warpping!(time, self.duration)
+    }
+
+    #[inline]
+    pub fn file_meta(&self) -> AnimationFileMeta {
+        AnimationFileMeta {
+            files: self.files,
+            root_motion: self.root_motion,
+            weapon_motion: self.weapon_motion,
+        }
     }
 }
 

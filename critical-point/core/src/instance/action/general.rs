@@ -3,7 +3,7 @@ use crate::instance::action::base::{
     InstTimeline,
 };
 use crate::template::{At, TmplActionGeneral, TmplType};
-use crate::utils::{cos_degree, extend, Bitsetable, DeriveContinue, EnumBitset, TmplID, VirtualKey};
+use crate::utils::{cos_degree, extend, sb, Bitsetable, DeriveContinue, EnumBitset, TmplID, VirtualKey};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -62,6 +62,7 @@ impl InstActionGeneral {
         let inst = InstActionGeneral {
             _base: InstActionBase {
                 tmpl_id: tmpl.id,
+                tags: tmpl.tags.iter().map(|t| sb!(t)).collect(),
                 enter_key: tmpl.enter_key.as_ref().cloned(),
                 enter_level: tmpl.enter_level.into(),
                 ..Default::default()
@@ -115,6 +116,7 @@ mod tests {
             };
             let inst_act = InstActionGeneral::try_assemble(&ctx, tmpl_act).unwrap();
             assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Attack/1A"));
+            assert_eq!(inst_act.tags, vec![sb!("Attack")]);
             assert_eq!(
                 inst_act.enter_key.unwrap(),
                 VirtualKeyDir::new(VirtualKey::Attack1, None)

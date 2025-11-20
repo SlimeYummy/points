@@ -1,6 +1,6 @@
 use crate::instance::action::base::{ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation};
 use crate::template::{At, TmplActionIdle, TmplType};
-use crate::utils::{extend, TmplID, VirtualKey, VirtualKeyDir};
+use crate::utils::{extend, sb, TmplID, VirtualKey, VirtualKeyDir};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -38,6 +38,7 @@ impl InstActionIdle {
         Some(InstActionIdle {
             _base: InstActionBase {
                 tmpl_id: tmpl.id,
+                tags: tmpl.tags.iter().map(|t| sb!(t)).collect(),
                 enter_key: Some(VirtualKeyDir::new(VirtualKey::Idle, None)),
                 enter_level: tmpl.enter_level.into(),
                 ..Default::default()
@@ -89,6 +90,7 @@ mod tests {
         };
         let inst_act = InstActionIdle::try_assemble(&ctx, tmpl_act).unwrap();
         assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Idle/1A"));
+        assert_eq!(inst_act.tags, vec![sb!("Idle")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Idle, None));
         assert_eq!(inst_act.enter_level, 0);
         assert_eq!(inst_act.anim_idle.files, sb!("girl_stand_idle.*"));
