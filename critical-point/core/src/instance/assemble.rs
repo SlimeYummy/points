@@ -49,11 +49,12 @@ fn collect_style(ctx: &mut ContextAssemble<'_>, param: &ParamPlayer, inst: &mut 
     let chara = ctx.tmpl_db.find_as::<TmplCharacter>(param.character)?;
     let style = ctx.tmpl_db.find_as::<TmplStyle>(param.style)?;
 
+    inst.tags = style.tags.iter().map(|t| sb!(t)).collect();
     inst.skeleton_files = sb!(&chara.skeleton_files);
     inst.skeleton_toward = chara.skeleton_toward;
     inst.skeleton_rotation = quat_from_dir_xz(chara.skeleton_toward);
     inst.body_file = sb!(&chara.body_file);
-    inst.bounding_capsule = chara.bounding_capsule.clone();
+    inst.bounding = chara.bounding.clone();
 
     let idx = chara.level_to_index(param.level);
     for attr in style.attributes.iter() {
@@ -265,6 +266,8 @@ pub fn assemble_zone(ctx: &mut ContextAssemble<'_>, param: &ParamZone) -> XResul
 
 #[cfg(test)]
 mod tests {
+    use glam::{Vec3, Vec3A};
+
     use super::*;
     use crate::parameter::ParamAccessory;
     use crate::utils::{id, JewelSlots, TmplIDLevel, TmplIDPlus, VirtualKey};
@@ -280,6 +283,7 @@ mod tests {
         param.level = 6;
         let mut inst = InstPlayer::default();
         collect_style(&mut ctx, &param, &mut inst).unwrap();
+        assert_eq!(inst.tags.as_slice(), &[sb!("Player")]);
         assert_eq!(inst.primary.max_health, 1200.0);
         assert_eq!(inst.primary.max_posture, 180.0);
         assert_eq!(inst.primary.posture_recovery, 15.0);
@@ -424,7 +428,7 @@ mod tests {
         collect_actions(&mut ctx, &param, &mut inst).unwrap();
         assert_eq!(inst.actions.len(), 4);
         assert!(inst.actions.contains_key(&id!("Action.Instance.Idle/1A")));
-        assert!(inst.actions.contains_key(&id!("Action.Instance.Jog/1A")));
+        assert!(inst.actions.contains_key(&id!("Action.Instance.Run/1A")));
         assert!(inst.actions.contains_key(&id!("Action.Instance.Attack/1A")));
         assert!(inst.actions.contains_key(&id!("Action.Instance.AttackDerive/1A")));
         assert_eq!(inst.primary_keys.len(), 3);
@@ -434,7 +438,7 @@ mod tests {
         );
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Run).unwrap(),
-            &id!("Action.Instance.Jog/1A")
+            &id!("Action.Instance.Run/1A")
         );
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Attack1).unwrap(),
@@ -526,6 +530,7 @@ mod tests {
                 TmplIDLevel::new(id!("Perk.Instance/1A"), 1),
                 TmplIDLevel::new(id!("Perk.Instance/1B"), 3),
             ],
+            position: Vec3A::ZERO,
         };
         let inst = assemble_player(&mut ctx, &param).unwrap();
 
