@@ -1,12 +1,13 @@
 use crate::instance::action::base::{ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation};
 use crate::template::{At, TmplActionMove, TmplType};
-use crate::utils::{extend, TmplID, VirtualKey, VirtualKeyDir};
-use crate::{loose_ge, loose_le};
+use crate::utils::{extend, loose_ge, loose_le, sb, TmplID, VirtualKey, VirtualKeyDir};
 
 #[derive(Debug)]
 #[repr(C)]
 pub struct InstActionMove {
     pub _base: InstActionBase,
+    pub derive_level: u16,
+    pub special_derive_level: u16,
     pub anim_move: InstAnimation,
     pub move_speed: f32,
     pub starts: Vec<InstActionMoveStart>,
@@ -17,8 +18,9 @@ pub struct InstActionMove {
     pub stops: Vec<InstActionMoveStop>,
     pub stop_time: f32,
     pub quick_stop_time: f32,
-    pub derive_level: u16,
     pub poise_level: u16,
+    pub smooth_move_froms: Vec<TmplID>,
+    pub smooth_move_duration: f32,
 }
 
 extend!(InstActionMove, InstActionBase);
@@ -120,10 +122,13 @@ impl InstActionMove {
         Some(InstActionMove {
             _base: InstActionBase {
                 tmpl_id: tmpl.id,
+                tags: tmpl.tags.iter().map(|t| sb!(t)).collect(),
                 enter_key: Some(VirtualKeyDir::new(tmpl.enter_key, None)),
                 enter_level: tmpl.enter_level.into(),
                 ..Default::default()
             },
+            derive_level: tmpl.derive_level.into(),
+            special_derive_level: tmpl.special_derive_level.into(),
             anim_move: InstAnimation::from_rkyv(&tmpl.anim_move),
             move_speed: tmpl.move_speed.into(),
             starts,
@@ -134,8 +139,9 @@ impl InstActionMove {
             stops,
             stop_time: tmpl.stop_time.into(),
             quick_stop_time: tmpl.quick_stop_time.into(),
-            derive_level: tmpl.derive_level.into(),
             poise_level: tmpl.poise_level.into(),
+            smooth_move_froms: tmpl.smooth_move_froms.iter().map(|x| *x).collect(),
+            smooth_move_duration: tmpl.smooth_move_duration.into(),
         })
     }
 
@@ -176,7 +182,7 @@ impl InstActionMove {
                     }
                 }
                 else {
-                    if loose_le!(pahse, enter_phase[0]) || loose_ge!(pahse, enter_phase[1]) {
+                    if loose_ge!(pahse, enter_phase[0]) || loose_le!(pahse, enter_phase[1]) {
                         return Some((idx, stop, enter_phase[2]));
                     }
                 }
@@ -213,9 +219,8 @@ impl InstActionMove {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::consts::CFG_FPS;
     use crate::template::{TmplDatabase, TmplHashMap};
-    use crate::utils::{id, LEVEL_MOVE};
+    use crate::utils::{cf2s, id, LEVEL_MOVE};
     use ahash::HashMapExt;
 
     #[test]
@@ -223,65 +228,68 @@ mod tests {
         let db = TmplDatabase::new(10240, 150).unwrap();
         let var_indexes = TmplHashMap::new();
 
-        let tmpl_act = db.find_as::<TmplActionMove>(id!("Action.Instance.Jog/1A")).unwrap();
+        let tmpl_act = db.find_as::<TmplActionMove>(id!("Action.Instance.Run/1A")).unwrap();
         let ctx = ContextActionAssemble {
             var_indexes: &var_indexes,
         };
         let inst_act = InstActionMove::try_assemble(&ctx, tmpl_act).unwrap();
-        assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Jog/1A"));
+        assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Run/1A"));
+        assert_eq!(inst_act.tags, vec![sb!("Run")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Run, None));
         assert_eq!(inst_act.enter_level, LEVEL_MOVE);
+        assert_eq!(inst_act.derive_level, LEVEL_MOVE - 10);
+        assert_eq!(inst_act.special_derive_level, LEVEL_MOVE + 10);
 
-        assert_eq!(inst_act.anim_move.files, "girl_jog.*");
+        assert_eq!(inst_act.anim_move.files, "girl_run.*");
         assert_eq!(inst_act.anim_move.duration, 0.93333334);
-        assert_eq!(inst_act.anim_move.fade_in, 4.0 / CFG_FPS);
+        assert_eq!(inst_act.anim_move.fade_in, cf2s(4));
         assert_eq!(inst_act.anim_move.root_motion, true);
         assert_eq!(inst_act.move_speed, 3.0);
 
         assert_eq!(inst_act.starts.len(), 3);
-        assert_eq!(inst_act.start_time, 4.0 / CFG_FPS);
-        assert_eq!(inst_act.starts[0].anim.files, "girl_jog_start.*");
+        assert_eq!(inst_act.start_time, cf2s(4));
+        assert_eq!(inst_act.starts[0].anim.files, "girl_run_start.*");
         assert_eq!(inst_act.starts[0].anim.fade_in, 0.0);
         assert_eq!(inst_act.starts[0].anim.root_motion, true);
         assert_eq!(inst_act.starts[0].enter_angle, [
             -15f32.to_radians(),
             15f32.to_radians()
         ]);
-        assert_eq!(inst_act.starts[0].turn_in_place_end, 2.0 / CFG_FPS);
-        assert_eq!(inst_act.starts[0].quick_stop_end, 20.0 / CFG_FPS);
-        assert_eq!(inst_act.starts[1].anim.files, "girl_jog_start_turn_l180.*");
+        assert_eq!(inst_act.starts[0].turn_in_place_end, cf2s(2));
+        assert_eq!(inst_act.starts[0].quick_stop_end, cf2s(20));
+        assert_eq!(inst_act.starts[1].anim.files, "girl_run_start_turn_l180.*");
         assert_eq!(inst_act.starts[1].enter_angle, [
             15f32.to_radians(),
             180f32.to_radians()
         ]);
-        assert_eq!(inst_act.starts[1].turn_in_place_end, 8.0 / CFG_FPS);
-        assert_eq!(inst_act.starts[1].quick_stop_end, 26.0 / CFG_FPS);
-        assert_eq!(inst_act.starts[2].anim.files, "girl_jog_start_turn_r180.*");
+        assert_eq!(inst_act.starts[1].turn_in_place_end, cf2s(8));
+        assert_eq!(inst_act.starts[1].quick_stop_end, cf2s(26));
+        assert_eq!(inst_act.starts[2].anim.files, "girl_run_start_turn_r180.*");
         assert_eq!(inst_act.starts[2].enter_angle, [
             -180f32.to_radians(),
             -15f32.to_radians()
         ]);
-        assert_eq!(inst_act.starts[2].turn_in_place_end, 8.0 / CFG_FPS);
-        assert_eq!(inst_act.starts[2].quick_stop_end, 26.0 / CFG_FPS);
+        assert_eq!(inst_act.starts[2].turn_in_place_end, cf2s(8));
+        assert_eq!(inst_act.starts[2].quick_stop_end, cf2s(26));
 
         assert_eq!(inst_act.turns.len(), 0);
-        assert_eq!(inst_act.turn_time, 10.0 / CFG_FPS);
+        assert_eq!(inst_act.turn_time, cf2s(10));
         assert_eq!(inst_act.direct_turn_cos, [-1.0; 2]);
 
         assert_eq!(inst_act.stops.len(), 2);
-        assert_eq!(inst_act.stop_time, 4.0 / CFG_FPS);
-        assert_eq!(inst_act.quick_stop_time, 0.0 / CFG_FPS);
-        assert_eq!(inst_act.stops[0].anim.files, "girl_jog_stop_l.*");
-        assert_eq!(inst_act.stops[0].anim.fade_in, 4.0 / CFG_FPS);
+        assert_eq!(inst_act.stop_time, cf2s(4));
+        assert_eq!(inst_act.quick_stop_time, cf2s(0));
+        assert_eq!(inst_act.stops[0].anim.files, "girl_run_stop_l.*");
+        assert_eq!(inst_act.stops[0].anim.fade_in, cf2s(4));
         assert_eq!(inst_act.stops[0].anim.root_motion, true);
-        assert_eq!(inst_act.stops[0].enter_phase_table, vec![[0.75, 0.25, 2.0 / CFG_FPS]]);
-        assert_eq!(inst_act.stops[0].speed_down_end, 12.0 / CFG_FPS);
-        assert_eq!(inst_act.stops[1].anim.files, "girl_jog_stop_r.*");
-        assert_eq!(inst_act.stops[1].enter_phase_table, vec![[0.25, 0.75, 2.0 / CFG_FPS]]);
-        assert_eq!(inst_act.stops[1].speed_down_end, 12.0 / CFG_FPS);
+        assert_eq!(inst_act.stops[0].enter_phase_table, vec![[0.75, 0.25, cf2s(2)]]);
+        assert_eq!(inst_act.stops[0].speed_down_end, cf2s(12));
+        assert_eq!(inst_act.stops[1].anim.files, "girl_run_stop_r.*");
+        assert_eq!(inst_act.stops[1].enter_phase_table, vec![[0.25, 0.75, cf2s(2)]]);
+        assert_eq!(inst_act.stops[1].speed_down_end, cf2s(12));
 
-        assert_eq!(inst_act.enter_level, LEVEL_MOVE);
-        assert_eq!(inst_act.derive_level, LEVEL_MOVE);
         assert_eq!(inst_act.poise_level, 0);
+        assert_eq!(inst_act.smooth_move_froms.as_slice(), &[]);
+        assert_eq!(inst_act.smooth_move_duration, cf2s(10));
     }
 }
