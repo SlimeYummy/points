@@ -1,4 +1,4 @@
-use cirtical_point_csgen::{CsEnum, CsOut};
+use critical_point_csgen::{CsEnum, CsOut};
 use enum_iterator::{cardinality, Sequence};
 use glam::Vec3A;
 use glam_ext::Vec2xz;
@@ -15,7 +15,7 @@ use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::ContextUpdate;
 use crate::logic::system::input::InputVariables;
 use crate::template::TmplType;
-use crate::utils::{interface, rkyv_self, xres, NumID, Symbol, TmplID, XError, XResult};
+use crate::utils::{interface, rkyv_self, xres, CsVec3A, CsQuat, NumID, Symbol, TmplID, XError, XResult};
 
 #[repr(u16)]
 #[derive(
@@ -148,6 +148,24 @@ impl StateActionBase {
             animations: Default::default(),
         }
     }
+}
+
+#[repr(C)]
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    CsOut,
+)]
+pub struct StateActionWeaponMotion {
+    pub name: Symbol,
+    pub joint: Symbol,
+    pub position: CsVec3A,
+    pub rotation: CsQuat,
 }
 
 pub trait ArchivedStateActionAny: Debug + Any {
@@ -444,52 +462,65 @@ pub(crate) use impl_state_action;
 pub enum LogicActionStatus {
     Starting,
     Activing,
+    Fading,
     Stopping,
     Finalized,
 }
 
 rkyv_self!(LogicActionStatus);
 
-pub unsafe trait LogicActionAny: Debug {
+pub unsafe trait LogicActionAny: Debug + Any {
     fn typ(&self) -> StateActionType;
     fn tmpl_typ(&self) -> TmplType;
     fn save(&self) -> Box<dyn StateActionAny>;
     fn restore(&mut self, state: &(dyn StateActionAny + 'static)) -> XResult<()>;
 
-    fn start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
+    fn start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<ActionStartReturn> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
-        base.start(ctx, ctxa)
+        base.start(ctx, ctxa)?;
+        Ok(ActionStartReturn::new())
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<ActionUpdateReturn>;
+    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<ActionUpdateReturn>;
 
-    fn stop(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
+    fn fade_start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<bool> {
+        let (ptr, _) = (self as *mut Self).to_raw_parts();
+        let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
+        base.fade_start(ctx, ctxa)?;
+        Ok(false)
+    }
+
+    fn fade_update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+        let (ptr, _) = (self as *mut Self).to_raw_parts();
+        let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
+        base.fade_update(ctx, ctxa)
+    }
+
+    fn stop(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.stop(ctx, ctxa)
     }
 
-    fn finalize(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
+    fn finalize(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.finalize(ctx, ctxa)
     }
 }
 
-#[derive(Debug)]
-pub struct LogicActionBase {
-    pub id: NumID,
-    pub inst: Rc<dyn InstActionAny>,
-    pub status: LogicActionStatus,
-    pub first_frame: u32,
-    pub last_frame: u32,
-    pub fade_in_weight: f32,
-    pub derive_level: u16,
-    pub poise_level: u16,
+#[derive(Debug, Default)]
+pub struct ActionStartReturn {
+    pub prev_fade_update: bool,
 }
 
-interface!(LogicActionAny, LogicActionBase);
+impl ActionStartReturn {
+    #[inline]
+    pub fn new() -> ActionStartReturn {
+        ActionStartReturn::default()
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct ActionUpdateReturn {
@@ -519,6 +550,20 @@ impl ActionUpdateReturn {
         self.new_direction = Some(direction);
     }
 }
+
+#[derive(Debug)]
+pub struct LogicActionBase {
+    pub id: NumID,
+    pub inst: Rc<dyn InstActionAny>,
+    pub status: LogicActionStatus,
+    pub first_frame: u32,
+    pub last_frame: u32,
+    pub fade_in_weight: f32,
+    pub derive_level: u16,
+    pub poise_level: u16,
+}
+
+interface!(LogicActionAny, LogicActionBase);
 
 impl LogicActionBase {
     pub fn new(id: NumID, inst: Rc<dyn InstActionAny>) -> LogicActionBase {
@@ -564,10 +609,11 @@ impl LogicActionBase {
         self.poise_level = state.poise_level;
     }
 
-    pub fn start(&mut self, ctx: &ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
+    pub fn start(&mut self, ctx: &ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Starting) {
             return xres!(Unexpected; "status != Starting");
         }
+        log::info!("LogicActionAny::start() id={} tmpl_id={}", self.id, self.inst.tmpl_id);
         self.status = LogicActionStatus::Activing;
         self.first_frame = ctx.frame;
         if ctxa.prev_action.is_none() {
@@ -576,25 +622,54 @@ impl LogicActionBase {
         Ok(())
     }
 
-    pub fn update(&mut self, _ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_>) -> XResult<()> {
+    pub fn update(&mut self, _ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Activing) {
             return xres!(Unexpected; "status != Activing");
         }
         Ok(())
     }
 
-    pub fn stop(&mut self, _ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_>) -> XResult<()> {
+    pub fn fade_start(&mut self, _ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Activing) {
             return xres!(Unexpected; "status != Activing");
         }
+        log::info!(
+            "LogicActionAny::fade_start() id={} tmpl_id={}",
+            self.id,
+            self.inst.tmpl_id
+        );
+        self.status = LogicActionStatus::Fading;
+        Ok(())
+    }
+
+    pub fn fade_update(&mut self, _ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+        if unlikely(self.status != LogicActionStatus::Fading) {
+            return xres!(Unexpected; "status != Fading");
+        }
+        Ok(())
+    }
+
+    pub fn stop(&mut self, _ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+        if unlikely(matches!(
+            self.status,
+            LogicActionStatus::Stopping | LogicActionStatus::Finalized
+        )) {
+            return xres!(Unexpected; "status != Starting/Activing/Fading");
+        }
+        log::info!("LogicActionAny::stop() id={} tmpl_id={}", self.id, self.inst.tmpl_id);
         self.status = LogicActionStatus::Stopping;
         Ok(())
     }
 
-    pub fn finalize(&mut self, ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_>) -> XResult<()> {
+    pub fn finalize(&mut self, ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Stopping) {
             return xres!(Unexpected; "status != Stopping");
         }
+        log::info!(
+            "LogicActionAny::finalize() id={} tmpl_id={}",
+            self.id,
+            self.inst.tmpl_id
+        );
         self.status = LogicActionStatus::Finalized;
         self.last_frame = ctx.frame;
         Ok(())
@@ -621,6 +696,11 @@ impl LogicActionBase {
     }
 
     #[inline]
+    pub fn is_fading(&self) -> bool {
+        self.status == LogicActionStatus::Fading
+    }
+
+    #[inline]
     pub fn is_finalized(&self) -> bool {
         self.status == LogicActionStatus::Finalized
     }
@@ -630,21 +710,21 @@ impl LogicActionBase {
 // ContextAction
 //
 
-pub struct ContextAction<'t> {
+pub struct ContextAction<'a, 'b> {
     pub player_id: NumID,
-    pub chara_physics: &'t LogicCharaPhysics,
-    pub prev_action: Option<Rc<dyn InstActionAny>>,
+    pub chara_physics: &'a LogicCharaPhysics,
+    pub prev_action: Option<&'b dyn LogicActionAny>,
     pub input_vars: InputVariables,
     pub time_speed: f32,
     pub time_step: f32,
 }
 
-impl<'t> ContextAction<'t> {
+impl<'a, 'b> ContextAction<'a, 'b> {
     pub(crate) fn new(
         player_id: NumID,
-        chara_physics: &'t LogicCharaPhysics,
+        chara_physics: &'a LogicCharaPhysics,
         input_vars: InputVariables,
-    ) -> ContextAction<'t> {
+    ) -> ContextAction<'a, 'b> {
         ContextAction {
             player_id,
             chara_physics,
@@ -653,12 +733,6 @@ impl<'t> ContextAction<'t> {
             time_step: SPF,
             input_vars,
         }
-    }
-
-    #[inline]
-    pub(crate) fn set_time_speed(&mut self, time_speed: f32) {
-        self.time_speed = time_speed;
-        self.time_step = time_speed / FPS;
     }
 }
 
