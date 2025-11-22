@@ -1,4 +1,4 @@
-use cirtical_point_csgen::{CsEnum, CsOut};
+use critical_point_csgen::{CsEnum, CsOut};
 use enum_iterator::{cardinality, Sequence};
 use std::alloc::Layout;
 use std::any::Any;
@@ -444,7 +444,7 @@ mod tests {
     };
     use crate::logic::game::{StateGameInit, StateGameUpdate};
     use crate::logic::zone::{StateZoneInit, StateZoneUpdate};
-    use crate::utils::{sb, Castable};
+    use crate::utils::{sb, Castable, CsVec3A, AnimationFileMeta};
     use anyhow::Result;
     use glam::Vec3A;
     use glam_ext::Vec2xz;
@@ -537,8 +537,13 @@ mod tests {
             Box::new(StatePlayerInit {
                 _base: StateBase::new(1110, StateType::PlayerInit, LogicType::Player),
                 skeleton_file: sb!("skeleton_file.ozz"),
-                animation_files: vec![sb!("animation_file_1.ozz"), sb!("animation_file_2.ozz")],
+                animation_metas: vec![
+                    AnimationFileMeta::new(sb!("animation_file_1.ozz"), false, false),
+                    AnimationFileMeta::new(sb!("animation_file_2.ozz"), true, true),
+                ],
                 view_model: sb!("model.vrm"),
+                init_position: CsVec3A::new(1.0, 2.0, 3.0).into(),
+                init_direction: Vec2xz::Z,
             }),
             StateType::PlayerInit,
             LogicType::Player,
@@ -550,9 +555,9 @@ mod tests {
         assert_eq!(state_player_new.typ, StateType::PlayerInit);
         assert_eq!(state_player_new.logic_typ, LogicType::Player);
         assert_eq!(state_player_new.skeleton_file, "skeleton_file.ozz");
-        assert_eq!(state_player_new.animation_files, vec![
-            "animation_file_1.ozz".to_owned(),
-            "animation_file_2.ozz".to_owned()
+        assert_eq!(state_player_new.animation_metas, vec![
+            AnimationFileMeta::new(sb!("animation_file_1.ozz"), false, false),
+            AnimationFileMeta::new(sb!("animation_file_2.ozz"), true, true),
         ]);
         assert_eq!(state_player_new.view_model, "model.vrm");
 

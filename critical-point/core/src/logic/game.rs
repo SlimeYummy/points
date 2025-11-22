@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsOut;
+use critical_point_csgen::CsOut;
 use jolt_physics_rs::{BodyInterface, PhysicsSystem};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
@@ -147,12 +147,12 @@ pub struct LogicSystems {
     stopped: bool,
     pub tmpl_db: TmplDatabase,
     pub asset: AssetLoader,
-    pub physics: PhysicsSystem,
     // pub executor: Box<ScriptExecutor>,
     pub gene: SystemGeneration,
     pub input: SystemInput,
     pub state: SystemState,
     pub save: Option<SystemSave>,
+    pub physics: PhysicsSystem,
 }
 
 #[cfg(feature = "debug-print")]
@@ -477,7 +477,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
     fn test_logic_loop_common() {
         let tmpl_db = TmplDatabase::new(10240, 150).unwrap();
         let param_zone = ParamZone { zone: id!("Zone.Demo") };
