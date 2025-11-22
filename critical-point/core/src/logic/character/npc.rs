@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsOut;
+use critical_point_csgen::CsOut;
 
 use crate::logic::base::{impl_state, LogicAny, LogicType, StateBase};
 use crate::logic::game::{ContextRestore, ContextUpdate};

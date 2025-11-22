@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsOut;
+use critical_point_csgen::CsOut;
 use glam::{Quat, Vec3, Vec3A};
 use ozz_animation_rs::TrackSamplingJobRef;
 use std::rc::Rc;

@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsOut;
+use critical_point_csgen::CsOut;
 use std::collections::{vec_deque, VecDeque};
 use std::ops::{Index, RangeBounds};
 use std::sync::Arc;

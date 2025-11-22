@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsOut;
+use critical_point_csgen::CsOut;
 use jolt_physics_rs::BodyID;
 use std::sync::Arc;
 

@@ -1,5 +1,5 @@
 use approx::abs_diff_ne;
-use cirtical_point_csgen::CsIn;
+use critical_point_csgen::CsIn;
 use glam::{Vec2, Vec2Swizzles, Vec3A};
 use glam_ext::Vec2xz;
 use std::cell::RefCell;
