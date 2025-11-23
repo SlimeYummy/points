@@ -1,13 +1,13 @@
 use approx::abs_diff_ne;
-use cirtical_point_csgen::CsOut;
+use critical_point_csgen::CsOut;
 use glam::{Quat, Vec3A, Vec3Swizzles};
 use std::fmt::Debug;
 use std::rc::Rc;
 
 use crate::instance::InstActionGeneral;
 use crate::logic::action::base::{
-    impl_state_action, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase, StateActionAnimation,
-    StateActionAny, StateActionBase, StateActionType,
+    impl_state_action, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
+    StateActionAnimation, StateActionAny, StateActionBase, StateActionType,
 };
 use crate::logic::action::root_motion::{LogicRootMotion, StateRootMotion};
 use crate::logic::action::DeriveKeeping;
@@ -87,7 +87,7 @@ unsafe impl LogicActionAny for LogicActionGeneral {
         Ok(())
     }
 
-    fn start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
+    fn start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<ActionStartReturn> {
         self._base.start(ctx, ctxa)?;
         self.current_time = 0.0;
         self.start_rotation = ctxa.chara_physics.rotation_y();
@@ -101,10 +101,10 @@ unsafe impl LogicActionAny for LogicActionGeneral {
         else {
             self.distance_ratio = self.inst.motion_distance[0] / distance_xz;
         }
-        Ok(())
+        Ok(ActionStartReturn::new())
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<ActionUpdateReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
 
         self.current_time = (self.current_time + ctxa.time_step).clamp(0.0, self.inst.anim_main.duration);
