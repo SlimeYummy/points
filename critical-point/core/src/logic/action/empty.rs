@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsOut;
+use critical_point_csgen::CsOut;
 use std::fmt::Debug;
 use std::rc::Rc;
 
@@ -71,23 +71,12 @@ unsafe impl LogicActionAny for LogicActionEmpty {
     }
 
     fn restore(&mut self, _state: &(dyn StateActionAny + 'static)) -> XResult<()> {
+        self._base.restore(_state);
         Ok(())
     }
 
-    fn start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
-        self._base.start(ctx, ctxa)
-    }
-
-    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<ActionUpdateReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
         Ok(ActionUpdateReturn::new())
-    }
-
-    fn stop(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
-        self._base.stop(ctx, ctxa)
-    }
-
-    fn finalize(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
-        self._base.finalize(ctx, ctxa)
     }
 }

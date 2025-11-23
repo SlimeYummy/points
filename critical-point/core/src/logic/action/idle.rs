@@ -1,11 +1,11 @@
-use cirtical_point_csgen::{CsEnum, CsOut};
+use critical_point_csgen::{CsEnum, CsOut};
 use std::fmt::Debug;
 use std::rc::Rc;
 
 use crate::instance::InstActionIdle;
 use crate::logic::action::base::{
-    impl_state_action, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase, StateActionAnimation,
-    StateActionAny, StateActionBase, StateActionType,
+    impl_state_action, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
+    StateActionAnimation, StateActionAny, StateActionBase, StateActionType,
 };
 use crate::logic::game::ContextUpdate;
 use crate::template::TmplType;
@@ -112,7 +112,7 @@ unsafe impl LogicActionAny for LogicActionIdle {
         Ok(())
     }
 
-    fn start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<()> {
+    fn start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<ActionStartReturn> {
         self._base.start(ctx, ctxa)?;
 
         if let Some(anim_ready) = &self.inst.anim_ready {
@@ -121,7 +121,7 @@ unsafe impl LogicActionAny for LogicActionIdle {
                 self.mode = ActionIdleMode::Ready;
                 self.ready_time = 0.0;
                 self.fade_in_weight = anim_ready.fade_in_weight(self.fade_in_weight, ctxa.time_step);
-                return Ok(());
+                return Ok(ActionStartReturn::new());
             }
         }
 
@@ -129,10 +129,10 @@ unsafe impl LogicActionAny for LogicActionIdle {
         self.mode = ActionIdleMode::Idle;
         self.idle_time = 0.0;
         self.fade_in_weight = self.inst.anim_idle.fade_in_weight(self.fade_in_weight, ctxa.time_step);
-        Ok(())
+        Ok(ActionStartReturn::new())
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_>) -> XResult<ActionUpdateReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
 
         let anim_idle = &self.inst.anim_idle;
