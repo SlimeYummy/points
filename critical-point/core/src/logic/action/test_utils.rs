@@ -6,7 +6,7 @@ use crate::instance::{assemble_player, InstActionEmpty, InstPlayer};
 use crate::logic::action::base::{ContextAction, StateActionAny, StateActionType};
 use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::{ContextUpdate, LogicSystems};
-use crate::logic::InputVariables;
+use crate::logic::{InputVariables, LogicActionEmpty};
 use crate::parameter::ParamPlayer;
 use crate::template::{TmplDatabase, TmplType};
 use crate::utils::{id, NumID, XResult, MIN_PLAYER_ID};
@@ -34,6 +34,7 @@ pub(super) struct TestEnv {
     pub inst_player: Rc<InstPlayer>,
     pub chara_physics: LogicCharaPhysics,
     pub inst_empty: Rc<InstActionEmpty>,
+    pub logic_empty: LogicActionEmpty,
 }
 
 impl TestEnv {
@@ -61,11 +62,15 @@ impl TestEnv {
             DEFAULT_TOWARD_DIR_2D,
         )?;
 
+        let inst_empty = Rc::new(InstActionEmpty::new());
+        let logic_empty = LogicActionEmpty::new(&mut ctx, inst_empty.clone());
+
         Ok(TestEnv {
             systems,
             inst_player,
             chara_physics,
-            inst_empty: Rc::new(InstActionEmpty::new()),
+            inst_empty,
+            logic_empty,
         })
     }
 
@@ -73,11 +78,11 @@ impl TestEnv {
         ContextUpdate::new(&mut self.systems, Self::FRAME, 95)
     }
 
-    pub fn contexts(&mut self, has_prev: bool) -> (ContextUpdate<'_>, ContextAction<'_>) {
+    pub fn contexts(&mut self, has_prev: bool) -> (ContextUpdate<'_>, ContextAction<'_, '_>) {
         let ctx = ContextUpdate::new(&mut self.systems, 100, 95);
         let mut ctxa = ContextAction::new(Self::PLAYER_ID, &self.chara_physics, InputVariables::default());
         if has_prev {
-            ctxa.prev_action = Some(self.inst_empty.clone());
+            ctxa.prev_action = Some(&self.logic_empty);
         }
         (ctx, ctxa)
     }
