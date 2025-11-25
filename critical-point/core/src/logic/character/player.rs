@@ -1,5 +1,5 @@
-use cirtical_point_csgen::CsOut;
-use glam::Vec3A;
+use critical_point_csgen::CsOut;
+use glam_ext::Vec2xz;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -12,7 +12,7 @@ use crate::logic::base::{impl_state, LogicAny, LogicType, StateBase, StateType};
 use crate::logic::game::{ContextRestore, ContextUpdate};
 use crate::parameter::ParamPlayer;
 use crate::template::TmplStyle;
-use crate::utils::{extend, sb, NumID, Symbol, XResult};
+use crate::utils::{extend, sb, CsVec3A, NumID, Symbol, AnimationFileMeta, XResult};
 
 #[repr(C)]
 #[derive(
@@ -23,8 +23,10 @@ use crate::utils::{extend, sb, NumID, Symbol, XResult};
 pub struct StatePlayerInit {
     pub _base: StateBase,
     pub skeleton_file: Symbol,
-    pub animation_files: Vec<Symbol>,
+    pub animation_metas: Vec<AnimationFileMeta>,
     pub view_model: Symbol,
+    pub init_position: CsVec3A,
+    pub init_direction: Vec2xz,
 }
 
 extend!(StatePlayerInit, StateBase);
@@ -97,18 +99,20 @@ impl LogicPlayer {
                 ctx,
                 player_id,
                 inst_player.clone(),
-                Vec3A::ZERO,
+                param_player.position,
                 DEFAULT_TOWARD_DIR_2D,
             )?,
             chara_action: LogicCharaAction::new(ctx, player_id, inst_player.clone())?,
         });
 
-        let animation_files = player.chara_action.preload_assets(ctx, inst_player.clone())?;
+        let animation_metas = player.chara_action.preload_assets(ctx, inst_player.clone())?;
         let state_init = Arc::new(StatePlayerInit {
             _base: StateBase::new(player.id, StateType::PlayerInit, LogicType::Player),
             skeleton_file: inst_player.skeleton_files.clone(),
-            animation_files,
+            animation_metas,
             view_model: sb!(&tmpl_style.view_model),
+            init_position: param_player.position.into(),
+            init_direction: DEFAULT_TOWARD_DIR_2D,
         });
 
         player.chara_action.update(ctx, &player.chara_physics, true)?;
@@ -168,7 +172,7 @@ mod tests {
 
         assert_eq!(state_init.id, 100);
         assert_eq!(state_init.skeleton_file, "girl.*");
-        assert_eq!(state_init.animation_files.len(), 4);
+        assert_eq!(state_init.animation_metas.len(), 4);
         let excepted_files = [
             sb!("girl_stand_idle"),
             sb!("girl_stand_ready"),
@@ -176,7 +180,7 @@ mod tests {
             sb!("girl_attack1_1"),
         ];
         for file in excepted_files.iter() {
-            assert!(state_init.animation_files.contains(file));
+            assert!(state_init.animation_metas.iter().find(|f| f.files == *file).is_some());
         }
 
         let state_update = logic_player.state().unwrap();
