@@ -1,14 +1,15 @@
 use approx::{abs_diff_eq, abs_diff_ne, assert_abs_diff_eq};
-use cirtical_point_csgen::CsOut;
 use core::f32;
+use critical_point_csgen::CsOut;
 use educe::Educe;
 use glam::{Quat, Vec3A, Vec3Swizzles};
 use glam_ext::{Isometry3A, Transform3A, Vec2xz};
 use jolt_physics_rs::{
-    self as jolt, vdata, Body, BodyCreationSettings, BodyID, BodyInterface, CapsuleShapeSettings,
-    CharacterContactListener, CharacterContactListenerVTable, CharacterContactSettings, CharacterVirtual,
-    CharacterVirtualSettings, ExtendedUpdateSettings, GroundState, JMut, JRef, JVec3, MotionType, MutableCompoundShape,
+    self as jolt, vdata, Body, BodyCreationSettings, BodyID, BodyInterface, CharacterContactListener,
+    CharacterContactListenerVTable, CharacterContactSettings, CharacterVirtual, CharacterVirtualSettings,
+    ExtendedUpdateSettings, GroundState, JMut, JRef, JVec3, MotionType, MutableCompoundShape,
     MutableCompoundShapeSettings, PhysicsMaterial, RotatedTranslatedShapeSettings, SubShapeID, SubShapeSettings,
+    TaperedCapsuleShapeSettings,
 };
 use ozz_animation_rs::SKELETON_NO_PARENT;
 use std::cell::Cell;
@@ -123,13 +124,20 @@ impl LogicCharaPhysics {
         position: Vec3A,
         rotation: Quat,
     ) -> XResult<JMut<CharacterVirtual<CharacterContactListenerImpl>>> {
-        let bounding = inst_player.bounding_capsule;
-        let mut chara_shape =
-            jolt::create_capsule_shape(&CapsuleShapeSettings::new(bounding.half_height, bounding.radius))
-                .map_err(xfrom!())?;
+        let bounding = inst_player.bounding;
+        let mut chara_shape = jolt::create_tapered_capsule_shape(&TaperedCapsuleShapeSettings::new(
+            bounding.half_height,
+            bounding.top_radius,
+            bounding.bottom_radius,
+        ))
+        .map_err(xfrom!())?;
         chara_shape = jolt::create_rotated_translated_shape(&RotatedTranslatedShapeSettings::new(
             chara_shape,
-            Vec3A::new(0.0, bounding.half_height + bounding.radius, 0.0),
+            Vec3A::new(
+                0.0,
+                bounding.half_height + bounding.bottom_radius * 1.25,
+                0.0,
+            ),
             Quat::IDENTITY,
         ))
         .map_err(xfrom!())?;
@@ -427,6 +435,22 @@ impl CharacterContactListener for CharacterContactListenerImpl {
         }
     }
 
+    fn on_contact_persisted(
+        &mut self,
+        _character: &CharacterVirtual,
+        body2: &BodyID,
+        _subshape2: &SubShapeID,
+        _contact_position: JVec3,
+        _contact_normal: JVec3,
+        settings: &mut CharacterContactSettings,
+    ) {
+        if settings.can_push_character && self.body_itf.get_motion_type(*body2) != MotionType::Static {
+            self.allow_sliding = true;
+        }
+    }
+
+    fn on_contact_removed(&mut self, _character: &CharacterVirtual, _body2: &BodyID, _subshape2: &SubShapeID) {}
+
     fn on_character_contact_added(
         &mut self,
         _character: &CharacterVirtual,
@@ -439,6 +463,28 @@ impl CharacterContactListener for CharacterContactListenerImpl {
         if settings.can_push_character {
             self.allow_sliding = true;
         }
+    }
+
+    fn on_character_contact_persisted(
+        &mut self,
+        _character: &CharacterVirtual,
+        _other_character: &CharacterVirtual,
+        _subshape2: &SubShapeID,
+        _contact_position: JVec3,
+        _contact_normal: JVec3,
+        settings: &mut CharacterContactSettings,
+    ) {
+        if settings.can_push_character {
+            self.allow_sliding = true;
+        }
+    }
+
+    fn on_character_contact_removed(
+        &mut self,
+        _character: &CharacterVirtual,
+        _other_character: &CharacterVirtual,
+        _subshape2: &SubShapeID,
+    ) {
     }
 
     fn on_contact_solve(
