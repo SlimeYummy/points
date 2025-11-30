@@ -2,7 +2,6 @@
 #![feature(allocator_api)]
 #![feature(likely_unlikely)]
 #![feature(coroutines, coroutine_trait, stmt_expr_attributes, iter_from_coroutine)]
-#![feature(const_pathbuf_osstring_new)]
 #![feature(test)]
 extern crate test;
 

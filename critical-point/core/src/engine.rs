@@ -1,4 +1,4 @@
-use cirtical_point_csgen::CsOut;
+use critical_point_csgen::CsOut;
 use jolt_physics_rs::{self, PhysicsSystem};
 use log::info;
 use std::path::{Path, PathBuf};
@@ -26,6 +26,7 @@ pub struct LogicEngine {
     logic_loop: Option<LogicLoop>,
 }
 
+#[cfg(feature = "debug-print")]
 impl Drop for LogicEngine {
     fn drop(&mut self) {
         log::info!("LogicEngine::drop()");
