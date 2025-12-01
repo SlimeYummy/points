@@ -3,12 +3,12 @@
 use std::{ptr, mem};
 use std::sync::Arc;
 
-use cirtical_point_core::animation::SkeletonMeta;
-use cirtical_point_core::logic::{
+use critical_point_core::animation::SkeletonMeta;
+use critical_point_core::logic::{
     StateActionAny, StateActionIdle, StateAny, StateGameInit, StateGameUpdate, StatePlayerInit, StatePlayerUpdate,
     StateZoneInit, StateZoneUpdate, StateNpcInit, StateNpcUpdate, StateActionMove, StateSet,
 };
-use cirtical_point_core::utils::Castable;
+use critical_point_core::utils::Castable;
 
 macro_rules! box_drop {
     ($fn:ident, $ty:ty) => {

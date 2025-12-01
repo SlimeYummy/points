@@ -2,7 +2,7 @@ use libc::c_char;
 use std::ffi::{CStr, CString};
 use std::ptr;
 
-use cirtical_point_core::utils::{xerrf, Symbol, TmplID, XResult};
+use critical_point_core::utils::{xerrf, Symbol, TmplID, XResult};
 
 use crate::utils::Return;
 

@@ -53,6 +53,7 @@ impl Generator {
         types_in.insert("[f32; 3]".into(), TypeIn::new_primitive("Vec3"));
         types_in.insert("Vec2".into(), TypeIn::new_primitive("Vec2"));
         types_in.insert("Vec3".into(), TypeIn::new_primitive("Vec3"));
+        types_in.insert("Vec3A".into(), TypeIn::new_primitive("Vec3"));
         types_in.insert("CsVec3A".into(), TypeIn::new_primitive("Vec3A"));
         types_in.insert("CsVec4".into(), TypeIn::new_primitive("Vec4"));
         types_in.insert("CsQuat".into(), TypeIn::new_primitive("Quat"));

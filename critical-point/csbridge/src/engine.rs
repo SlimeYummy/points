@@ -1,19 +1,19 @@
 #![allow(improper_ctypes_definitions)]
 
 use chrono::Local;
-use cirtical_point_core::{xerrf, xres};
+use critical_point_core::{xerrf, xres};
 use libc::c_char;
 use log::{error, LevelFilter};
 use std::backtrace::Backtrace;
 use std::ffi::CStr;
 use std::sync::Arc;
-use std::{mem, ptr, panic};
+use std::{mem, panic, ptr};
 
-use cirtical_point_core::animation::SkeletonJointMeta;
-use cirtical_point_core::engine::{LogicEngine, LogicEngineStatus};
-use cirtical_point_core::logic::{InputPlayerEvents, StateActionAny, StateAny, StateSet};
-use cirtical_point_core::parameter::{ParamPlayer, ParamZone};
-use cirtical_point_core::utils::{Symbol, XError, XResult};
+use critical_point_core::animation::SkeletonJointMeta;
+use critical_point_core::engine::{LogicEngine, LogicEngineStatus};
+use critical_point_core::logic::{InputPlayerEvents, StateActionAny, StateAny, StateSet};
+use critical_point_core::parameter::{ParamPlayer, ParamZone};
+use critical_point_core::utils::{Symbol, XError, XResult};
 
 use crate::skeletal::resource::SKELETAL_RESOURCE;
 use crate::utils::{as_slice, Return};
@@ -90,11 +90,17 @@ fn catch_panic() {
         let mut msg = "";
         if let Some(s) = info.payload().downcast_ref::<&str>() {
             msg = s;
-        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+        }
+        else if let Some(s) = info.payload().downcast_ref::<String>() {
             msg = s;
         }
-        
-        error!("Panic!!!!! {} {:?} {:?}", msg, info.location(), Backtrace::force_capture());
+
+        error!(
+            "Panic!!!!! {} {:?} {:?}",
+            msg,
+            info.location(),
+            Backtrace::force_capture()
+        );
     }));
 }
 
