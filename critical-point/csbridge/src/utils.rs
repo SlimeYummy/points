@@ -1,10 +1,10 @@
-use cirtical_point_core::xresf;
+use critical_point_core::xresf;
 use libc::c_char;
 use std::cell::RefCell;
 use std::ffi::CString;
 use std::ptr;
 
-use cirtical_point_core::utils::XResult;
+use critical_point_core::utils::XResult;
 
 thread_local! {
     static ERR_MSG: RefCell<CString> = RefCell::new(CString::new("").unwrap());
