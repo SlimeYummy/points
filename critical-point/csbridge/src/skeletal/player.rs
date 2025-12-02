@@ -8,18 +8,22 @@ use std::ffi::CStr;
 use std::ptr;
 use std::rc::Rc;
 
-use cirtical_point_core::animation::{rest_poses_to_model_matrices, SkeletonJointMeta, SkeletonMeta};
-use cirtical_point_core::utils::{lerp, xerrf, xres, XResult};
+use critical_point_core::animation::{
+    rest_poses_to_model_matrices, SkeletonJointMeta, SkeletonMeta, WeaponMotionTrackSet,
+};
+use critical_point_core::utils::{lerp, xerrf, xres, WeaponMotionIsometry, XResult};
 
 use crate::utils::{as_slice, Return};
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct ClipAnimation {
     animation: String,
-    motion: String,
+    root_motion: String,
+    weapon_motion: String,
     start_ratio: f32,
     finish_ratio: f32,
     fade_in_secs: f32,
+    fade_out_update: bool,
 }
 
 #[allow(dead_code)]
@@ -30,12 +34,15 @@ struct ClipInstance {
     start_secs: f32,
     finish_secs: f32,
     fade_in_secs: f32,
+    fade_out_update: bool,
     duration_secs: f32,
 
     sampling_job: SamplingJob,
     pos_motion_job: Option<TrackSamplingJob<Vec3>>,
     rot_motion_job: Option<TrackSamplingJob<Quat>>,
     root_motion: Transform3A,
+
+    weapon_motion: Option<WeaponMotionTrackSet>,
 }
 
 pub struct SkeletalPlayer {
@@ -52,6 +59,7 @@ pub struct SkeletalPlayer {
     model_rest_poses: Vec<Mat4>,
     // local_out: Vec<Transform3A>,
     root_motion: Mat4,
+    weapon_motions: Vec<WeaponMotionIsometry>,
 }
 
 #[cfg(feature = "debug-print")]
@@ -93,6 +101,7 @@ impl SkeletalPlayer {
             model_rest_poses,
             // local_out: vec![Transform3A::IDENTITY; skeleton.num_joints()],
             root_motion: Mat4::IDENTITY,
+            weapon_motions: Vec::new(),
         })
     }
 
@@ -139,8 +148,8 @@ impl SkeletalPlayer {
             let mut pos_motion_job = None;
             let mut rot_motion_job = None;
             let mut root_motion = Transform3A::IDENTITY;
-            if !cfg.motion.is_empty() {
-                let mut archive = Archive::from_path(&cfg.motion)?;
+            if !cfg.root_motion.is_empty() {
+                let mut archive = Archive::from_path(&cfg.root_motion)?;
 
                 let mut pos_job = TrackSamplingJob::default();
                 pos_job.set_track(Rc::new(Track::<Vec3>::from_archive(&mut archive)?));
@@ -153,6 +162,11 @@ impl SkeletalPlayer {
                 rot_motion_job = Some(rot_job);
             }
 
+            let mut weapon_motion = None;
+            if !cfg.weapon_motion.is_empty() {
+                weapon_motion = Some(WeaponMotionTrackSet::from_path(&cfg.weapon_motion)?);
+            }
+
             instances.push(ClipInstance {
                 animation,
                 start_ratio: cfg.start_ratio,
@@ -160,12 +174,15 @@ impl SkeletalPlayer {
                 start_secs,
                 finish_secs,
                 fade_in_secs: cfg.fade_in_secs,
+                fade_out_update: cfg.fade_out_update,
                 duration_secs: finish_secs - start_secs,
 
                 sampling_job,
                 pos_motion_job,
                 rot_motion_job,
                 root_motion,
+
+                weapon_motion,
             });
             duration_secs = finish_secs;
         }
@@ -247,7 +264,13 @@ impl SkeletalPlayer {
             clip.sampling_job.set_ratio(ratio);
             clip.sampling_job.run()?;
 
-            prev_clip.sampling_job.set_ratio(prev_clip.finish_ratio % 1.0);
+            if prev_clip.fade_out_update {
+                let ratio = Self::ratio_from_secs(clip, self.progress_secs, true);
+                prev_clip.sampling_job.set_ratio(ratio);
+            }
+            else {
+                prev_clip.sampling_job.set_ratio(prev_clip.finish_ratio % 1.0);
+            }
             prev_clip.sampling_job.run()?;
 
             let fade_secs = self.progress_secs - clip.start_secs;
@@ -273,6 +296,20 @@ impl SkeletalPlayer {
 
             self.l2m_job.set_input(clip.sampling_job.output().unwrap().clone());
             self.l2m_job.run()?;
+        }
+
+        self.weapon_motions.clear();
+        let clip = &self.clips[clip_idx];
+        if let Some(weapon_motion) = &clip.weapon_motion {
+            let ratio = Self::ratio_from_secs(clip, self.progress_secs, true);
+            for wm in weapon_motion.iter() {
+                let (pos, rot) = wm.calc(ratio)?;
+                self.weapon_motions.push(WeaponMotionIsometry {
+                    name: wm.name(),
+                    position: pos.into(),
+                    rotation: rot.into(),
+                });
+            }
         }
 
         // soa_transforms_to_transforms(self.l2m_job.input().unwrap().borrow().as_slice(), &mut self.local_out);
@@ -445,7 +482,7 @@ pub extern "C" fn skeletal_player_model_out<'t>(playback: *mut SkeletalPlayer) -
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_player_root_motion_out<'t>(playback: *mut SkeletalPlayer) -> Return<Mat4> {
+pub extern "C" fn skeletal_player_root_motion_out(playback: *mut SkeletalPlayer) -> Return<Mat4> {
     let res: XResult<Mat4> = (|| {
         let playback = as_playback(playback)?;
         match playback.clips.is_empty() {
@@ -454,6 +491,15 @@ pub extern "C" fn skeletal_player_root_motion_out<'t>(playback: *mut SkeletalPla
         }
     })();
     Return::from_result_with(res, Mat4::IDENTITY)
+}
+
+#[no_mangle]
+pub extern "C" fn skeletal_player_weapon_motions_out<'t>(playback: *mut SkeletalPlayer) -> Return<&'t[WeaponMotionIsometry]> {
+    let res: XResult<&[WeaponMotionIsometry]> = (|| {
+        let playback = as_playback(playback)?;
+        Ok(playback.weapon_motions.as_slice())
+    })();
+    Return::from_result_with(res, &[])
 }
 
 fn as_playback<'t>(playback: *mut SkeletalPlayer) -> XResult<&'t mut SkeletalPlayer> {

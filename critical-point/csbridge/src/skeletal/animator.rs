@@ -13,10 +13,10 @@ use std::ptr;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use cirtical_point_core::animation::{rest_poses_to_model_matrices, SkeletonJointMeta, SkeletonMeta};
-use cirtical_point_core::consts::{INVALID_ACTION_ANIMATION_ID, MAX_ACTION_ANIMATION, MAX_ACTION_STATE};
-use cirtical_point_core::logic::StateActionAny;
-use cirtical_point_core::utils::{find_mut_offset_by, xfrom, xres, NumID, Symbol, TinyVec, TmplID, XResult};
+use critical_point_core::animation::{rest_poses_to_model_matrices, SkeletonJointMeta, SkeletonMeta};
+use critical_point_core::consts::{INVALID_ACTION_ANIMATION_ID, MAX_ACTION_ANIMATION, MAX_ACTION_STATE};
+use critical_point_core::logic::StateActionAny;
+use critical_point_core::utils::{find_mut_offset_by, xfrom, xres, NumID, Symbol, TinyVec, TmplID, XResult};
 
 use crate::skeletal::resource;
 use crate::utils::Return;
@@ -177,7 +177,12 @@ struct SamplingData {
 }
 
 impl ActionData {
-    fn update(&mut self, is_init: bool, arena: &mut SamplingArena, state: Option<&Box<dyn StateActionAny>>) -> XResult<()> {
+    fn update(
+        &mut self,
+        is_init: bool,
+        arena: &mut SamplingArena,
+        state: Option<&Box<dyn StateActionAny>>,
+    ) -> XResult<()> {
         let mut new_samps = TinyVec::<u16, { MAX_ACTION_ANIMATION * 2 }>::new();
 
         // handle new samplings
@@ -203,7 +208,7 @@ impl ActionData {
                     *samp = INVALID_ACTION_ANIMATION_ID;
                     sd.weight = [sd.weight[1], anim_state.weight * state.fade_in_weight];
                     sd.ratio = [sd.ratio[1], anim_state.ratio];
-                    
+
                     // debug_assert!(sd.weight[1] >= 0.0 && sd.weight[1] <= 1.0);
                     // debug_assert!(sd.ratio[1] >= 0.0 && sd.ratio[1] <= 1.0);
                 }
@@ -217,11 +222,12 @@ impl ActionData {
                         .set_animation(resource::load_animation(sd.animation_file)?);
                     if is_init {
                         sd.weight = [anim_state.weight * state.fade_in_weight; 2];
-                    } else {
+                    }
+                    else {
                         sd.weight = [0.0, anim_state.weight * state.fade_in_weight];
                     }
                     sd.ratio = [anim_state.ratio; 2];
-                    
+
                     // debug_assert!(sd.weight[1] >= 0.0 && sd.weight[1] <= 1.0);
                     // debug_assert!(sd.ratio[1] >= 0.0 && sd.ratio[1] <= 1.0);
                 }
@@ -262,7 +268,7 @@ impl ActionData {
             if anim_weight <= 0.0 {
                 continue;
             }
-            
+
             let ascend = sd.ratio[1] >= sd.ratio[0];
             let inner = (sd.ratio[1] - sd.ratio[0]).abs() <= 0.5;
             let anim_ratio = match (inner, ascend) {
@@ -544,9 +550,9 @@ fn as_animator<'t>(animator: *mut SkeletalAnimator) -> XResult<&'t mut SkeletalA
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cirtical_point_core::engine::LogicEngine;
-    use cirtical_point_core::logic::{StateActionAnimation, StateActionEmpty};
-    use cirtical_point_core::utils::{id, sb};
+    use critical_point_core::engine::LogicEngine;
+    use critical_point_core::logic::{StateActionAnimation, StateActionEmpty};
+    use critical_point_core::utils::{id, sb};
 
     const TEST_TMPL_PATH: &str = "../../test-tmp/test-template";
     const TEST_ASSET_PATH: &str = "../../test-tmp/test-asset";

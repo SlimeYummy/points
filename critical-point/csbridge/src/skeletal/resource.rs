@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, LazyLock, RwLock};
 
-use cirtical_point_core::engine::ENV_PATH;
-use cirtical_point_core::utils::{Symbol, XResult};
+use critical_point_core::engine::ENV_PATH;
+use critical_point_core::utils::{Symbol, XResult};
 
 use crate::utils::Return;
 
