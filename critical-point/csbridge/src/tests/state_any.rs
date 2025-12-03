@@ -1,10 +1,10 @@
 #![allow(improper_ctypes_definitions)]
 
-use cirtical_point_core::logic::{
+use critical_point_core::logic::{
     LogicType, StateAny, StateBase, StateCharaPhysics, StateGameInit, StateGameUpdate, StatePlayerInit,
     StatePlayerUpdate, StateType,
 };
-use cirtical_point_core::utils::sb;
+use critical_point_core::utils::{sb, AnimationFileMeta, CsVec3A};
 use glam::Vec3A;
 use glam_ext::Vec2xz;
 use std::sync::Arc;
@@ -39,12 +39,14 @@ fn new_state_player_init() -> StatePlayerInit {
             logic_typ: LogicType::Player,
         },
         skeleton_file: sb!("mock_skeleton.ozz"),
-        animation_files: vec![
-            sb!("mock_animation_0.ozz"),
-            sb!("mock_animation_1.ozz"),
-            sb!("mock_animation_2.ozz"),
+        animation_metas: vec![
+            AnimationFileMeta::new(sb!("mock_animation_0.ozz"), false, false),
+            AnimationFileMeta::new(sb!("mock_animation_1.ozz"), false, false),
+            AnimationFileMeta::new(sb!("mock_animation_2.ozz"), false, false),
         ],
         view_model: sb!("model.vrm"),
+        init_position: CsVec3A::new(1.0, 2.0, 3.0).into(),
+        init_direction: Vec2xz::Z,
     }
 }
 

@@ -1,11 +1,11 @@
 #![allow(improper_ctypes_definitions)]
 
-use cirtical_point_core::logic::{
+use critical_point_core::logic::{
     ActionIdleMode, ActionMoveMode, LogicActionStatus, StateActionAnimation, StateActionAny, StateActionBase,
     StateActionGeneral, StateActionIdle, StateActionMove, StateActionType, StateMultiRootMotion, StateRootMotion,
 };
-use cirtical_point_core::template::TmplType;
-use cirtical_point_core::utils::{id, sb};
+use critical_point_core::template::TmplType;
+use critical_point_core::utils::{id, sb};
 use glam::{Quat, Vec3};
 use glam_ext::Vec2xz;
 use std::sync::Arc;
@@ -82,7 +82,7 @@ pub fn new_state_action_move() -> StateActionMove {
     StateActionMove {
         _base: StateActionBase {
             id: 23893,
-            tmpl_id: id!("Action.One.Jog"),
+            tmpl_id: id!("Action.One.Run"),
             typ: StateActionType::Move,
             tmpl_typ: TmplType::ActionMove,
             status: LogicActionStatus::Stopping,
@@ -109,6 +109,7 @@ pub fn new_state_action_move() -> StateActionMove {
             ],
         },
         mode: ActionMoveMode::Move,
+        smooth_move_switch: false,
         current_time: 1.5,
         start_anim_idx: 1,
         turn_anim_idx: 2,
@@ -123,6 +124,7 @@ pub fn new_state_action_move() -> StateActionMove {
             rotation_delta: Quat::IDENTITY.into(),
         },
         start_turn_angle_step: Vec2xz::NEG_Z,
+        smooth_move_start_speed: 0.5,
         local_fade_in_weight: 1.0,
         anim_offset_time: 0.57,
     }
