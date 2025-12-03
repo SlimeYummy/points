@@ -6,42 +6,61 @@ namespace CriticalPoint {
     [MessagePackObject(keyAsPropertyName: true)]
     public struct SkeletalAnimation {
         public string animation;
-        public string motion;
+        public string root_motion;
+        public string weapon_motion;
         public float start_ratio;
         public float finish_ratio;
         public float fade_in_secs;
-        //public float fade_out_secs;
+        public bool fade_out_update;
 
-        public SkeletalAnimation(string animation, string motion, float start_ratio, float finish_ratio) {
+        public SkeletalAnimation(string animation, string root_motion, string weapon_motion, float start_ratio, float finish_ratio) {
             this.animation = animation;
-            this.motion = motion;
+            this.root_motion = root_motion;
+            this.weapon_motion = weapon_motion;
             this.start_ratio = start_ratio;
             this.finish_ratio = finish_ratio;
             this.fade_in_secs = 0.0f;
+            this.fade_out_update = false;
         }
 
         public SkeletalAnimation(string animation, float start_ratio, float finish_ratio) {
             this.animation = animation;
-            this.motion = "";
+            this.root_motion = "";
+            this.weapon_motion = "";
             this.start_ratio = start_ratio;
             this.finish_ratio = finish_ratio;
             this.fade_in_secs = 0.0f;
+            this.fade_out_update = false;
         }
 
         public SkeletalAnimation(string animation) {
             this.animation = animation;
-            this.motion = "";
+            this.root_motion = "";
+            this.weapon_motion = "";
             this.start_ratio = 0.0f;
             this.finish_ratio = 1.0f;
             this.fade_in_secs = 0.0f;
+            this.fade_out_update = false;
         }
 
-        public SkeletalAnimation(string animation, string motion) {
+        public SkeletalAnimation(string animation, string root_motion) {
             this.animation = animation;
-            this.motion = motion;
+            this.root_motion = root_motion;
+            this.weapon_motion = "";
             this.start_ratio = 0.0f;
             this.finish_ratio = 1.0f;
             this.fade_in_secs = 0.0f;
+            this.fade_out_update = false;
+        }
+
+        public SkeletalAnimation(string animation, string root_motion, string weapon_motion) {
+            this.animation = animation;
+            this.root_motion = root_motion;
+            this.weapon_motion = weapon_motion;
+            this.start_ratio = 0.0f;
+            this.finish_ratio = 1.0f;
+            this.fade_in_secs = 0.0f;
+            this.fade_out_update = false;
         }
 
         public SkeletalAnimation SetFadeInSecs(float secs) {
@@ -51,6 +70,11 @@ namespace CriticalPoint {
 
         public SkeletalAnimation SetFadeInFrames(uint frame) {
             this.fade_in_secs = frame / 60.0f;
+            return this;
+        }
+
+        public SkeletalAnimation SetFadeOutUpdate(bool update) {
+            this.fade_out_update = update;
             return this;
         }
     }
@@ -161,6 +185,13 @@ namespace CriticalPoint {
 
         public Mat4 RootMotionOut() {
             return skeletal_player_root_motion_out(_player).Unwrap();
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return<RsSlice<WeaponMotionIsometry>> skeletal_player_weapon_motions_out(IntPtr playback);
+
+        public RefSliceVal<WeaponMotionIsometry> WeaponMotionsOut() {
+            return new RefSliceVal<WeaponMotionIsometry>(skeletal_player_weapon_motions_out(_player).Unwrap());
         }
     }
 }
