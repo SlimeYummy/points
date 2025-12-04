@@ -14,11 +14,11 @@ namespace CriticalPointTests {
             SkeletalAnimator.ClearUnused();
 
             SkeletalAnimator.LoadSkeleton(new Symbol("girl.*"));
-            SkeletalAnimator.LoadAnimation(new Symbol("girl_jog.*"));
-            SkeletalAnimator.LoadAnimation(new Symbol("girl_jog_start.*"));
+            SkeletalAnimator.LoadAnimation(new Symbol("girl_run.*"));
+            SkeletalAnimator.LoadAnimation(new Symbol("girl_run_start.*"));
             SkeletalAnimator.Load(
                 new Symbol[] { new Symbol("girl.*") },
-                new Symbol[] { new Symbol("girl_jog_stop_l.*"), new Symbol("girl_jog_stop_r.*") }
+                new Symbol[] { new Symbol("girl_run_stop_l.*"), new Symbol("girl_run_stop_r.*") }
             );
 
             Assert.AreEqual(SkeletalAnimator.SkeletonCount(), 1u);

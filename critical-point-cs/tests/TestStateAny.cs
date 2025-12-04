@@ -19,8 +19,10 @@ namespace CriticalPointTests {
             var ref_idle = any.AsRefStatePlayerInit();
             Assert.AreEqual("mock_skeleton.ozz", ref_idle.skeleton_file.TryRead());
             var idx = 0;
-            foreach (var file in ref_idle.animation_files) {
-                Assert.AreEqual(string.Format("mock_animation_{0}.ozz", idx++), file.TryRead());
+            foreach (var meta in ref_idle.animation_metas) {
+                Assert.AreEqual(string.Format("mock_animation_{0}.ozz", idx++), meta.files.TryRead());
+                Assert.AreEqual(false, meta.root_motion);
+                Assert.AreEqual(false, meta.weapon_motion);
             }
 
             any.Dispose();
@@ -41,15 +43,15 @@ namespace CriticalPointTests {
             var idle = any.AsArcStatePlayerInit();
             Assert.AreEqual("mock_skeleton.ozz", idle.skeleton_file.TryRead());
             var idx = 0;
-            foreach (var file in idle.animation_files) {
-                Assert.AreEqual(string.Format("mock_animation_{0}.ozz", idx++), file.TryRead());
+            foreach (var meta in idle.animation_metas) {
+                Assert.AreEqual(string.Format("mock_animation_{0}.ozz", idx++), meta.files.TryRead());
             }
 
             Assert.ThrowsException<NullReferenceException>(() => any.AsWeakStateNpcInit());
             var weak_idle = any.AsWeakStatePlayerInit();
             Assert.AreEqual("mock_skeleton.ozz", weak_idle.skeleton_file.TryRead());
-            Assert.AreEqual(string.Format("mock_animation_1.ozz"), weak_idle.animation_files[1].TryRead());
-            Assert.AreEqual(string.Format("mock_animation_2.ozz"), weak_idle.animation_files[2].TryRead());
+            Assert.AreEqual(string.Format("mock_animation_1.ozz"), weak_idle.animation_metas[1].files.TryRead());
+            Assert.AreEqual(string.Format("mock_animation_2.ozz"), weak_idle.animation_metas[2].files.TryRead());
 
             var any2 = any.Arc();
             Assert.AreEqual(LogicType.Player, any2.logic_typ);
@@ -163,12 +165,16 @@ namespace CriticalPointTests {
 
             Assert.AreEqual("mock_skeleton.ozz", init.skeleton_file.TryRead());
             var idx = 0;
-            foreach (var file in init.animation_files) {
-                Assert.AreEqual(string.Format("mock_animation_{0}.ozz", idx++), file.TryRead());
+            foreach (var meta in init.animation_metas) {
+                Assert.AreEqual(string.Format("mock_animation_{0}.ozz", idx++), meta.files.TryRead());
             }
 
             var ref_init = init.Ref();
-            Assert.AreEqual(string.Format("mock_animation_2.ozz"), ref_init.animation_files[2].TryRead());
+            Assert.AreEqual(string.Format("mock_animation_2.ozz"), ref_init.animation_metas[2].files.TryRead());
+
+            Assert.AreEqual("model.vrm", init.view_model.TryRead());
+            Assert.AreEqual(new Vec3A(1.0f, 2.0f, 3.0f), init.init_position);
+            Assert.AreEqual(new Vec2(0.0f, 1.0f), init.init_direction);
 
             init.Dispose();
         }
@@ -186,15 +192,15 @@ namespace CriticalPointTests {
 
             Assert.AreEqual("mock_skeleton.ozz", init.skeleton_file.TryRead());
             var idx = 0;
-            foreach (var file in init.animation_files) {
-                Assert.AreEqual(string.Format("mock_animation_{0}.ozz", idx++), file.TryRead());
+            foreach (var meta in init.animation_metas) {
+                Assert.AreEqual(string.Format("mock_animation_{0}.ozz", idx++), meta.files.TryRead());
             }
 
             var init2 = init.Arc();
-            Assert.AreEqual(string.Format("mock_animation_0.ozz"), init2.animation_files[0].TryRead());
+            Assert.AreEqual(string.Format("mock_animation_0.ozz"), init2.animation_metas[0].files.TryRead());
 
             var weak_init = init.Weak();
-            Assert.AreEqual(string.Format("mock_animation_2.ozz"), weak_init.animation_files[2].TryRead());
+            Assert.AreEqual(string.Format("mock_animation_2.ozz"), weak_init.animation_metas[2].files.TryRead());
 
             Assert.AreEqual(2, init.StrongCount);
             init.Dispose();
@@ -219,7 +225,7 @@ namespace CriticalPointTests {
             Assert.AreEqual(2, update.actions.Length);
             Assert.AreEqual("Action.One.Idle", update.actions[0].tmpl_id.TryRead());
             Assert.AreEqual(0.207f, update.actions[0].AsRefStateActionIdle().fade_in_weight);
-            Assert.AreEqual("Action.One.Jog", update.actions[1].tmpl_id.TryRead());
+            Assert.AreEqual("Action.One.Run", update.actions[1].tmpl_id.TryRead());
             Assert.AreEqual(40u, update.actions[1].AsRefStateActionMove().derive_level);
 
             var ref_update = update.Ref();
@@ -245,7 +251,7 @@ namespace CriticalPointTests {
             Assert.AreEqual(2, update.actions.Length);
             Assert.AreEqual("Action.One.Idle", update.actions[0].tmpl_id.TryRead());
             Assert.AreEqual(0.207f, update.actions[0].AsRefStateActionIdle().fade_in_weight);
-            Assert.AreEqual("Action.One.Jog", update.actions[1].tmpl_id.TryRead());
+            Assert.AreEqual("Action.One.Run", update.actions[1].tmpl_id.TryRead());
             Assert.AreEqual(40u, update.actions[1].AsRefStateActionMove().derive_level);
 
             var update2 = update.Arc();
