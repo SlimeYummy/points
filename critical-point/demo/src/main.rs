@@ -2,18 +2,18 @@ mod input;
 
 use anyhow::Result;
 use chrono::Local;
-use cirtical_point_core::consts::{DEFAULT_VIEW_DIR_3D, FPS};
-use cirtical_point_core::engine::LogicEngine;
-use cirtical_point_core::logic::{InputPlayerEvents, StatePlayerUpdate, StateSet};
-use cirtical_point_core::parameter::{ParamPlayer, ParamZone};
-use cirtical_point_core::utils::{Castable, NumID};
+use critical_point_core::consts::{DEFAULT_VIEW_DIR_3D, FPS};
+use critical_point_core::engine::LogicEngine;
+use critical_point_core::logic::{InputPlayerEvents, StatePlayerUpdate, StateSet};
+use critical_point_core::parameter::{ParamPlayer, ParamZone};
+use critical_point_core::utils::{Castable, NumID};
 use glam::{Vec2, Vec3A};
 use input::{CharacterType, InputHandler};
 use jolt_physics_rs::debug::{run_debug_application, CameraState, DebugApp, DebugKeyboard, DebugMouse};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use structopt::StructOpt;
 
 const F_FPS: f32 = FPS as f32;
@@ -148,15 +148,15 @@ fn main() {
         .apply()
         .unwrap();
 
-    std::env::set_current_dir("/project/points/critical-point/demo").unwrap();
+    // std::env::set_current_dir("/project/points/critical-point/demo").unwrap();
 
-    let opt = Opt::from_args();
-    // let opt = Opt {
-    //     template: PathBuf::from("/project/points/test-tmp/demo-template"),
-    //     asset: PathBuf::from("/project/points/test-tmp/test-asset"),
-    //     save: None,
-    //     config: PathBuf::from("./config.json"),
-    // };
+    // let opt = Opt::from_args();
+    let opt = Opt {
+        template: PathBuf::from("/project/points/test-tmp/demo-template"),
+        asset: PathBuf::from("/project/points/test-tmp/test-asset"),
+        save: None,
+        config: PathBuf::from("./config.json"),
+    };
     if !opt.template.is_dir() {
         panic!("template not found: {:?}", opt.template);
     }
@@ -166,6 +166,7 @@ fn main() {
     LogicEngine::initialize(&opt.template, &opt.asset).unwrap();
 
     let cfg = Config::from_path(&opt.config).unwrap();
-    let testbed = Box::new(Testbed::new(&opt, cfg));
-    run_debug_application(testbed);
+    let testbed = Arc::new(Mutex::new(Testbed::new(&opt, cfg)));
+    run_debug_application(testbed.clone());
+    println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> x");
 }
