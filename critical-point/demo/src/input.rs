@@ -1,10 +1,9 @@
 use approx::abs_diff_eq;
-use cirtical_point_core::ifelse;
-use cirtical_point_core::utils::{RawEvent, RawKey};
+use critical_point_core::ifelse;
+use critical_point_core::utils::{RawEvent, RawKey};
 use core::f32;
 use glam::Vec2;
-use jolt_physics_rs::debug::{DebugKeyboard, DebugMouse};
-use jolt_physics_rs::keys::*;
+use jolt_physics_rs::debug::{DebugKey, DebugKeyboard, DebugMouse};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,15 +46,15 @@ enum JoltMean {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum JoltKey {
     M(i32),
-    K(i32),
+    K(DebugKey),
 }
 
 const KEYS: &[(JoltMean, JoltKey)] = &[
-    (JoltMean::CombExtra, JoltKey::K(DIK_SPACE)),
-    (JoltMean::Dodge, JoltKey::K(DIK_LSHIFT)),
-    (JoltMean::Guard, JoltKey::K(DIK_LALT)),
-    (JoltMean::Interact, JoltKey::K(DIK_F)),
-    (JoltMean::Lock, JoltKey::K(DIK_TAB)),
+    (JoltMean::CombExtra, JoltKey::K(DebugKey::Space)),
+    (JoltMean::Dodge, JoltKey::K(DebugKey::LShift)),
+    (JoltMean::Guard, JoltKey::K(DebugKey::LAlt)),
+    (JoltMean::Interact, JoltKey::K(DebugKey::F)),
+    (JoltMean::Lock, JoltKey::K(DebugKey::T)),
     (JoltMean::Attack1, JoltKey::M(1)),
     (JoltMean::Attack2, JoltKey::M(2)),
     (JoltMean::Attack5, JoltKey::M(3)),
@@ -63,20 +62,20 @@ const KEYS: &[(JoltMean, JoltKey)] = &[
     (JoltMean::Shot1, JoltKey::M(1)),
     (JoltMean::Aim, JoltKey::M(2)),
     (JoltMean::Switch, JoltKey::M(3)),
-    (JoltMean::CombSkill1, JoltKey::K(DIK_Q)),
-    (JoltMean::CombSkill2, JoltKey::K(DIK_E)),
-    (JoltMean::CombSkill3, JoltKey::K(DIK_R)),
-    (JoltMean::CombSkill4, JoltKey::K(DIK_C)),
+    (JoltMean::CombSkill1, JoltKey::K(DebugKey::Q)),
+    (JoltMean::CombSkill2, JoltKey::K(DebugKey::E)),
+    (JoltMean::CombSkill3, JoltKey::K(DebugKey::R)),
+    (JoltMean::CombSkill4, JoltKey::K(DebugKey::C)),
     (JoltMean::Skill1, JoltKey::M(1)),
     (JoltMean::Skill2, JoltKey::M(2)),
-    (JoltMean::Item1, JoltKey::K(DIK_1)),
-    (JoltMean::Item2, JoltKey::K(DIK_2)),
-    (JoltMean::Item3, JoltKey::K(DIK_3)),
-    (JoltMean::Item4, JoltKey::K(DIK_4)),
-    (JoltMean::Item5, JoltKey::K(DIK_5)),
-    (JoltMean::Item6, JoltKey::K(DIK_6)),
-    (JoltMean::Item7, JoltKey::K(DIK_7)),
-    (JoltMean::Item8, JoltKey::K(DIK_8)),
+    (JoltMean::Item1, JoltKey::K(DebugKey::Num1)),
+    (JoltMean::Item2, JoltKey::K(DebugKey::Num2)),
+    (JoltMean::Item3, JoltKey::K(DebugKey::Num3)),
+    (JoltMean::Item4, JoltKey::K(DebugKey::Num4)),
+    (JoltMean::Item5, JoltKey::K(DebugKey::Num5)),
+    (JoltMean::Item6, JoltKey::K(DebugKey::Num6)),
+    (JoltMean::Item7, JoltKey::K(DebugKey::Num7)),
+    (JoltMean::Item8, JoltKey::K(DebugKey::Num8)),
 ];
 
 const COMB_EXTRA: u32 = 1 << 3;
@@ -90,6 +89,7 @@ pub struct InputHandler {
     character: CharacterType,
     xkeys_state: Vec<bool>,
     mkeys_state: Vec<bool>,
+    is_walking: bool,
     move_dir: Vec2,        // last move direction
     view_rads: Vec2,       // last view radius (yaw, pitch)
     combination_keys: u32, // any combination key down
@@ -105,7 +105,8 @@ impl InputHandler {
         InputHandler {
             character,
             xkeys_state: vec![false; KEYS.len()],
-            mkeys_state: vec![false; 4],
+            mkeys_state: vec![false; 5],
+            is_walking: false,
             move_dir: Vec2::ZERO,
             view_rads: Vec2::new(f32::NAN, f32::NAN),
             combination_keys: 0,
@@ -193,8 +194,8 @@ impl InputHandler {
     }
 
     fn handle_move(&mut self, keyboard: &mut DebugKeyboard) {
-        let mut key_events = [None; 4];
-        for (idx, key) in [DIK_A, DIK_D, DIK_S, DIK_W].iter().enumerate() {
+        let mut key_events = [None; 5];
+        for (idx, key) in [DebugKey::A, DebugKey::D, DebugKey::S, DebugKey::W, DebugKey::LControl].iter().enumerate() {
             let pressed = keyboard.is_key_pressed(*key);
             let prev_state = self.mkeys_state[idx];
             self.mkeys_state[idx] = pressed;
@@ -227,7 +228,13 @@ impl InputHandler {
             _ => (),
         }
 
-        if self.move_dir == prev_move_dir {
+        let prev_is_walking = self.is_walking;
+        self.is_walking = match key_events[4] {
+            Some(is_walking) => is_walking,
+            _ => self.is_walking,
+        };
+
+        if self.move_dir == prev_move_dir && self.is_walking == prev_is_walking {
             return;
         }
 
@@ -235,6 +242,11 @@ impl InputHandler {
         if move_dir != Vec2::ZERO {
             move_dir = move_dir.normalize();
         }
+
+        if self.is_walking {
+            move_dir *= 0.4;
+        }
+
         if let Some(last) = self.events.last_mut() {
             if last.key == RawKey::Move {
                 last.motion = move_dir;

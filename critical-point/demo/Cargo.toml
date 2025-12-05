@@ -1,5 +1,5 @@
 [package]
-name = "cirtical-point-demo"
+name = "critical-point-demo"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,7 @@ edition = "2021"
 anyhow = "1.0"
 approx = "0.5"
 chrono = "0.4"
-cirtical-point-core = { path = "../core", features = [] }
+critical-point-core = { path = "../core", features = [] } # "debug-print"
 fern = "0.7"
 glam = { version = "0.30", features = ["libm", "approx", "serde", "rkyv"] }
 glam-ext = { path = "../../../glam-ext", features = ["libm", "approx", "serde", "rkyv"] }

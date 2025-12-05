@@ -6,7 +6,8 @@
         {
             "character": "Character.DemoGirl",
             "style": "Style.DemoGirl/1",
-            "level": 1
+            "level": 1,
+            "position": [-50, 0, 63]
         }
     ]
 }
