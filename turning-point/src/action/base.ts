@@ -11,7 +11,6 @@ import {
     parseIntArray,
     parseStringArray,
 } from '../common';
-import * as native from '../native';
 import { Resource } from '../resource';
 import { Character, Style } from '../character';
 import {
@@ -443,8 +442,6 @@ export function parseActionAttributes(raw: ActionAttributesArgs, where: string):
 // ): ReadonlyArray<ActionAttributes> {
 //     return parseArray(raw, where, (item, where) => parseActionAttributes(item, where), opts);
 // }
-
-// function
 
 export type ActionHitbox = {
     name: string;

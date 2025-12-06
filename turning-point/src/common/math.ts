@@ -69,7 +69,7 @@ export function parseQuat(
 
 const RE_ANGLE = /^([LR])(\d+)$/;
 
-export function parseAngleXZ(
+export function parseAngleXz(
     raw: float | string,
     where: string,
     opts: {
@@ -100,7 +100,7 @@ export function parseAngleXZ(
     return (degree * Math.PI) / 180;
 }
 
-export function parseAngleXZRange(
+export function parseAngleXzRange(
     raw: ReadonlyArray<float | string>,
     where: string,
     opts: {
@@ -110,7 +110,7 @@ export function parseAngleXZRange(
 ): readonly [float, float] {
     checkArray(raw, where, { len: 2 });
     return [
-        parseAngleXZ(raw[0]!, `${where}[0]`, opts),
-        parseAngleXZ(raw[1]!, `${where}[1]`, opts),
+        parseAngleXz(raw[0]!, `${where}[0]`, opts),
+        parseAngleXz(raw[1]!, `${where}[1]`, opts),
     ] as [float, float];
 }
