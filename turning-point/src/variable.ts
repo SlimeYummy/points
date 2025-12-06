@@ -206,6 +206,9 @@ export function verifyVarValue<T>(
     callback?: (value: T, where: string) => void,
 ) {
     if (!(va instanceof Var)) {
+        if (callback) {
+            callback(va, where);
+        }
         return;
     }
 

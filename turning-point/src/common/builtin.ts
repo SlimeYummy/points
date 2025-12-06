@@ -52,12 +52,8 @@ export function parseFloat(
     let res = 0.0;
     if (typeof raw === 'number') {
         res = raw;
-    } else if (typeof raw === 'string') {
-        if (RE_PERCENT.test(raw)) {
-            res = Number.parseFloat(raw.slice(0, -1)) / 100;
-        } else {
-            res = Number.parseFloat(raw);
-        }
+    } else if (typeof raw === 'string' && RE_PERCENT.test(raw)) {
+        res = Number.parseFloat(raw.slice(0, -1)) / 100;
     } else {
         throw new Error(`${where}: must be a float/percent`);
     }

@@ -94,7 +94,10 @@ export class Aniamtion {
                 throw new Error(`${where}.root_motion: must be ${!!opts.root_motion}`);
             }
 
-            this.weapon_motion = args.weapon_motion == null ? false : parseBool(args.weapon_motion, `${where}.weapon_motion`);
+            this.weapon_motion =
+                args.weapon_motion == null
+                    ? false
+                    : parseBool(args.weapon_motion, `${where}.weapon_motion`);
             if (opts.weapon_motion !== undefined && this.weapon_motion !== opts.weapon_motion) {
                 throw new Error(`${where}.weapon_motion: must be ${!!opts.weapon_motion}`);
             }
