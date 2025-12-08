@@ -1,6 +1,6 @@
-import { checkArray, float, ID, parseArray, parseFloat } from '../common';
+import { checkArray, float, ID, int, parseArray, parseFloat } from '../common';
 import { parseVarID, Var, VarValueArgs, verifyVarValue } from '../variable';
-import { Action } from './base';
+import { Action, parseActionLevel } from './base';
 
 export const VIRTUAL_KEYS = [
     // 基础操作
@@ -182,13 +182,15 @@ export function parseVirtualKey(
     return raw as VirtualKey;
 }
 
-export type VirtualDirArgs = [
-    /** 方向 */
-    VirtualDirType,
+export type VirtualDirArgs =
+    | [
+          /** 方向 */
+          VirtualDirType,
 
-    /** 角度范围 0-180 */
-    float,
-];
+          /** 角度范围 0-180 */
+          float,
+      ]
+    | string;
 
 export const VIRTUAL_DIR_TYPES = ['Forward', 'Backward', 'Left', 'Right'] as const;
 type VirtualDirType = (typeof VIRTUAL_DIR_TYPES)[number];
@@ -198,6 +200,8 @@ export const Backward: VirtualDirType = 'Backward' as const;
 export const Left: VirtualDirType = 'Left' as const;
 export const Right: VirtualDirType = 'Right' as const;
 
+const RE_VIRTUAL_DIR = new RegExp(`^(F|B|L|R|)(\\d+\\.?\\d*)$`);
+
 export class VirtualDir {
     /** 方向 */
     public readonly dir: VirtualDirType;
@@ -206,13 +210,33 @@ export class VirtualDir {
     public readonly cos: float;
 
     public constructor(args: VirtualDirArgs, where: string) {
-        checkArray(args, where, { len: 2 });
-        if (!VIRTUAL_DIR_TYPES.includes(args[0] as VirtualDirType)) {
-            throw new Error(where + ': must be a InsertKey');
+        if (typeof args === 'string') {
+            const match = RE_VIRTUAL_DIR.exec(args);
+            if (match == null) {
+                throw new Error(where + ': must match dir pattern');
+            }
+            if (match[1] === 'F') {
+                this.dir = Forward;
+            } else if (match[1] === 'B') {
+                this.dir = Backward;
+            } else if (match[1] === 'L') {
+                this.dir = Left;
+            } else if (match[1] === 'R') {
+                this.dir = Right;
+            } else {
+                throw new Error(where + ': must match dir pattern');
+            }
+            const angle = parseFloat(Number.parseFloat(match[2]!), where, { min: 0, max: 180 });
+            this.cos = Math.cos((angle * Math.PI) / 180);
+        } else {
+            checkArray(args, where, { len: 2 });
+            if (!VIRTUAL_DIR_TYPES.includes(args[0] as VirtualDirType)) {
+                throw new Error(where + ': must be Forward/Backward/Left/Right');
+            }
+            this.dir = args[0] as VirtualDirType;
+            const angle = parseFloat(args[1], `${where}[1]`, { min: 0, max: 180 });
+            this.cos = Math.cos((angle * Math.PI) / 180);
         }
-        this.dir = args[0] as VirtualDirType;
-        const angle = parseFloat(args[1], `${where}[1]`, { min: 0, max: 180 });
-        this.cos = Math.cos((angle * Math.PI) / 180);
     }
 }
 
@@ -237,25 +261,26 @@ export class VirtualKeyDir {
     }
 }
 
-export type DeriveRuleArgs =
-    | [VirtualKey, ID | VarValueArgs<ID>]
-    | [VirtualKey, VirtualDirArgs, ID | VarValueArgs<ID>];
+export type DeriveRuleArgs = {
+    /** 派生进入按键 */
+    key: VirtualKeyDirArgs;
+
+    /** 派生进入等级 */
+    level: int;
+
+    /** 派生动作 */
+    action: ID | VarValueArgs<ID>;
+};
 
 export class DeriveRule {
-    public readonly key: VirtualKey;
-    public readonly dir?: VirtualDir;
+    public readonly key: VirtualKeyDir;
+    public readonly level: int;
     public readonly action: ID | Var<ID>;
 
     public constructor(args: DeriveRuleArgs, where: string) {
-        checkArray(args, where, { min_len: 2, max_len: 3 });
-        if (args.length === 2) {
-            this.key = parseVirtualKey(args[0], `${where}[0]`);
-            this.action = parseVarID(args[1], 'Action', `${where}[1]`);
-        } else {
-            this.key = parseVirtualKey(args[0], `${where}[0]`);
-            this.dir = new VirtualDir(args[1], `${where}[1]`);
-            this.action = parseVarID(args[2], 'Action', `${where}[2]`);
-        }
+        this.key = new VirtualKeyDir(args.key, `${where}.key`);
+        this.level = parseActionLevel(args.level, `${where}.level`);
+        this.action = parseVarID(args.action, 'Action', `${where}.action`);
     }
 }
 
