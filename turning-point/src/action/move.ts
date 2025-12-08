@@ -4,7 +4,7 @@ import {
     ID,
     int,
     LOGIC_SPF,
-    parseAngleXZRange,
+    parseAngleXzRange,
     parseBool,
     parseFloat,
     parseIDArray,
@@ -27,17 +27,17 @@ export type ActionMoveStartArgs = AniamtionArgs & {
 
 export class ActionMoveStart extends Aniamtion {
     /** 进入该动画的角度（右手系XZ平面） */
-    public enter_angle: readonly [float, float];
+    public readonly enter_angle: readonly [float, float];
 
     /** 移动开始时原地转身的结束时间 */
-    public turn_in_place_end: float;
+    public readonly turn_in_place_end: float;
 
     /** 可以触发快速停止的结束时间 */
-    public quick_stop_end: float;
+    public readonly quick_stop_end: float;
 
     public constructor(args: ActionMoveStartArgs, where: string) {
         super(args, where, { root_motion: true });
-        this.enter_angle = parseAngleXZRange(args.enter_angle, `${where}.enter_angle`);
+        this.enter_angle = parseAngleXzRange(args.enter_angle, `${where}.enter_angle`);
         this.turn_in_place_end = parseTime(
             args.turn_in_place_end || 0,
             `${where}.turn_in_place_end`,
@@ -63,28 +63,57 @@ export type ActionMoveTurnArgs = AniamtionArgs & {
 
 export class ActionMoveTurn extends Aniamtion {
     /** 进入该动画的角度（右手系XZ平面） */
-    public enter_angle: readonly [float, float];
+    public readonly enter_angle: readonly [float, float];
 
     public constructor(args: ActionMoveTurnArgs, where: string) {
         super(args, where, { root_motion: true });
-        this.enter_angle = parseAngleXZRange(args.enter_angle, `${where}.enter_angle`);
+        this.enter_angle = parseAngleXzRange(args.enter_angle, `${where}.enter_angle`);
     }
 }
 
-export type ActionMoveStopArgs = AniamtionArgs & {
-    /** 进入该动画的相位表 [开始相位, 结束相位, 动画偏移时间] */
-    enter_phase_table: Array<[float | string, float | string, float | string]>;
+export type ActionMoveStopEnterArgs =
+    | {
+          /** 进入该动画的相位 [开始, 结束] */
+          phase: [float | string, float | string];
 
-    /** 停止动画减速阶段的结束时间 */
-    speed_down_end: float | string;
+          /** 动画偏移时间 */
+          offset: float | string;
+      }
+    | [[float | string, float | string], float | string];
+
+export type ActionMoveStopLeaveArgs =
+    | {
+          /** 动画时间 */
+          time: float | string;
+          /** 对应相位 */
+          phase: float | string;
+      }
+    | [float | string, float | string];
+
+export type ActionMoveStopArgs = AniamtionArgs & {
+    /** 进入该动画的相位表  */
+    enter_phase_table: Array<ActionMoveStopEnterArgs>;
+
+    /** 离开该动画的相位表  */
+    leave_phase_table?: Array<ActionMoveStopLeaveArgs>;
 };
 
 export class ActionMoveStop extends Aniamtion {
-    /** 进入该动画的相位表 [开始相位, 结束相位, 动画偏移时间] */
-    public enter_phase_table: ReadonlyArray<readonly [float, float, float]>;
+    /** 进入该动画的相位表 */
+    public readonly enter_phase_table: ReadonlyArray<{
+        /** 进入该动画的相位 [开始, 结束] */
+        readonly phase: readonly [float, float];
+        /** 动画偏移时间 */
+        readonly offset: float;
+    }>;
 
     /** 停止动画减速阶段的结束时间 */
-    public speed_down_end: float;
+    public readonly leave_phase_table: ReadonlyArray<{
+        /** 动画时间 */
+        readonly time: float;
+        /** 对应相位 */
+        readonly phase: float;
+    }>;
 
     public constructor(args: ActionMoveStopArgs, where: string) {
         super(args, where, { root_motion: true });
@@ -93,22 +122,70 @@ export class ActionMoveStop extends Aniamtion {
             this.duration,
             `${where}.enter_phase_table`,
         );
-        this.speed_down_end = parseTime(args.speed_down_end, `${where}.speed_down_end`, { min: 0 });
+        this.leave_phase_table = this.parseLeavePhaseTable(
+            args.leave_phase_table,
+            this.duration,
+            `${where}.leave_phase_table`,
+        );
     }
 
     private parseEnterPhaseTable(
-        table: Array<[float | string, float | string, float | string]>,
+        table: Array<ActionMoveStopEnterArgs>,
         duration: float,
         where: string,
-    ): ReadonlyArray<readonly [float, float, float]> {
+    ) {
         checkArray(table, `${where}.enter_phase_table`, { min_len: 1 });
         return table.map((item, idx) => {
-            checkArray(item, `${where}[${idx}]`, { len: 3 });
-            return [
-                parseFloat(item[0], `${where}[${idx}][0]`, { min: 0, max: 1 }),
-                parseFloat(item[1], `${where}[${idx}][1]`, { min: 0, max: 1 }),
-                parseTime(item[2], `${where}[${idx}][2]`, { min: 0, max: duration }),
-            ];
+            let phase: readonly [float, float], offset: float;
+            if (Array.isArray(item)) {
+                checkArray(item[0], `${where}[${idx}]`, { len: 2 });
+                phase = [
+                    parseFloat(item[0][0], `${where}[${idx}][0]`, { min: 0, max: 1 }),
+                    parseFloat(item[0][1], `${where}[${idx}][1]`, { min: 0, max: 1 }),
+                ];
+                offset = parseTime(item[1], `${where}[${idx}]`, { min: 0, max: duration });
+            } else {
+                checkArray(item.phase, `${where}[${idx}]`, { len: 2 });
+                phase = [
+                    parseFloat(item.phase[0], `${where}[${idx}][0]`, { min: 0, max: 1 }),
+                    parseFloat(item.phase[1], `${where}[${idx}][1]`, { min: 0, max: 1 }),
+                ];
+                offset = parseTime(item.offset, `${where}[${idx}]`, { min: 0, max: duration });
+            }
+            return { phase, offset };
+        });
+    }
+
+    private parseLeavePhaseTable(
+        table: undefined | Array<ActionMoveStopLeaveArgs>,
+        duration: float,
+        where: string,
+    ) {
+        if (table == null) {
+            return [];
+        }
+
+        checkArray(table, `${where}.leave_phase_table`, { min_len: 2 });
+        let iter_time = 0;
+        return table.map((item, idx) => {
+            let time: float, phase: float, time_where;
+            if (Array.isArray(item)) {
+                time = parseTime(item[0], `${where}[${idx}][0]`, { min: 0, max: duration });
+                phase = parseFloat(item[1], `${where}[${idx}][1]`, { min: 0, max: 1 });
+                time_where = `${where}[${idx}][0]`;
+            } else {
+                time = parseTime(item.time, `${where}[${idx}].time`, { min: 0, max: duration });
+                phase = parseFloat(item.phase, `${where}[${idx}].phase`, { min: 0, max: 1 });
+                time_where = `${where}[${idx}].time`;
+            }
+            if (idx === 0 && time !== 0) {
+                throw new Error(`${time_where} must == 0`);
+            }
+            if (time < iter_time) {
+                throw new Error(`${time_where} must be ascend`);
+            }
+            iter_time = time;
+            return { time, phase };
         });
     }
 }
