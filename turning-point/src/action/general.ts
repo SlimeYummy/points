@@ -3,13 +3,16 @@ import {
     FPS,
     ID,
     int,
-    parseFloat,
-    parseFloatRange,
-    Timeline,
-    TimelineArgs,
+    parseAngleXz,
+    parseBool,
+    parseString,
+    parseTime,
+    TimelinePoint,
+    TimelinePointArgs,
+    TimelineRange,
+    TimelineRangeArgs,
 } from '../common';
 import { Resource } from '../resource';
-import * as native from '../native';
 import { parseVarFloat, parseVarInt, Var, VarValueArgs } from '../variable';
 import { Aniamtion, AniamtionArgs } from './animation';
 import {
@@ -72,6 +75,55 @@ import {
 //     }
 // }
 
+export type ActionGeneralMovetionArgs = ActionGeneralRootMotionArgs | ActionGeneralRotationArgs;
+export type ActionGeneralMovetion = ActionGeneralRootMotion | ActionGeneralRotation;
+
+export type ActionGeneralRootMotionArgs = {
+    /** 是否启用Move轨道 */
+    move?: boolean;
+    /** 是否启用MoveEx轨道 */
+    move_ex?: boolean;
+};
+
+export class ActionGeneralRootMotion {
+    /** 是否启用Move轨道 */
+    move: boolean;
+    /** 是否启用MoveEx轨道 */
+    move_ex: boolean;
+
+    public constructor(args: ActionGeneralRootMotionArgs, where: string) {
+        this.move = parseBool(args.move != null ? args.move : false, `${where}.move`);
+        this.move_ex = parseBool(args.move_ex != null ? args.move_ex : false, `${where}.move_ex`);
+    }
+
+    public toJSON() {
+        return { T: 'RootMotion', ...this };
+    }
+}
+
+export type ActionGeneralRotationArgs = {
+    /** 转身所需时间 */
+    duration: float | string;
+    /** 转身角度范围[-angle, angle] +angle表示前进移动 -angle表示后退移动 负号旋转范围不变 反转输入方向 */
+    angle: float | string;
+};
+
+export class ActionGeneralRotation {
+    /** 转身所需时间 */
+    public duration: float;
+    /** 转身角度范围[-angle, angle] +angle表示前进移动 -angle表示后退移动 负号旋转范围不变 反转输入方向 */
+    public angle: float;
+
+    public constructor(args: ActionGeneralRotationArgs, where: string) {
+        this.duration = parseTime(args.duration, `${where}.duration`, { min: 0, max: 1000 });
+        this.angle = parseAngleXz(args.angle, `${where}.angle`);
+    }
+
+    public toJSON() {
+        return { T: 'Rotation', ...this };
+    }
+}
+
 export type ActionGeneralArgs = ActionArgs & {
     anim_main: AniamtionArgs;
 
@@ -90,17 +142,14 @@ export type ActionGeneralArgs = ActionArgs & {
     /** 初始冷却轮数 初始状态下储存的释放次数 */
     cool_down_init_round?: int | VarValueArgs<int>;
 
-    /** 运动极限距离范围 [min,max] */
-    motion_distance?: float | readonly [float, float];
-
-    /** 运动朝向角度范围 XZ平面内的旋转角度 */
-    motion_toward?: float;
+    /** 用户输入控制的移动与旋转 */
+    input_movements?: TimelinePointArgs<ActionGeneralMovetionArgs>;
 
     /** 各阶段详细数值配置 */
-    attributes: TimelineArgs<ActionAttributesArgs>;
+    attributes: TimelineRangeArgs<ActionAttributesArgs>;
 
     /** 各阶段派生等级 */
-    derive_levels: TimelineArgs<int | VarValueArgs<int>>;
+    derive_levels: TimelineRangeArgs<int | VarValueArgs<int>>;
 
     /** 派生列表 */
     derives?: ReadonlyArray<DeriveRuleArgs>;
@@ -110,6 +159,9 @@ export type ActionGeneralArgs = ActionArgs & {
 
     /** 攻击判定数值 */
     // hits: string | TimelineGeneralArgs;
+
+    /** 动作过程中触发的事件 */
+    custom_events?: TimelinePointArgs<string | VarValueArgs<string>>;
 };
 
 /**
@@ -142,17 +194,14 @@ export class ActionGeneral extends Action {
     /** 初始冷却轮数 初始状态下储存的释放次数 */
     public readonly cool_down_init_round: int | Var<int>;
 
-    /** 运动极限距离范围 [min,max] */
-    public readonly motion_distance: readonly [float, float];
-
-    /** 运动朝向角度范围 XZ平面内的旋转角度 */
-    public readonly motion_toward: float;
+    /** 用户输入控制的移动与旋转 */
+    public readonly input_movements?: TimelinePoint<ActionGeneralMovetion>;
 
     /** 各阶段详细数值配置 */
-    public readonly attributes: Timeline<ActionAttributes>;
+    public readonly attributes: TimelineRange<ActionAttributes>;
 
     /** 各阶段派生等级 */
-    public readonly derive_levels: Timeline<int | Var<int>>;
+    public readonly derive_levels: TimelineRange<int | Var<int>>;
 
     /** 派生列表 */
     public readonly derives?: ReadonlyArray<DeriveRule>;
@@ -161,6 +210,9 @@ export class ActionGeneral extends Action {
     public readonly derive_continues?:
         | ReadonlyArray<DeriveContinue>
         | Var<ReadonlyArray<DeriveContinue>>;
+
+    /** 动作过程中触发的事件 */
+    public readonly custom_events?: TimelinePoint<string | Var<string>>;
 
     public constructor(id: ID, args: ActionGeneralArgs) {
         super(id, args);
@@ -176,19 +228,23 @@ export class ActionGeneral extends Action {
             args.cool_down_init_round || args.cool_down_round || 1,
             this.w('cool_down_init_round'),
         );
-        this.motion_distance = this.parseMotionDistance(args.motion_distance, this.anim_main);
-        this.motion_toward =
-            args.motion_toward == null
-                ? 0
-                : parseFloat(args.motion_toward, this.w('motion_toward'), { min: 0, max: 180 });
-        this.attributes = new Timeline(
+        this.input_movements = !args.input_movements
+            ? undefined
+            : new TimelinePoint(
+                  args.input_movements,
+                  this.w('input_movements'),
+                  { duration: this.anim_main.duration },
+                  {},
+                  ActionGeneral.parseInputMovement,
+              );
+        this.attributes = new TimelineRange(
             args.attributes,
             this.w('attributes'),
             { duration: this.anim_main.duration },
             {},
             parseActionAttributes,
         );
-        this.derive_levels = new Timeline(
+        this.derive_levels = new TimelineRange(
             args.derive_levels,
             this.w('derive_levels'),
             { duration: this.anim_main.duration, over_duration: 5 * FPS },
@@ -201,34 +257,54 @@ export class ActionGeneral extends Action {
         this.derive_continues = !args.derive_continues
             ? undefined
             : parseVarDeriveContinueSet(args.derive_continues, this.w('derive_continues'));
+        this.custom_events = !args.custom_events
+            ? undefined
+            : new TimelinePoint(
+                  args.custom_events,
+                  this.w('custom_events'),
+                  { duration: this.anim_main.duration },
+                  {},
+                  parseString,
+              );
 
         Aniamtion.generateLocalID([this.anim_main]);
     }
 
-    private parseMotionDistance(
-        motion_distance: undefined | float | readonly [float, float],
-        anim_main: Aniamtion,
-    ): readonly [float, float] {
-        if (motion_distance == null) {
-            if (anim_main.root_motion) {
-                const meta = native.loadRootMotionMeta(anim_main.files);
-                return [meta.whole_distance_xz, meta.whole_distance_xz];
-            } else {
-                return [0, 0];
-            }
-        } else if (typeof motion_distance === 'number') {
-            const num = parseFloat(motion_distance, this.w('motion_distance'), {
-                min: 0,
-                max: 1000,
-            });
-            return [num, num];
+    private static parseInputMovement(
+        args: ActionGeneralMovetionArgs,
+        where: string,
+    ): ActionGeneralMovetion {
+        if (
+            (args as ActionGeneralRootMotionArgs).move != null ||
+            (args as ActionGeneralRootMotionArgs).move_ex != null
+        ) {
+            return new ActionGeneralRootMotion(args as ActionGeneralRootMotionArgs, where);
+        } else if ((args as ActionGeneralRotationArgs).angle != null) {
+            return new ActionGeneralRotation(args as ActionGeneralRotationArgs, where);
         } else {
-            return parseFloatRange(motion_distance, this.w('motion_distance'), {
-                min: 0,
-                max: 1000,
-            });
+            throw new Error(`${where}: invalid input movement`);
         }
     }
+
+    // private parseInputRotations(
+    //     input_turns: undefined | ReadonlyArray<ActionGeneralRotationArgs>,
+    //     duration: float,
+    //     where: string,
+    // ) {
+    //     if (input_turns == null) {
+    //         return [];
+    //     }
+
+    //     checkArray(input_turns, where, { max_len: 3 });
+    //     let iter_time = 0;
+    //     return input_turns.map((arg, idx) => {
+    //         const rot = new ActionGeneralRotation(arg, `${where}[${idx}]`, { duration });
+    //         if (rot.input_time < iter_time) {
+    //             throw new Error(`${where}[${idx}].input_time must be ascend`);
+    //         }
+    //         return rot;
+    //     });
+    // }
 
     public override verify(): void {
         super.verify();
