@@ -239,42 +239,45 @@ export class TimeFragment {
     }
 }
 
-export type TimelineArgs<VR> = Readonly<Record<string, VR>> | ReadonlyArray<{ time: string } & VR>;
+export type TimelineRangeArgs<VR> =
+    | Readonly<Record<string, VR>>
+    | ReadonlyArray<{ time: string } & VR>;
 
-export class Timeline<V> {
+export class TimelineRange<V> {
     public fragments: ReadonlyArray<TimeFragment>;
     public values: ReadonlyArray<V>;
 
     public constructor(fragments: ReadonlyArray<TimeFragment>, values: ReadonlyArray<V>);
     public constructor(
-        raw: TimelineArgs<any>,
+        raw: TimelineRangeArgs<any>,
         where: string,
-        fragment_opts: {
+        fragmentOpts: {
             duration: float;
             over_duration?: float;
         },
-        value_opts: Record<string, any>,
+        valueOpts: Record<string, any>,
         parseValue: (raw: any, where: string, opts: Record<string, any>) => V,
     );
     public constructor() {
         if (arguments.length > 2) {
-            const raw: TimelineArgs<any> = arguments[0];
+            const raw: TimelineRangeArgs<any> = arguments[0];
             const where: string = arguments[1];
-            const fragment_opts = arguments[2];
-            const value_opts: Record<string, any> = arguments[3];
+            const fragmentOpts = arguments[2];
+            const valueOpts: Record<string, any> = arguments[3];
             const parseValue: (raw: any, where: string, opts: Record<string, any>) => V =
                 arguments[4];
+
             if (Array.isArray(raw)) {
                 this.fragments = TimeFragment.parseArray(
                     raw.map((x) => x.time),
                     where,
-                    fragment_opts,
+                    fragmentOpts,
                 );
-                this.values = raw.map((x, i) => parseValue(x, `${where}[${i}]`, value_opts));
+                this.values = raw.map((x, i) => parseValue(x, `${where}[${i}]`, valueOpts));
             } else if (typeof raw === 'object' && raw) {
-                this.fragments = TimeFragment.parseArray(Object.keys(raw), where, fragment_opts);
+                this.fragments = TimeFragment.parseArray(Object.keys(raw), where, fragmentOpts);
                 this.values = Object.entries(raw).map(([k, v]) =>
-                    parseValue(v, `${where}[${k}]`, value_opts),
+                    parseValue(v, `${where}[${k}]`, valueOpts),
                 );
             } else {
                 throw new Error(`${where}: must be an array/object`);
@@ -286,27 +289,75 @@ export class Timeline<V> {
     }
 }
 
-export function parseTimeline<R, T extends TimeFragment>(
-    raw: Readonly<Record<string, Omit<R, 'time'>>> | ReadonlyArray<R>,
-    where: string,
-    opts: {
-        min?: float;
-        max?: float;
-        ignore_warning?: boolean;
-    },
-    parse: (raw: R, where: string, opts: Record<string, any>) => T,
-): {} {
-    const res = [];
-    if (Array.isArray(raw)) {
-        for (const [idx, rawArg] of raw.entries()) {
-            res.push(parse(rawArg, `${where}[${idx}]`, opts));
+export type TimelinePointArgs<VR> =
+    | Readonly<Record<string, VR>>
+    | ReadonlyArray<{ time: string } & VR>;
+
+export class TimelinePoint<V> {
+    public pairs: ReadonlyArray<[float, V]>;
+
+    public constructor(pairs: ReadonlyArray<[float, V]>);
+    public constructor(
+        raw: TimelinePointArgs<any>,
+        where: string,
+        pointOpts: {
+            duration: float;
+        },
+        valueOpts: Record<string, any>,
+        parseValue: (raw: any, where: string, opts: Record<string, any>) => V,
+    );
+    public constructor() {
+        if (arguments.length > 2) {
+            const raw: TimelinePointArgs<any> = arguments[0];
+            const where: string = arguments[1];
+            const pointOpts = arguments[2];
+            const valueOpts: Record<string, any> = arguments[3];
+            const parseValue: (raw: any, where: string, opts: Record<string, any>) => V =
+                arguments[4];
+
+            let pairs: Array<[float, V]>;
+            if (Array.isArray(raw)) {
+                pairs = raw.map((item, idx) => [
+                    parseTime(item.time, `${where}[${idx}].time`, { max: pointOpts.duration }),
+                    parseValue(item, `${where}[${idx}]`, valueOpts),
+                ]);
+            } else if (typeof raw === 'object' && raw) {
+                pairs = Object.entries(raw).map(([time, val]) => [
+                    parseTime(time, `${where}[${time}]`, { max: pointOpts.duration }),
+                    parseValue(val, `${where}[${time}]`, valueOpts),
+                ]);
+            } else {
+                throw new Error(`${where}: must be an array/object`);
+            }
+            pairs.sort((a, b) => a[0] - b[0]);
+            this.pairs = pairs;
+        } else {
+            this.pairs = arguments[0];
         }
-    } else if (typeof raw === 'object' && raw) {
-        for (const [rawtime, rawValue] of Object.entries(raw)) {
-            res.push(parse({ time: rawtime, ...rawValue } as any, `${where}[${rawtime}]`, opts));
-        }
-    } else {
-        throw new Error(`${where}: must be an array/object`);
     }
-    return res;
 }
+
+// export function parseTimeline<R, T extends TimeFragment>(
+//     raw: Readonly<Record<string, Omit<R, 'time'>>> | ReadonlyArray<R>,
+//     where: string,
+//     opts: {
+//         min?: float;
+//         max?: float;
+//         ignore_warning?: boolean;
+//     },
+//     parse: (raw: R, where: string, opts: Record<string, any>) => T,
+// ): {} {
+//     const res = [];
+//     if (Array.isArray(raw)) {
+//         for (const [idx, rawArg] of raw.entries()) {
+//             res.push(parse(rawArg, `${where}[${idx}]`, opts));
+//         }
+//     } else if (typeof raw === 'object' && raw) {
+//         for (const [rawtime, rawValue] of Object.entries(raw)) {
+//             res.push(parse({ time: rawtime, ...rawValue } as any, `${where}[${rawtime}]`, opts));
+//         }
+//     } else {
+//         throw new Error(`${where}: must be an array/object`);
+//     }
+//     return res;
+// }
