@@ -27,7 +27,7 @@ export function gltf2ozz(
     gltfFile: string,
     configFile: string,
     MappingPair: MappingPair,
-    weaponPrefix: string,
+    jsonTrackFolder: string | null,
     dstPattern: string,
 ) {
     const tmpName = tmp
@@ -50,13 +50,20 @@ export function gltf2ozz(
     });
 
     let jsonTracks: { json: string; filename: string }[] = [];
-    if (weaponPrefix) {
-        jsonTracks = fs.readdirSync(gltfFile + '/..')
-            .filter((f) => f.startsWith(weaponPrefix) && f.endsWith('.json'))
-            .map((f) => ({
-                json: f,
-                filename: f.replace('.json', '.wm-ozz').replace(weaponPrefix, dstPattern),
-            }));
+    if (jsonTrackFolder) {
+        for (const json of fs.readdirSync(gltfFile + `/../${jsonTrackFolder}`)) {
+            if (json.endsWith('.wm-json')) {
+                jsonTracks.push({
+                    json: `${jsonTrackFolder}/${json}`,
+                    filename: `${dstPattern}_${json.replace('.wm-json', '.wm-ozz')}`,
+                });
+            } else if (json.endsWith('.rm-json')) {
+                jsonTracks.push({
+                    json: `${jsonTrackFolder}/${json}`,
+                    filename: `${dstPattern}_${json.replace('.rm-json', '.rm-ozz')}`,
+                });
+            }
+        }
     }
 
     const logicCfg = loadConfig(configFile, {
@@ -75,7 +82,7 @@ export function gltf2ozz(
         prefix: dstPattern,
         clipped_file: tmpName,
         root_motion: false,
-        json_tracks: []
+        json_tracks: [],
     });
     execute(gltfFile, viewCfg, MappingPair.viewFile, false);
 }
@@ -97,7 +104,15 @@ function loadConfig(tmplPath: string, data: any) {
     return compiled(data);
 }
 
+let prebuilt = false;
+
 function execute(gltfFile: string, config: string, mappingFile: string, isLogic: boolean) {
+    if (!prebuilt) {
+        if (!fs.existsSync(GLTF_2_OZZ)) {
+            throw new Error(`${GLTF_2_OZZ} not found`);
+        }
+        prebuilt = true;
+    }
     try {
         cp.execFileSync(
             GLTF_2_OZZ,
@@ -119,6 +134,8 @@ function execute(gltfFile: string, config: string, mappingFile: string, isLogic:
             );
             const typ = isLogic ? 'logic' : 'view';
             throw new Error(`GLTF to ${typ} ozz failed`);
+        } else {
+            throw err;
         }
     }
 }

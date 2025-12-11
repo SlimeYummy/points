@@ -113,32 +113,32 @@ export class Asset {
 
     private static database?: AssetDatabase;
 
-    public static enableIncrement() {
-        this.database = new AssetDatabase(`${OUTPUT_ASSET}/.asset_increment.json`);
+    // public static enableIncrement() {
+    //     this.database = new AssetDatabase(`${OUTPUT_ASSET}/.asset_increment.json`);
 
-        exitHook(() => {
-            if (this.database) {
-                fs.mkdirSync(OUTPUT_ASSET, { recursive: true });
-                this.database.save(`${OUTPUT_ASSET}/.asset_increment.json`);
-            }
-        });
-    }
+    //     exitHook(() => {
+    //         if (this.database) {
+    //             fs.mkdirSync(OUTPUT_ASSET, { recursive: true });
+    //             this.database.save(`${OUTPUT_ASSET}/.asset_increment.json`);
+    //         }
+    //     });
+    // }
 
-    private static incrementUpdate(id: string, files: string[], updateFn: () => void) {
-        if (!this.database) {
-            console.log(`Process ${id}`);
-            updateFn();
-        } else {
-            const asset = new AssetMeta(id, files);
-            if (this.database.check(asset)) {
-                console.log(`Process ${id}`);
-                updateFn();
-            } else {
-                console.log(`Skip ${id}`);
-            }
-            this.database.update(asset);
-        }
-    }
+    // private static incrementUpdate(id: string, files: string[], updateFn: () => void) {
+    //     if (!this.database) {
+    //         console.log(`Process ${id}`);
+    //         updateFn();
+    //     } else {
+    //         const asset = new AssetMeta(id, files);
+    //         if (this.database.check(asset)) {
+    //             console.log(`Process ${id}`);
+    //             updateFn();
+    //         } else {
+    //             console.log(`Skip ${id}`);
+    //         }
+    //         this.database.update(asset);
+    //     }
+    // }
 
     public static copyFiles(
         srcDir: string,
@@ -157,7 +157,7 @@ export class Asset {
         }
 
         function travelDir(dir: string) {
-            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            for (const entry of fs.readdirSync(path.join(srcDir, dir), { withFileTypes: true })) {
                 if (entry.isDirectory()) {
                     travelDir(path.join(dir, entry.name));
                 } else if (entry.isFile()) {
@@ -165,20 +165,30 @@ export class Asset {
                     if (!dst) {
                         continue;
                     }
-                    const src = path.join(dir, entry.name);
+                    const src = path.join(srcDir, dir, entry.name);
                     dst = path.join(OUTPUT_ASSET, dst);
-                    Asset.incrementUpdate(`copy: ${dst}`, [src], () => copyFile(src, dst));
+                    // Asset.incrementUpdate(`copy: ${dst}`, [src], () => copyFile(src, dst));
+                    copyFile(src, dst);
                 }
             }
         }
 
-        travelDir(srcDir);
+        travelDir('/');
     }
 
+    /**
+     * @param files [
+     *    glb_file: string,
+     *    config_file: string,
+     *    mapping: MappingPair,
+     *    json_track_pattern: string | null,
+     *    output_pattern: string
+     * ]
+     */
     public static gltf2ozz(
         srcDir: string,
         dstDir: string,
-        files: [string, string, animation.MappingPair, string, string][],
+        files: [string, string, animation.MappingPair, string | null, string][],
     ) {
         fs.mkdirSync(path.join(OUTPUT_ASSET, dstDir), { recursive: true });
         for (const [gltf, config, mapping, jsonTrack, pattern] of files) {
@@ -189,11 +199,12 @@ export class Asset {
                 viewFile: path.join(INPUT_ASSET, srcDir, mapping.viewFile),
             };
             const dstPattern = path.join(OUTPUT_ASSET, dstDir, pattern);
-            Asset.incrementUpdate(
-                `gltf: ${dstPattern}`,
-                [gltfFile, configFile, mappingPair.logicFile, mappingPair.viewFile],
-                () => animation.gltf2ozz(gltfFile, configFile, mappingPair, jsonTrack, dstPattern),
-            );
+            // Asset.incrementUpdate(
+            //     `gltf: ${dstPattern}`,
+            //     [gltfFile, configFile, mappingPair.logicFile, mappingPair.viewFile],
+            //     () => animation.gltf2ozz(gltfFile, configFile, mappingPair, jsonTrack, dstPattern),
+            // );
+            animation.gltf2ozz(gltfFile, configFile, mappingPair, jsonTrack, dstPattern);
         }
     }
 }
