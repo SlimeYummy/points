@@ -1,21 +1,21 @@
 import { Asset, FORCE_GEN, Resource } from '../src';
 
 if (!FORCE_GEN) {
-    Asset.enableIncrement();
+    // Asset.enableIncrement();
 }
 
-Asset.copyFiles('../test-asset/', (_dir, file) =>
-    ['girl.body.json', 'demo_zone.json'].includes(file) ? file : null,
-);
+Asset.copyFiles('../test-asset/', (_dir, file) => {
+    return ['Girl.body.json', 'TestZone.json', 'Demo1Zone.json'].includes(file) ? file : null;
+});
 
 const MAPPING_VRM_HUMAN = {
     logicFile: 'mapping_vrm_human_logic.json',
     viewFile: 'mapping_vrm_human_view.json',
 };
 
-Asset.gltf2ozz('', '', [['girl_attack.glb', 'config_vrm_human.json', MAPPING_VRM_HUMAN, 'girl']]);
+Asset.gltf2ozz('', '', [['GirlLocomotion.glb', 'config_vrm_human.json', MAPPING_VRM_HUMAN, null, 'Girl']]);
 Asset.gltf2ozz('', '', [
-    ['girl_locomotion.glb', 'config_vrm_human.json', MAPPING_VRM_HUMAN, 'girl'],
+    ['GirlAttack.glb', 'config_vrm_human.json', MAPPING_VRM_HUMAN, 'GirlAttack', 'Girl'],
 ]);
 
 console.log('\nGenerate assets done\n');
