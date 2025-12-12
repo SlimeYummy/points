@@ -35,8 +35,8 @@ import {
 
 Var.define({
     '#.One.NormalAttack.Branch': [2, 'Character.One'],
-    '#.Entry.Variable/1': [3, 'Character.One'],
-    '#.Entry.Variable/2': [2, '*'],
+    '#.Entry.Variable^1': [3, 'Character.One'],
+    '#.Entry.Variable^2': [2, '*'],
 });
 
 //
@@ -56,15 +56,15 @@ const fixed_attributes = {
 const ONE = new Character('Character.One', {
     name: 'Character One',
     level: [1, 6],
-    styles: ['Style.One/1', 'Style.One/2'],
+    styles: ['Style.One^1', 'Style.One^2'],
     equipments: ['Equipment.No1', 'Equipment.No2', 'Equipment.No3'],
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
-    skeleton_files: 'girl.*',
+    skeleton_files: 'Girl.*',
     skeleton_toward: [0, 1],
-    body_file: 'body1.json',
+    body_file: 'Girl.body.json',
 });
 
-new Style('Style.One/1', {
+new Style('Style.One^1', {
     name: 'Character One Type-1',
     character: 'Character.One',
     tags: ['Player'],
@@ -89,13 +89,13 @@ new Style('Style.One/1', {
         'Action.One.Idle',
         'Action.One.IdleX',
         'Action.One.Run',
-        'Action.One.Attack/1',
-        'Action.One.Attack/2',
+        'Action.One.Attack^1',
+        'Action.One.Attack^2',
     ],
     view_model: 'StyleOne-1.vrm',
 });
 
-new Style('Style.One/2', {
+new Style('Style.One^2', {
     name: 'Character One Type-2',
     character: 'Character.One',
     tags: ['Player'],
@@ -104,22 +104,22 @@ new Style('Style.One/2', {
     fixed_attributes,
     perks: ['Perk.One.FinalPerk'],
     usable_perks: ['Perk.One.AttackUp'],
-    actions: ['Action.One.Idle', 'Action.One.Run', 'Action.One.Attack/1'],
+    actions: ['Action.One.Idle', 'Action.One.Run', 'Action.One.Attack^1'],
     view_model: 'OneType-2.vrm',
 });
 
 new Character('Character.Two', {
     name: 'Character Two',
     level: [0, 5],
-    styles: ['Style.Two/1'],
+    styles: ['Style.Two^1'],
     equipments: ['Equipment.No4'],
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
-    skeleton_files: 'girl.*',
+    skeleton_files: 'Girl.*',
     skeleton_toward: [0, 1],
     body_file: 'body2.json',
 });
 
-new Style('Style.Two/1', {
+new Style('Style.Two^1', {
     name: 'Character Two Type-1',
     character: 'Character.Two',
     tags: ['Player'],
@@ -205,21 +205,21 @@ new ActionIdle('Action.One.Idle', {
     styles: ONE.styles,
     tags: ['Idle'],
     anim_idle: {
-        files: 'girl_stand_idle.*',
+        files: 'Girl_Idle_Empty.*',
         duration: '2.5s',
     },
     anim_ready: {
-        files: 'girl_stand_ready.*',
+        files: 'Girl_Idle_Axe.*',
         duration: '2s',
     },
 });
 
 new ActionIdle('Action.One.IdleX', {
     character: ONE.id,
-    styles: ['Style.One/1'],
+    styles: ['Style.One^1'],
     tags: ['Idle'],
     anim_idle: {
-        files: 'girl_stand_idle.*',
+        files: 'Girl_Idle_Empty.*',
         duration: '2.5s',
     },
 });
@@ -230,7 +230,7 @@ new ActionMove('Action.One.Run', {
     tags: ['Run'],
     enter_key: Run,
     anim_move: {
-        files: 'girl_run.*',
+        files: 'Girl_Run_Empty.*',
         fade_in: '4F',
         root_motion: true,
     },
@@ -238,7 +238,7 @@ new ActionMove('Action.One.Run', {
     starts: [
         {
             enter_angle: ['L15', 'R15'],
-            files: 'girl_run_start.*',
+            files: 'Girl_RunStart_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '2F',
@@ -246,7 +246,7 @@ new ActionMove('Action.One.Run', {
         },
         {
             enter_angle: ['L15', 'L180'],
-            files: 'girl_run_start_turn_l180.*',
+            files: 'Girl_RunStart_L180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -254,7 +254,7 @@ new ActionMove('Action.One.Run', {
         },
         {
             enter_angle: ['R15', 'R180'],
-            files: 'girl_run_start_turn_r180.*',
+            files: 'Girl_RunStart_R180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -264,37 +264,45 @@ new ActionMove('Action.One.Run', {
     turn_time: '10F',
     stops: [
         {
-            enter_phase_table: [[0.75, 0.25, '2F']],
-            files: 'girl_run_stop_l.*',
+            enter_phase_table: [{ phase: [0.75, 0.25], offset: '2F' }],
+            files: 'Girl_RunStop_L_Empty.*',
             fade_in: '4F',
             root_motion: true,
-            speed_down_end: '12F',
+            leave_phase_table: [
+                ['0F', 0.0],
+                ['14F', 0.5],
+            ],
         },
         {
-            enter_phase_table: [[0.25, 0.75, '2F']],
-            files: 'girl_run_stop_r.*',
+            enter_phase_table: [{ phase: [0.25, 0.75], offset: '2F' }],
+            files: 'Girl_RunStop_R_Empty.*',
             fade_in: '4F',
             root_motion: true,
-            speed_down_end: '12F',
+            leave_phase_table: [
+                ['0F', 0.5],
+                ['14F', 0.0],
+            ],
         },
     ],
     quick_stop_time: 0,
     smooth_move_froms: ['Action.One.Run'],
 });
 
-new ActionGeneral('Action.One.Attack/1', {
+new ActionGeneral('Action.One.Attack^1', {
     anim_main: {
-        files: 'girl_attack1_1.*',
+        files: 'Girl_Attack_01A.*',
         duration: 4,
         root_motion: true,
     },
     character: ONE.id,
     tags: ['Attack'],
-    styles: ['Style.One/1', 'Style.One/2'],
+    styles: ['Style.One^1', 'Style.One^2'],
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,
-    motion_distance: [0.5, 1.0],
-    motion_toward: 45,
+    input_movements: {
+        '0F': { duration: '8F', angle: 45 },
+        '20F': { move: true },
+    },
     attributes: {
         '0-4s': {
             damage_rdc: '20%',
@@ -307,21 +315,32 @@ new ActionGeneral('Action.One.Attack/1', {
         '2.5s-4s': LEVEL_ATTACK,
     },
     derives: [
-        [Attack1, 'Action.One.Attack/2'],
-        [Attack2, [Forward, 60], 'Action.One.Attack/2'],
+        {
+            key: Attack1,
+            level: LEVEL_ATTACK + 1,
+            action: 'Action.One.Attack^2'
+        },
+        {
+            key: [Attack2, 'F60'],
+            level: LEVEL_ATTACK + 1,
+            action: 'Action.One.Attack^2'
+        },
     ],
+    custom_events: {
+        '1s': 'CustomEvent',
+    },
 });
 
-new ActionGeneral('Action.One.Attack/2', {
+new ActionGeneral('Action.One.Attack^2', {
     anim_main: {
-        files: 'girl_attack2_1.*',
+        files: 'Girl_attack_02A.*',
         duration: '5s',
         root_motion: true,
     },
     enabled: ['#.One.NormalAttack.Branch', [false, true, true]],
     character: ONE.id,
     tags: ['Attack'],
-    styles: ['Style.One/1'],
+    styles: ['Style.One^1'],
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,
     attributes: {
@@ -340,7 +359,7 @@ new ActionGeneral('Action.One.Attack/2', {
 new Perk('Perk.One.NormalAttack.Branch', {
     name: 'Normal Attack Branch',
     character: ONE.id,
-    style: 'Style.One/1',
+    style: 'Style.One^1',
     max_level: 2,
     var_indexes: {
         '#.One.NormalAttack.Branch': [1, 2],
@@ -350,7 +369,7 @@ new Perk('Perk.One.NormalAttack.Branch', {
 new Perk('Perk.One.AttackUp', {
     name: 'Attack Up',
     character: ONE.id,
-    style: 'Style.One/1',
+    style: 'Style.One^1',
     usable_styles: ONE.styles,
     max_level: 3,
     attributes: {
@@ -361,7 +380,7 @@ new Perk('Perk.One.AttackUp', {
 new Perk('Perk.One.FinalPerk', {
     name: 'Final Perk',
     character: ONE.id,
-    style: 'Style.One/2',
+    style: 'Style.One^2',
     usable_styles: ONE.styles,
     parents: {
         'Perk.One.AttackUp': 3,
@@ -378,7 +397,7 @@ new Perk('Perk.One.FinalPerk', {
 // Jewel
 //
 
-new Jewel('Jewel.DefenseUp/1', {
+new Jewel('Jewel.DefenseUp^1', {
     slot: Defense,
     rare: Rare1,
     entry: 'Entry.DefenseUp',
@@ -386,7 +405,7 @@ new Jewel('Jewel.DefenseUp/1', {
     variant: Variant1,
 });
 
-new Jewel('Jewel.AttackUp/1', {
+new Jewel('Jewel.AttackUp^1', {
     slot: Attack,
     rare: Rare1,
     entry: 'Entry.AttackUp',
@@ -394,7 +413,7 @@ new Jewel('Jewel.AttackUp/1', {
     variant: Variant1,
 });
 
-new Jewel('Jewel.AttackUp/2', {
+new Jewel('Jewel.AttackUp^2', {
     slot: Attack,
     rare: Rare2,
     entry: 'Entry.AttackUp',
@@ -460,7 +479,7 @@ new AccessoryPool(POOL_RARE3, {
     },
 });
 
-new Accessory('Accessory.AttackUp/1', {
+new Accessory('Accessory.AttackUp^1', {
     pool: POOL_RARE1,
     rare: 'Rare1',
     entry: 'Entry.AttackUp',
@@ -476,7 +495,7 @@ new Accessory('Accessory.CriticalChance', {
     variant: Variant2,
 });
 
-new Accessory('Accessory.AttackUp/3', {
+new Accessory('Accessory.AttackUp^3', {
     pool: POOL_RARE3,
     rare: 'Rare3',
     entry: 'Entry.AttackUp',
@@ -550,8 +569,8 @@ new Entry('Entry.Variable', {
     name: 'Entry Variable',
     max_piece: 3,
     var_indexes: {
-        '#.Entry.Variable/1': [1, 2, 3],
-        '#.Entry.Variable/2': [0, 1, 2],
+        '#.Entry.Variable^1': [1, 2, 3],
+        '#.Entry.Variable^2': [0, 1, 2],
     },
 });
 
@@ -561,6 +580,6 @@ new Entry('Entry.Variable', {
 
 new Zone('Zone.Demo', {
     name: 'Demo',
-    zone_file: 'demo_zone.json',
+    zone_file: 'TestZone.json',
     view_zone_file: 'stage-demo.tscn',
 });
