@@ -19,10 +19,10 @@ import {
 } from '../src';
 
 Var.define({
-    '#.Action.Instance.AttackDerive/1A': [2, ['Character.Instance/1']],
-    '#.Action.Instance.AttackUnused/1A': [1, ['Character.Instance/1']],
-    '#.Perk.Instance/1A': [1, ['Style.Instance/1A']],
-    '#.Perk.Instance/1B': [3, ['Style.Instance/1A']],
+    '#.Action.Instance.AttackDerive^1A': [2, ['Character.Instance^1']],
+    '#.Action.Instance.AttackUnused^1A': [1, ['Character.Instance^1']],
+    '#.Perk.Instance^1A': [1, ['Style.Instance^1A']],
+    '#.Perk.Instance^1B': [3, ['Style.Instance^1A']],
 });
 
 const fixed_attributes = {
@@ -35,20 +35,20 @@ const fixed_attributes = {
     weak_damage_up: 0.25,
 };
 
-new Character('Character.Instance/1', {
+new Character('Character.Instance^1', {
     name: 'Character 1',
     level: [1, 6],
-    styles: ['Style.Instance/1A'],
-    equipments: ['Equipment.Instance/1A', 'Equipment.Instance/1B'],
+    styles: ['Style.Instance^1A'],
+    equipments: ['Equipment.Instance^1A', 'Equipment.Instance^1B'],
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
-    skeleton_files: 'girl.*',
+    skeleton_files: 'Girl.*',
     skeleton_toward: [0, 1],
-    body_file: 'body1.json',
+    body_file: 'Girl.body.json',
 });
 
-new Style('Style.Instance/1A', {
+new Style('Style.Instance^1A', {
     name: 'Style 1',
-    character: 'Character.Instance/1',
+    character: 'Character.Instance^1',
     tags: ['Player'],
     attributes: {
         MaxHealth: [400, 550, 700, 850, 1000, 1200],
@@ -65,20 +65,20 @@ new Style('Style.Instance/1A', {
     },
     slots: ['A2D2', 'A2D2', 'A3D3', 'A3D3S2', 'A5D4S2', 'A5D4S3'],
     fixed_attributes,
-    perks: ['Perk.Instance/1A', 'Perk.Instance/1B'],
+    perks: ['Perk.Instance^1A', 'Perk.Instance^1B'],
     actions: [
-        'Action.Instance.Idle/1A',
-        'Action.Instance.Run/1A',
-        'Action.Instance.Attack/1A',
-        'Action.Instance.AttackDerive/1A',
-        'Action.Instance.AttackUnused/1A',
+        'Action.Instance.Idle^1A',
+        'Action.Instance.Run^1A',
+        'Action.Instance.Attack^1A',
+        'Action.Instance.AttackDerive^1A',
+        'Action.Instance.AttackUnused^1A',
     ],
     view_model: 'StyleOne-1.vrm',
 });
 
-new Equipment('Equipment.Instance/1A', {
+new Equipment('Equipment.Instance^1A', {
     name: 'Weapon 1A',
-    character: 'Character.Instance/1',
+    character: 'Character.Instance^1',
     slot: Slot1,
     level: [1, 4],
     attributes: {
@@ -98,9 +98,9 @@ new Equipment('Equipment.Instance/1A', {
     },
 });
 
-new Equipment('Equipment.Instance/1B', {
+new Equipment('Equipment.Instance^1B', {
     name: 'Weapon 1B',
-    character: 'Character.Instance/1',
+    character: 'Character.Instance^1',
     slot: Slot3,
     level: [0, 3],
     attributes: {
@@ -120,10 +120,10 @@ new Equipment('Equipment.Instance/1B', {
     },
 });
 
-new Perk('Perk.Instance/1A', {
+new Perk('Perk.Instance^1A', {
     name: 'Instance 1A',
-    character: 'Character.Instance/1',
-    style: 'Style.Instance/1A',
+    character: 'Character.Instance^1',
+    style: 'Style.Instance^1A',
     max_level: 2,
     attributes: {
         AttackUp: ['10%', '15%'],
@@ -139,45 +139,45 @@ new Perk('Perk.Instance/1A', {
         ],
     },
     var_indexes: {
-        '#.Perk.Instance/1A': [0, 1],
-        '#.Perk.Instance/1B': [1, 2],
+        '#.Perk.Instance^1A': [0, 1],
+        '#.Perk.Instance^1B': [1, 2],
     },
 });
 
-new Perk('Perk.Instance/1B', {
+new Perk('Perk.Instance^1B', {
     name: 'Instance 1A',
-    character: 'Character.Instance/1',
-    style: 'Style.Instance/1A',
+    character: 'Character.Instance^1',
+    style: 'Style.Instance^1A',
     max_level: 3,
     slots: ['A1D1', 'S1A1D1', 'S1A2D2'],
     var_indexes: {
-        '#.Perk.Instance/1B': [2, 3, 4],
+        '#.Perk.Instance^1B': [2, 3, 4],
     },
 });
 
-new ActionIdle('Action.Instance.Idle/1A', {
-    character: 'Character.Instance/1',
-    styles: ['Style.Instance/1A'],
+new ActionIdle('Action.Instance.Idle^1A', {
+    character: 'Character.Instance^1',
+    styles: ['Style.Instance^1A'],
     tags: ['Idle'],
     anim_idle: {
-        files: 'girl_stand_idle.*',
+        files: 'Girl_Idle_Empty.*',
         duration: '2.5s',
         fade_in: 0.2,
     },
     anim_ready: {
-        files: 'girl_stand_ready.*',
+        files: 'Girl_Idle_Axe.*',
         duration: 2,
         fade_in: 0.4,
     },
 });
 
-new ActionMove('Action.Instance.Run/1A', {
-    character: 'Character.Instance/1',
-    styles: ['Style.Instance/1A'],
+new ActionMove('Action.Instance.Run^1A', {
+    character: 'Character.Instance^1',
+    styles: ['Style.Instance^1A'],
     tags: ['Run'],
     enter_key: Run,
     anim_move: {
-        files: 'girl_run.*',
+        files: 'Girl_Run_Empty.*',
         fade_in: '4F',
         root_motion: true,
     },
@@ -185,7 +185,7 @@ new ActionMove('Action.Instance.Run/1A', {
     starts: [
         {
             enter_angle: ['L15', 'R15'],
-            files: 'girl_run_start.*',
+            files: 'Girl_RunStart_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '2F',
@@ -193,7 +193,7 @@ new ActionMove('Action.Instance.Run/1A', {
         },
         {
             enter_angle: ['L15', 'L180'],
-            files: 'girl_run_start_turn_l180.*',
+            files: 'Girl_RunStart_L180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -201,7 +201,7 @@ new ActionMove('Action.Instance.Run/1A', {
         },
         {
             enter_angle: ['R15', 'R180'],
-            files: 'girl_run_start_turn_r180.*',
+            files: 'Girl_RunStart_R180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -211,36 +211,44 @@ new ActionMove('Action.Instance.Run/1A', {
     turn_time: '10F',
     stops: [
         {
-            enter_phase_table: [[0.75, 0.25, '2F']],
-            files: 'girl_run_stop_l.*',
+            enter_phase_table: [{ phase: [0.75, 0.25], offset: '2F' }],
+            files: 'Girl_RunStop_L_Empty.*',
             fade_in: '4F',
             root_motion: true,
-            speed_down_end: '12F',
+            leave_phase_table: [
+                ['0F', 0.0],
+                ['14F', 0.5],
+            ],
         },
         {
-            enter_phase_table: [[0.25, 0.75, '2F']],
-            files: 'girl_run_stop_r.*',
+            enter_phase_table: [{ phase: [0.25, 0.75], offset: '2F' }],
+            files: 'Girl_RunStop_R_Empty.*',
             fade_in: '4F',
             root_motion: true,
-            speed_down_end: '12F',
+            leave_phase_table: [
+                ['0F', 0.5],
+                ['14F', 0.0],
+            ],
         },
     ],
     quick_stop_time: 0,
 });
 
-new ActionGeneral('Action.Instance.Attack/1A', {
-    character: 'Character.Instance/1',
-    styles: ['Style.Instance/1A'],
+new ActionGeneral('Action.Instance.Attack^1A', {
+    character: 'Character.Instance^1',
+    styles: ['Style.Instance^1A'],
     tags: ['Attack'],
     anim_main: {
-        files: 'girl_attack1_1.*',
+        files: 'Girl_Attack_01A.*',
         duration: 4,
         root_motion: true,
     },
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,
-    motion_distance: [0.7, 1.2],
-    motion_toward: 60,
+    input_movements: {
+        '0F': { duration: '8F', angle: 60 },
+        '24F': { move_ex: true },
+    },
     attributes: {
         '0-4s': {
             damage_rdc: '20%',
@@ -253,18 +261,30 @@ new ActionGeneral('Action.Instance.Attack/1A', {
         '2.5s-4.5s': LEVEL_ATTACK,
     },
     derives: [
-        [Attack1, 'Action.Instance.AttackDerive/1A'],
-        [Attack2, [Forward, 60], 'Action.Instance.AttackDerive/1A'],
+        {
+            key: Attack1,
+            level: LEVEL_ATTACK + 1,
+            action: 'Action.Instance.AttackDerive^1A'
+        },
+        {
+            key: [Attack2, 'B60'],
+            level: LEVEL_ATTACK + 1,
+            action: 'Action.Instance.AttackDerive^1A'
+        },
     ],
+    custom_events: {
+        '2s': 'Event2s',
+        '1s': 'Event1s',
+    },
 });
 
-new ActionGeneral('Action.Instance.AttackDerive/1A', {
-    enabled: ['#.Action.Instance.AttackDerive/1A', [false, false, true]],
-    character: 'Character.Instance/1',
+new ActionGeneral('Action.Instance.AttackDerive^1A', {
+    enabled: ['#.Action.Instance.AttackDerive^1A', [false, false, true]],
+    character: 'Character.Instance^1',
     tags: ['Attack'],
-    styles: ['Style.Instance/1A'],
+    styles: ['Style.Instance^1A'],
     anim_main: {
-        files: 'girl_attack1_2.*',
+        files: 'Girl_Attack_03A.*',
         duration: '5s',
         root_motion: true,
     },
@@ -277,13 +297,13 @@ new ActionGeneral('Action.Instance.AttackDerive/1A', {
     },
 });
 
-new ActionGeneral('Action.Instance.AttackUnused/1A', {
-    enabled: ['#.Action.Instance.AttackUnused/1A', [false, true]],
-    character: 'Character.Instance/1',
+new ActionGeneral('Action.Instance.AttackUnused^1A', {
+    enabled: ['#.Action.Instance.AttackUnused^1A', [false, true]],
+    character: 'Character.Instance^1',
     tags: ['Attack'],
-    styles: ['Style.Instance/1A'],
+    styles: ['Style.Instance^1A'],
     anim_main: {
-        files: 'girl_attack1_2.*',
+        files: 'Girl_attack_04A.*',
         duration: '5s',
         root_motion: true,
     },
