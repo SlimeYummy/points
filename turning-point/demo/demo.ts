@@ -17,19 +17,19 @@ import {
 
 new Zone('Zone.Demo', {
     name: 'Demo',
-    zone_file: 'demo_zone.json',
-    view_zone_file: 'DemoZone.unity',
+    zone_file: 'TestZone.json',
+    view_zone_file: '.unity',
 });
 
-const ONE = new Character('Character.DemoGirl', {
+const ONE = new Character('Character.Demo', {
     name: 'Character One',
     level: [1, 6],
-    styles: ['Style.DemoGirl/1'],
+    styles: ['Style.Demo^1'],
     equipments: [],
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
-    skeleton_files: 'girl.*',
+    skeleton_files: 'Girl.*',
     skeleton_toward: [0, 1],
-    body_file: 'body1.json',
+    body_file: 'Girl.body.json',
 });
 
 const fixed_attributes = {
@@ -42,7 +42,7 @@ const fixed_attributes = {
     weak_damage_up: 0.25,
 };
 
-new Style('Style.DemoGirl/1', {
+new Style('Style.Demo^1', {
     name: 'Character Girl Type-1',
     character: ONE.id,
     attributes: {
@@ -63,31 +63,33 @@ new Style('Style.DemoGirl/1', {
     perks: [],
     usable_perks: [],
     actions: [
-        'Action.DemoGirl.Idle',
-        'Action.DemoGirl.Run',
-        'Action.DemoGirl.Walk',
-        'Action.DemoGirl.Attack1/1',
-        'Action.DemoGirl.Attack2/1',
+        'Action.Demo.Idle',
+        'Action.Demo.Run',
+        'Action.Demo.Walk',
+        'Action.Demo.Attack1',
+        'Action.Demo.Attack2',
+        'Action.Demo.Attack3',
+        'Action.Demo.Attack4',
     ],
     view_model: 'StyleOne-1.vrm',
 });
 
-new ActionIdle('Action.DemoGirl.Idle', {
+new ActionIdle('Action.Demo.Idle', {
     character: ONE.id,
     styles: ONE.styles,
     tags: ['Idle'],
     anim_idle: {
-        files: 'girl_idle.*',
+        files: 'Girl_Idle_Empty.*',
     },
 });
 
-new ActionMove('Action.DemoGirl.Run', {
+new ActionMove('Action.Demo.Run', {
     character: ONE.id,
     styles: ONE.styles,
     tags: ['Run'],
     enter_key: Run,
     anim_move: {
-        files: 'girl_run.*',
+        files: 'Girl_Run_Empty.*',
         fade_in: '4F',
         root_motion: true,
     },
@@ -95,7 +97,7 @@ new ActionMove('Action.DemoGirl.Run', {
     starts: [
         {
             enter_angle: ['L30', 'R30'],
-            files: 'girl_run_start.*',
+            files: 'Girl_RunStart_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '4F',
@@ -103,7 +105,7 @@ new ActionMove('Action.DemoGirl.Run', {
         },
         {
             enter_angle: ['L30', 'L105'],
-            files: 'girl_run_start_turn_l90.*',
+            files: 'Girl_RunStart_L90_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '6F',
@@ -111,7 +113,7 @@ new ActionMove('Action.DemoGirl.Run', {
         },
         {
             enter_angle: ['R30', 'R105'],
-            files: 'girl_run_start_turn_r90.*',
+            files: 'Girl_RunStart_R90_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '6F',
@@ -119,7 +121,7 @@ new ActionMove('Action.DemoGirl.Run', {
         },
         {
             enter_angle: ['L105', 'L180'],
-            files: 'girl_run_start_turn_l180.*',
+            files: 'Girl_RunStart_L180_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '8F',
@@ -127,7 +129,7 @@ new ActionMove('Action.DemoGirl.Run', {
         },
         {
             enter_angle: ['R105', 'R180'],
-            files: 'girl_run_start_turn_r180.*',
+            files: 'Girl_RunStart_R180_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '8F',
@@ -137,30 +139,38 @@ new ActionMove('Action.DemoGirl.Run', {
     turn_time: '12F',
     stops: [
         {
-            enter_phase_table: [[0.75, 0.25, '2F']],
-            files: 'girl_run_stop_l.*',
+            enter_phase_table: [{ phase: [0.75, 0.25], offset: '2F' }],
+            files: 'Girl_RunStop_l_Empty.*',
             fade_in: '4F',
             root_motion: true,
-            speed_down_end: '12F',
+            leave_phase_table: [
+                ['0F', 0.0],
+                ['14F', 0.5],
+                ['34F', 0.8],
+            ],
         },
         {
-            enter_phase_table: [[0.25, 0.75, '2F']],
-            files: 'girl_run_stop_r.*',
+            enter_phase_table: [{ phase: [0.25, 0.75], offset: '2F' }],
+            files: 'Girl_RunStop_r_Empty.*',
             fade_in: '4F',
             root_motion: true,
-            speed_down_end: '12F',
+            leave_phase_table: [
+                ['0F', 0.5],
+                ['14F', 0.0],
+                ['34F', 0.3],
+            ],
         },
     ],
     quick_stop_time: 0,
 });
 
-new ActionMove('Action.DemoGirl.Walk', {
+new ActionMove('Action.Demo.Walk', {
     character: ONE.id,
     styles: ONE.styles,
     tags: ['Walk'],
     enter_key: Walk,
     anim_move: {
-        files: 'girl_walk.*',
+        files: 'Girl_Walk_Empty.*',
         fade_in: '4F',
         root_motion: true,
     },
@@ -168,7 +178,7 @@ new ActionMove('Action.DemoGirl.Walk', {
     starts: [
         {
             enter_angle: ['L30', 'R30'],
-            files: 'girl_walk_start.*',
+            files: 'Girl_WalkStart_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '6F',
@@ -176,7 +186,7 @@ new ActionMove('Action.DemoGirl.Walk', {
         },
         {
             enter_angle: ['L30', 'L105'],
-            files: 'girl_walk_start_turn_l90.*',
+            files: 'Girl_WalkStart_L90_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '8F',
@@ -184,7 +194,7 @@ new ActionMove('Action.DemoGirl.Walk', {
         },
         {
             enter_angle: ['R30', 'R105'],
-            files: 'girl_walk_start_turn_r90.*',
+            files: 'Girl_WalkStart_R90_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '8F',
@@ -192,7 +202,7 @@ new ActionMove('Action.DemoGirl.Walk', {
         },
         {
             enter_angle: ['L105', 'L180'],
-            files: 'girl_walk_start_turn_l180.*',
+            files: 'Girl_WalkStart_L180_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '10F',
@@ -200,7 +210,7 @@ new ActionMove('Action.DemoGirl.Walk', {
         },
         {
             enter_angle: ['R105', 'R180'],
-            files: 'girl_walk_start_turn_r180.*',
+            files: 'Girl_WalkStart_R180_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '10F',
@@ -210,71 +220,189 @@ new ActionMove('Action.DemoGirl.Walk', {
     turn_time: '16F',
     stops: [
         {
-            enter_phase_table: [[0.75, 0.25, '2F']],
-            files: 'girl_walk_stop_l.*',
-            fade_in: '4F',
+            enter_phase_table: [
+                { phase: [0.83, 0.02], offset: '0F' },
+                { phase: [0.02, 0.08], offset: '2F' },
+            ],
+            files: 'Girl_WalkStop_1_Empty.*',
+            fade_in: '6F',
             root_motion: true,
-            speed_down_end: '12F',
         },
         {
-            enter_phase_table: [[0.25, 0.75, '2F']],
-            files: 'girl_walk_stop_r.*',
-            fade_in: '4F',
+            enter_phase_table: [
+                { phase: [0.08, 0.27], offset: '0F' },
+                { phase: [0.27, 0.33], offset: '2F' },
+            ],
+            files: 'Girl_WalkStop_2_Empty.*',
+            fade_in: '6F',
             root_motion: true,
-            speed_down_end: '12F',
+        },
+        {
+            enter_phase_table: [
+                { phase: [0.33, 0.52], offset: '0F' },
+                { phase: [0.52, 0.58], offset: '2F' },
+            ],
+            files: 'Girl_WalkStop_3_Empty.*',
+            fade_in: '6F',
+            root_motion: true,
+        },
+        {
+            enter_phase_table: [
+                { phase: [0.58, 0.77], offset: '0F' },
+                { phase: [0.77, 0.83], offset: '2F' },
+            ],
+            files: 'Girl_WalkStop_4_Empty.*',
+            fade_in: '6F',
+            root_motion: true,
         },
     ],
     quick_stop_time: 0,
 });
 
-new ActionGeneral('Action.DemoGirl.Attack1/1', {
+new ActionGeneral('Action.Demo.Attack1', {
     anim_main: {
-        files: 'girl_attack1_1.*',
-        duration: '1.3s',
+        files: 'Girl_Attack_01A.*',
+        duration: '168F',
         root_motion: true,
+        weapon_motion: true,
     },
     character: ONE.id,
+    styles: ONE.styles,
     tags: ['Attack'],
-    styles: ['Style.DemoGirl/1'],
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,
-    motion_distance: [0.3, 0.5],
-    motion_toward: 60,
+    input_movements: [
+        { time: '0F', duration: '12F', angle: 45 },
+        { time: '48F', duration: '16F', angle: 45 },
+        { time: '48F', move_ex: true },
+    ],
     attributes: {
-        '0-1.3s': {
+        '0-168F': {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        },
+        }
     },
     derive_levels: {
-        '0-1.3s': LEVEL_ACTION,
-        '1.15s-1.3s': LEVEL_ATTACK,
+        '0-124F': LEVEL_ACTION,
+        '124F-168F': LEVEL_ATTACK,
     },
+    derives: [
+        { key: Attack1, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack3' },
+        { key: Attack2, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack4' },
+    ],
+    custom_events: {
+        '70F': 'SE_Slash',
+        '68F': 'VFX_Slash'
+    }
 });
 
-new ActionGeneral('Action.DemoGirl.Attack2/1', {
+new ActionGeneral('Action.Demo.Attack2', {
     anim_main: {
-        files: 'girl_attack2_1.*',
-        duration: '2.2s',
+        files: 'Girl_Attack_02A.*',
+        duration: '168F',
         root_motion: true,
+        weapon_motion: true,
     },
     character: ONE.id,
+    styles: ONE.styles,
     tags: ['Attack'],
-    styles: ['Style.DemoGirl/1'],
     enter_key: Attack2,
     enter_level: LEVEL_ATTACK,
+    input_movements: [
+        { time: '0F', duration: '12F', angle: 45 },
+        { time: '48F', duration: '16F', angle: 45 },
+        { time: '48F', move_ex: true },
+    ],
     attributes: {
-        '0-2.2s': {
-            damage_rdc: '40%',
+        '0-168F': {
+            damage_rdc: '20%',
             shield_dmg_rdc: 0,
-            poise_level: 2,
-        },
+            poise_level: 1,
+        }
     },
     derive_levels: {
-        '0-2.2s': LEVEL_ACTION,
-        '2.1s-2.2s': LEVEL_ATTACK,
+        '0-124F': LEVEL_ACTION,
+        '130F-168F': LEVEL_ATTACK,
     },
+    derives: [
+        { key: Attack1, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack3' },
+        { key: Attack2, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack4' },
+    ],
+    custom_events: {
+        '70F': 'SE_Slash',
+        '68F': 'VFX_Slash'
+    }
+});
+
+new ActionGeneral('Action.Demo.Attack3', {
+    anim_main: {
+        files: 'Girl_Attack_03A.*',
+        duration: '170F',
+        root_motion: true,
+        weapon_motion: true,
+    },
+    character: ONE.id,
+    styles: ONE.styles,
+    tags: ['Attack'],
+    enter_level: LEVEL_ATTACK,
+    input_movements: {
+        '0F': { duration: '12F', angle: 45 }
+    },
+    attributes: {
+        '0-170F': {
+            damage_rdc: '20%',
+            shield_dmg_rdc: 0,
+            poise_level: 1,
+        }
+    },
+    derive_levels: {
+        '0-130F': LEVEL_ACTION,
+        '130F-170F': LEVEL_ATTACK,
+    },
+    derives: [
+        { key: Attack1, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack1' },
+        { key: Attack2, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack2' },
+    ],
+    custom_events: {
+        '50F': 'SE_Slash',
+        '48F': 'VFX_Slash'
+    }
+});
+
+new ActionGeneral('Action.Demo.Attack4', {
+    anim_main: {
+        files: 'Girl_Attack_04A.*',
+        duration: '170F',
+        root_motion: true,
+        weapon_motion: true,
+    },
+    character: ONE.id,
+    styles: ONE.styles,
+    tags: ['Attack'],
+    enter_level: LEVEL_ATTACK,
+    input_movements: {
+        '0F': { duration: '12F', angle: 45 }
+    },
+    attributes: {
+        '0-170F': {
+            damage_rdc: '20%',
+            shield_dmg_rdc: 0,
+            poise_level: 1,
+        }
+    },
+    derive_levels: {
+        '0-124F': LEVEL_ACTION,
+        '124F-170F': LEVEL_ATTACK,
+    },
+    derives: [
+        { key: Attack1, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack1' },
+        { key: Attack2, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack2' },
+    ],
+    custom_events: {
+        '50F': 'SE_Slash',
+        '48F': 'VFX_Slash'
+    }
 });
 
 declare const __dirname: string;
