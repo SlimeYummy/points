@@ -1,4 +1,4 @@
-use critical_point_core::animation::{WeaponMotionTrackSet, RootMotionTrack};
+use critical_point_core::animation::{RootTrackName, RootMotion, WeaponMotion};
 use glam::{Vec3, Vec3Swizzles};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
@@ -77,10 +77,18 @@ pub fn load_animation_meta(path: String) -> Result<AnimationMeta> {
 #[napi(object)]
 pub struct RootMotionMeta {
     pub version: u32,
-    #[napi(js_name = "has_position")]
-    pub has_position: bool,
+    #[napi(js_name = "position_default")]
+    pub position_default: Option<RootMotionPositionMeta>,
+    #[napi(js_name = "position_move")]
+    pub position_move: Option<RootMotionPositionMeta>,
+    #[napi(js_name = "position_move_ex")]
+    pub position_move_ex: Option<RootMotionPositionMeta>,
     #[napi(js_name = "has_rotation")]
     pub has_rotation: bool,
+}
+
+#[napi(object)]
+pub struct RootMotionPositionMeta {
     #[napi(js_name = "whole_distance")]
     pub whole_distance: f64,
     #[napi(js_name = "whole_distance_xz")]
@@ -91,38 +99,66 @@ pub struct RootMotionMeta {
 
 #[napi]
 pub fn load_root_motion_meta(path: String) -> Result<RootMotionMeta> {
-    let root_motion = match RootMotionTrack::from_path(&path) {
+    let root_motion = match RootMotion::from_path(&path) {
         Ok(root_motion) => root_motion,
         Err(err) => return Err(cp_err_msg(err, &path)),
     };
+
+    let mut position_default = None;
+    if root_motion.has_position(RootTrackName::Default) {
+        let whole = root_motion.whole_position(RootTrackName::Default);
+        position_default = Some(RootMotionPositionMeta {
+            whole_distance: whole.length() as f64,
+            whole_distance_xz: whole.xz().length() as f64,
+            whole_distance_y: whole.y as f64,
+        });
+    }
+
+    let mut position_move = None;
+    if root_motion.has_position(RootTrackName::Move) {
+        let whole = root_motion.whole_position(RootTrackName::Move);
+        position_move = Some(RootMotionPositionMeta {
+            whole_distance: whole.length() as f64,
+            whole_distance_xz: whole.xz().length() as f64,
+            whole_distance_y: whole.y as f64,
+        });
+    }
+
+    let mut position_move_ex = None;
+    if root_motion.has_position(RootTrackName::MoveEx) {
+        let whole = root_motion.whole_position(RootTrackName::MoveEx);
+        position_move_ex = Some(RootMotionPositionMeta {
+            whole_distance: whole.length() as f64,
+            whole_distance_xz: whole.xz().length() as f64,
+            whole_distance_y: whole.y as f64,
+        });
+    }
+
     Ok(RootMotionMeta {
         version: Track::<Vec3>::version(),
-        has_position: root_motion.has_position(),
+        position_default,
+        position_move,
+        position_move_ex,
         has_rotation: root_motion.has_rotation(),
-        whole_distance: root_motion.whole_position().length() as f64,
-        whole_distance_xz: root_motion.whole_position().xz().length() as f64,
-        whole_distance_y: root_motion.whole_position().y as f64,
     })
 }
 
 #[napi(object)]
-pub struct WeaponTrajectoryMeta {
+pub struct WeaponMotionTracksMeta {
     pub version: u32,
     pub count: u32,
     pub names: Vec<String>,
-    // pub joints: Vec<String>,
 }
 
 #[napi]
-pub fn load_weapon_trajectory_meta(path: String) -> Result<WeaponTrajectoryMeta> {
-    let weapon_motion = match WeaponMotionTrackSet::from_path(&path) {
+pub fn load_weapon_trajectory_meta(path: String) -> Result<WeaponMotionTracksMeta> {
+    let weapon_motion = match WeaponMotion::from_path(&path) {
         Ok(weapon_motion) => weapon_motion,
         Err(err) => return Err(cp_err_msg(err, &path)),
     };
-    Ok(WeaponTrajectoryMeta {
+    Ok(WeaponMotionTracksMeta {
         version: Track::<Vec3>::version(),
         count: weapon_motion.len() as u32,
         names: weapon_motion.iter().map(|w| w.name().to_string()).collect(),
-        // joints: weapon_motion.iter().map(|w| w.joint().to_string()).collect(),
     })
 }
