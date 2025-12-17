@@ -10,13 +10,13 @@ crate-type = ["cdylib"]
 [dependencies]
 critical-point-core = { path = "../critical-point/core" }
 glam = { version = "0.30", features = ["libm", "approx"] }
-napi = { version = "2.12.2", default-features = false, features = ["napi4"] }
-napi-derive = "2.12.2"
+napi = { version = "3.3", default-features = false, features = ["napi4"] }
+napi-derive = "3.2"
 ozz-animation-rs = { path = "../../ozz-animation-rs", features = ["rkyv"] }
-serde_json = "1.0"
+serde_json = "1"
 
 [build-dependencies]
-napi-build = "2.0.1"
+napi-build = "2.2"
 
 [profile.release]
 lto = true
