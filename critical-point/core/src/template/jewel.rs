@@ -82,8 +82,8 @@ mod tests {
     fn test_load_jewel() {
         let db = TmplDatabase::new(10240, 150).unwrap();
 
-        let j1 = db.find_as::<TmplJewel>(id!("Jewel.DefenseUp/1")).unwrap();
-        assert_eq!(j1.id, id!("Jewel.DefenseUp/1"));
+        let j1 = db.find_as::<TmplJewel>(id!("Jewel.DefenseUp^1")).unwrap();
+        assert_eq!(j1.id, id!("Jewel.DefenseUp^1"));
         assert_eq!(j1.slot, TmplJewelSlot::Defense);
         assert_eq!(j1.rare, RareLevel::Rare1);
         assert_eq!(j1.entry, id!("Entry.DefenseUp"));

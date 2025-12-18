@@ -138,15 +138,15 @@ mod tests {
         let json_dir = test_dir.join("index.json");
         let mut map = HashMap::new();
         map.insert("Character.Aaa", TmplIndex { ptr: 0, len: 1 });
-        map.insert("Character.Aaa/1", TmplIndex { ptr: 2, len: 3 });
+        map.insert("Character.Aaa^1", TmplIndex { ptr: 2, len: 3 });
         map.insert("Accessory.Bbb.Ccc", TmplIndex { ptr: 4, len: 5 });
-        map.insert("Accessory.Bbb.Ccc/0", TmplIndex { ptr: 6, len: 7 });
+        map.insert("Accessory.Bbb.Ccc^0", TmplIndex { ptr: 6, len: 7 });
         write_json(&json_dir, &map);
 
         let cache = TmplIndexCache::from_file(&test_dir).unwrap();
         assert_eq!(cache.indexes.len(), 4);
         assert_eq!(cache.find(id!("Character.Aaa")).unwrap(), TmplIndex { ptr: 0, len: 1 });
-        assert_eq!(cache.find(id!("Character.Aaa/1")).unwrap(), TmplIndex {
+        assert_eq!(cache.find(id!("Character.Aaa^1")).unwrap(), TmplIndex {
             ptr: 2,
             len: 3
         });
@@ -154,7 +154,7 @@ mod tests {
             ptr: 4,
             len: 5
         });
-        assert_eq!(cache.find(id!("Accessory.Bbb.Ccc/0")).unwrap(), TmplIndex {
+        assert_eq!(cache.find(id!("Accessory.Bbb.Ccc^0")).unwrap(), TmplIndex {
             ptr: 6,
             len: 7
         });
@@ -168,15 +168,15 @@ mod tests {
         let rkyv_dir = test_dir.join("index.rkyv");
         let mut map = TmplHashMap::with_hasher(IdentityState);
         map.insert(id!("Character.Aaa"), TmplIndex { ptr: 0, len: 1 });
-        map.insert(id!("Character.Aaa/1"), TmplIndex { ptr: 2, len: 3 });
+        map.insert(id!("Character.Aaa^1"), TmplIndex { ptr: 2, len: 3 });
         map.insert(id!("Accessory.Bbb.Ccc"), TmplIndex { ptr: 4, len: 5 });
-        map.insert(id!("Accessory.Bbb.Ccc/0"), TmplIndex { ptr: 6, len: 7 });
+        map.insert(id!("Accessory.Bbb.Ccc^0"), TmplIndex { ptr: 6, len: 7 });
         write_rkyv(&rkyv_dir, &map);
 
         let cache = TmplIndexCache::from_file(&test_dir).unwrap();
         assert_eq!(cache.indexes.len(), 4);
         assert_eq!(cache.find(id!("Character.Aaa")).unwrap(), TmplIndex { ptr: 0, len: 1 });
-        assert_eq!(cache.find(id!("Character.Aaa/1")).unwrap(), TmplIndex {
+        assert_eq!(cache.find(id!("Character.Aaa^1")).unwrap(), TmplIndex {
             ptr: 2,
             len: 3
         });
@@ -184,7 +184,7 @@ mod tests {
             ptr: 4,
             len: 5
         });
-        assert_eq!(cache.find(id!("Accessory.Bbb.Ccc/0")).unwrap(), TmplIndex {
+        assert_eq!(cache.find(id!("Accessory.Bbb.Ccc^0")).unwrap(), TmplIndex {
             ptr: 6,
             len: 7
         });
