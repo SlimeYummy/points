@@ -85,24 +85,24 @@ mod tests {
         assert_eq!(character.id, id!("Character.One"));
         assert_eq!(character.name, "Character One");
         assert_eq!(character.level, [1, 6].into());
-        assert_eq!(&character.styles.as_slice(), &[id!("Style.One/1"), id!("Style.One/2")]);
+        assert_eq!(&character.styles.as_slice(), &[id!("Style.One^1"), id!("Style.One^2")]);
         assert_eq!(&character.equipments.as_slice(), &[
             id!("Equipment.No1"),
             id!("Equipment.No2"),
             id!("Equipment.No3")
         ]);
         assert_eq!(character.bounding, ShapeTaperedCapsule::new(0.6, 0.3, 0.1));
-        assert_eq!(character.skeleton_files, "girl.*");
+        assert_eq!(character.skeleton_files, "Girl.*");
         assert_eq!(character.skeleton_toward, Vec2xz::Z);
-        assert_eq!(character.body_file, "body1.json");
+        assert_eq!(character.body_file, "Girl.body.json");
     }
 
     #[test]
     fn test_load_style() {
         let db = TmplDatabase::new(10240, 150).unwrap();
 
-        let style = db.find_as::<TmplStyle>(id!("Style.One/1")).unwrap();
-        assert_eq!(style.id(), id!("Style.One/1"));
+        let style = db.find_as::<TmplStyle>(id!("Style.One^1")).unwrap();
+        assert_eq!(style.id(), id!("Style.One^1"));
         assert_eq!(style.name, "Character One Type-1");
         assert_eq!(style.character, id!("Character.One"));
         assert_eq!(&style.tags.as_slice(), &["Player"]);

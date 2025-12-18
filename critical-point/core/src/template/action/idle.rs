@@ -38,15 +38,15 @@ mod tests {
         assert_eq!(act.id, id!("Action.One.Idle"));
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character, id!("Character.One"));
-        assert_eq!(act.styles.as_slice(), &[id!("Style.One/1"), id!("Style.One/2")]);
+        assert_eq!(act.styles.as_slice(), &[id!("Style.One^1"), id!("Style.One^2")]);
         assert_eq!(act.tags.as_slice(), &["Idle"]);
-        assert_eq!(act.anim_idle.files, "girl_stand_idle.*");
+        assert_eq!(act.anim_idle.files, "Girl_Idle_Empty.*");
         assert_eq!(act.anim_idle.duration, 2.5);
         assert_eq!(act.anim_idle.fade_in, 0.1);
         assert_eq!(act.anim_idle.root_motion, false);
         assert_eq!(act.anim_idle.weapon_motion, false);
         let anim_ready = act.anim_ready.as_ref().unwrap();
-        assert_eq!(anim_ready.files, "girl_stand_ready.*");
+        assert_eq!(anim_ready.files, "Girl_Idle_Axe.*");
         assert_eq!(anim_ready.duration, 2.0);
         assert_eq!(anim_ready.fade_in, 0.1);
         assert_eq!(anim_ready.root_motion, false);
@@ -59,7 +59,7 @@ mod tests {
 
         let act2 = db.find_as::<TmplActionIdle>(id!("Action.One.IdleX")).unwrap();
         assert_eq!(act2.id, id!("Action.One.IdleX"));
-        assert_eq!(act2.anim_idle.files, "girl_stand_idle.*");
+        assert_eq!(act2.anim_idle.files, "Girl_Idle_Empty.*");
         assert!(act2.anim_ready.is_none());
     }
 }

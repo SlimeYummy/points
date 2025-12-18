@@ -99,7 +99,7 @@ mod tests {
         assert_eq!(a1.entry, id!("Entry.CriticalChance"));
         assert_eq!(a1.piece, 2);
 
-        let a1 = db.find_as::<TmplAccessory>(id!("Accessory.AttackUp/3")).unwrap();
+        let a1 = db.find_as::<TmplAccessory>(id!("Accessory.AttackUp^3")).unwrap();
         assert_eq!(a1.pool, id!("AccessoryPool.Rare3"));
         assert_eq!(a1.rare, RareLevel::Rare3);
         assert_eq!(a1.entry, id!("Entry.AttackUp"));

@@ -46,8 +46,8 @@ mod tests {
         assert_eq!(perk1.id, id!("Perk.One.NormalAttack.Branch"));
         assert_eq!(perk1.name, "Normal Attack Branch");
         assert_eq!(perk1.character, id!("Character.One"));
-        assert_eq!(perk1.style, id!("Style.One/1"));
-        assert_eq!(perk1.usable_styles.as_slice(), &[id!("Style.One/1")]);
+        assert_eq!(perk1.style, id!("Style.One^1"));
+        assert_eq!(perk1.usable_styles.as_slice(), &[id!("Style.One^1")]);
         assert_eq!(perk1.max_level, 2);
         assert!(perk1.parents.is_empty());
         assert!(perk1.attributes.is_empty());
