@@ -55,8 +55,64 @@ pub struct TmplActionMoveTurn {
 pub struct TmplActionMoveStop {
     #[serde(flatten)]
     pub anim: TmplAnimation,
-    pub enter_phase_table: Vec<[f32; 3]>,
-    pub speed_down_end: f32,
+    pub enter_phase_table: Vec<TmplActionMoveStopEnter>,
+    pub leave_phase_table: Vec<TmplActionMoveStopLeave>,
+}
+
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+#[rkyv(derive(Debug))]
+pub struct TmplActionMoveStopEnter {
+    pub phase: [f32; 2],
+    pub offset: f32,
+}
+
+impl TmplActionMoveStopEnter {
+    #[inline]
+    pub fn from_rkyv(archived: &ArchivedTmplActionMoveStopEnter) -> TmplActionMoveStopEnter {
+        TmplActionMoveStopEnter {
+            phase: [archived.phase[0].into(), archived.phase[1].into()],
+            offset: archived.offset.into(),
+        }
+    }
+}
+
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+#[rkyv(derive(Debug))]
+pub struct TmplActionMoveStopLeave {
+    pub time: f32,
+    pub phase: f32,
+}
+
+impl TmplActionMoveStopLeave {
+    #[inline]
+    pub fn from_rkyv(archived: &ArchivedTmplActionMoveStopLeave) -> TmplActionMoveStopLeave {
+        TmplActionMoveStopLeave {
+            time: archived.time.into(),
+            phase: archived.phase.into(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -73,14 +129,14 @@ mod tests {
         assert_eq!(act.id, id!("Action.One.Run"));
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character, id!("Character.One"));
-        assert_eq!(act.styles.as_slice(), &[id!("Style.One/1"), id!("Style.One/2")]);
+        assert_eq!(act.styles.as_slice(), &[id!("Style.One^1"), id!("Style.One^2")]);
         assert_eq!(act.tags.as_slice(), &["Run"]);
         assert_eq!(act.enter_key, VirtualKey::Run);
         assert_eq!(act.enter_level, LEVEL_MOVE);
         assert_eq!(act.derive_level, LEVEL_MOVE - 10);
         assert_eq!(act.special_derive_level, LEVEL_MOVE + 10);
 
-        assert_eq!(act.anim_move.files, "girl_run.*");
+        assert_eq!(act.anim_move.files, "Girl_Run_Empty.*");
         assert_eq!(act.anim_move.duration, 0.93333334);
         assert_eq!(act.anim_move.fade_in, cf2s(4));
         assert_eq!(act.anim_move.root_motion, true);
@@ -88,18 +144,18 @@ mod tests {
 
         assert_eq!(act.starts.len(), 3);
         assert_eq!(act.start_time, cf2s(4));
-        assert_eq!(act.starts[0].anim.files, "girl_run_start.*");
+        assert_eq!(act.starts[0].anim.files, "Girl_RunStart_Empty.*");
         assert_eq!(act.starts[0].anim.fade_in, 0.0);
         assert_eq!(act.starts[0].anim.root_motion, true);
         assert_eq!(act.starts[0].anim.weapon_motion, false);
         assert_eq!(act.starts[0].enter_angle, [15f32.to_radians(), -15f32.to_radians()]);
         assert_eq!(act.starts[0].turn_in_place_end, cf2s(2));
         assert_eq!(act.starts[0].quick_stop_end, cf2s(20));
-        assert_eq!(act.starts[1].anim.files, "girl_run_start_turn_l180.*");
+        assert_eq!(act.starts[1].anim.files, "Girl_RunStart_L180_Empty.*");
         assert_eq!(act.starts[1].enter_angle, [15f32.to_radians(), 180f32.to_radians()]);
         assert_eq!(act.starts[1].turn_in_place_end, cf2s(8));
         assert_eq!(act.starts[1].quick_stop_end, cf2s(26));
-        assert_eq!(act.starts[2].anim.files, "girl_run_start_turn_r180.*");
+        assert_eq!(act.starts[2].anim.files, "Girl_RunStart_R180_Empty.*");
         assert_eq!(act.starts[2].enter_angle, [-15f32.to_radians(), -180f32.to_radians()]);
         assert_eq!(act.starts[2].turn_in_place_end, cf2s(8));
         assert_eq!(act.starts[2].quick_stop_end, cf2s(26));
@@ -110,15 +166,52 @@ mod tests {
         assert_eq!(act.stops.len(), 2);
         assert_eq!(act.stop_time, cf2s(6));
         assert_eq!(act.quick_stop_time, cf2s(0));
-        assert_eq!(act.stops[0].anim.files, "girl_run_stop_l.*");
+        assert_eq!(act.stops[0].anim.files, "Girl_RunStop_L_Empty.*");
         assert_eq!(act.stops[0].anim.fade_in, cf2s(4));
         assert_eq!(act.stops[0].anim.root_motion, true);
         assert_eq!(act.stops[0].anim.weapon_motion, false);
-        assert_eq!(act.stops[0].enter_phase_table, vec![[0.75, 0.25, cf2s(2)]]);
-        assert_eq!(act.stops[0].speed_down_end, cf2s(12));
-        assert_eq!(act.stops[1].anim.files, "girl_run_stop_r.*");
-        assert_eq!(act.stops[1].enter_phase_table, vec![[0.25, 0.75, cf2s(2)]]);
-        assert_eq!(act.stops[1].speed_down_end, cf2s(12));
+        assert_eq!(act.stops[0].enter_phase_table.len(), 1);
+        assert_eq!(
+            TmplActionMoveStopEnter::from_rkyv(&act.stops[0].enter_phase_table[0]),
+            TmplActionMoveStopEnter {
+                phase: [0.75, 0.25],
+                offset: cf2s(2)
+            }
+        );
+        assert_eq!(act.stops[0].leave_phase_table.len(), 2);
+        assert_eq!(
+            TmplActionMoveStopLeave::from_rkyv(&act.stops[0].leave_phase_table[0]),
+            TmplActionMoveStopLeave { time: 0.0, phase: 0.0 }
+        );
+        assert_eq!(
+            TmplActionMoveStopLeave::from_rkyv(&act.stops[0].leave_phase_table[1]),
+            TmplActionMoveStopLeave {
+                time: cf2s(14),
+                phase: 0.5
+            }
+        );
+
+        assert_eq!(act.stops[1].anim.files, "Girl_RunStop_R_Empty.*");
+        assert_eq!(act.stops[0].enter_phase_table.len(), 1);
+        assert_eq!(
+            TmplActionMoveStopEnter::from_rkyv(&act.stops[1].enter_phase_table[0]),
+            TmplActionMoveStopEnter {
+                phase: [0.25, 0.75],
+                offset: cf2s(2)
+            }
+        );
+        assert_eq!(act.stops[1].leave_phase_table.len(), 2);
+        assert_eq!(
+            TmplActionMoveStopLeave::from_rkyv(&act.stops[1].leave_phase_table[0]),
+            TmplActionMoveStopLeave { time: 0.0, phase: 0.5 }
+        );
+        assert_eq!(
+            TmplActionMoveStopLeave::from_rkyv(&act.stops[1].leave_phase_table[1]),
+            TmplActionMoveStopLeave {
+                time: cf2s(14),
+                phase: 0.0
+            }
+        );
 
         assert_eq!(act.poise_level, 0);
         assert_eq!(act.smooth_move_froms.as_slice(), &[id!("Action.One.Run")]);
