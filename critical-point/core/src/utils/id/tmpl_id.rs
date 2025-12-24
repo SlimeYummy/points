@@ -171,7 +171,7 @@ impl TmplSymbolCache {
         debug_assert_eq!(offset, buf_size);
 
         let regex = Regex::new(
-            r"^(\#|\w+)\.([\w\-\_]+)(?:\.([\w\-\_]+))?(?:\.([\w\-\_]+))?(?:\/([0-9]?[0-9A-Z]|[A-Z][0-9]))?$",
+            r"^(\#|\w+)\.([\w\-\_]+)(?:\.([\w\-\_]+))?(?:\.([\w\-\_]+))?(?:\^([0-9]?[0-9A-Z]|[A-Z][0-9]))?$",
         )
         .unwrap();
 
@@ -465,11 +465,11 @@ impl TmplID {
             self.suffix() != SUFFIX_EMPTY,
         ) {
             (_, true, false) => format!("{}.{}.{}.{}", prefix, key1, key2, key3),
-            (_, true, true) => format!("{}.{}.{}.{}/{}", prefix, key1, key2, key3, suffix),
+            (_, true, true) => format!("{}.{}.{}.{}^{}", prefix, key1, key2, key3, suffix),
             (true, false, false) => format!("{}.{}.{}", prefix, key1, key2),
-            (true, false, true) => format!("{}.{}.{}/{}", prefix, key1, key2, suffix),
+            (true, false, true) => format!("{}.{}.{}^{}", prefix, key1, key2, suffix),
             (false, false, false) => format!("{}.{}", prefix, key1),
-            (false, false, true) => format!("{}.{}/{}", prefix, key1, suffix),
+            (false, false, true) => format!("{}.{}^{}", prefix, key1, suffix),
         }
     }
 
@@ -797,33 +797,33 @@ mod tests {
         assert_eq!(id1, make_id(Character, 25, SYMBOL_EMPTY, SYMBOL_EMPTY, SUFFIX_EMPTY));
         assert_eq!(id1.to_string_with(&cache), "Character.Zzz");
 
-        let id2 = TmplID::new_with("Equipment.Aaa/Z", &cache).unwrap();
+        let id2 = TmplID::new_with("Equipment.Aaa^Z", &cache).unwrap();
         assert_eq!(id2, make_id(Equipment, 0, SYMBOL_EMPTY, SYMBOL_EMPTY, 35));
-        assert_eq!(id2.to_string_with(&cache), "Equipment.Aaa/Z");
+        assert_eq!(id2.to_string_with(&cache), "Equipment.Aaa^Z");
 
-        let id3 = TmplID::new_with("Equipment.Aaa/00", &cache).unwrap();
+        let id3 = TmplID::new_with("Equipment.Aaa^00", &cache).unwrap();
         assert_eq!(id3, make_id(Equipment, 0, SYMBOL_EMPTY, SYMBOL_EMPTY, 36 + 0));
-        assert_eq!(id3.to_string_with(&cache), "Equipment.Aaa/00");
+        assert_eq!(id3.to_string_with(&cache), "Equipment.Aaa^00");
 
         let id4 = TmplID::new_with("Zone.Hhh.Iii", &cache).unwrap();
         assert_eq!(id4, make_id(Zone, 7, 8, SYMBOL_EMPTY, SUFFIX_EMPTY));
         assert_eq!(id4.to_string_with(&cache), "Zone.Hhh.Iii");
 
-        let id5 = TmplID::new_with("Zone.Hhh.Iii/9Z", &cache).unwrap();
+        let id5 = TmplID::new_with("Zone.Hhh.Iii^9Z", &cache).unwrap();
         assert_eq!(id5, make_id(Zone, 7, 8, SYMBOL_EMPTY, 36 + 359));
-        assert_eq!(id5.to_string_with(&cache), "Zone.Hhh.Iii/9Z");
+        assert_eq!(id5.to_string_with(&cache), "Zone.Hhh.Iii^9Z");
 
         let id6 = TmplID::new_with("Character.Xxx.Yyy.Ooo", &cache).unwrap();
         assert_eq!(id6, make_id(Character, 23, 24, 14, SUFFIX_EMPTY));
         assert_eq!(id6.to_string_with(&cache), "Character.Xxx.Yyy.Ooo");
 
-        let id7 = TmplID::new_with("Character.Xxx.Yyy.Ooo/A0", &cache).unwrap();
+        let id7 = TmplID::new_with("Character.Xxx.Yyy.Ooo^A0", &cache).unwrap();
         assert_eq!(id7, make_id(Character, 23, 24, 14, 36 + 360));
-        assert_eq!(id7.to_string_with(&cache), "Character.Xxx.Yyy.Ooo/A0");
+        assert_eq!(id7.to_string_with(&cache), "Character.Xxx.Yyy.Ooo^A0");
 
-        let id8 = TmplID::new_with("Character.Xxx.Yyy.Ooo/Z9", &cache).unwrap();
+        let id8 = TmplID::new_with("Character.Xxx.Yyy.Ooo^Z9", &cache).unwrap();
         assert_eq!(id8, make_id(Character, 23, 24, 14, 36 + 360 + 259));
-        assert_eq!(id8.to_string_with(&cache), "Character.Xxx.Yyy.Ooo/Z9");
+        assert_eq!(id8.to_string_with(&cache), "Character.Xxx.Yyy.Ooo^Z9");
 
         assert!(TmplID::new_with("Zzz", &cache).is_err());
         assert!(TmplID::new_with("Character", &cache).is_err());
@@ -831,11 +831,11 @@ mod tests {
         assert!(TmplID::new_with("Character.Ab", &cache).is_err());
         assert!(TmplID::new_with("Zone.Aaa.S+", &cache).is_err());
         assert!(TmplID::new_with("Zone.Aaa.Ab", &cache).is_err());
-        assert!(TmplID::new_with("Zone.Aaa/", &cache).is_err());
-        assert!(TmplID::new_with("Zone.Aaa/a", &cache).is_err());
+        assert!(TmplID::new_with("Zone.Aaa^", &cache).is_err());
+        assert!(TmplID::new_with("Zone.Aaa^a", &cache).is_err());
         assert!(TmplID::new_with("Zone.Aaa.Bbb.11", &cache).is_err());
         assert!(TmplID::new_with("Zone.Aaa.Bbb.Ccc.Ddd", &cache).is_err());
-        assert!(TmplID::new_with("Zone.Aaa.Bbb.Ccc/CC", &cache).is_err());
+        assert!(TmplID::new_with("Zone.Aaa.Bbb.Ccc^CC", &cache).is_err());
         assert!(TmplID::new_with("Zone.128.Bbb.Ccc", &cache).is_err());
     }
 
@@ -843,12 +843,12 @@ mod tests {
     fn test_tmpl_id_json_rkyv() {
         use rkyv::rancor::Error;
 
-        let id1 = TmplID::new("Zone.Aaa/0").unwrap();
+        let id1 = TmplID::new("Zone.Aaa^0").unwrap();
         let buf = serde_json::to_vec(&id1).unwrap();
         let id2 = serde_json::from_slice(&buf).unwrap();
         assert_eq!(id1, id2);
 
-        let id3 = TmplID::new("Entry.Xxx.Yyy.Zzz/1F").unwrap();
+        let id3 = TmplID::new("Entry.Xxx.Yyy.Zzz^1F").unwrap();
         let buf = rkyv::to_bytes::<Error>(&id3).unwrap();
         let id4 = unsafe { rkyv::access_unchecked::<TmplID>(&buf) };
         let id5 = rkyv::deserialize::<_, Error>(id4).unwrap();

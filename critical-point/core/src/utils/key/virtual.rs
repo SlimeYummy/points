@@ -121,7 +121,7 @@ impl From<RawKey> for VirtualKey {
     rkyv::Serialize,
     rkyv::Deserialize,
 )]
-pub struct VirtualEvent {
+pub struct VirtualInput {
     pub id: u64,
     pub frame: u32,
     pub key: VirtualKey,
@@ -131,10 +131,10 @@ pub struct VirtualEvent {
     pub world_move_dir: Vec2xz,
 }
 
-impl VirtualEvent {
+impl VirtualInput {
     #[inline]
-    pub fn new(id: u64, frame: u32, key: VirtualKey, pressed: bool) -> VirtualEvent {
-        VirtualEvent::new_ex(
+    pub fn new(id: u64, frame: u32, key: VirtualKey, pressed: bool) -> VirtualInput {
+        VirtualInput::new_ex(
             id,
             frame,
             key,
@@ -154,8 +154,8 @@ impl VirtualEvent {
         view_dir_2d: Vec2xz,
         view_dir_3d: Vec3A,
         world_move_dir: Vec2xz,
-    ) -> VirtualEvent {
-        VirtualEvent {
+    ) -> VirtualInput {
+        VirtualInput {
             id,
             frame,
             key,
@@ -169,7 +169,7 @@ impl VirtualEvent {
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "dir", content = "cos")]
-pub enum VirtualDir {
+pub enum InputDir {
     // All variants are stored the cos values in range [0, 180].
     Forward(f32),
     Backward(f32),
@@ -177,16 +177,16 @@ pub enum VirtualDir {
     Right(f32),
 }
 
-rkyv_self!(VirtualDir);
+rkyv_self!(InputDir);
 
-impl VirtualDir {
+impl InputDir {
     #[inline]
     pub fn cos(&self) -> f32 {
         match self {
-            VirtualDir::Forward(cos) => *cos,
-            VirtualDir::Backward(cos) => *cos,
-            VirtualDir::Left(cos) => *cos,
-            VirtualDir::Right(cos) => *cos,
+            InputDir::Forward(cos) => *cos,
+            InputDir::Backward(cos) => *cos,
+            InputDir::Left(cos) => *cos,
+            InputDir::Right(cos) => *cos,
         }
     }
 
@@ -199,25 +199,25 @@ impl VirtualDir {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct VirtualKeyDir {
     pub key: VirtualKey,
-    pub dir: Option<VirtualDir>,
+    pub dir: Option<InputDir>,
 }
 
 rkyv_self!(VirtualKeyDir);
 serde_by!(
     VirtualKeyDir,
-    (VirtualKey, Option<VirtualDir>),
+    (VirtualKey, Option<InputDir>),
     VirtualKeyDir::from,
     VirtualKeyDir::to_tuple
 );
 
 impl VirtualKeyDir {
     #[inline]
-    pub fn new(key: VirtualKey, dir: Option<VirtualDir>) -> VirtualKeyDir {
+    pub fn new(key: VirtualKey, dir: Option<InputDir>) -> VirtualKeyDir {
         VirtualKeyDir { key, dir }
     }
 
     #[inline]
-    pub fn to_tuple(&self) -> (VirtualKey, Option<VirtualDir>) {
+    pub fn to_tuple(&self) -> (VirtualKey, Option<InputDir>) {
         (self.key, self.dir)
     }
 }
@@ -228,14 +228,14 @@ impl From<VirtualKey> for VirtualKeyDir {
     }
 }
 
-impl From<(VirtualKey, Option<VirtualDir>)> for VirtualKeyDir {
-    fn from((key, dir): (VirtualKey, Option<VirtualDir>)) -> VirtualKeyDir {
+impl From<(VirtualKey, Option<InputDir>)> for VirtualKeyDir {
+    fn from((key, dir): (VirtualKey, Option<InputDir>)) -> VirtualKeyDir {
         VirtualKeyDir::new(key, dir)
     }
 }
 
-impl From<VirtualKeyDir> for (VirtualKey, Option<VirtualDir>) {
-    fn from(virtual_key_dir: VirtualKeyDir) -> (VirtualKey, Option<VirtualDir>) {
+impl From<VirtualKeyDir> for (VirtualKey, Option<InputDir>) {
+    fn from(virtual_key_dir: VirtualKeyDir) -> (VirtualKey, Option<InputDir>) {
         virtual_key_dir.to_tuple()
     }
 }

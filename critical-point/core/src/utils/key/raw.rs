@@ -127,16 +127,16 @@ impl RawKey {
     rkyv::Deserialize,
     CsIn,
 )]
-pub struct RawEvent {
+pub struct RawInput {
     pub key: RawKey,
     pub pressed: bool,
     pub motion: Vec2,
 }
 
-impl RawEvent {
+impl RawInput {
     #[inline]
-    pub fn new_button(key: RawKey, pressed: bool) -> RawEvent {
-        RawEvent {
+    pub fn new_button(key: RawKey, pressed: bool) -> RawInput {
+        RawInput {
             key,
             pressed,
             motion: Vec2::ZERO,
@@ -144,8 +144,8 @@ impl RawEvent {
     }
 
     #[inline]
-    pub fn new_move(move_dir: Vec2) -> RawEvent {
-        RawEvent {
+    pub fn new_move(move_dir: Vec2) -> RawInput {
+        RawInput {
             key: RawKey::Move,
             pressed: !abs_diff_eq!(move_dir, Vec2::ZERO),
             motion: move_dir,
@@ -153,8 +153,8 @@ impl RawEvent {
     }
 
     #[inline]
-    pub fn new_view(view_radius: Vec2) -> RawEvent {
-        RawEvent {
+    pub fn new_view(view_radius: Vec2) -> RawInput {
+        RawInput {
             key: RawKey::View,
             pressed: true,
             motion: view_radius,
@@ -172,16 +172,16 @@ impl RawEvent {
     }
 }
 
-impl fmt::Debug for RawEvent {
+impl fmt::Debug for RawInput {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.is_button() {
-            f.debug_struct("RawEvent")
+            f.debug_struct("RawInput")
                 .field("key", &self.key)
                 .field("pressed", &self.pressed)
                 .finish()
         }
         else {
-            f.debug_struct("RawEvent")
+            f.debug_struct("RawInput")
                 .field("key", &self.key)
                 .field("motion", &self.motion)
                 .finish()
