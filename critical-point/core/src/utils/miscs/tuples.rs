@@ -1,8 +1,9 @@
-use critical_point_csgen::CsIn;
+use critical_point_csgen::{CsIn, CsOut};
 use std::ops::RangeInclusive;
 
 use crate::utils::id::TmplID;
 use crate::utils::macros::{rkyv_self, serde_by};
+use crate::utils::symbol::Symbol;
 
 //
 // TmplIDLevel
@@ -273,5 +274,39 @@ impl From<JewelSlots> for [u8; 3] {
     #[inline]
     fn from(val: JewelSlots) -> Self {
         val.to_array()
+    }
+}
+
+//
+// CustomEvent
+//
+
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, CsOut)]
+#[cs_attr(Value, Partial)]
+pub struct CustomEvent {
+    pub source: TmplID,
+    pub name: Symbol,
+}
+
+rkyv_self!(CustomEvent);
+serde_by!(CustomEvent, (TmplID, Symbol), CustomEvent::from, CustomEvent::to_tuple);
+
+impl CustomEvent {
+    #[inline]
+    pub fn new(source: TmplID, name: Symbol) -> Self {
+        Self { source, name }
+    }
+
+    #[inline]
+    pub fn to_tuple(&self) -> (TmplID, Symbol) {
+        (self.source, self.name)
+    }
+}
+
+impl From<(TmplID, Symbol)> for CustomEvent {
+    #[inline]
+    fn from((source, name): (TmplID, Symbol)) -> Self {
+        Self { source, name }
     }
 }
