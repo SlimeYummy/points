@@ -1,10 +1,13 @@
+use critical_point_csgen::CsOut;
+
 use crate::utils::macros::{rkyv_self, serde_by};
 
 //
 // TimeRange
 //
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, CsOut)]
 pub struct TimeRange {
     pub begin: f32,
     pub end: f32,
@@ -41,6 +44,21 @@ impl TimeRange {
             step,
             current: self.begin,
         }
+    }
+
+    #[inline]
+    pub fn contains(&self, time: f32) -> bool {
+        self.begin <= time && time <= self.end
+    }
+
+    #[inline]
+    pub fn contains_no_left(&self, time: f32) -> bool {
+        self.begin < time && time <= self.end
+    }
+
+    #[inline]
+    pub fn contains_no_right(&self, time: f32) -> bool {
+        self.begin <= time && time < self.end
     }
 }
 
@@ -160,7 +178,52 @@ impl From<TimeFragment> for [f32; 2] {
 }
 
 #[derive(
-    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
+    Debug,
+    Default,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+pub struct TimeWith<T> {
+    pub time: f32,
+    pub value: T,
+}
+
+impl<T> TimeWith<T> {
+    #[inline]
+    pub fn new(time: f32, value: T) -> TimeWith<T> {
+        TimeWith { time, value }
+    }
+}
+
+impl<T> From<(f32, T)> for TimeWith<T> {
+    #[inline]
+    fn from(item: (f32, T)) -> Self {
+        TimeWith::new(item.0, item.1)
+    }
+}
+
+impl<T> From<TimeWith<T>> for (f32, T) {
+    #[inline]
+    fn from(item: TimeWith<T>) -> Self {
+        (item.time, item.value)
+    }
+}
+
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
 )]
 pub struct TimeRangeWith<T> {
     pub range: TimeRange,
