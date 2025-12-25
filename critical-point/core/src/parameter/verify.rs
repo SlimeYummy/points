@@ -163,21 +163,21 @@ mod tests {
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
-        param.character = id!("Character.Verify/1");
-        param.style = id!("Style.Verify/1A");
+        param.character = id!("Character.Verify^1");
+        param.style = id!("Style.Verify^1A");
         let err = verify_style(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "style.id=Style.Verify/1A, param.level=0");
+        assert_eq!(err.msg(), "style.id=Style.Verify^1A, param.level=0");
 
-        param.style = id!("Style.Verify/1A");
+        param.style = id!("Style.Verify^1A");
         param.level = 10;
         let err = verify_style(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "style.id=Style.Verify/1A, param.level=10");
+        assert_eq!(err.msg(), "style.id=Style.Verify^1A, param.level=10");
 
-        param.style = id!("Style.Verify/1A");
+        param.style = id!("Style.Verify^1A");
         param.level = 1;
         assert_eq!(verify_style(&mut ctx, &param).unwrap(), JewelSlots::new(0, 2, 2));
 
-        param.style = id!("Style.Verify/1A");
+        param.style = id!("Style.Verify^1A");
         param.level = 3;
         assert_eq!(verify_style(&mut ctx, &param).unwrap(), JewelSlots::new(1, 2, 2));
     }
@@ -188,32 +188,32 @@ mod tests {
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
-        param.character = id!("Character.Verify/1");
-        param.equipments = vec![TmplIDLevel::new(id!("Equipment.Verify/2A"), 0)];
+        param.character = id!("Character.Verify^1");
+        param.equipments = vec![TmplIDLevel::new(id!("Equipment.Verify^2A"), 0)];
         let err = verify_equipments(&mut ctx, &param).unwrap_err();
         assert_eq!(
             err.msg(),
-            "character.id=Character.Verify/1, equipment.id=Equipment.Verify/2A"
+            "character.id=Character.Verify^1, equipment.id=Equipment.Verify^2A"
         );
 
         param.equipments = vec![
-            TmplIDLevel::new(id!("Equipment.Verify/1A"), 1),
-            TmplIDLevel::new(id!("Equipment.Verify/1B"), 0),
+            TmplIDLevel::new(id!("Equipment.Verify^1A"), 1),
+            TmplIDLevel::new(id!("Equipment.Verify^1B"), 0),
         ];
         let err = verify_equipments(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "equipment.id=Equipment.Verify/1B, slot=Slot1");
+        assert_eq!(err.msg(), "equipment.id=Equipment.Verify^1B, slot=Slot1");
 
-        param.equipments = vec![TmplIDLevel::new(id!("Equipment.Verify/1A"), 0)];
+        param.equipments = vec![TmplIDLevel::new(id!("Equipment.Verify^1A"), 0)];
         let err = verify_equipments(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "equipment.id=Equipment.Verify/1A, level=0");
+        assert_eq!(err.msg(), "equipment.id=Equipment.Verify^1A, level=0");
 
-        param.equipments = vec![TmplIDLevel::new(id!("Equipment.Verify/1A"), 5)];
+        param.equipments = vec![TmplIDLevel::new(id!("Equipment.Verify^1A"), 5)];
         let err = verify_equipments(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "equipment.id=Equipment.Verify/1A, level=5");
+        assert_eq!(err.msg(), "equipment.id=Equipment.Verify^1A, level=5");
 
         param.equipments = vec![
-            TmplIDLevel::new(id!("Equipment.Verify/1A"), 4),
-            TmplIDLevel::new(id!("Equipment.Verify/1C"), 2),
+            TmplIDLevel::new(id!("Equipment.Verify^1A"), 4),
+            TmplIDLevel::new(id!("Equipment.Verify^1C"), 2),
         ];
         assert_eq!(verify_equipments(&mut ctx, &param).unwrap(), JewelSlots::new(1, 1, 2));
     }
@@ -224,23 +224,23 @@ mod tests {
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
-        param.style = id!("Style.Verify/1A");
-        param.perks = vec![TmplIDLevel::new(id!("Perk.Verify/2A"), 1)];
+        param.style = id!("Style.Verify^1A");
+        param.perks = vec![TmplIDLevel::new(id!("Perk.Verify^2A"), 1)];
         let err = verify_perks(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "style.id=Style.Verify/1A, perk.id=Perk.Verify/2A");
+        assert_eq!(err.msg(), "style.id=Style.Verify^1A, perk.id=Perk.Verify^2A");
 
-        param.style = id!("Style.Verify/1B");
-        param.perks = vec![TmplIDLevel::new(id!("Perk.Verify/1B"), 1)];
+        param.style = id!("Style.Verify^1B");
+        param.perks = vec![TmplIDLevel::new(id!("Perk.Verify^1B"), 1)];
         let err = verify_perks(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "style.id=Style.Verify/1B, perk.id=Perk.Verify/1B");
+        assert_eq!(err.msg(), "style.id=Style.Verify^1B, perk.id=Perk.Verify^1B");
 
-        param.style = id!("Style.Verify/1A");
-        param.perks = vec![TmplIDLevel::new(id!("Perk.Verify/1A"), 0)];
+        param.style = id!("Style.Verify^1A");
+        param.perks = vec![TmplIDLevel::new(id!("Perk.Verify^1A"), 0)];
         let err = verify_perks(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "perk.id=Perk.Verify/1A, level=0");
+        assert_eq!(err.msg(), "perk.id=Perk.Verify^1A, level=0");
 
-        param.style = id!("Style.Verify/1A");
-        param.perks = vec![TmplIDLevel::new(id!("Perk.Verify/1A"), 2)];
+        param.style = id!("Style.Verify^1A");
+        param.perks = vec![TmplIDLevel::new(id!("Perk.Verify^1A"), 2)];
         assert_eq!(verify_perks(&mut ctx, &param).unwrap(), JewelSlots::new(0, 1, 0));
     }
 
@@ -250,48 +250,48 @@ mod tests {
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
-        param.character = id!("Character.Verify/1");
+        param.character = id!("Character.Verify^1");
         param.accessories = vec![
             ParamAccessory {
-                id: id!("Accessory.AttackUp/1"),
+                id: id!("Accessory.AttackUp^1"),
                 level: 1,
                 entries: vec![id!("Entry.DefenseUp")]
             };
             5
         ];
         let err = verify_accessories(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "character.id=Character.Verify/1, accessories.len=5");
+        assert_eq!(err.msg(), "character.id=Character.Verify^1, accessories.len=5");
 
         param.accessories = vec![ParamAccessory {
-            id: id!("Accessory.AttackUp/1"),
+            id: id!("Accessory.AttackUp^1"),
             level: 1,
             entries: vec![id!("Entry.DefenseUp")],
         }];
         verify_accessories(&mut ctx, &param).unwrap();
 
         param.accessories = vec![ParamAccessory {
-            id: id!("Accessory.AttackUp/1"),
+            id: id!("Accessory.AttackUp^1"),
             level: 10,
             entries: vec![id!("Entry.DefenseUp")],
         }];
         let err = verify_accessories(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "accessory.id=Accessory.AttackUp/1, level=10");
+        assert_eq!(err.msg(), "accessory.id=Accessory.AttackUp^1, level=10");
 
         param.accessories = vec![ParamAccessory {
-            id: id!("Accessory.AttackUp/1"),
+            id: id!("Accessory.AttackUp^1"),
             level: 1,
             entries: vec![id!("Entry.AttackUp"); 3],
         }];
         let err = verify_accessories(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "accessory.id=Accessory.AttackUp/1, entries.len=3");
+        assert_eq!(err.msg(), "accessory.id=Accessory.AttackUp^1, entries.len=3");
 
         param.accessories = vec![ParamAccessory {
-            id: id!("Accessory.AttackUp/1"),
+            id: id!("Accessory.AttackUp^1"),
             level: 1,
             entries: vec![id!("Entry.DefenseUp"), id!("Entry.AttackUp")],
         }];
         let err = verify_accessories(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "accessory.id=Accessory.AttackUp/1, entry_id=Entry.AttackUp");
+        assert_eq!(err.msg(), "accessory.id=Accessory.AttackUp^1, entry_id=Entry.AttackUp");
     }
 
     #[test]
@@ -300,18 +300,18 @@ mod tests {
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamPlayer::default();
-        param.jewels = vec![TmplIDPlus::new(id!("Jewel.DefenseUp/1"), 0)];
+        param.jewels = vec![TmplIDPlus::new(id!("Jewel.DefenseUp^1"), 0)];
         verify_jewels(&mut ctx, &param, JewelSlots::new(1, 1, 1)).unwrap();
 
-        param.jewels = vec![TmplIDPlus::new(id!("Jewel.DefenseUp/1"), 4)];
+        param.jewels = vec![TmplIDPlus::new(id!("Jewel.DefenseUp^1"), 4)];
         let err = verify_jewels(&mut ctx, &param, JewelSlots::new(1, 1, 1)).unwrap_err();
-        assert_eq!(err.msg(), "jewel.id=Jewel.DefenseUp/1, plus=4");
+        assert_eq!(err.msg(), "jewel.id=Jewel.DefenseUp^1, plus=4");
 
         param.jewels = vec![
-            TmplIDPlus::new(id!("Jewel.DefenseUp/1"), 1),
-            TmplIDPlus::new(id!("Jewel.DefenseUp/1"), 1),
+            TmplIDPlus::new(id!("Jewel.DefenseUp^1"), 1),
+            TmplIDPlus::new(id!("Jewel.DefenseUp^1"), 1),
         ];
         let err = verify_jewels(&mut ctx, &param, JewelSlots::new(1, 1, 1)).unwrap_err();
-        assert_eq!(err.msg(), "idx=1, jewel.id=Jewel.DefenseUp/1, slot=Defense");
+        assert_eq!(err.msg(), "idx=1, jewel.id=Jewel.DefenseUp^1, slot=Defense");
     }
 }
