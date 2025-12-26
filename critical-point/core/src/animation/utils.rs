@@ -1,7 +1,62 @@
+use critical_point_csgen::CsOut;
+use glam::{Quat, Vec3A};
 use glam_ext::{Mat4, Transform3A};
 use ozz_animation_rs::{LocalToModelJob, LocalToModelJobRef, Skeleton, SoaTransform};
 
-use crate::utils::{xfrom, xres, XResult};
+use crate::utils::{xfrom, xres, Symbol, XResult};
+
+#[repr(C)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    CsOut,
+)]
+#[rkyv(derive(Debug))]
+pub struct AnimationFileMeta {
+    pub files: Symbol,
+    pub root_motion: bool,
+    pub weapon_motion: bool,
+}
+
+impl AnimationFileMeta {
+    #[inline]
+    pub fn new(files: Symbol, root_motion: bool, weapon_motion: bool) -> Self {
+        Self {
+            files,
+            root_motion,
+            weapon_motion,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    CsOut,
+)]
+pub struct WeaponTransform {
+    pub name: Symbol,
+    pub position: Vec3A,
+    pub rotation: Quat,
+    pub weight: f32,
+}
 
 pub fn soa_transforms_to_transforms(soa_transforms: &[SoaTransform], transforms: &mut [Transform3A]) -> XResult<()> {
     if transforms.len() < soa_transforms.len() * 4 {
