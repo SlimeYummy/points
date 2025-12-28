@@ -266,11 +266,12 @@ pub fn assemble_zone(ctx: &mut ContextAssemble<'_>, param: &ParamZone) -> XResul
 
 #[cfg(test)]
 mod tests {
-    use glam::{Vec3, Vec3A};
+    use glam::Vec3A;
 
     use super::*;
+    use crate::instance::InstDeriveRule;
     use crate::parameter::ParamAccessory;
-    use crate::utils::{id, JewelSlots, TmplIDLevel, TmplIDPlus, VirtualKey};
+    use crate::utils::{InputDir, JewelSlots, LEVEL_ATTACK, TmplIDLevel, TmplIDPlus, VirtualKey, id};
 
     #[test]
     fn test_collect_style() {
@@ -278,8 +279,8 @@ mod tests {
         let mut ctx = ContextAssemble::new(&db);
 
         let mut param = ParamPlayer::default();
-        param.character = id!("Character.Instance/1");
-        param.style = id!("Style.Instance/1A");
+        param.character = id!("Character.Instance^1");
+        param.style = id!("Style.Instance^1A");
         param.level = 6;
         let mut inst = InstPlayer::default();
         collect_style(&mut ctx, &param, &mut inst).unwrap();
@@ -330,8 +331,8 @@ mod tests {
 
         let mut param = ParamPlayer::default();
         param.perks = vec![
-            TmplIDLevel::new(id!("Perk.Instance/1A"), 1),
-            TmplIDLevel::new(id!("Perk.Instance/1B"), 3),
+            TmplIDLevel::new(id!("Perk.Instance^1A"), 1),
+            TmplIDLevel::new(id!("Perk.Instance^1B"), 3),
         ];
         let mut inst = InstPlayer::default();
         collect_perks(&mut ctx, &param, &mut inst).unwrap();
@@ -344,8 +345,8 @@ mod tests {
             PiecePlus::new(1, 3)
         );
         assert_eq!(inst.var_indexes.len(), 2);
-        assert_eq!(*inst.var_indexes.get(&id!("#.Perk.Instance/1A")).unwrap(), 0);
-        assert_eq!(*inst.var_indexes.get(&id!("#.Perk.Instance/1B")).unwrap(), 5);
+        assert_eq!(*inst.var_indexes.get(&id!("#.Perk.Instance^1A")).unwrap(), 0);
+        assert_eq!(*inst.var_indexes.get(&id!("#.Perk.Instance^1B")).unwrap(), 5);
     }
 
     #[test]
@@ -356,12 +357,12 @@ mod tests {
         let mut param = ParamPlayer::default();
         param.accessories = vec![
             ParamAccessory {
-                id: id!("Accessory.AttackUp/1"),
+                id: id!("Accessory.AttackUp^1"),
                 level: 0,
                 entries: vec![id!("Entry.DefenseUp"), id!("Entry.DefenseUp")],
             },
             ParamAccessory {
-                id: id!("Accessory.AttackUp/3"),
+                id: id!("Accessory.AttackUp^3"),
                 level: 12,
                 entries: vec![
                     id!("Entry.CriticalChance"),
@@ -397,8 +398,8 @@ mod tests {
         let mut param = ParamPlayer::default();
         param.jewels = vec![
             TmplIDPlus::new(id!("Jewel.SuperCritical"), 1),
-            TmplIDPlus::new(id!("Jewel.AttackUp/1"), 3),
-            TmplIDPlus::new(id!("Jewel.AttackUp/2"), 1),
+            TmplIDPlus::new(id!("Jewel.AttackUp^1"), 3),
+            TmplIDPlus::new(id!("Jewel.AttackUp^2"), 1),
         ];
         let mut inst = InstPlayer::default();
         collect_jewels(&mut ctx, &param, &mut inst).unwrap();
@@ -420,42 +421,52 @@ mod tests {
         let mut ctx = ContextAssemble::new(&db);
 
         let mut param = ParamPlayer::default();
-        param.character = id!("Character.Instance/1");
-        param.style = id!("Style.Instance/1A");
+        param.character = id!("Character.Instance^1");
+        param.style = id!("Style.Instance^1A");
 
         let mut inst = InstPlayer::default();
-        inst.var_indexes.insert(id!("#.Action.Instance.AttackDerive/1A"), 2);
+        inst.var_indexes.insert(id!("#.Action.Instance.AttackDerive^1A"), 2);
         collect_actions(&mut ctx, &param, &mut inst).unwrap();
         assert_eq!(inst.actions.len(), 4);
-        assert!(inst.actions.contains_key(&id!("Action.Instance.Idle/1A")));
-        assert!(inst.actions.contains_key(&id!("Action.Instance.Run/1A")));
-        assert!(inst.actions.contains_key(&id!("Action.Instance.Attack/1A")));
-        assert!(inst.actions.contains_key(&id!("Action.Instance.AttackDerive/1A")));
+        assert!(inst.actions.contains_key(&id!("Action.Instance.Idle^1A")));
+        assert!(inst.actions.contains_key(&id!("Action.Instance.Run^1A")));
+        assert!(inst.actions.contains_key(&id!("Action.Instance.Attack^1A")));
+        assert!(inst.actions.contains_key(&id!("Action.Instance.AttackDerive^1A")));
         assert_eq!(inst.primary_keys.len(), 3);
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Idle).unwrap(),
-            &id!("Action.Instance.Idle/1A")
+            &id!("Action.Instance.Idle^1A")
         );
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Run).unwrap(),
-            &id!("Action.Instance.Run/1A")
+            &id!("Action.Instance.Run^1A")
         );
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Attack1).unwrap(),
-            &id!("Action.Instance.Attack/1A")
+            &id!("Action.Instance.Attack^1A")
         );
         assert_eq!(inst.derive_keys.len(), 2);
         assert_eq!(
             inst.derive_keys
-                .find_first(&(id!("Action.Instance.Attack/1A"), VirtualKey::Attack1))
+                .find_first(&(id!("Action.Instance.Attack^1A"), VirtualKey::Attack1))
                 .unwrap(),
-            &id!("Action.Instance.AttackDerive/1A")
+            &InstDeriveRule {
+                action: id!("Action.Instance.AttackDerive^1A"),
+                key: VirtualKey::Attack1,
+                level: LEVEL_ATTACK + 1,
+                dir: None,
+            }
         );
         assert_eq!(
             inst.derive_keys
-                .find_first(&(id!("Action.Instance.Attack/1A"), VirtualKey::Attack2))
+                .find_first(&(id!("Action.Instance.Attack^1A"), VirtualKey::Attack2))
                 .unwrap(),
-            &id!("Action.Instance.AttackDerive/1A")
+            &InstDeriveRule {
+                action: id!("Action.Instance.AttackDerive^1A"),
+                key: VirtualKey::Attack2,
+                level: LEVEL_ATTACK + 1,
+                dir: Some(InputDir::Backward(0.5)),
+            }
         );
     }
 
@@ -474,8 +485,8 @@ mod tests {
         assert_eq!(inst.secondary.max_health_up, 0.2 + 0.035);
         assert_eq!(inst.secondary.defense_up, 0.6);
         assert_eq!(inst.var_indexes.len(), 2);
-        assert_eq!(*inst.var_indexes.get(&id!("#.Entry.Variable/1")).unwrap(), 3);
-        assert_eq!(*inst.var_indexes.get(&id!("#.Entry.Variable/2")).unwrap(), 2);
+        assert_eq!(*inst.var_indexes.get(&id!("#.Entry.Variable^1")).unwrap(), 3);
+        assert_eq!(*inst.var_indexes.get(&id!("#.Entry.Variable^2")).unwrap(), 2);
     }
 
     // #[test]
@@ -509,26 +520,26 @@ mod tests {
         let mut ctx = ContextAssemble::new(&db);
 
         let param = ParamPlayer {
-            character: id!("Character.Instance/1"),
-            style: id!("Style.Instance/1A"),
+            character: id!("Character.Instance^1"),
+            style: id!("Style.Instance^1A"),
             level: 4,
             equipments: vec![
-                TmplIDLevel::new(id!("Equipment.Instance/1A"), 2),
-                TmplIDLevel::new(id!("Equipment.Instance/1B"), 3),
+                TmplIDLevel::new(id!("Equipment.Instance^1A"), 2),
+                TmplIDLevel::new(id!("Equipment.Instance^1B"), 3),
             ],
             accessories: vec![ParamAccessory {
-                id: id!("Accessory.AttackUp/1"),
+                id: id!("Accessory.AttackUp^1"),
                 level: 0,
                 entries: vec![id!("Entry.DefenseUp"), id!("Entry.DefenseUp")],
             }],
             jewels: vec![
                 TmplIDPlus::new(id!("Jewel.SuperCritical"), 1),
-                TmplIDPlus::new(id!("Jewel.AttackUp/1"), 3),
-                TmplIDPlus::new(id!("Jewel.AttackUp/2"), 1),
+                TmplIDPlus::new(id!("Jewel.AttackUp^1"), 3),
+                TmplIDPlus::new(id!("Jewel.AttackUp^2"), 1),
             ],
             perks: vec![
-                TmplIDLevel::new(id!("Perk.Instance/1A"), 1),
-                TmplIDLevel::new(id!("Perk.Instance/1B"), 3),
+                TmplIDLevel::new(id!("Perk.Instance^1A"), 1),
+                TmplIDLevel::new(id!("Perk.Instance^1B"), 3),
             ],
             position: Vec3A::ZERO,
         };
