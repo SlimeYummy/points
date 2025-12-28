@@ -5,11 +5,14 @@ use ozz_animation_rs::{
     SoaTransform,
 };
 use std::cell::{Ref, RefCell};
-use std::marker::PhantomData;
 use std::mem;
 use std::rc::Rc;
 
-use crate::animation::{matrices_to_transforms, soa_transforms_to_matrices, soa_transforms_to_transforms};
+use crate::animation::utils::{
+    matrices_to_transforms, soa_transforms_to_matrices, soa_transforms_to_transforms, WeaponTransform,
+};
+use crate::animation::weapon_motion::{normalize_weapons_by_weight, sample_weapons_by_name_with_weight, WeaponMotion};
+use crate::asset::AssetLoader;
 use crate::consts::MAX_ACTION_ANIMATION;
 use crate::logic::StateActionAny;
 use crate::utils::{xfrom, xres, HistoryQueue, NumID, Symbol, TmplID, XResult};
@@ -44,7 +47,7 @@ pub struct Animator {
     skeleton: Rc<Skeleton>,
     blending_job: BlendingJob,
     l2m_job: LocalToModelJob,
-
+    weapon_transfroms: Vec<WeaponTransform>,
     action_queue: HistoryQueue<ActionData>,
     sampling_arena: SamplingArena,
 }
@@ -55,7 +58,7 @@ impl Animator {
             skeleton: skeleton.clone(),
             blending_job: BlendingJob::default(),
             l2m_job: LocalToModelJob::default(),
-
+            weapon_transfroms: Vec::with_capacity(4),
             action_queue: HistoryQueue::with_capacity(action_cap.max(1)),
             sampling_arena: SamplingArena::new(sampling_cap.max(1)),
         };
@@ -71,10 +74,7 @@ impl Animator {
         sa
     }
 
-    pub fn update<F>(&mut self, frame: u32, states: &[Box<dyn StateActionAny>], mut load: F) -> XResult<()>
-    where
-        F: FnMut(&Symbol) -> XResult<Rc<Animation>>,
-    {
+    pub fn update(&mut self, frame: u32, states: &[Box<dyn StateActionAny>], loader: &mut AssetLoader) -> XResult<()> {
         if states.is_empty() {
             return xres!(LogicBadState; "states empty");
         }
@@ -94,7 +94,7 @@ impl Animator {
             if state.id != ad.id {
                 return xres!(LogicBadState; "state id");
             }
-            ad.update(&mut self.sampling_arena, frame, state, &self.skeleton, &mut load)?;
+            ad.update(&mut self.sampling_arena, frame, state, &self.skeleton, loader)?;
         }
 
         // 3. try reuse actions
@@ -104,7 +104,7 @@ impl Animator {
                 .action_queue
                 .enqueue_reuse(|ad| {
                     if ad.tmpl_id == state.tmpl_id {
-                        ad.reuse(&mut self.sampling_arena, frame, state, &self.skeleton, &mut load)?;
+                        ad.reuse(&mut self.sampling_arena, frame, state, &self.skeleton, loader)?;
                     }
                     Ok(ad.tmpl_id == state.tmpl_id)
                 })?
@@ -118,7 +118,7 @@ impl Animator {
         for idx in self.action_queue.len()..states.len() {
             let state = &states[idx];
             let mut ad = ActionData::default();
-            ad.init(&mut self.sampling_arena, frame, state, &self.skeleton, &mut load)?;
+            ad.init(&mut self.sampling_arena, frame, state, &self.skeleton, loader)?;
             self.action_queue.enqueue_new(ad);
         }
         Ok(())
@@ -166,11 +166,17 @@ impl Animator {
 
     pub fn animate(&mut self) -> XResult<()> {
         self.blending_job.layers_mut().clear();
+        self.weapon_transfroms.clear();
         for ad in self.action_queue.iter_mut() {
-            ad.animate(&mut self.sampling_arena, &mut self.blending_job)?;
+            ad.animate(
+                &mut self.sampling_arena,
+                &mut self.blending_job,
+                &mut self.weapon_transfroms,
+            )?;
         }
         self.blending_job.run().map_err(xfrom!())?;
         self.l2m_job.run().map_err(xfrom!())?;
+        normalize_weapons_by_weight(&mut self.weapon_transfroms);
         Ok(())
     }
 
@@ -245,6 +251,11 @@ impl Animator {
     pub fn model_out_transforms(&self, transforms: &mut [Transform3A]) -> XResult<()> {
         matrices_to_transforms(self.l2m_job.output().unwrap().borrow().as_slice(), transforms)
     }
+
+    #[inline]
+    pub fn weapon_transforms(&self) -> &[WeaponTransform] {
+        &self.weapon_transfroms
+    }
 }
 
 macro_rules! animation_state {
@@ -270,7 +281,6 @@ struct ActionData {
     job_current: u32,
     job_past: u32,
     job_future: u32,
-    phantoms: PhantomData<Rc<Animation>>,
 }
 
 impl Default for ActionData {
@@ -282,23 +292,19 @@ impl Default for ActionData {
             job_current: u32::MAX,
             job_past: u32::MAX,
             job_future: u32::MAX,
-            phantoms: PhantomData,
         }
     }
 }
 
 impl ActionData {
-    fn init<F>(
+    fn init(
         &mut self,
         arena: &mut SamplingArena,
         frame: u32,
         state: &Box<dyn StateActionAny>,
         skeleton: &Skeleton,
-        mut load: F,
-    ) -> XResult<()>
-    where
-        F: FnMut(&Symbol) -> XResult<Rc<Animation>>,
-    {
+        loader: &mut AssetLoader,
+    ) -> XResult<()> {
         if state.animations[0].is_empty() {
             return xres!(LogicBadState; "animations empty");
         }
@@ -315,8 +321,18 @@ impl ActionData {
 
             let pos = arena.alloc_and_reptr(&mut pnext);
             let sd = arena.get_mut(pos);
-            let animation = load(&anim_state.files)?;
-            sd.init(anim_state.animation_id, anim_state.files, skeleton, animation);
+            let animation = loader.load_animation(anim_state.files)?;
+            let weapon_motion = match anim_state.weapon_motion {
+                true => Some(loader.load_weapon_motion(anim_state.files)?),
+                false => None,
+            };
+            sd.init(
+                anim_state.animation_id,
+                anim_state.files,
+                skeleton,
+                animation,
+                weapon_motion,
+            );
             sd.frame = frame;
             sd.weight = anim_state.weight * state.fade_in_weight;
             sd.sampling_job.set_ratio(anim_state.ratio);
@@ -328,35 +344,29 @@ impl ActionData {
         Ok(())
     }
 
-    fn reuse<F>(
+    fn reuse(
         &mut self,
         arena: &mut SamplingArena,
         frame: u32,
         state: &Box<dyn StateActionAny>,
         skeleton: &Skeleton,
-        load: F,
-    ) -> XResult<()>
-    where
-        F: FnMut(&Symbol) -> XResult<Rc<Animation>>,
-    {
+        loader: &mut AssetLoader,
+    ) -> XResult<()> {
         self.id = state.id;
         self.job_future = self.job_past;
-        self.job_past = self.job_past;
+        // self.job_past = self.job_past;
         self.job_current = self.job_past;
-        self.update(arena, frame, state, skeleton, load)
+        self.update(arena, frame, state, skeleton, loader)
     }
 
-    fn update<F>(
+    fn update(
         &mut self,
         arena: &mut SamplingArena,
         frame: u32,
         state: &Box<dyn StateActionAny>,
         skeleton: &Skeleton,
-        mut load: F,
-    ) -> XResult<()>
-    where
-        F: FnMut(&Symbol) -> XResult<Rc<Animation>>,
-    {
+        loader: &mut AssetLoader,
+    ) -> XResult<()> {
         if state.animations[0].is_empty() {
             return xres!(LogicBadState; "animations empty");
         }
@@ -432,8 +442,18 @@ impl ActionData {
 
             let pos = arena.alloc_and_reptr(&mut pnext);
             let sd = arena.get_mut(pos);
-            let animation = load(&anim_state.files)?;
-            sd.init(anim_state.animation_id, anim_state.files, skeleton, animation);
+            let animation = loader.load_animation(anim_state.files)?;
+            let weapon_motion = match anim_state.weapon_motion {
+                true => Some(loader.load_weapon_motion(anim_state.files)?),
+                false => None,
+            };
+            sd.init(
+                anim_state.animation_id,
+                anim_state.files,
+                skeleton,
+                animation,
+                weapon_motion,
+            );
             sd.frame = frame;
             sd.weight = anim_state.weight * state.fade_in_weight;
             sd.sampling_job.set_ratio(anim_state.ratio);
@@ -532,7 +552,12 @@ impl ActionData {
         self.job_future = u32::MAX;
     }
 
-    fn animate(&mut self, arena: &mut SamplingArena, blending_job: &mut BlendingJob) -> XResult<()> {
+    fn animate(
+        &mut self,
+        arena: &mut SamplingArena,
+        blending_job: &mut BlendingJob,
+        weapon_transforms: &mut Vec<WeaponTransform>,
+    ) -> XResult<()> {
         let mut iter = self.job_current;
         while iter != self.job_future {
             let sd = arena.get_mut(iter);
@@ -543,6 +568,15 @@ impl ActionData {
                 sd.sampling_job.output().unwrap().clone(),
                 sd.weight,
             ));
+
+            if let Some(weapon_motion) = &sd.weapon_motion {
+                sample_weapons_by_name_with_weight(
+                    weapon_motion,
+                    sd.sampling_job.ratio(),
+                    sd.weight,
+                    weapon_transforms,
+                )?;
+            }
         }
         Ok(())
     }
@@ -556,6 +590,7 @@ struct SamplingData {
     weight: f32,
     animation_file: Symbol,
     sampling_job: SamplingJob,
+    weapon_motion: Option<Rc<WeaponMotion>>,
 }
 
 impl Default for SamplingData {
@@ -567,12 +602,20 @@ impl Default for SamplingData {
             weight: 0.0,
             animation_file: Symbol::default(),
             sampling_job: SamplingJob::default(),
+            weapon_motion: None,
         }
     }
 }
 
 impl SamplingData {
-    fn init(&mut self, animation_id: u16, animation_file: Symbol, skeleton: &Skeleton, animation: Rc<Animation>) {
+    fn init(
+        &mut self,
+        animation_id: u16,
+        animation_file: Symbol,
+        skeleton: &Skeleton,
+        animation: Rc<Animation>,
+        weapon_motion: Option<Rc<WeaponMotion>>,
+    ) {
         self.animation_id = animation_id;
         self.frame = 0;
         self.weight = 0.0;
@@ -584,6 +627,7 @@ impl SamplingData {
             SoaTransform::default();
             skeleton.num_soa_joints()
         ])));
+        self.weapon_motion = weapon_motion;
         self.next = u32::MAX;
     }
 }
@@ -698,11 +742,10 @@ mod tests {
         linked_list
     }
 
-    fn prepare_resource() -> (Rc<Skeleton>, Rc<Animation>) {
+    fn prepare_resource() -> (AssetLoader, Rc<Skeleton>) {
         let mut asset_loader = AssetLoader::new(TEST_ASSET_PATH).unwrap();
-        let skeleton = asset_loader.load_skeleton(sb!("girl.*")).unwrap();
-        let animation = asset_loader.load_animation(sb!("girl_stand_idle.*")).unwrap();
-        (skeleton, animation)
+        let skeleton = asset_loader.load_skeleton(sb!("Girl.*")).unwrap();
+        (asset_loader, skeleton)
     }
 
     #[test]
@@ -774,12 +817,12 @@ mod tests {
 
     #[test]
     fn test_action_data_init() {
-        let (skeleton, animation) = prepare_resource();
+        let (mut asset_loader, skeleton) = prepare_resource();
         let mut arena = SamplingArena::new(3);
 
         let state: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
         let mut ad: ActionData = ActionData::default();
-        let res = ad.init(&mut arena, 300, &state, &skeleton, |_| Ok(animation.clone()));
+        let res = ad.init(&mut arena, 300, &state, &skeleton, &mut asset_loader);
         assert!(res.is_err());
 
         {
@@ -788,16 +831,15 @@ mod tests {
             state.tmpl_id = id!("Action.Empty");
             state.fade_in_weight = 0.7;
             state.animations[0].animation_id = 101;
-            state.animations[0].files = sb!("anime_1.*");
+            state.animations[0].files = sb!("Girl_Idle_Empty.*");
             state.animations[0].ratio = 0.1;
             state.animations[0].weight = 0.7;
             state.animations[1].animation_id = 102;
-            state.animations[1].files = sb!("anime_2.*");
+            state.animations[1].files = sb!("Girl_Run_Empty.*");
             state.animations[1].ratio = 0.2;
             state.animations[1].weight = 0.3;
             let mut ad: ActionData = ActionData::default();
-            ad.init(&mut arena, 120, &state, &skeleton, |_| Ok(animation.clone()))
-                .unwrap();
+            ad.init(&mut arena, 120, &state, &skeleton, &mut asset_loader).unwrap();
             assert_eq!(ad.id, 12345);
             assert_eq!(ad.tmpl_id, id!("Action.Empty"));
             assert_eq!(ad.frame, 120);
@@ -806,12 +848,12 @@ mod tests {
             assert_eq!(current[0].animation_id, 101);
             assert_eq!(current[0].frame, 120);
             assert_eq!(current[0].weight, 0.7 * 0.7);
-            assert_eq!(current[0].animation_file, "anime_1.*");
+            assert_eq!(current[0].animation_file, "Girl_Idle_Empty.*");
             assert_eq!(current[0].sampling_job.ratio(), 0.1);
             assert_eq!(current[1].animation_id, 102);
             assert_eq!(current[1].frame, 120);
             assert_eq!(current[1].weight, 0.3 * 0.7);
-            assert_eq!(current[1].animation_file, "anime_2.*");
+            assert_eq!(current[1].animation_file, "Girl_Run_Empty.*");
             assert_eq!(current[1].sampling_job.ratio(), 0.2);
             let past = list_sampling(&arena, ad.job_past, ad.job_current);
             assert_eq!(past.len(), 0);
@@ -822,38 +864,37 @@ mod tests {
 
     #[test]
     fn test_action_data_update() {
-        let (skeleton, animation) = prepare_resource();
+        let (mut asset_loader, skeleton) = prepare_resource();
         let mut arena = SamplingArena::new(3);
         let mut ad: ActionData = ActionData::default();
 
         let state: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
-        let res = ad.update(&mut arena, 30, &state, &skeleton, |_| Ok(animation.clone()));
+        let res = ad.update(&mut arena, 30, &state, &skeleton, &mut asset_loader);
         assert!(res.is_err());
 
         {
             let mut state: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
             state.fade_in_weight = 0.4;
             state.animations[0].animation_id = 11;
-            state.animations[0].files = sb!("anime_1.*");
+            state.animations[0].files = sb!("Girl_Idle_Empty.*");
             state.animations[0].ratio = 0.4;
             state.animations[0].weight = 0.7;
             state.animations[1].animation_id = 12;
-            state.animations[1].files = sb!("anime_2.*");
+            state.animations[1].files = sb!("Girl_Run_Empty.*");
             state.animations[1].ratio = 0.6;
             state.animations[1].weight = 0.3;
-            ad.update(&mut arena, 31, &state, &skeleton, |_| Ok(animation.clone()))
-                .unwrap();
+            ad.update(&mut arena, 31, &state, &skeleton, &mut asset_loader).unwrap();
             let current = list_sampling(&arena, ad.job_current, ad.job_future);
             assert_eq!(current.len(), 2);
             assert_eq!(current[0].animation_id, 11);
             assert_eq!(current[0].frame, 31);
             assert_eq!(current[0].weight, 0.7 * 0.4);
-            assert_eq!(current[0].animation_file, "anime_1.*");
+            assert_eq!(current[0].animation_file, "Girl_Idle_Empty.*");
             assert_eq!(current[0].sampling_job.ratio(), 0.4);
             assert_eq!(current[1].animation_id, 12);
             assert_eq!(current[1].frame, 31);
             assert_eq!(current[1].weight, 0.3 * 0.4);
-            assert_eq!(current[1].animation_file, "anime_2.*");
+            assert_eq!(current[1].animation_file, "Girl_Run_Empty.*");
             assert_eq!(current[1].sampling_job.ratio(), 0.6);
             let past = list_sampling(&arena, ad.job_past, ad.job_current);
             assert_eq!(past.len(), 0);
@@ -865,31 +906,30 @@ mod tests {
             let mut state: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
             state.fade_in_weight = 1.0;
             state.animations[0].animation_id = 12;
-            state.animations[0].files = sb!("anime_2.*");
+            state.animations[0].files = sb!("Girl_Run_Empty.*");
             state.animations[0].ratio = 0.7;
             state.animations[0].weight = 1.0;
             state.animations[1].animation_id = 13;
-            state.animations[1].files = sb!("anime_3.*");
+            state.animations[1].files = sb!("Girl_Attack_01A.*");
             state.animations[2].animation_id = 14;
-            state.animations[2].files = sb!("anime_4.*");
-            ad.update(&mut arena, 32, &state, &skeleton, |_| Ok(animation.clone()))
-                .unwrap();
+            state.animations[2].files = sb!("Girl_Attack_02A.*");
+            ad.update(&mut arena, 32, &state, &skeleton, &mut asset_loader).unwrap();
             let current = list_sampling(&arena, ad.job_current, ad.job_future);
             assert_eq!(current.len(), 3);
             assert_eq!(current[0].animation_id, 12);
             assert_eq!(current[0].frame, 32);
             assert_eq!(current[0].weight, 1.0);
-            assert_eq!(current[0].animation_file, "anime_2.*");
+            assert_eq!(current[0].animation_file, "Girl_Run_Empty.*");
             assert_eq!(current[0].sampling_job.ratio(), 0.7);
             assert_eq!(current[1].animation_id, 13);
-            assert_eq!(current[1].animation_file, "anime_3.*");
+            assert_eq!(current[1].animation_file, "Girl_Attack_01A.*");
             assert_eq!(current[2].animation_id, 14);
-            assert_eq!(current[2].animation_file, "anime_4.*");
+            assert_eq!(current[2].animation_file, "Girl_Attack_02A.*");
             let past = list_sampling(&arena, ad.job_past, ad.job_current);
             assert_eq!(past.len(), 1);
             assert_eq!(past[0].animation_id, 11);
             assert_eq!(past[0].frame, 31);
-            assert_eq!(past[0].animation_file, "anime_1.*");
+            assert_eq!(past[0].animation_file, "Girl_Idle_Empty.*");
             let future = list_sampling(&arena, ad.job_future, u32::MAX);
             assert_eq!(future.len(), 0);
         }
@@ -898,28 +938,28 @@ mod tests {
     #[test]
     fn test_action_data_restore() {
         fn prepare() -> (
+            AssetLoader,
             Rc<Skeleton>,
-            Rc<Animation>,
             SamplingArena,
             ActionData,
             Box<dyn StateActionAny>,
             Box<dyn StateActionAny>,
         ) {
-            let (skeleton, animation) = prepare_resource();
+            let (mut asset_loader, skeleton) = prepare_resource();
             let mut arena = SamplingArena::new(3);
             let mut ad: ActionData = ActionData::default();
 
             let mut state1: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
             state1.fade_in_weight = 1.0;
             state1.animations[0].animation_id = 11;
-            state1.animations[0].files = sb!("anime_1.*");
+            state1.animations[0].files = sb!("Girl_Idle_Empty.*");
             state1.animations[0].ratio = 0.1;
             state1.animations[0].weight = 0.4;
             state1.animations[1].animation_id = 12;
-            state1.animations[1].files = sb!("anime_2.*");
+            state1.animations[1].files = sb!("Girl_Run_Empty.*");
             state1.animations[1].ratio = 0.2;
             state1.animations[1].weight = 0.6;
-            ad.update(&mut arena, 50, &state1, &skeleton, |_| Ok(animation.clone()))
+            ad.update(&mut arena, 50, &state1, &skeleton, &mut asset_loader)
                 .unwrap();
             let past = list_sampling(&arena, ad.job_past, u32::MAX);
             assert_eq!(past.len(), 2);
@@ -927,35 +967,35 @@ mod tests {
             let mut state2: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
             state2.fade_in_weight = 0.8;
             state2.animations[0].animation_id = 12;
-            state2.animations[0].files = sb!("anime_2.*");
+            state2.animations[0].files = sb!("Girl_Run_Empty.*");
             state2.animations[0].ratio = 0.2;
             state2.animations[0].weight = 1.0;
             state2.animations[1].animation_id = 13;
-            state2.animations[1].files = sb!("anime_3.*");
+            state2.animations[1].files = sb!("Girl_Attack_01A.*");
             state2.animations[2].animation_id = 14;
-            state2.animations[2].files = sb!("anime_4.*");
-            ad.update(&mut arena, 51, &state2, &skeleton, |_| Ok(animation.clone()))
+            state2.animations[2].files = sb!("Girl_Attack_02A.*");
+            ad.update(&mut arena, 51, &state2, &skeleton, &mut asset_loader)
                 .unwrap();
             let past = list_sampling(&arena, ad.job_past, u32::MAX);
             assert_eq!(past.len(), 4);
 
-            (skeleton, animation, arena, ad, state1, state2)
+            (asset_loader, skeleton, arena, ad, state1, state2)
         }
 
         {
-            let (skeleton, animation, mut arena, mut ad, state1, state2) = prepare();
+            let (mut asset_loader, skeleton, mut arena, mut ad, state1, state2) = prepare();
             ad.restore(&mut arena, 50, &state1).unwrap();
             let current = list_sampling(&arena, ad.job_current, ad.job_future);
             assert_eq!(current.len(), 2);
             assert_eq!(current[0].animation_id, 11);
             assert_eq!(current[0].frame, 50);
             assert_eq!(current[0].weight, 0.4);
-            assert_eq!(current[0].animation_file, "anime_1.*");
+            assert_eq!(current[0].animation_file, "Girl_Idle_Empty.*");
             assert_eq!(current[0].sampling_job.ratio(), 0.1);
             assert_eq!(current[1].animation_id, 12);
             assert_eq!(current[1].frame, 50);
             assert_eq!(current[1].weight, 0.6);
-            assert_eq!(current[1].animation_file, "anime_2.*");
+            assert_eq!(current[1].animation_file, "Girl_Run_Empty.*");
             assert_eq!(current[1].sampling_job.ratio(), 0.2);
             let past = list_sampling(&arena, ad.job_past, ad.job_current);
             assert_eq!(past.len(), 0);
@@ -963,19 +1003,19 @@ mod tests {
             assert_eq!(future.len(), 2);
             assert_eq!(list_next(&arena, arena.free), vec![4, 5]);
 
-            ad.update(&mut arena, 51, &state2, &skeleton, |_| Ok(animation.clone()))
+            ad.update(&mut arena, 51, &state2, &skeleton, &mut asset_loader)
                 .unwrap();
             let current = list_sampling(&arena, ad.job_current, u32::MAX);
             assert_eq!(current.len(), 3);
             assert_eq!(current[0].animation_id, 12);
             assert_eq!(current[0].frame, 51);
             assert_eq!(current[0].weight, 1.0 * 0.8);
-            assert_eq!(current[0].animation_file, "anime_2.*");
+            assert_eq!(current[0].animation_file, "Girl_Run_Empty.*");
             assert_eq!(current[0].sampling_job.ratio(), 0.2);
             assert_eq!(current[1].animation_id, 13);
-            assert_eq!(current[1].animation_file, "anime_3.*");
+            assert_eq!(current[1].animation_file, "Girl_Attack_01A.*");
             assert_eq!(current[2].animation_id, 14);
-            assert_eq!(current[2].animation_file, "anime_4.*");
+            assert_eq!(current[2].animation_file, "Girl_Attack_02A.*");
             let past = list_sampling(&arena, ad.job_past, ad.job_current);
             assert_eq!(past.len(), 1);
             let future = list_sampling(&arena, ad.job_future, u32::MAX);
@@ -984,15 +1024,15 @@ mod tests {
         }
 
         {
-            let (skeleton, animation, mut arena, mut ad, state1, mut state2) = prepare();
+            let (mut asset_loader, skeleton, mut arena, mut ad, state1, mut state2) = prepare();
             ad.restore(&mut arena, 50, &state1).unwrap();
             state2.animations[1].animation_id = 13;
-            state2.animations[1].files = sb!("anime_x.*");
+            state2.animations[1].files = sb!("Girl_Walk_Empty.*");
             state2.animations[1].ratio = 0.5;
             state2.animations[1].weight = 0.5;
             state2.animations[2].animation_id = 0;
             state2.animations[2].files = Symbol::default();
-            ad.update(&mut arena, 51, &state2, &skeleton, |_| Ok(animation.clone()))
+            ad.update(&mut arena, 51, &state2, &skeleton, &mut asset_loader)
                 .unwrap();
             let current = list_sampling(&arena, ad.job_current, ad.job_future);
             assert_eq!(current.len(), 2);
@@ -1006,7 +1046,7 @@ mod tests {
 
     #[test]
     fn test_skeleton_animator_update() {
-        let (skeleton, animation) = prepare_resource();
+        let (mut asset_loader, skeleton) = prepare_resource();
         let mut sa = Animator::new(skeleton, 0, 3);
 
         let mut states: Vec<Box<dyn StateActionAny>> = vec![
@@ -1014,23 +1054,23 @@ mod tests {
             Box::new(StateActionEmpty::default()),
         ];
         states[0].id = 21;
-        states[0].tmpl_id = id!("Action.Empty/1");
+        states[0].tmpl_id = id!("Action.Empty^1");
         states[0].animations[0].animation_id = 101;
-        states[0].animations[0].files = sb!("anime_1.*");
+        states[0].animations[0].files = sb!("Girl_Idle_Empty.*");
         states[1].id = 22;
-        states[1].tmpl_id = id!("Action.Empty/2");
+        states[1].tmpl_id = id!("Action.Empty^2");
         states[1].animations[0].animation_id = 102;
-        states[1].animations[0].files = sb!("anime_2.*");
-        sa.update(105, &states, |_| Ok(animation.clone())).unwrap();
+        states[1].animations[0].files = sb!("Girl_Run_Empty.*");
+        sa.update(105, &states, &mut asset_loader).unwrap();
         assert_eq!(sa.action_queue.len(), 2);
         assert_eq!(sa.action_queue[0].id, 21);
-        assert_eq!(sa.action_queue[0].tmpl_id, id!("Action.Empty/1"));
+        assert_eq!(sa.action_queue[0].tmpl_id, id!("Action.Empty^1"));
         assert_eq!(sa.action_queue[0].frame, 105);
         let sampling = list_sampling(&sa.sampling_arena, sa.action_queue[0].job_current, u32::MAX);
         assert_eq!(sampling.len(), 1);
         assert_eq!(sampling[0].animation_id, 101);
         assert_eq!(sa.action_queue[1].id, 22);
-        assert_eq!(sa.action_queue[1].tmpl_id, id!("Action.Empty/2"));
+        assert_eq!(sa.action_queue[1].tmpl_id, id!("Action.Empty^2"));
         assert_eq!(sa.action_queue[1].frame, 105);
         let sampling = list_sampling(&sa.sampling_arena, sa.action_queue[1].job_current, u32::MAX);
         assert_eq!(sampling.len(), 1);
@@ -1041,23 +1081,23 @@ mod tests {
             Box::new(StateActionEmpty::default()),
         ];
         states[0].id = 22;
-        states[0].tmpl_id = id!("Action.Empty/2");
+        states[0].tmpl_id = id!("Action.Empty^2");
         states[0].animations[0].animation_id = 102;
-        states[0].animations[0].files = sb!("anime_2.*");
+        states[0].animations[0].files = sb!("Girl_Run_Empty.*");
         states[1].id = 23;
-        states[1].tmpl_id = id!("Action.Empty/3");
+        states[1].tmpl_id = id!("Action.Empty^3");
         states[1].animations[0].animation_id = 103;
-        states[1].animations[0].files = sb!("anime_3.*");
-        sa.update(106, &states, |_| Ok(animation.clone())).unwrap();
+        states[1].animations[0].files = sb!("Girl_Attack_01A.*");
+        sa.update(106, &states, &mut asset_loader).unwrap();
         assert_eq!(sa.action_queue.len(), 2);
         assert_eq!(sa.action_queue[0].id, 22);
-        assert_eq!(sa.action_queue[0].tmpl_id, id!("Action.Empty/2"));
+        assert_eq!(sa.action_queue[0].tmpl_id, id!("Action.Empty^2"));
         assert_eq!(sa.action_queue[0].frame, 106);
         let sampling = list_sampling(&sa.sampling_arena, sa.action_queue[0].job_current, u32::MAX);
         assert_eq!(sampling.len(), 1);
         assert_eq!(sampling[0].animation_id, 102);
         assert_eq!(sa.action_queue[1].id, 23);
-        assert_eq!(sa.action_queue[1].tmpl_id, id!("Action.Empty/3"));
+        assert_eq!(sa.action_queue[1].tmpl_id, id!("Action.Empty^3"));
         assert_eq!(sa.action_queue[1].frame, 106);
         let sampling = list_sampling(&sa.sampling_arena, sa.action_queue[1].job_current, u32::MAX);
         assert_eq!(sampling.len(), 1);
@@ -1070,12 +1110,12 @@ mod tests {
     #[test]
     fn test_skeleton_animator_restore() {
         fn prepare() -> (
-            Rc<Animation>,
+            AssetLoader,
             Animator,
             Vec<Box<dyn StateActionAny>>,
             Vec<Box<dyn StateActionAny>>,
         ) {
-            let (skeleton, animation) = prepare_resource();
+            let (mut asset_loader, skeleton) = prepare_resource();
             let mut sa = Animator::new(skeleton, 0, 3);
 
             let mut states1: Vec<Box<dyn StateActionAny>> = vec![
@@ -1083,14 +1123,14 @@ mod tests {
                 Box::new(StateActionEmpty::default()),
             ];
             states1[0].id = 41;
-            states1[0].tmpl_id = id!("Action.Empty/1");
+            states1[0].tmpl_id = id!("Action.Empty^1");
             states1[0].animations[0].animation_id = 101;
-            states1[0].animations[0].files = sb!("anime_1.*");
+            states1[0].animations[0].files = sb!("Girl_Idle_Empty.*");
             states1[1].id = 42;
-            states1[1].tmpl_id = id!("Action.Empty/2");
+            states1[1].tmpl_id = id!("Action.Empty^2");
             states1[1].animations[0].animation_id = 102;
-            states1[1].animations[0].files = sb!("anime_2.*");
-            sa.update(205, &states1, |_| Ok(animation.clone())).unwrap();
+            states1[1].animations[0].files = sb!("Girl_Run_Empty.*");
+            sa.update(205, &states1, &mut asset_loader).unwrap();
 
             let mut states2: Vec<Box<dyn StateActionAny>> = vec![
                 Box::new(StateActionEmpty::default()),
@@ -1098,34 +1138,34 @@ mod tests {
                 Box::new(StateActionEmpty::default()),
             ];
             states2[0].id = 42;
-            states2[0].tmpl_id = id!("Action.Empty/2");
+            states2[0].tmpl_id = id!("Action.Empty^2");
             states2[0].animations[0].animation_id = 102;
-            states2[0].animations[0].files = sb!("anime_2.*");
+            states2[0].animations[0].files = sb!("Girl_Run_Empty.*");
             states2[1].id = 43;
-            states2[1].tmpl_id = id!("Action.Empty/3");
+            states2[1].tmpl_id = id!("Action.Empty^3");
             states2[1].animations[0].animation_id = 103;
-            states2[1].animations[0].files = sb!("anime_3.*");
+            states2[1].animations[0].files = sb!("Girl_Attack_01A.*");
             states2[2].id = 44;
-            states2[2].tmpl_id = id!("Action.Empty/4");
+            states2[2].tmpl_id = id!("Action.Empty^4");
             states2[2].animations[0].animation_id = 104;
-            states2[2].animations[0].files = sb!("anime_4.*");
-            sa.update(206, &states2, |_| Ok(animation.clone())).unwrap();
+            states2[2].animations[0].files = sb!("Girl_Attack_02A.*");
+            sa.update(206, &states2, &mut asset_loader).unwrap();
 
-            (animation, sa, states1, states2)
+            (asset_loader, sa, states1, states2)
         }
 
         {
-            let (animation, mut sa, states1, mut states2) = prepare();
+            let (mut asset_loader, mut sa, states1, mut states2) = prepare();
             sa.restore(205, &states1).unwrap();
             assert_eq!(sa.action_queue.len(), 2);
             assert_eq!(sa.action_queue[0].id, 41);
-            assert_eq!(sa.action_queue[0].tmpl_id, id!("Action.Empty/1"));
+            assert_eq!(sa.action_queue[0].tmpl_id, id!("Action.Empty^1"));
             assert_eq!(sa.action_queue[0].frame, 205);
             let sampling = list_sampling(&sa.sampling_arena, sa.action_queue[0].job_current, u32::MAX);
             assert_eq!(sampling.len(), 1);
             assert_eq!(sampling[0].animation_id, 101);
             assert_eq!(sa.action_queue[1].id, 42);
-            assert_eq!(sa.action_queue[1].tmpl_id, id!("Action.Empty/2"));
+            assert_eq!(sa.action_queue[1].tmpl_id, id!("Action.Empty^2"));
             assert_eq!(sa.action_queue[1].frame, 205);
             let sampling = list_sampling(&sa.sampling_arena, sa.action_queue[1].job_current, u32::MAX);
             assert_eq!(sampling.len(), 1);
@@ -1135,16 +1175,16 @@ mod tests {
             assert_eq!(sa.action_queue.all_len(), 4);
 
             states2.pop();
-            sa.update(206, &states2, |_| Ok(animation.clone())).unwrap();
+            sa.update(206, &states2, &mut asset_loader).unwrap();
             assert_eq!(sa.action_queue.len(), 2);
             assert_eq!(sa.action_queue[0].id, 42);
-            assert_eq!(sa.action_queue[0].tmpl_id, id!("Action.Empty/2"));
+            assert_eq!(sa.action_queue[0].tmpl_id, id!("Action.Empty^2"));
             assert_eq!(sa.action_queue[0].frame, 206);
             let sampling = list_sampling(&sa.sampling_arena, sa.action_queue[0].job_current, u32::MAX);
             assert_eq!(sampling.len(), 1);
             assert_eq!(sampling[0].animation_id, 102);
             assert_eq!(sa.action_queue[1].id, 43);
-            assert_eq!(sa.action_queue[1].tmpl_id, id!("Action.Empty/3"));
+            assert_eq!(sa.action_queue[1].tmpl_id, id!("Action.Empty^3"));
             assert_eq!(sa.action_queue[1].frame, 206);
             let sampling = list_sampling(&sa.sampling_arena, sa.action_queue[1].job_current, u32::MAX);
             assert_eq!(sampling.len(), 1);
@@ -1155,23 +1195,23 @@ mod tests {
         }
 
         {
-            let (animation, mut sa, states1, mut states2) = prepare();
+            let (mut asset_loader, mut sa, states1, mut states2) = prepare();
             sa.restore(205, &states1).unwrap();
             states2[1].id = 45;
-            states2[1].tmpl_id = id!("Action.Empty/X");
+            states2[1].tmpl_id = id!("Action.Empty^X");
             states2[1].animations[0].animation_id = 105;
-            states2[1].animations[0].files = sb!("anime_x.*");
+            states2[1].animations[0].files = sb!("Girl_Walk_Empty.*");
             states2.pop();
-            sa.update(206, &states2, |_| Ok(animation.clone())).unwrap();
+            sa.update(206, &states2, &mut asset_loader).unwrap();
             assert_eq!(sa.action_queue.len(), 2);
             assert_eq!(sa.action_queue[0].id, 42);
-            assert_eq!(sa.action_queue[0].tmpl_id, id!("Action.Empty/2"));
+            assert_eq!(sa.action_queue[0].tmpl_id, id!("Action.Empty^2"));
             assert_eq!(sa.action_queue[0].frame, 206);
             let sampling = list_sampling(&sa.sampling_arena, sa.action_queue[0].job_current, u32::MAX);
             assert_eq!(sampling.len(), 1);
             assert_eq!(sampling[0].animation_id, 102);
             assert_eq!(sa.action_queue[1].id, 45);
-            assert_eq!(sa.action_queue[1].tmpl_id, id!("Action.Empty/X"));
+            assert_eq!(sa.action_queue[1].tmpl_id, id!("Action.Empty^X"));
             assert_eq!(sa.action_queue[1].frame, 206);
             let sampling = list_sampling(&sa.sampling_arena, sa.action_queue[1].job_current, u32::MAX);
             assert_eq!(sampling.len(), 1);
@@ -1184,7 +1224,7 @@ mod tests {
 
     #[test]
     fn test_skeleton_animator_discard() {
-        let (skeleton, animation) = prepare_resource();
+        let (mut asset_loader, skeleton) = prepare_resource();
         let mut sa = Animator::new(skeleton, 0, 3);
 
         let mut states1: Vec<Box<dyn StateActionAny>> = vec![
@@ -1192,28 +1232,28 @@ mod tests {
             Box::new(StateActionEmpty::default()),
         ];
         states1[0].id = 41;
-        states1[0].tmpl_id = id!("Action.Empty/1");
+        states1[0].tmpl_id = id!("Action.Empty^1");
         states1[0].animations[0].animation_id = 101;
-        states1[0].animations[0].files = sb!("anime_1.*");
+        states1[0].animations[0].files = sb!("Girl_Idle_Empty.*");
         states1[1].id = 42;
-        states1[1].tmpl_id = id!("Action.Empty/2");
+        states1[1].tmpl_id = id!("Action.Empty^2");
         states1[1].animations[0].animation_id = 102;
-        states1[1].animations[0].files = sb!("anime_2.*");
-        sa.update(205, &states1, |_| Ok(animation.clone())).unwrap();
+        states1[1].animations[0].files = sb!("Girl_Run_Empty.*");
+        sa.update(205, &states1, &mut asset_loader).unwrap();
 
         let mut states2: Vec<Box<dyn StateActionAny>> = vec![
             Box::new(StateActionEmpty::default()),
             Box::new(StateActionEmpty::default()),
         ];
         states2[0].id = 42;
-        states2[0].tmpl_id = id!("Action.Empty/2");
+        states2[0].tmpl_id = id!("Action.Empty^2");
         states2[0].animations[0].animation_id = 103;
-        states2[0].animations[0].files = sb!("anime_3.*");
+        states2[0].animations[0].files = sb!("Girl_Attack_01A.*");
         states2[1].id = 43;
-        states2[1].tmpl_id = id!("Action.Empty/4");
+        states2[1].tmpl_id = id!("Action.Empty^4");
         states2[1].animations[0].animation_id = 104;
-        states2[1].animations[0].files = sb!("anime_4.*");
-        sa.update(206, &states2, |_| Ok(animation.clone())).unwrap();
+        states2[1].animations[0].files = sb!("Girl_Attack_02A.*");
+        sa.update(206, &states2, &mut asset_loader).unwrap();
 
         sa.discard(205);
         assert_eq!(sa.action_queue.len(), 2);
