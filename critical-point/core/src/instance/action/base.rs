@@ -1,20 +1,23 @@
+use core::f32;
 use std::any::Any;
 use std::fmt::Debug;
 use std::ops::Deref;
+use thin_vec::ThinVec;
 
-use crate::ratio_safe;
+use crate::animation::AnimationFileMeta;
 use crate::template::{
-    ArchivedTmplActionAttributes, ArchivedTmplAnimation, ArchivedTmplDeriveRule, ArchivedTmplTimeline, ArchivedTmplVar,
-    TmplHashMap, TmplType,
+    ArchivedTmplActionAttributes, ArchivedTmplAnimation, ArchivedTmplDeriveRule, ArchivedTmplTimelinePoint,
+    ArchivedTmplTimelineRange, ArchivedTmplVar, TmplHashMap, TmplType,
 };
 use crate::utils::{
-    calc_fade_in, interface, ratio_saturating, ratio_warpping, sb, AnimationFileMeta, Symbol, TimeRange, TimeRangeWith, TmplID, VirtualDir, VirtualKey, VirtualKeyDir
+    calc_fade_in, interface, ratio_saturating, ratio_warpping, sb, InputDir, Symbol, TimeRange, TimeRangeWith,
+    TimeWith, TmplID, VirtualKey, VirtualKeyDir, XResult,
 };
 
 pub unsafe trait InstActionAny: Debug + Any {
     fn typ(&self) -> TmplType;
     fn animations<'a>(&'a self, animations: &mut Vec<&'a InstAnimation>);
-    fn derives(&self, derives: &mut Vec<(VirtualKey, TmplID)>);
+    fn derives(&self, derives: &mut Vec<InstDeriveRule>);
 }
 
 #[derive(Default, Debug)]
@@ -84,18 +87,18 @@ impl InstAnimation {
     }
 
     #[inline]
-    pub fn ratio_safe(&self, time: f32) -> f32 {
-        ratio_safe!(time, self.duration)
+    pub fn ratio_unsafe(&self, time: f32) -> f32 {
+        time / self.duration.abs()
     }
 
     #[inline]
     pub fn ratio_saturating(&self, time: f32) -> f32 {
-        ratio_saturating!(time, self.duration)
+        ratio_saturating(time, self.duration)
     }
 
     #[inline]
     pub fn ratio_warpping(&self, time: f32) -> f32 {
-        ratio_warpping!(time, self.duration)
+        ratio_warpping(time, self.duration)
     }
 
     #[inline]
@@ -109,10 +112,10 @@ impl InstAnimation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct InstTimeline<T>(Vec<TimeRangeWith<T>>);
+pub struct InstTimelineRange<T>(ThinVec<TimeRangeWith<T>>);
 
-impl<T> Deref for InstTimeline<T> {
-    type Target = Vec<TimeRangeWith<T>>;
+impl<T> Deref for InstTimelineRange<T> {
+    type Target = ThinVec<TimeRangeWith<T>>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -120,19 +123,22 @@ impl<T> Deref for InstTimeline<T> {
     }
 }
 
-impl<T> InstTimeline<T> {
-    pub fn from_rkyv<V, F>(archived: &ArchivedTmplTimeline<V>, handle_value: F) -> InstTimeline<T>
+impl<T> InstTimelineRange<T> {
+    pub fn from_rkyv<V, F>(archived: &ArchivedTmplTimelineRange<V>, handle_value: F) -> XResult<Self>
     where
         V: rkyv::Archive,
-        F: Fn(&rkyv::Archived<V>) -> T,
+        F: Fn(&rkyv::Archived<V>) -> XResult<T>,
     {
-        let mut timeline = InstTimeline(Vec::with_capacity(archived.fragments.len()));
+        let mut timeline = Self(<Self as Deref>::Target::with_capacity(archived.fragments.len()));
         for fragment in archived.fragments.iter() {
             let range = TimeRange::new(fragment.begin.into(), fragment.end.into());
-            let value = handle_value(&archived.values[fragment.index as usize]);
+            debug_assert!(range.begin >= 0.0);
+            debug_assert!(range.end >= 0.0);
+            debug_assert!(range.begin <= range.end);
+            let value = handle_value(&archived.values[fragment.index as usize])?;
             timeline.0.push(TimeRangeWith::new(range, value));
         }
-        timeline
+        Ok(timeline)
     }
 
     #[inline]
@@ -156,22 +162,24 @@ impl<T> InstTimeline<T> {
         }
     }
 
+    #[inline]
     pub fn end_value(&self) -> Option<&T> {
         self.0.last().map(|item| &item.value)
     }
 
     #[inline]
-    pub fn value_by_time(&self, time: f32) -> Option<&T> {
-        self.element_by_time(time).map(|item| &item.value)
+    pub fn find_value(&self, time: f32) -> Option<&T> {
+        self.find(time).map(|item| &item.value)
     }
 
     #[inline]
-    pub fn range_by_time(&self, time: f32) -> Option<&TimeRange> {
-        self.element_by_time(time).map(|item| &item.range)
+    pub fn find_range(&self, time: f32) -> Option<&TimeRange> {
+        self.find(time).map(|item| &item.range)
     }
 
     #[inline]
-    pub fn element_by_time(&self, time: f32) -> Option<&TimeRangeWith<T>> {
+    pub fn find(&self, time: f32) -> Option<&TimeRangeWith<T>> {
+        // TODO: Optimize performance
         self.0
             .iter()
             .find(|item| item.range.begin <= time && time < item.range.end)
@@ -187,9 +195,64 @@ impl<T> InstTimeline<T> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct InstTimelinePoint<T>(ThinVec<TimeWith<T>>);
+
+impl<T> Deref for InstTimelinePoint<T> {
+    type Target = ThinVec<TimeWith<T>>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> InstTimelinePoint<T> {
+    pub fn from_rkyv<V, F>(archived: &ArchivedTmplTimelinePoint<V>, handle_value: F) -> XResult<Self>
+    where
+        V: rkyv::Archive,
+        F: Fn(&rkyv::Archived<V>) -> XResult<T>,
+    {
+        let mut timeline = Self(<Self as Deref>::Target::with_capacity(archived.pairs.len()));
+        for pair in archived.pairs.iter() {
+            let time = pair.0.into();
+            debug_assert!(time >= 0.0);
+            let value = handle_value(&pair.1)?;
+            timeline.0.push(TimeWith::new(time, value));
+        }
+        Ok(timeline)
+    }
+
+    #[inline]
+    pub fn find_value(&self, range: TimeRange) -> Option<&T> {
+        self.find(range).map(|item| &item.value)
+    }
+
+    #[inline]
+    pub fn find(&self, range: TimeRange) -> Option<&TimeWith<T>> {
+        // TODO: Optimize performance
+        self.0.iter().find(|item| range.contains_no_left(item.time))
+    }
+
+    #[inline]
+    pub fn find_values(&self, range: TimeRange) -> impl Iterator<Item = &T> {
+        self.find_iter(range).map(|item| &item.value)
+    }
+
+    #[inline]
+    pub fn find_iter(&self, range: TimeRange) -> impl Iterator<Item = &TimeWith<T>> {
+        // TODO: Optimize performance
+        self.0
+            .iter()
+            .skip_while(move |item| item.time <= range.begin)
+            .take_while(move |item| item.time <= range.end)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct InstDeriveRule {
     pub key: VirtualKey,
-    pub dir: Option<VirtualDir>,
+    pub dir: Option<InputDir>,
+    pub level: u16,
     pub action: TmplID,
 }
 
@@ -197,11 +260,9 @@ impl InstDeriveRule {
     #[inline]
     pub(crate) fn from_rkyv(ctx: &ContextActionAssemble<'_>, archived: &ArchivedTmplDeriveRule) -> InstDeriveRule {
         InstDeriveRule {
-            key: archived.key,
-            dir: match archived.dir {
-                rkyv::option::ArchivedOption::Some(dir) => Some(dir),
-                rkyv::option::ArchivedOption::None => None,
-            },
+            key: archived.key.key,
+            dir: archived.key.dir,
+            level: archived.level.into(),
             action: ctx.solve_var(&archived.action).into(),
         }
     }
@@ -244,12 +305,12 @@ impl InstActionAttributes {
 //     ratios
 // }
 
-macro_rules! continue_if_none {
-    ($expr:expr) => {
-        match $expr {
-            Some(val) => Some(val),
-            None => continue,
-        }
-    };
-}
-pub(crate) use continue_if_none;
+// macro_rules! continue_if_none {
+//     ($expr:expr) => {
+//         match $expr {
+//             Some(val) => Some(val),
+//             None => continue,
+//         }
+//     };
+// }
+// pub(crate) use continue_if_none;
