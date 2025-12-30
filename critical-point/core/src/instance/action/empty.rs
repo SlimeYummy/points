@@ -1,6 +1,4 @@
-use std::marker::PhantomData;
-
-use crate::instance::action::base::{InstActionAny, InstActionBase, InstAnimation};
+use crate::instance::action::base::{InstActionAny, InstActionBase, InstAnimation, InstDeriveRule};
 use crate::template::TmplType;
 use crate::utils::{extend, TmplID, VirtualKey};
 
@@ -22,7 +20,7 @@ unsafe impl InstActionAny for InstActionEmpty {
         self.animations().for_each(|anime| animations.push(anime));
     }
 
-    fn derives(&self, _derives: &mut Vec<(VirtualKey, TmplID)>) {}
+    fn derives(&self, _derives: &mut Vec<InstDeriveRule>) {}
 }
 
 impl InstActionEmpty {
