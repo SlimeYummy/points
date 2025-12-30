@@ -34,7 +34,7 @@ pub(crate) fn try_assemble_action(
             Some(ax) => Rc::new(ax),
             None => return Ok(None),
         },
-        TmplType::ActionGeneral => match InstActionGeneral::try_assemble(ctx, unsafe { tmpl.cast_unchecked() }) {
+        TmplType::ActionGeneral => match InstActionGeneral::try_assemble(ctx, unsafe { tmpl.cast_unchecked() })? {
             Some(ax) => Rc::new(ax),
             None => return Ok(None),
         },
@@ -60,20 +60,20 @@ pub(crate) fn collect_action_keys(
     actions: &DtHashMap<TmplID, Rc<dyn InstActionAny>>,
 ) -> XResult<(
     DtHashIndex<VirtualKey, TmplID>,
-    DtHashIndex<(TmplID, VirtualKey), TmplID>,
+    DtHashIndex<(TmplID, VirtualKey), InstDeriveRule>,
 )> {
     let mut primary_rules: DtHashIndex<VirtualKey, TmplID> = DtHashIndex::new();
-    let mut derive_rules: DtHashIndex<(TmplID, VirtualKey), TmplID> = DtHashIndex::new();
+    let mut derive_rules: DtHashIndex<(TmplID, VirtualKey), InstDeriveRule> = DtHashIndex::new();
 
-    let mut tmp_derives: Vec<(VirtualKey, TmplID)> = Vec::new();
+    let mut tmp_rules: Vec<InstDeriveRule> = Vec::new();
     for (act_id, act) in actions {
         if let Some(enter_key) = act.enter_key {
             primary_rules.insert(enter_key.key, *act_id);
         }
 
-        act.derives(&mut tmp_derives);
-        for (key, derive_id) in tmp_derives.drain(..) {
-            derive_rules.insert((*act_id, key), derive_id);
+        act.derives(&mut tmp_rules);
+        for rule in tmp_rules.drain(..) {
+            derive_rules.insert((*act_id, rule.key), rule);
         }
     }
 

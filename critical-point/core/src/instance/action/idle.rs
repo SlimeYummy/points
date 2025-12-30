@@ -1,6 +1,8 @@
-use crate::instance::action::base::{ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation};
+use crate::instance::action::base::{
+    ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation, InstDeriveRule,
+};
 use crate::template::{At, TmplActionIdle, TmplType};
-use crate::utils::{extend, sb, TmplID, VirtualKey, VirtualKeyDir};
+use crate::utils::{extend, sb, VirtualKey, VirtualKeyDir};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -26,7 +28,7 @@ unsafe impl InstActionAny for InstActionIdle {
         self.animations().for_each(|anime| animations.push(anime));
     }
 
-    fn derives(&self, _derives: &mut Vec<(VirtualKey, TmplID)>) {}
+    fn derives(&self, _derives: &mut Vec<InstDeriveRule>) {}
 }
 
 impl InstActionIdle {
@@ -84,20 +86,20 @@ mod tests {
         let db = TmplDatabase::new(10240, 150).unwrap();
         let var_indexes = TmplHashMap::new();
 
-        let tmpl_act = db.find_as::<TmplActionIdle>(id!("Action.Instance.Idle/1A")).unwrap();
+        let tmpl_act = db.find_as::<TmplActionIdle>(id!("Action.Instance.Idle^1A")).unwrap();
         let ctx = ContextActionAssemble {
             var_indexes: &var_indexes,
         };
         let inst_act = InstActionIdle::try_assemble(&ctx, tmpl_act).unwrap();
-        assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Idle/1A"));
+        assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Idle^1A"));
         assert_eq!(inst_act.tags, vec![sb!("Idle")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Idle, None));
         assert_eq!(inst_act.enter_level, 0);
-        assert_eq!(inst_act.anim_idle.files, sb!("girl_stand_idle.*"));
+        assert_eq!(inst_act.anim_idle.files, sb!("Girl_Idle_Empty.*"));
         assert_eq!(inst_act.anim_idle.duration, 2.5);
         assert_eq!(inst_act.anim_idle.fade_in, 0.2);
         let anim_ready = inst_act.anim_ready.as_ref().unwrap();
-        assert_eq!(anim_ready.files, sb!("girl_stand_ready.*"));
+        assert_eq!(anim_ready.files, sb!("Girl_Idle_Axe.*"));
         assert_eq!(anim_ready.duration, 2.0);
         assert_eq!(anim_ready.fade_in, 0.4);
         assert_eq!(inst_act.anim_randoms.len(), 0);
