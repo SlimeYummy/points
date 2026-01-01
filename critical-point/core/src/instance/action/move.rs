@@ -1,6 +1,13 @@
-use crate::instance::action::base::{ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation};
-use crate::template::{At, TmplActionMove, TmplType};
-use crate::utils::{extend, loose_ge, loose_le, sb, TmplID, VirtualKey, VirtualKeyDir};
+use tinyvec::TinyVec;
+
+use crate::instance::action::base::{
+    ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation, InstDeriveRule,
+};
+use crate::template::{At, TmplActionMove, TmplActionMoveStopEnter, TmplActionMoveStopLeave, TmplType};
+use crate::utils::{extend, lerp, loose_ge, loose_le, sb, TmplID, VirtualKeyDir};
+
+pub type InstActionMoveStopEnter = TmplActionMoveStopEnter;
+pub type InstActionMoveStopLeave = TmplActionMoveStopLeave;
 
 #[derive(Debug)]
 #[repr(C)]
@@ -43,8 +50,8 @@ pub struct InstActionMoveTurn {
 #[derive(Debug)]
 pub struct InstActionMoveStop {
     pub anim: InstAnimation,
-    pub enter_phase_table: Vec<[f32; 3]>,
-    pub speed_down_end: f32,
+    pub enter_phase_table: TinyVec<[InstActionMoveStopEnter; 2]>,
+    pub leave_phase_table: TinyVec<[InstActionMoveStopLeave; 3]>,
 }
 
 unsafe impl InstActionAny for InstActionMove {
@@ -57,7 +64,7 @@ unsafe impl InstActionAny for InstActionMove {
         self.animations().for_each(|anime| animations.push(anime));
     }
 
-    fn derives(&self, _derives: &mut Vec<(VirtualKey, TmplID)>) {}
+    fn derives(&self, _derives: &mut Vec<InstDeriveRule>) {}
 }
 
 impl InstActionMove {
@@ -113,9 +120,13 @@ impl InstActionMove {
                 enter_phase_table: t
                     .enter_phase_table
                     .iter()
-                    .map(|x| [x[0].into(), x[1].into(), x[2].into()])
+                    .map(InstActionMoveStopEnter::from_rkyv)
                     .collect(),
-                speed_down_end: t.speed_down_end.into(),
+                leave_phase_table: t
+                    .leave_phase_table
+                    .iter()
+                    .map(InstActionMoveStopLeave::from_rkyv)
+                    .collect(),
             });
         }
 
@@ -175,20 +186,38 @@ impl InstActionMove {
     pub fn find_stop_by_phase(&self, phase: f32) -> Option<(usize, &InstActionMoveStop, f32)> {
         let pahse = phase.rem_euclid(1.0);
         for (idx, stop) in self.stops.iter().enumerate() {
-            for enter_phase in &stop.enter_phase_table {
-                if enter_phase[0] <= enter_phase[1] {
-                    if loose_ge!(pahse, enter_phase[0]) && loose_le!(pahse, enter_phase[1]) {
-                        return Some((idx, stop, enter_phase[2]));
+            for item in &stop.enter_phase_table {
+                if item.phase[0] <= item.phase[1] {
+                    if loose_ge!(pahse, item.phase[0]) && loose_le!(pahse, item.phase[1]) {
+                        return Some((idx, stop, item.offset));
                     }
                 }
                 else {
-                    if loose_ge!(pahse, enter_phase[0]) || loose_le!(pahse, enter_phase[1]) {
-                        return Some((idx, stop, enter_phase[2]));
+                    if loose_ge!(pahse, item.phase[0]) || loose_le!(pahse, item.phase[1]) {
+                        return Some((idx, stop, item.offset));
                     }
                 }
             }
         }
         None
+    }
+
+    pub fn calc_stop_phase(&self, stop_anim_idx: usize, time: f32) -> Option<f32> {
+        let stop = self.stops.get(stop_anim_idx)?;
+        let time = time % stop.anim.duration;
+
+        let idx = stop.leave_phase_table.iter().position(|x| x.time > time)?;
+        debug_assert!(idx > 0);
+        let a = stop.leave_phase_table[idx - 1];
+        let b = stop.leave_phase_table[idx];
+
+        let phase = if a.phase < b.phase {
+            lerp(a.phase, b.phase, (time - a.time) / (b.time - a.time))
+        }
+        else {
+            lerp(a.phase, b.phase + 1.0, (time - a.time) / (b.time - a.time)) % 1.0
+        };
+        Some(phase)
     }
 
     #[inline]
@@ -211,7 +240,7 @@ impl InstActionMove {
     }
 
     #[inline]
-    pub fn animations_size(&self) -> usize {
+    pub fn animations_count(&self) -> usize {
         1 + self.starts.len() + self.turns.len() + self.stops.len()
     }
 }
@@ -220,27 +249,28 @@ impl InstActionMove {
 mod tests {
     use super::*;
     use crate::template::{TmplDatabase, TmplHashMap};
-    use crate::utils::{cf2s, id, LEVEL_MOVE};
+    use crate::utils::{cf2s, id, VirtualKey, LEVEL_MOVE};
     use ahash::HashMapExt;
+    use tinyvec::tiny_vec;
 
     #[test]
     fn test_assemble() {
         let db = TmplDatabase::new(10240, 150).unwrap();
         let var_indexes = TmplHashMap::new();
 
-        let tmpl_act = db.find_as::<TmplActionMove>(id!("Action.Instance.Run/1A")).unwrap();
+        let tmpl_act = db.find_as::<TmplActionMove>(id!("Action.Instance.Run^1A")).unwrap();
         let ctx = ContextActionAssemble {
             var_indexes: &var_indexes,
         };
         let inst_act = InstActionMove::try_assemble(&ctx, tmpl_act).unwrap();
-        assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Run/1A"));
+        assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Run^1A"));
         assert_eq!(inst_act.tags, vec![sb!("Run")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Run, None));
         assert_eq!(inst_act.enter_level, LEVEL_MOVE);
         assert_eq!(inst_act.derive_level, LEVEL_MOVE - 10);
         assert_eq!(inst_act.special_derive_level, LEVEL_MOVE + 10);
 
-        assert_eq!(inst_act.anim_move.files, "girl_run.*");
+        assert_eq!(inst_act.anim_move.files, "Girl_Run_Empty.*");
         assert_eq!(inst_act.anim_move.duration, 0.93333334);
         assert_eq!(inst_act.anim_move.fade_in, cf2s(4));
         assert_eq!(inst_act.anim_move.root_motion, true);
@@ -248,7 +278,7 @@ mod tests {
 
         assert_eq!(inst_act.starts.len(), 3);
         assert_eq!(inst_act.start_time, cf2s(4));
-        assert_eq!(inst_act.starts[0].anim.files, "girl_run_start.*");
+        assert_eq!(inst_act.starts[0].anim.files, "Girl_RunStart_Empty.*");
         assert_eq!(inst_act.starts[0].anim.fade_in, 0.0);
         assert_eq!(inst_act.starts[0].anim.root_motion, true);
         assert_eq!(inst_act.starts[0].enter_angle, [
@@ -257,14 +287,14 @@ mod tests {
         ]);
         assert_eq!(inst_act.starts[0].turn_in_place_end, cf2s(2));
         assert_eq!(inst_act.starts[0].quick_stop_end, cf2s(20));
-        assert_eq!(inst_act.starts[1].anim.files, "girl_run_start_turn_l180.*");
+        assert_eq!(inst_act.starts[1].anim.files, "Girl_RunStart_L180_Empty.*");
         assert_eq!(inst_act.starts[1].enter_angle, [
             15f32.to_radians(),
             180f32.to_radians()
         ]);
         assert_eq!(inst_act.starts[1].turn_in_place_end, cf2s(8));
         assert_eq!(inst_act.starts[1].quick_stop_end, cf2s(26));
-        assert_eq!(inst_act.starts[2].anim.files, "girl_run_start_turn_r180.*");
+        assert_eq!(inst_act.starts[2].anim.files, "Girl_RunStart_R180_Empty.*");
         assert_eq!(inst_act.starts[2].enter_angle, [
             -180f32.to_radians(),
             -15f32.to_radians()
@@ -277,16 +307,38 @@ mod tests {
         assert_eq!(inst_act.direct_turn_cos, [-1.0; 2]);
 
         assert_eq!(inst_act.stops.len(), 2);
-        assert_eq!(inst_act.stop_time, cf2s(4));
+        assert_eq!(inst_act.stop_time, cf2s(6));
         assert_eq!(inst_act.quick_stop_time, cf2s(0));
-        assert_eq!(inst_act.stops[0].anim.files, "girl_run_stop_l.*");
+        assert_eq!(inst_act.stops[0].anim.files, "Girl_RunStop_L_Empty.*");
         assert_eq!(inst_act.stops[0].anim.fade_in, cf2s(4));
         assert_eq!(inst_act.stops[0].anim.root_motion, true);
-        assert_eq!(inst_act.stops[0].enter_phase_table, vec![[0.75, 0.25, cf2s(2)]]);
-        assert_eq!(inst_act.stops[0].speed_down_end, cf2s(12));
-        assert_eq!(inst_act.stops[1].anim.files, "girl_run_stop_r.*");
-        assert_eq!(inst_act.stops[1].enter_phase_table, vec![[0.25, 0.75, cf2s(2)]]);
-        assert_eq!(inst_act.stops[1].speed_down_end, cf2s(12));
+        assert_eq!(inst_act.stops[0].enter_phase_table, tiny_vec![
+            InstActionMoveStopEnter {
+                phase: [0.75, 0.25],
+                offset: cf2s(2)
+            }
+        ]);
+        assert_eq!(inst_act.stops[0].leave_phase_table, tiny_vec![
+            InstActionMoveStopLeave { time: 0.0, phase: 0.0 },
+            InstActionMoveStopLeave {
+                time: cf2s(14),
+                phase: 0.5
+            }
+        ]);
+        assert_eq!(inst_act.stops[1].anim.files, "Girl_RunStop_R_Empty.*");
+        assert_eq!(inst_act.stops[1].enter_phase_table, tiny_vec![
+            InstActionMoveStopEnter {
+                phase: [0.25, 0.75],
+                offset: cf2s(2)
+            }
+        ]);
+        assert_eq!(inst_act.stops[1].leave_phase_table, tiny_vec![
+            InstActionMoveStopLeave { time: 0.0, phase: 0.5 },
+            InstActionMoveStopLeave {
+                time: cf2s(14),
+                phase: 0.0
+            }
+        ]);
 
         assert_eq!(inst_act.poise_level, 0);
         assert_eq!(inst_act.smooth_move_froms.as_slice(), &[]);
