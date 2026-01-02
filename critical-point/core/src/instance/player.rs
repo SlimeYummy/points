@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use crate::instance::action::InstActionAny;
 use crate::instance::values::{PanelValues, PrimaryValues, SecondaryValues};
+use crate::instance::InstDeriveRule;
 use crate::template::TmplHashMap;
 use crate::utils::{
     Castable, DtHashIndex, DtHashMap, JewelSlots, PiecePlus, ShapeTaperedCapsule, Symbol, TmplID, VirtualKey,
@@ -34,7 +35,7 @@ pub struct InstPlayer {
     // pub scripts: Vec<InstScript>,
     pub actions: DtHashMap<TmplID, Rc<dyn InstActionAny>>,
     pub primary_keys: DtHashIndex<VirtualKey, TmplID>,
-    pub derive_keys: DtHashIndex<(TmplID, VirtualKey), TmplID>,
+    pub derive_keys: DtHashIndex<(TmplID, VirtualKey), InstDeriveRule>,
 }
 
 impl InstPlayer {
@@ -84,41 +85,41 @@ impl InstPlayer {
             .cloned()
     }
 
-    pub fn filter_derive_actions<'a, 'b, 'c>(
-        &'a self,
-        key: &'b (TmplID, VirtualKey),
-    ) -> impl Iterator<Item = Rc<dyn InstActionAny + 'static>> + 'c
-    where
-        'a: 'c,
-        'b: 'c,
-    {
-        self.derive_keys
-            .find_iter(key)
-            .filter_map(|id| self.actions.get(id))
-            .cloned()
-    }
-
-    pub fn filter_actions<'a, 'b, 'c>(
-        &'a self,
-        key: &'b (TmplID, VirtualKey),
-    ) -> impl Iterator<Item = Rc<dyn InstActionAny + 'static>> + 'c
-    where
-        'a: 'c,
-        'b: 'c,
-    {
-        self.filter_derive_actions(key)
-            .chain(self.filter_primary_actions(&key.1))
-    }
-
     pub fn find_first_primary_action<T: 'static>(&self, key: &VirtualKey) -> Option<Rc<T>> {
         let act_id = self.primary_keys.find_first(key)?;
         let inst_act = self.actions.get(act_id)?;
         inst_act.clone().cast::<T>().ok()
     }
 
-    pub fn find_first_derive_action<T: 'static>(&self, key: &(TmplID, VirtualKey)) -> Option<Rc<T>> {
-        let act_id = self.derive_keys.find_first(key)?;
-        let inst_act = self.actions.get(act_id)?;
-        inst_act.clone().cast::<T>().ok()
+    pub fn filter_derive_actions<'a, 'b, 'c>(
+        &'a self,
+        key: &'b (TmplID, VirtualKey),
+    ) -> impl Iterator<Item = (InstDeriveRule, Rc<dyn InstActionAny + 'static>)> + 'c
+    where
+        'a: 'c,
+        'b: 'c,
+    {
+        self.derive_keys
+            .find_iter(key)
+            .filter_map(|rule| self.actions.get(&rule.action).map(|act| (rule.clone(), act.clone())))
     }
+
+    pub fn find_first_derive_action<T: 'static>(&self, key: &(TmplID, VirtualKey)) -> Option<(InstDeriveRule, Rc<T>)> {
+        let rule = self.derive_keys.find_first(key)?;
+        let inst_act = self.actions.get(&rule.action)?;
+        let inst_act = inst_act.clone().cast::<T>().ok()?;
+        Some((rule.clone(), inst_act))
+    }
+
+    // pub fn filter_actions<'a, 'b, 'c>(
+    //     &'a self,
+    //     key: &'b (TmplID, VirtualKey),
+    // ) -> impl Iterator<Item = Rc<dyn InstActionAny + 'static>> + 'c
+    // where
+    //     'a: 'c,
+    //     'b: 'c,
+    // {
+    //     self.filter_derive_actions(key)
+    //         .chain(self.filter_primary_actions(&key.1))
+    // }
 }

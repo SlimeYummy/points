@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::instance::{assemble_player, ContextAssemble, InstPlayer};
-use crate::logic::{InputPlayerEvents, LogicLoop, StateSet};
+use crate::logic::{InputPlayerInputs, LogicLoop, StateSet};
 use crate::parameter::{verify_player, ContextVerify, ParamPlayer, ParamZone};
 use crate::template::TmplDatabase;
 use crate::utils::{xerr, xres, XResult};
@@ -138,7 +138,7 @@ impl LogicEngine {
         Ok(state_set)
     }
 
-    pub fn update_game(&mut self, player_events: Vec<InputPlayerEvents>) -> XResult<Arc<StateSet>> {
+    pub fn update_game(&mut self, player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
         // info!("player_events {:?}", player_events);
         let logic_loop = self
             .logic_loop

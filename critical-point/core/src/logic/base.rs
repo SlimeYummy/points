@@ -439,12 +439,13 @@ pub(crate) use impl_state;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::animation::AnimationFileMeta;
     use crate::logic::character::{
         StateCharaPhysics, StateNpcInit, StateNpcUpdate, StatePlayerInit, StatePlayerUpdate,
     };
     use crate::logic::game::{StateGameInit, StateGameUpdate};
     use crate::logic::zone::{StateZoneInit, StateZoneUpdate};
-    use crate::utils::{sb, Castable, CsVec3A, AnimationFileMeta};
+    use crate::utils::{sb, Castable};
     use anyhow::Result;
     use glam::Vec3A;
     use glam_ext::Vec2xz;
@@ -542,7 +543,7 @@ mod tests {
                     AnimationFileMeta::new(sb!("animation_file_2.ozz"), true, true),
                 ],
                 view_model: sb!("model.vrm"),
-                init_position: CsVec3A::new(1.0, 2.0, 3.0).into(),
+                init_position: Vec3A::new(1.0, 2.0, 3.0).into(),
                 init_direction: Vec2xz::Z,
             }),
             StateType::PlayerInit,
@@ -570,6 +571,7 @@ mod tests {
                     direction: Vec2xz::X,
                 },
                 actions: Vec::new(),
+                custom_events: Vec::new(),
             }),
             StateType::PlayerUpdate,
             LogicType::Player,
