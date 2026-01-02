@@ -190,7 +190,7 @@ mod tests {
     use crate::logic::system::save::SystemSave;
     use crate::logic::zone::{StateZoneInit, StateZoneUpdate};
     use crate::logic::StateCharaPhysics;
-    use crate::utils::{asb, RawEvent, RawKey};
+    use crate::utils::{asb, RawInput, RawKey};
 
     #[test]
     fn test_save_input() {
@@ -209,11 +209,11 @@ mod tests {
                     100,
                     0,
                     vec![
-                        RawEvent::new_button(RawKey::Attack1, true),
-                        RawEvent::new_button(RawKey::Attack1, false),
+                        RawInput::new_button(RawKey::Attack1, true),
+                        RawInput::new_button(RawKey::Attack1, false),
                     ],
                 ),
-                InputPlayerEvents::new(101, 0, vec![RawEvent::new_move(Vec2::new(1.0, 1.0).normalize())]),
+                InputPlayerEvents::new(101, 0, vec![RawInput::new_move(Vec2::new(1.0, 1.0).normalize())]),
             ],
         );
         ss.save_input(fpes0.clone()).unwrap();
@@ -221,14 +221,14 @@ mod tests {
         let fpes1 = InputFrameEvents::new(
             2,
             &[
-                InputPlayerEvents::new(101, 1, vec![RawEvent::new_move(Vec2::ZERO)]),
+                InputPlayerEvents::new(101, 1, vec![RawInput::new_move(Vec2::ZERO)]),
                 InputPlayerEvents::new(
                     100,
                     1,
                     vec![
-                        RawEvent::new_button(RawKey::Skill4, true),
-                        RawEvent::new_button(RawKey::Skill4, false),
-                        RawEvent::new_button(RawKey::Item1, true),
+                        RawInput::new_button(RawKey::Skill4, true),
+                        RawInput::new_button(RawKey::Skill4, false),
+                        RawInput::new_button(RawKey::Item1, true),
                     ],
                 ),
             ],
@@ -287,7 +287,7 @@ mod tests {
         state2.inits.push(Arc::new(StatePlayerInit {
             _base: StateBase::new(100, StateType::PlayerInit, LogicType::Player),
             skeleton_file: asb!("skel.ozz"),
-            animation_files: vec![asb!("girl_stand_idle.ozz"), asb!("girl_stand_ready.ozz")],
+            animation_files: vec![asb!("Girl_Idle_Empty.ozz"), asb!("Girl_Idle_Axe.ozz")],
             view_model: "model.ozz".into(),
         }));
         state2.updates.push(Box::new(StatePlayerUpdate {

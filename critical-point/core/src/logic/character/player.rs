@@ -1,10 +1,12 @@
 use critical_point_csgen::CsOut;
+use glam::Vec3A;
 use glam_ext::Vec2xz;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use super::action::LogicCharaAction;
 use super::physics::{LogicCharaPhysics, StateCharaPhysics};
+use crate::animation::AnimationFileMeta;
 use crate::consts::DEFAULT_TOWARD_DIR_2D;
 use crate::instance::{assemble_player, InstPlayer};
 use crate::logic::action::StateActionAny;
@@ -12,7 +14,7 @@ use crate::logic::base::{impl_state, LogicAny, LogicType, StateBase, StateType};
 use crate::logic::game::{ContextRestore, ContextUpdate};
 use crate::parameter::ParamPlayer;
 use crate::template::TmplStyle;
-use crate::utils::{extend, sb, CsVec3A, NumID, Symbol, AnimationFileMeta, XResult};
+use crate::utils::{extend, sb, CustomEvent, NumID, Symbol, XResult};
 
 #[repr(C)]
 #[derive(
@@ -25,7 +27,7 @@ pub struct StatePlayerInit {
     pub skeleton_file: Symbol,
     pub animation_metas: Vec<AnimationFileMeta>,
     pub view_model: Symbol,
-    pub init_position: CsVec3A,
+    pub init_position: Vec3A,
     pub init_direction: Vec2xz,
 }
 
@@ -43,6 +45,7 @@ pub struct StatePlayerUpdate {
     pub _base: StateBase,
     pub physics: StateCharaPhysics,
     pub actions: Vec<Box<dyn StateActionAny>>,
+    pub custom_events: Vec<CustomEvent>,
 }
 
 extend!(StatePlayerUpdate, StateBase);
@@ -83,7 +86,7 @@ impl LogicAny for LogicPlayer {
 
 impl LogicPlayer {
     pub fn new(
-        ctx: &mut ContextUpdate<'_>,
+        ctx: &mut ContextUpdate,
         param_player: &ParamPlayer,
     ) -> XResult<(Box<LogicPlayer>, Arc<StatePlayerInit>)> {
         let tmpl_style = ctx.tmpl_db.find_as::<TmplStyle>(param_player.style)?;
@@ -111,7 +114,7 @@ impl LogicPlayer {
             skeleton_file: inst_player.skeleton_files.clone(),
             animation_metas,
             view_model: sb!(&tmpl_style.view_model),
-            init_position: param_player.position.into(),
+            init_position: param_player.position,
             init_direction: DEFAULT_TOWARD_DIR_2D,
         });
 
@@ -125,6 +128,7 @@ impl LogicPlayer {
             _base: StateBase::new(self.id, StateType::PlayerUpdate, LogicType::Player),
             physics: self.chara_physics.state(),
             actions: self.chara_action.take_states()?,
+            custom_events: self.chara_action.take_action_events()?,
         }))
     }
 
@@ -135,7 +139,7 @@ impl LogicPlayer {
         Ok(())
     }
 
-    pub fn update(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<()> {
+    pub fn update(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
         self.chara_action.update(ctx, &self.chara_physics, false)?;
         self.chara_physics.update(ctx, &self.chara_action)?;
         Ok(())
@@ -151,8 +155,8 @@ mod tests {
 
     fn prepare_player(tenv: &mut TestEnv) -> (Box<LogicPlayer>, Arc<StatePlayerInit>) {
         let param_player = ParamPlayer {
-            character: id!("Character.Instance/1"),
-            style: id!("Style.Instance/1A"),
+            character: id!("Character.Instance^1"),
+            style: id!("Style.Instance^1A"),
             level: 4,
             ..Default::default()
         };
@@ -167,17 +171,17 @@ mod tests {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_player, state_init) = prepare_player(&mut tenv);
         assert_eq!(logic_player.id, 100);
-        assert_eq!(logic_player.inst.tmpl_character, id!("Character.Instance/1"));
-        assert_eq!(logic_player.inst.tmpl_style, id!("Style.Instance/1A"));
+        assert_eq!(logic_player.inst.tmpl_character, id!("Character.Instance^1"));
+        assert_eq!(logic_player.inst.tmpl_style, id!("Style.Instance^1A"));
 
         assert_eq!(state_init.id, 100);
-        assert_eq!(state_init.skeleton_file, "girl.*");
+        assert_eq!(state_init.skeleton_file, "Girl.*");
         assert_eq!(state_init.animation_metas.len(), 4);
         let excepted_files = [
-            sb!("girl_stand_idle"),
-            sb!("girl_stand_ready"),
-            sb!("girl_run"),
-            sb!("girl_attack1_1"),
+            sb!("Girl_Idle_Empty"),
+            sb!("Girl_Idle_Axe"),
+            sb!("Girl_Run_Empty"),
+            sb!("Girl_Attack_01A"),
         ];
         for file in excepted_files.iter() {
             assert!(state_init.animation_metas.iter().find(|f| f.files == *file).is_some());
@@ -187,7 +191,7 @@ mod tests {
         assert_eq!(state_update.id, 100);
         assert_eq!(state_update.actions.len(), 1);
         let state_act = state_update.actions[0].as_ref().cast::<StateActionIdle>().unwrap();
-        assert_eq!(state_act.tmpl_id, id!("Action.Instance.Idle/1A"));
+        assert_eq!(state_act.tmpl_id, id!("Action.Instance.Idle^1A"));
     }
 
     #[test]
@@ -199,6 +203,6 @@ mod tests {
         assert_eq!(state_update.id, 100);
         assert_eq!(state_update.actions.len(), 1);
         let state_act = state_update.actions[0].as_ref().cast::<StateActionIdle>().unwrap();
-        assert_eq!(state_act.tmpl_id, id!("Action.Instance.Idle/1A"));
+        assert_eq!(state_act.tmpl_id, id!("Action.Instance.Idle^1A"));
     }
 }

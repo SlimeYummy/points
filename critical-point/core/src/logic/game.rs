@@ -13,7 +13,7 @@ use crate::logic::physics::{
     BroadPhaseLayerInterfaceImpl, ObjectLayerPairFilterImpl, ObjectVsBroadPhaseLayerFilterImpl,
 };
 use crate::logic::system::generation::SystemGeneration;
-use crate::logic::system::input::{InputFrameEvents, InputPlayerEvents, SystemInput};
+use crate::logic::system::input::{InputFrameInputs, InputPlayerInputs, SystemInput};
 use crate::logic::system::save::SystemSave;
 use crate::logic::system::state::{StateSet, SystemState};
 use crate::logic::zone::LogicZone;
@@ -64,7 +64,7 @@ impl LogicLoop {
         Ok((logic_loop, state_set))
     }
 
-    pub fn update(&mut self, mut player_events: Vec<InputPlayerEvents>) -> XResult<Arc<StateSet>> {
+    pub fn update(&mut self, mut player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
         if self.systems.stopped {
             return xres!(Unexpected; "system stopped");
         }
@@ -76,7 +76,7 @@ impl LogicLoop {
         self.frame += 1;
 
         if let Some(save) = systems.save.as_mut() {
-            let player_events = InputFrameEvents::new(self.frame, &player_events);
+            let player_events = InputFrameInputs::new(self.frame, &player_events);
             save.save_input(player_events)?;
         }
 
@@ -199,7 +199,7 @@ impl LogicSystems {
     // }
 
     // #[inline]
-    // pub fn context_update(&mut self, frame: u32, synced_frame: u32, new_cap: usize, update_cap: usize) -> ContextUpdate<'_> {
+    // pub fn context_update(&mut self, frame: u32, synced_frame: u32, new_cap: usize, update_cap: usize) -> ContextUpdate {
     //     return ContextUpdate::new(self, frame, synced_frame, new_cap, update_cap);
     // }
 
@@ -357,7 +357,7 @@ impl LogicAny for LogicGame {
 
 impl LogicGame {
     pub fn new(
-        ctx: &mut ContextUpdate<'_>,
+        ctx: &mut ContextUpdate,
         param_zone: ParamZone,
         param_players: Vec<ParamPlayer>,
     ) -> XResult<(Box<LogicGame>, Arc<StateSet>)> {
@@ -418,7 +418,7 @@ impl LogicGame {
         Ok(())
     }
 
-    pub fn update(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<Arc<StateSet>> {
+    pub fn update(&mut self, ctx: &mut ContextUpdate) -> XResult<Arc<StateSet>> {
         self.frame = ctx.frame;
 
         // TODO: Detect hits
@@ -444,7 +444,7 @@ impl LogicGame {
         Ok(Arc::new(state_set))
     }
 
-    fn collect_states_updates(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<Vec<Box<dyn StateAny>>> {
+    fn collect_states_updates(&mut self, ctx: &mut ContextUpdate) -> XResult<Vec<Box<dyn StateAny>>> {
         let mut updates: Vec<Box<dyn StateAny>> = Vec::with_capacity(1 + self.players.len() + self.npces.len());
         updates.push(Box::new(StateGameUpdate {
             _base: StateBase::new(self.id, StateType::GameUpdate, LogicType::Game),
@@ -469,7 +469,7 @@ impl LogicGame {
 mod tests {
     use super::*;
     use crate::consts::TEST_ASSET_PATH;
-    use crate::utils::{id, RawEvent, RawKey};
+    use crate::utils::{id, RawInput, RawKey};
 
     #[ctor::ctor]
     fn test_init_jolt_physics() {
@@ -482,15 +482,15 @@ mod tests {
         let param_zone = ParamZone { zone: id!("Zone.Demo") };
         let param_player = ParamPlayer {
             character: id!("Character.One"),
-            style: id!("Style.One/1"),
+            style: id!("Style.One^1"),
             level: 4,
             ..Default::default()
         };
         let (mut ll, _) = LogicLoop::new(tmpl_db, TEST_ASSET_PATH, param_zone, vec![param_player], None).unwrap();
-        ll.update(vec![InputPlayerEvents {
+        ll.update(vec![InputPlayerInputs {
             frame: 1,
             player_id: 100,
-            events: vec![RawEvent::new_button(RawKey::Attack1, true)],
+            inputs: vec![RawInput::new_button(RawKey::Attack1, true)],
         }])
         .unwrap();
         // ll.update(vec![]).unwrap();
