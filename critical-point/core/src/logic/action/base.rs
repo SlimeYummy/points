@@ -9,13 +9,13 @@ use std::hint::unlikely;
 use std::rc::Rc;
 use std::{mem, u32};
 
-use crate::consts::{FPS, MAX_ACTION_ANIMATION, SPF};
-use crate::instance::InstActionAny;
+use crate::consts::{MAX_ACTION_ANIMATION, SPF};
+use crate::instance::{InstActionAny, InstAnimation};
 use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::ContextUpdate;
 use crate::logic::system::input::InputVariables;
 use crate::template::TmplType;
-use crate::utils::{interface, rkyv_self, xres, CsVec3A, CsQuat, NumID, Symbol, TmplID, XError, XResult};
+use crate::utils::{interface, rkyv_self, xres, CustomEvent, NumID, Symbol, TmplID, XError, XResult};
 
 #[repr(u16)]
 #[derive(
@@ -150,24 +150,6 @@ impl StateActionBase {
     }
 }
 
-#[repr(C)]
-#[derive(
-    Debug,
-    Clone,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsOut,
-)]
-pub struct StateActionWeaponMotion {
-    pub name: Symbol,
-    pub joint: Symbol,
-    pub position: CsVec3A,
-    pub rotation: CsQuat,
-}
-
 pub trait ArchivedStateActionAny: Debug + Any {
     fn id(&self) -> NumID;
     fn typ(&self) -> StateActionType;
@@ -177,7 +159,6 @@ pub trait ArchivedStateActionAny: Debug + Any {
 #[repr(C)]
 #[derive(
     Debug,
-    Default,
     Clone,
     PartialEq,
     serde::Serialize,
@@ -191,16 +172,42 @@ pub trait ArchivedStateActionAny: Debug + Any {
 pub struct StateActionAnimation {
     pub files: Symbol,
     pub animation_id: u16,
+    pub weapon_motion: bool,
     pub ratio: f32,
     pub weight: f32,
 }
 
+impl Default for StateActionAnimation {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            files: Symbol::default(),
+            animation_id: u16::MAX,
+            weapon_motion: false,
+            ratio: 0.0,
+            weight: 1.0,
+        }
+    }
+}
+
 impl StateActionAnimation {
     #[inline]
-    pub fn new(files: Symbol, animation_id: u16, ratio: f32, weight: f32) -> Self {
+    pub fn new(files: Symbol, animation_id: u16, weapon_motion: bool, ratio: f32, weight: f32) -> Self {
         StateActionAnimation {
             files,
             animation_id,
+            weapon_motion,
+            ratio,
+            weight,
+        }
+    }
+
+    #[inline]
+    pub fn new_with_anim(inst: &InstAnimation, ratio: f32, weight: f32) -> Self {
+        StateActionAnimation {
+            files: inst.files,
+            animation_id: inst.local_id,
+            weapon_motion: inst.weapon_motion,
             ratio,
             weight,
         }
@@ -475,35 +482,35 @@ pub unsafe trait LogicActionAny: Debug + Any {
     fn save(&self) -> Box<dyn StateActionAny>;
     fn restore(&mut self, state: &(dyn StateActionAny + 'static)) -> XResult<()>;
 
-    fn start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<ActionStartReturn> {
+    fn start(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionStartReturn> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.start(ctx, ctxa)?;
         Ok(ActionStartReturn::new())
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<ActionUpdateReturn>;
+    fn update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn>;
 
-    fn fade_start(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<bool> {
+    fn fade_start(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<bool> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.fade_start(ctx, ctxa)?;
         Ok(false)
     }
 
-    fn fade_update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+    fn fade_update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<()> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.fade_update(ctx, ctxa)
     }
 
-    fn stop(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+    fn stop(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<()> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.stop(ctx, ctxa)
     }
 
-    fn finalize(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+    fn finalize(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<()> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.finalize(ctx, ctxa)
@@ -513,6 +520,8 @@ pub unsafe trait LogicActionAny: Debug + Any {
 #[derive(Debug, Default)]
 pub struct ActionStartReturn {
     pub prev_fade_update: bool,
+    pub clear_preinput: bool,
+    pub custom_events: Vec<CustomEvent>,
 }
 
 impl ActionStartReturn {
@@ -526,7 +535,9 @@ impl ActionStartReturn {
 pub struct ActionUpdateReturn {
     pub new_velocity: Option<Vec3A>,
     pub new_direction: Option<Vec2xz>,
+    pub clear_preinput: bool,
     pub derive_keeping: Option<DeriveKeeping>,
+    pub custom_events: Vec<CustomEvent>,
 }
 
 impl ActionUpdateReturn {
@@ -551,11 +562,14 @@ impl ActionUpdateReturn {
     }
 }
 
+pub const LA_FLAG_DERIVE_SELF: u8 = 0x1;
+
 #[derive(Debug)]
 pub struct LogicActionBase {
     pub id: NumID,
     pub inst: Rc<dyn InstActionAny>,
     pub status: LogicActionStatus,
+    pub flags: u8,
     pub first_frame: u32,
     pub last_frame: u32,
     pub fade_in_weight: f32,
@@ -571,12 +585,28 @@ impl LogicActionBase {
             id,
             inst,
             status: LogicActionStatus::Starting,
+            flags: 0,
             first_frame: 0,
             last_frame: u32::MAX,
             fade_in_weight: 0.0,
             derive_level: 0,
             poise_level: 0,
         }
+    }
+
+    #[inline(always)]
+    pub fn set_derive_self(&mut self, enabled: bool) {
+        if enabled {
+            self.flags |= LA_FLAG_DERIVE_SELF;
+        }
+        else {
+            self.flags &= !LA_FLAG_DERIVE_SELF;
+        }
+    }
+
+    #[inline(always)]
+    pub fn derive_self(&self) -> bool {
+        self.flags & LA_FLAG_DERIVE_SELF != 0
     }
 
     pub fn reuse(&mut self, id: NumID) -> XResult<()> {
@@ -609,7 +639,7 @@ impl LogicActionBase {
         self.poise_level = state.poise_level;
     }
 
-    pub fn start(&mut self, ctx: &ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+    pub fn start(&mut self, ctx: &ContextUpdate, ctxa: &mut ContextAction) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Starting) {
             return xres!(Unexpected; "status != Starting");
         }
@@ -622,14 +652,14 @@ impl LogicActionBase {
         Ok(())
     }
 
-    pub fn update(&mut self, _ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+    pub fn update(&mut self, _ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Activing) {
             return xres!(Unexpected; "status != Activing");
         }
         Ok(())
     }
 
-    pub fn fade_start(&mut self, _ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+    pub fn fade_start(&mut self, _ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Activing) {
             return xres!(Unexpected; "status != Activing");
         }
@@ -642,14 +672,14 @@ impl LogicActionBase {
         Ok(())
     }
 
-    pub fn fade_update(&mut self, _ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+    pub fn fade_update(&mut self, _ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Fading) {
             return xres!(Unexpected; "status != Fading");
         }
         Ok(())
     }
 
-    pub fn stop(&mut self, _ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+    pub fn stop(&mut self, _ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
         if unlikely(matches!(
             self.status,
             LogicActionStatus::Stopping | LogicActionStatus::Finalized
@@ -661,7 +691,7 @@ impl LogicActionBase {
         Ok(())
     }
 
-    pub fn finalize(&mut self, ctx: &ContextUpdate<'_>, _ctxa: &mut ContextAction<'_, '_>) -> XResult<()> {
+    pub fn finalize(&mut self, ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Stopping) {
             return xres!(Unexpected; "status != Stopping");
         }
@@ -717,6 +747,7 @@ pub struct ContextAction<'a, 'b> {
     pub input_vars: InputVariables,
     pub time_speed: f32,
     pub time_step: f32,
+    // pub outs: Option<&'c mut LogicActionOuts>,
 }
 
 impl<'a, 'b> ContextAction<'a, 'b> {
@@ -736,6 +767,18 @@ impl<'a, 'b> ContextAction<'a, 'b> {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct LogicActionOuts {
+    pub events: Vec<String>,
+}
+
+impl LogicActionOuts {
+    #[inline]
+    pub fn clear(&mut self) {
+        self.events.clear();
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DeriveKeeping {
     pub action_id: TmplID,
@@ -744,16 +787,3 @@ pub struct DeriveKeeping {
 }
 
 rkyv_self!(DeriveKeeping);
-
-//
-// utils
-//
-
-#[macro_export]
-macro_rules! continue_mode {
-    ($mode:expr, $next:expr) => {{
-        $mode = $next;
-        continue;
-    }};
-}
-pub(crate) use continue_mode;
