@@ -42,7 +42,7 @@ pub struct LogicActionEmpty {
 extend!(LogicActionEmpty, LogicActionBase);
 
 impl LogicActionEmpty {
-    pub fn new(ctx: &mut ContextUpdate<'_>, inst: Rc<InstActionEmpty>) -> LogicActionEmpty {
+    pub fn new(ctx: &mut ContextUpdate, inst: Rc<InstActionEmpty>) -> LogicActionEmpty {
         LogicActionEmpty {
             _base: LogicActionBase::new(ctx.gene.gen_id(), inst),
         }
@@ -75,7 +75,7 @@ unsafe impl LogicActionAny for LogicActionEmpty {
         Ok(())
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate<'_>, ctxa: &mut ContextAction<'_, '_>) -> XResult<ActionUpdateReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
         Ok(ActionUpdateReturn::new())
     }
