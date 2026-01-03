@@ -21,7 +21,7 @@ use crate::consts::SPF;
 use crate::instance::InstPlayer;
 use crate::logic::game::{ContextRestore, ContextUpdate};
 use crate::logic::physics::PHY_LAYER_PLAYER;
-use crate::utils::{dir_xz_from_quat, quat_from_dir_xz, xerrf, xfrom, CsVec3A, NumID, Symbol, XResult};
+use crate::utils::{dir_xz_from_quat, quat_from_dir_xz, xerrf, xfrom, NumID, Symbol, XResult};
 
 #[repr(C)]
 #[derive(
@@ -37,8 +37,8 @@ use crate::utils::{dir_xz_from_quat, quat_from_dir_xz, xerrf, xfrom, CsVec3A, Nu
 )]
 #[rkyv(derive(Debug))]
 pub struct StateCharaPhysics {
-    pub velocity: CsVec3A,
-    pub position: CsVec3A,
+    pub velocity: Vec3A,
+    pub position: Vec3A,
     pub direction: Vec2xz,
 }
 
@@ -74,7 +74,7 @@ struct JointBinding {
 
 impl LogicCharaPhysics {
     pub fn new(
-        ctx: &mut ContextUpdate<'_>,
+        ctx: &mut ContextUpdate,
         player_id: NumID,
         inst_player: Rc<InstPlayer>,
         position: Vec3A,
@@ -104,22 +104,22 @@ impl LogicCharaPhysics {
 
     pub fn state(&self) -> StateCharaPhysics {
         StateCharaPhysics {
-            velocity: self.velocity.into(),
-            position: self.position.into(),
+            velocity: self.velocity,
+            position: self.position,
             direction: self.direction,
         }
     }
 
     pub fn restore(&mut self, _ctx: &ContextRestore, state: &StateCharaPhysics) -> XResult<()> {
-        self.velocity = state.velocity.into();
-        self.position = state.position.into();
+        self.velocity = state.velocity;
+        self.position = state.position;
         self.direction = state.direction;
         self.rotation = quat_from_dir_xz(self.direction);
         Ok(())
     }
 
     fn init_bounding(
-        ctx: &mut ContextUpdate<'_>,
+        ctx: &mut ContextUpdate,
         inst_player: &InstPlayer,
         position: Vec3A,
         rotation: Quat,
@@ -133,11 +133,7 @@ impl LogicCharaPhysics {
         .map_err(xfrom!())?;
         chara_shape = jolt::create_rotated_translated_shape(&RotatedTranslatedShapeSettings::new(
             chara_shape,
-            Vec3A::new(
-                0.0,
-                bounding.half_height + bounding.bottom_radius * 1.25,
-                0.0,
-            ),
+            Vec3A::new(0.0, bounding.half_height + bounding.bottom_radius * 1.25, 0.0),
             Quat::IDENTITY,
         ))
         .map_err(xfrom!())?;
@@ -158,7 +154,7 @@ impl LogicCharaPhysics {
     }
 
     fn init_target(
-        ctx: &mut ContextUpdate<'_>,
+        ctx: &mut ContextUpdate,
         inst_player: &InstPlayer,
         position: Vec3A,
         rotation: Quat,
@@ -228,13 +224,13 @@ impl LogicCharaPhysics {
         Ok((target_body, target_shape, target_bindings))
     }
 
-    pub fn update(&mut self, ctx: &mut ContextUpdate<'_>, action: &LogicCharaAction) -> XResult<()> {
+    pub fn update(&mut self, ctx: &mut ContextUpdate, action: &LogicCharaAction) -> XResult<()> {
         self.update_bounding(ctx, action)?;
         self.update_target_box(ctx, action)?;
         Ok(())
     }
 
-    fn update_bounding(&mut self, ctx: &mut ContextUpdate<'_>, action: &LogicCharaAction) -> XResult<()> {
+    fn update_bounding(&mut self, ctx: &mut ContextUpdate, action: &LogicCharaAction) -> XResult<()> {
         let new_rotation = quat_from_dir_xz(action.new_direction());
         if new_rotation != self.character.get_rotation() {
             self.character.set_rotation(new_rotation);
@@ -293,7 +289,7 @@ impl LogicCharaPhysics {
         Ok(())
     }
 
-    fn update_target_box(&mut self, ctx: &mut ContextUpdate<'_>, action: &LogicCharaAction) -> XResult<()> {
+    fn update_target_box(&mut self, ctx: &mut ContextUpdate, action: &LogicCharaAction) -> XResult<()> {
         self.cache_isometries.clear();
 
         let model_transforms = action.model_transforms();

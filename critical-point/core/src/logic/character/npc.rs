@@ -70,7 +70,7 @@ impl LogicNpc {
         unimplemented!();
     }
 
-    pub fn update_ai(&mut self, _ctx: &mut ContextUpdate<'_>) -> XResult<()> {
+    pub fn update_ai(&mut self, _ctx: &mut ContextUpdate) -> XResult<()> {
         unimplemented!();
     }
 }

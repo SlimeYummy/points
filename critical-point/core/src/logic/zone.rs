@@ -68,7 +68,7 @@ impl LogicAny for LogicZone {
 }
 
 impl LogicZone {
-    pub fn new(ctx: &mut ContextUpdate<'_>, param: &ParamZone) -> XResult<(Box<LogicZone>, Arc<dyn StateAny>)> {
+    pub fn new(ctx: &mut ContextUpdate, param: &ParamZone) -> XResult<(Box<LogicZone>, Arc<dyn StateAny>)> {
         let inst_zone = assemble_zone(&mut ctx.context_assemble(), param)?;
         let tmpl_zone = ctx.tmpl_db.find_as::<TmplZone>(inst_zone.tmpl_zone)?;
 
@@ -102,7 +102,7 @@ impl LogicZone {
         Ok(())
     }
 
-    pub fn update(&mut self, _ctx: &mut ContextUpdate<'_>) -> XResult<()> {
+    pub fn update(&mut self, _ctx: &mut ContextUpdate) -> XResult<()> {
         Ok(())
     }
 }
