@@ -22,7 +22,7 @@ use crate::template::TmplType;
 use crate::utils::{xres, Castable, XResult};
 
 pub(crate) fn new_logic_action(
-    ctx: &mut ContextUpdate<'_>,
+    ctx: &mut ContextUpdate,
     inst_act: Rc<dyn InstActionAny + 'static>,
 ) -> XResult<Box<dyn LogicActionAny + 'static>> {
     use TmplType::*;
@@ -51,7 +51,7 @@ pub(crate) fn new_logic_action(
 
 pub(crate) fn try_reuse_logic_action(
     logic_act: &mut Box<dyn LogicActionAny>,
-    ctx: &mut ContextUpdate<'_>,
+    ctx: &mut ContextUpdate,
     inst_act: Rc<dyn InstActionAny>,
 ) -> XResult<bool> {
     use TmplType::*;
