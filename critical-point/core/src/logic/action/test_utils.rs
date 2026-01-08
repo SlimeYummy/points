@@ -47,8 +47,8 @@ impl TestEnv {
 
         let mut ctx = ContextUpdate::new(&mut systems, Self::FRAME, 95);
         let param_player = ParamPlayer {
-            character: id!("Character.Instance/1"),
-            style: id!("Style.Instance/1A"),
+            character: id!("Character.Instance^1"),
+            style: id!("Style.Instance^1A"),
             level: 1,
             ..Default::default()
         };
