@@ -8,12 +8,12 @@ use std::f32::consts::{FRAC_PI_2, PI};
 use std::rc::Rc;
 
 use crate::consts::{DEFAULT_VIEW_DIR_2D, DEFAULT_VIEW_DIR_3D, FPS_USIZE, MAX_PLAYER};
-use crate::utils::{xerrf, xres, xresf, NumID, RawEvent, RawKey, VirtualEvent, XResult, MIN_PLAYER_ID};
+use crate::utils::{MIN_PLAYER_ID, NumID, RawInput, RawKey, VirtualInput, VirtualKey, XResult, xerrf, xres, xresf};
 
 const FIRST_EVENT_ID: u64 = 1;
 
 //
-// Input events collections
+// Input inputs collections
 //
 
 #[derive(
@@ -29,19 +29,19 @@ const FIRST_EVENT_ID: u64 = 1;
     CsIn,
 )]
 #[cs_attr(Class)]
-pub struct InputPlayerEvents {
+pub struct InputPlayerInputs {
     pub player_id: NumID,
     pub frame: u32,
-    pub events: Vec<RawEvent>,
+    pub inputs: Vec<RawInput>,
 }
 
-impl InputPlayerEvents {
+impl InputPlayerInputs {
     #[inline]
-    pub fn new(player_id: NumID, frame: u32, events: Vec<RawEvent>) -> InputPlayerEvents {
-        InputPlayerEvents {
+    pub fn new(player_id: NumID, frame: u32, inputs: Vec<RawInput>) -> InputPlayerInputs {
+        InputPlayerInputs {
             player_id,
             frame,
-            events,
+            inputs,
         }
     }
 }
@@ -57,15 +57,15 @@ impl InputPlayerEvents {
     serde::Serialize,
     serde::Deserialize,
 )]
-pub struct InputFrameEvents {
+pub struct InputFrameInputs {
     pub frame: u32,
-    pub player_events: Vec<InputPlayerEvents>,
+    pub player_events: Vec<InputPlayerInputs>,
 }
 
-impl InputFrameEvents {
+impl InputFrameInputs {
     #[inline]
-    pub fn new(frame: u32, player_events: &[InputPlayerEvents]) -> InputFrameEvents {
-        InputFrameEvents {
+    pub fn new(frame: u32, player_events: &[InputPlayerInputs]) -> InputFrameInputs {
+        InputFrameInputs {
             frame,
             player_events: player_events.to_vec(),
         }
@@ -147,22 +147,22 @@ impl SystemInput {
     }
 
     // Returns the frame which the game should restore to.
-    pub fn produce(&mut self, player_events: &[InputPlayerEvents]) -> XResult<u32> {
+    pub fn produce(&mut self, player_events: &[InputPlayerInputs]) -> XResult<u32> {
         if player_events.is_empty() {
-            return xres!(BadArgument; "empty events");
+            return xres!(BadArgument; "empty inputs");
         }
         let base_frame = player_events.iter().map(|e| e.frame.wrapping_sub(1)).min().unwrap_or(0);
 
-        for events in player_events {
-            let player_idx = events.player_id.wrapping_sub(MIN_PLAYER_ID);
+        for inputs in player_events {
+            let player_idx = inputs.player_id.wrapping_sub(MIN_PLAYER_ID);
             match self.queues.get(player_idx as usize) {
                 Some(queue) => {
                     let mut queue = queue.borrow_mut();
-                    queue.produce(events.frame, &events.events)?;
+                    queue.produce(inputs.frame, &inputs.inputs)?;
                     self.current_frames[player_idx as usize] = queue.current_frame;
                 }
                 None => {
-                    return xresf!(NotFound; "player_id={}", events.player_id);
+                    return xresf!(NotFound; "player_id={}", inputs.player_id);
                 }
             };
         }
@@ -198,6 +198,51 @@ impl SystemInput {
     Clone,
     Copy,
     PartialEq,
+    Eq,
+    Hash,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+pub enum InputMoveSpeed {
+    #[default]
+    Normal,
+    Slow,
+    Fast,
+}
+
+impl InputMoveSpeed {
+    #[inline]
+    pub fn from_dir(dir: Vec2) -> InputMoveSpeed {
+        if dir.length_squared() < 0.25 {
+            InputMoveSpeed::Slow
+        }
+        else if dir.length_squared() > 1.0 {
+            InputMoveSpeed::Fast
+        }
+        else {
+            InputMoveSpeed::Normal
+        }
+    }
+
+    #[inline]
+    pub fn to_virtual_key(&self) -> VirtualKey {
+        match self {
+            InputMoveSpeed::Normal => VirtualKey::Run,
+            InputMoveSpeed::Slow => VirtualKey::Walk,
+            InputMoveSpeed::Fast => VirtualKey::Dash,
+        }
+    }
+}
+
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
@@ -206,14 +251,14 @@ impl SystemInput {
 )]
 pub struct InputMoveState {
     pub moving: bool,
-    pub slow: bool,
+    pub speed: InputMoveSpeed,
     pub direction: Vec2, // device direction, in 2d croodinate, W:+Y S:-Y A:-X S:+X
 }
 
 impl InputMoveState {
     const EMPTY: InputMoveState = InputMoveState {
         moving: false,
-        slow: false,
+        speed: InputMoveSpeed::Normal,
         direction: Vec2::ZERO,
     };
 
@@ -222,14 +267,14 @@ impl InputMoveState {
         if abs_diff_ne!(direction, Vec2::ZERO) {
             InputMoveState {
                 moving: true,
-                slow: direction.length_squared() < 0.25,
+                speed: InputMoveSpeed::from_dir(direction),
                 direction: direction.normalize(),
             }
         }
         else {
             InputMoveState {
                 moving: false,
-                slow: false,
+                speed: InputMoveSpeed::Normal,
                 direction: Vec2::ZERO,
             }
         }
@@ -250,7 +295,7 @@ impl InputMoveState {
 )]
 pub struct WorldMoveState {
     pub moving: bool,
-    pub slow: bool,
+    pub speed: InputMoveSpeed,
     pub direction: Vec2xz, // world direction, in XZ plane
 }
 
@@ -317,7 +362,7 @@ impl InputVariables {
             let direction = angle.rotate(self.view_dir_2d);
             WorldMoveState {
                 moving: true,
-                slow: self.device_move.slow,
+                speed: self.device_move.speed,
                 direction,
             }
         }
@@ -332,7 +377,7 @@ impl InputVariables {
             let direction = angle.rotate(self.view_dir_2d);
             WorldMoveState {
                 moving: true,
-                slow: self.optimized_device_move.slow,
+                speed: self.optimized_device_move.speed,
                 direction,
             }
         }
@@ -367,12 +412,12 @@ pub struct InputEventQueue {
     player_id: NumID,
     input_window: u32,
     id_counter: u64, // Event id counter, starts from 1
-    events: VecDeque<VirtualEvent>,
+    inputs: VecDeque<VirtualInput>,
     metas: VecDeque<InputFrameMeta>,
-    current_frame: u32, // The lastest frame which events has been produced (reached) currently.
+    current_frame: u32, // The lastest frame which inputs has been produced (reached) currently.
     synced_frame: u32,  // The frame that have been synchronized with other players.
-    base_frame: u32,    // The smallest frame saved in self.events. Previous frames have been discarded.
-    base_id: u64,       // The smallest id saved in self.events. Previous events have been discarded.
+    base_frame: u32,    // The smallest frame saved in self.inputs. Previous frames have been discarded.
+    base_id: u64,       // The smallest id saved in self.inputs. Previous inputs have been discarded.
     variables: InputVariables,
 }
 
@@ -382,7 +427,7 @@ impl InputEventQueue {
             player_id,
             input_window,
             id_counter: FIRST_EVENT_ID,
-            events: VecDeque::with_capacity(256),
+            inputs: VecDeque::with_capacity(256),
             metas: VecDeque::with_capacity((2 * FPS_USIZE) + (input_window as usize)),
             current_frame: 0,
             synced_frame: 0,
@@ -434,7 +479,7 @@ impl InputEventQueue {
         self.base_id
     }
 
-    fn produce(&mut self, current_frame: u32, events: &[RawEvent]) -> XResult<()> {
+    fn produce(&mut self, current_frame: u32, inputs: &[RawInput]) -> XResult<()> {
         if current_frame != self.current_frame + 1 {
             return xresf!(BadArgument; "current_frame={}, self.current_frame={}", current_frame, self.current_frame);
         }
@@ -443,7 +488,7 @@ impl InputEventQueue {
         self.variables.optimized_device_move = self.variables.device_move;
         let start_event_id = self.id_counter;
 
-        for (n, event) in events.iter().enumerate() {
+        for (n, event) in inputs.iter().enumerate() {
             // View
             if event.key == RawKey::View {
                 self.variables.view_rads = Vec2::new(event.motion.x % (2.0 * PI), event.motion.y % FRAC_PI_2);
@@ -462,18 +507,18 @@ impl InputEventQueue {
                 else {
                     self.variables.device_move = InputMoveState::EMPTY;
                     // Ignore Up event, if a Down-Up pair is the last operation.
-                    let ignore = (n == events.len() - 1)
+                    let ignore = (n == inputs.len() - 1)
                         && (n >= 1)
-                        && events[n - 1].key == RawKey::Move
-                        && events[n - 1].pressed;
+                        && inputs[n - 1].key == RawKey::Move
+                        && inputs[n - 1].pressed;
                     if !ignore {
                         self.variables.optimized_device_move = InputMoveState::EMPTY;
                     }
                 }
             }
-            // Other events
+            // Other inputs
             else {
-                self.events.push_back(VirtualEvent::new_ex(
+                self.inputs.push_back(VirtualInput::new_ex(
                     self.id_counter,
                     current_frame,
                     event.key.into(),
@@ -519,10 +564,10 @@ impl InputEventQueue {
             Some(meta) => meta.start_event_id,
             None => return xres!(Unexpected; "metas empty"),
         };
-        while let Some(event) = self.events.front() {
+        while let Some(event) = self.inputs.front() {
             if event.id < new_base_id {
                 debug_assert!(event.frame >= self.base_frame && event.frame < base_frame);
-                self.events.pop_front();
+                self.inputs.pop_front();
             }
             else {
                 break;
@@ -534,9 +579,9 @@ impl InputEventQueue {
         Ok(())
     }
 
-    pub fn iter_current(&self, frame: u32) -> XResult<vec_deque::Iter<'_, VirtualEvent>> {
+    pub fn iter_current(&self, frame: u32) -> XResult<vec_deque::Iter<'_, VirtualInput>> {
         if frame > self.current_frame {
-            return Ok(self.events.range(0..0));
+            return Ok(self.inputs.range(0..0));
         }
         let meta = self
             .index_meta(frame) // Checked frame < self.base_frame
@@ -545,10 +590,10 @@ impl InputEventQueue {
             )?;
         let start = (meta.start_event_id - self.base_id) as usize;
         let end = (meta.end_next_event_id - self.base_id) as usize;
-        Ok(self.events.range(start..end))
+        Ok(self.inputs.range(start..end))
     }
 
-    pub fn iter_preinput(&self, frame: u32, cursor_id: u64) -> XResult<vec_deque::Iter<'_, VirtualEvent>> {
+    pub fn iter_preinput(&self, frame: u32, cursor_id: u64) -> XResult<vec_deque::Iter<'_, VirtualInput>> {
         if cursor_id > self.future_id() {
             return xresf!(BadArgument; "cursor_id={}, self.future_id={}", cursor_id, self.future_id());
         }
@@ -574,13 +619,13 @@ impl InputEventQueue {
         }
         else {
             // frame - input_window > current_frame
-            return Ok(self.events.range(0..0));
+            return Ok(self.inputs.range(0..0));
         };
         start_id = start_id.max(cursor_id).min(end_id);
 
         let start = (start_id - self.base_id) as usize;
         let end = (end_id - self.base_id) as usize;
-        Ok(self.events.range(start..end))
+        Ok(self.inputs.range(start..end))
     }
 
     #[inline]
@@ -624,8 +669,8 @@ mod tests {
         iq.metas.iter().map(|m| m.end_next_event_id).collect()
     }
 
-    fn evt(id: u64, frame: u32, raw: RawEvent) -> VirtualEvent {
-        VirtualEvent::new(id, frame, raw.key.into(), raw.pressed)
+    fn evt(id: u64, frame: u32, raw: RawInput) -> VirtualInput {
+        VirtualInput::new(id, frame, raw.key.into(), raw.pressed)
     }
 
     #[test]
@@ -686,12 +731,12 @@ mod tests {
 
     #[test]
     fn test_input_queue_produce() {
-        let a1_down = RawEvent::new_button(RawKey::Attack1, true);
-        let a1_up = RawEvent::new_button(RawKey::Attack1, false);
-        let a2_down = RawEvent::new_button(RawKey::Attack2, true);
-        let a2_up = RawEvent::new_button(RawKey::Attack2, false);
-        let s1_down = RawEvent::new_button(RawKey::Skill1, true);
-        let s1_up = RawEvent::new_button(RawKey::Skill1, false);
+        let a1_down = RawInput::new_button(RawKey::Attack1, true);
+        let a1_up = RawInput::new_button(RawKey::Attack1, false);
+        let a2_down = RawInput::new_button(RawKey::Attack2, true);
+        let a2_up = RawInput::new_button(RawKey::Attack2, false);
+        let s1_down = RawInput::new_button(RawKey::Skill1, true);
+        let s1_up = RawInput::new_button(RawKey::Skill1, false);
 
         let mut iq = InputEventQueue::new(0, 3);
 
@@ -793,12 +838,12 @@ mod tests {
 
     #[test]
     fn test_input_queue_confirm() {
-        let s1_down = RawEvent::new_button(RawKey::Skill1, true);
-        let s1_up = RawEvent::new_button(RawKey::Skill1, false);
-        let s2_down = RawEvent::new_button(RawKey::Skill2, true);
-        let s2_up = RawEvent::new_button(RawKey::Skill2, false);
-        let aim = RawEvent::new_button(RawKey::Aim, true);
-        let shoot = RawEvent::new_button(RawKey::Shot1, true);
+        let s1_down = RawInput::new_button(RawKey::Skill1, true);
+        let s1_up = RawInput::new_button(RawKey::Skill1, false);
+        let s2_down = RawInput::new_button(RawKey::Skill2, true);
+        let s2_up = RawInput::new_button(RawKey::Skill2, false);
+        let aim = RawInput::new_button(RawKey::Aim, true);
+        let shoot = RawInput::new_button(RawKey::Shot1, true);
 
         let mut iq = InputEventQueue::new(0, 3);
 
@@ -900,44 +945,44 @@ mod tests {
 
     #[test]
     fn test_input_queue_view_move() {
-        let a1_down = RawEvent::new_button(RawKey::Attack1, true);
-        let a1_up = RawEvent::new_button(RawKey::Attack1, false);
-        let a5_down = RawEvent::new_button(RawKey::Attack5, true);
-        let a5_up = RawEvent::new_button(RawKey::Attack5, false);
-        let s1_down = RawEvent::new_button(RawKey::Skill1, true);
-        let s1_up = RawEvent::new_button(RawKey::Skill1, false);
+        let a1_down = RawInput::new_button(RawKey::Attack1, true);
+        let a1_up = RawInput::new_button(RawKey::Attack1, false);
+        let a5_down = RawInput::new_button(RawKey::Attack5, true);
+        let a5_up = RawInput::new_button(RawKey::Attack5, false);
+        let s1_down = RawInput::new_button(RawKey::Skill1, true);
+        let s1_up = RawInput::new_button(RawKey::Skill1, false);
 
         let mut iq = InputEventQueue::new(0, 3);
         iq.produce(1, &[
             a5_down,
-            RawEvent::new_view(Vec2::new(PI, 0.0)),
-            RawEvent::new_move(Vec2::new(0.0, -1.0)),
+            RawInput::new_view(Vec2::new(PI, 0.0)),
+            RawInput::new_move(Vec2::new(0.0, -1.0)),
             a5_up,
-            RawEvent::new_move(Vec2::new(0.0, 0.0)),
+            RawInput::new_move(Vec2::new(0.0, 0.0)),
             a1_down,
         ])
         .unwrap();
-        let events = iq.iter_current(1).unwrap().collect::<Vec<_>>();
-        assert_eq!(events.len(), 3);
-        assert_eq!(events[0].key, VirtualKey::Attack5);
-        assert_ulps_eq!(events[0].view_dir_2d, Vec2xz::NEG_Z);
-        assert_ulps_eq!(events[0].view_dir_3d, Vec3A::NEG_Z);
-        assert_ulps_eq!(events[0].world_move_dir, Vec2xz::ZERO);
-        assert_eq!(events[1].key, VirtualKey::Attack5);
-        assert_ulps_eq!(events[1].view_dir_2d, Vec2xz::NEG_X);
-        assert_ulps_eq!(events[1].view_dir_3d, Vec3A::NEG_X);
-        assert_ulps_eq!(events[1].world_move_dir, Vec2xz::X);
-        assert_eq!(events[2].key, VirtualKey::Attack1);
-        assert_ulps_eq!(events[2].view_dir_2d, Vec2xz::NEG_X);
-        assert_ulps_eq!(events[2].view_dir_3d, Vec3A::NEG_X);
-        assert_ulps_eq!(events[2].world_move_dir, Vec2xz::ZERO);
+        let inputs = iq.iter_current(1).unwrap().collect::<Vec<_>>();
+        assert_eq!(inputs.len(), 3);
+        assert_eq!(inputs[0].key, VirtualKey::Attack5);
+        assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::NEG_Z);
+        assert_ulps_eq!(inputs[0].view_dir_3d, Vec3A::NEG_Z);
+        assert_ulps_eq!(inputs[0].world_move_dir, Vec2xz::ZERO);
+        assert_eq!(inputs[1].key, VirtualKey::Attack5);
+        assert_ulps_eq!(inputs[1].view_dir_2d, Vec2xz::NEG_X);
+        assert_ulps_eq!(inputs[1].view_dir_3d, Vec3A::NEG_X);
+        assert_ulps_eq!(inputs[1].world_move_dir, Vec2xz::X);
+        assert_eq!(inputs[2].key, VirtualKey::Attack1);
+        assert_ulps_eq!(inputs[2].view_dir_2d, Vec2xz::NEG_X);
+        assert_ulps_eq!(inputs[2].view_dir_3d, Vec3A::NEG_X);
+        assert_ulps_eq!(inputs[2].world_move_dir, Vec2xz::ZERO);
         assert_eq!(iq.variables.view_rads, Vec2::new(PI, 0.0));
         assert_eq!(iq.variables.device_move, InputMoveState::new(Vec2::ZERO));
         assert_eq!(iq.variables.optimized_device_move, InputMoveState::new(Vec2::ZERO));
 
         iq.produce(2, &[
-            RawEvent::new_move(Vec2::new(1.0, 0.0)),
-            RawEvent::new_move(Vec2::new(0.0, 0.0)),
+            RawInput::new_move(Vec2::new(1.0, 0.0)),
+            RawInput::new_move(Vec2::new(0.0, 0.0)),
         ])
         .unwrap();
         assert_eq!(iq.iter_current(2).unwrap().count(), 0);
@@ -953,8 +998,8 @@ mod tests {
         assert_eq!(iq.variables.optimized_device_move, InputMoveState::new(Vec2::ZERO));
 
         iq.produce(4, &[
-            RawEvent::new_move(Vec2::new(0.3, 0.3)),
-            RawEvent::new_view(Vec2::new(0.0, PI / 4.0)),
+            RawInput::new_move(Vec2::new(0.3, 0.3)),
+            RawInput::new_view(Vec2::new(0.0, PI / 4.0)),
             a1_up,
         ])
         .unwrap();
@@ -964,34 +1009,34 @@ mod tests {
             iq.variables.optimized_device_move,
             InputMoveState::new(Vec2::new(0.3, 0.3))
         );
-        let events = iq.iter_current(4).unwrap().collect::<Vec<_>>();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].key, VirtualKey::Attack1);
-        assert_ulps_eq!(events[0].view_dir_2d, Vec2xz::X);
-        assert_ulps_eq!(events[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
-        assert_ulps_eq!(events[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
+        let inputs = iq.iter_current(4).unwrap().collect::<Vec<_>>();
+        assert_eq!(inputs.len(), 1);
+        assert_eq!(inputs[0].key, VirtualKey::Attack1);
+        assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::X);
+        assert_ulps_eq!(inputs[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
+        assert_ulps_eq!(inputs[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
 
         iq.produce(5, &[s1_down, s1_up]).unwrap();
-        let events = iq.iter_current(5).unwrap().collect::<Vec<_>>();
-        assert_eq!(events.len(), 2);
-        assert_eq!(events[0].key, VirtualKey::Skill1);
-        assert_ulps_eq!(events[0].view_dir_2d, Vec2xz::X);
-        assert_ulps_eq!(events[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
-        assert_ulps_eq!(events[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
-        assert_eq!(events[1].key, VirtualKey::Skill1);
-        assert_ulps_eq!(events[0].view_dir_2d, Vec2xz::X);
-        assert_ulps_eq!(events[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
-        assert_ulps_eq!(events[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
+        let inputs = iq.iter_current(5).unwrap().collect::<Vec<_>>();
+        assert_eq!(inputs.len(), 2);
+        assert_eq!(inputs[0].key, VirtualKey::Skill1);
+        assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::X);
+        assert_ulps_eq!(inputs[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
+        assert_ulps_eq!(inputs[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
+        assert_eq!(inputs[1].key, VirtualKey::Skill1);
+        assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::X);
+        assert_ulps_eq!(inputs[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
+        assert_ulps_eq!(inputs[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
     }
 
     #[test]
     fn test_input_system() {
-        let a1_down = RawEvent::new_button(RawKey::Attack1, true);
-        let a1_up = RawEvent::new_button(RawKey::Attack1, false);
-        let s1_down = RawEvent::new_button(RawKey::Skill1, true);
-        let s1_up = RawEvent::new_button(RawKey::Skill1, false);
-        let aim = RawEvent::new_button(RawKey::Aim, false);
-        let shot = RawEvent::new_button(RawKey::Shot1, false);
+        let a1_down = RawInput::new_button(RawKey::Attack1, true);
+        let a1_up = RawInput::new_button(RawKey::Attack1, false);
+        let s1_down = RawInput::new_button(RawKey::Skill1, true);
+        let s1_up = RawInput::new_button(RawKey::Skill1, false);
+        let aim = RawInput::new_button(RawKey::Aim, false);
+        let shot = RawInput::new_button(RawKey::Shot1, false);
 
         let mut si = SystemInput::new(3);
         assert!(si.init(0).is_err());
@@ -1005,12 +1050,12 @@ mod tests {
         let player1 = si.player_events(101).unwrap();
 
         // p1=1, p2=?
-        let events = vec![InputPlayerEvents {
+        let inputs = vec![InputPlayerInputs {
             player_id: 100,
             frame: 1,
-            events: vec![a1_down, a1_up],
+            inputs: vec![a1_down, a1_up],
         }];
-        si.produce(&events).unwrap();
+        si.produce(&inputs).unwrap();
         si.confirm().unwrap();
         assert_eq!(si.synced_frame(), 0);
         assert_eq!(si.unsynced_frame(), 1);
@@ -1023,12 +1068,12 @@ mod tests {
         assert_eq!(player1.borrow().iter_preinput(1, 0).unwrap().count(), 0);
 
         // p1=1, p2=1
-        let events = vec![InputPlayerEvents {
+        let inputs = vec![InputPlayerInputs {
             player_id: 101,
             frame: 1,
-            events: vec![s1_down],
+            inputs: vec![s1_down],
         }];
-        si.produce(&events).unwrap();
+        si.produce(&inputs).unwrap();
         si.confirm().unwrap();
         assert_eq!(si.synced_frame(), 1);
         assert_eq!(si.unsynced_frame(), 2);
@@ -1040,19 +1085,19 @@ mod tests {
         assert_eq!(player1.borrow().iter_preinput(1, 0).unwrap().count(), 0);
 
         // p1=3, p2=1
-        let events = vec![
-            InputPlayerEvents {
+        let inputs = vec![
+            InputPlayerInputs {
                 player_id: 100,
                 frame: 2,
-                events: vec![],
+                inputs: vec![],
             },
-            InputPlayerEvents {
+            InputPlayerInputs {
                 player_id: 100,
                 frame: 3,
-                events: vec![aim, shot],
+                inputs: vec![aim, shot],
             },
         ];
-        si.produce(&events).unwrap();
+        si.produce(&inputs).unwrap();
         si.confirm().unwrap();
         assert_eq!(si.synced_frame(), 1);
         assert_eq!(si.unsynced_frame(), 2);
@@ -1062,12 +1107,12 @@ mod tests {
         assert_eq!(player1.borrow().iter_preinput(3, 0).unwrap().count(), 1);
 
         // p1=3, p2=2
-        let events = vec![InputPlayerEvents {
+        let inputs = vec![InputPlayerInputs {
             player_id: 101,
             frame: 2,
-            events: vec![s1_up],
+            inputs: vec![s1_up],
         }];
-        si.produce(&events).unwrap();
+        si.produce(&inputs).unwrap();
         si.confirm().unwrap();
         assert_eq!(si.synced_frame(), 2);
         assert_eq!(si.unsynced_frame(), 3);
@@ -1088,7 +1133,7 @@ mod tests {
         iv.device_move.direction = Vec2::Y;
         assert_eq!(iv.world_move(), WorldMoveState {
             moving: true,
-            slow: false,
+            speed: InputMoveSpeed::Normal,
             direction: Vec2xz::NEG_Z
         });
         iv.device_move.direction = Vec2::NEG_Y;
@@ -1107,7 +1152,7 @@ mod tests {
         iv.optimized_device_move.direction = Vec2::Y;
         assert_eq!(iv.optimized_world_move(), WorldMoveState {
             moving: true,
-            slow: false,
+            speed: InputMoveSpeed::Normal,
             direction: Vec2xz::X
         });
         iv.optimized_device_move.direction = Vec2::NEG_Y;
