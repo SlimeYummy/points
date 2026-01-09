@@ -1,11 +1,11 @@
 use glam::Vec3A;
 use glam_ext::{Transform3A, Vec2xz};
+use std::collections::hash_map::Entry;
 use std::mem;
 use std::rc::Rc;
-use std::collections::hash_map::Entry;
 
 use super::physics::LogicCharaPhysics;
-use crate::animation::{rest_poses_to_model_transforms, Animator};
+use crate::animation::{rest_poses_to_model_transforms, AnimationFileMeta, Animator};
 use crate::consts::{DEFAULT_TOWARD_DIR_2D, MAX_ACTION_ANIMATION, MAX_ACTION_STATE};
 use crate::instance::{InstActionAny, InstActionIdle, InstPlayer};
 use crate::logic::action::{
@@ -13,7 +13,7 @@ use crate::logic::action::{
 };
 use crate::logic::game::{ContextRestore, ContextUpdate};
 use crate::logic::system::input::InputVariables;
-use crate::utils::{ifelse, xerr, xres, DtHashMap, HistoryQueue, NumID, AnimationFileMeta, VirtualDir, VirtualKey, XResult};
+use crate::utils::{xerr, xres, CustomEvent, DtHashMap, HistoryQueue, InputDir, NumID, VirtualKey, XResult};
 
 #[derive(Debug)]
 pub(crate) struct LogicCharaAction {
@@ -29,14 +29,11 @@ pub(crate) struct LogicCharaAction {
     new_velocity: Vec3A,
     new_direction: Vec2xz,
     cache_states: Vec<Box<dyn StateActionAny>>,
+    action_events: Option<Vec<CustomEvent>>,
 }
 
 impl LogicCharaAction {
-    pub fn new(
-        ctx: &mut ContextUpdate<'_>,
-        player_id: NumID,
-        inst_player: Rc<InstPlayer>,
-    ) -> XResult<LogicCharaAction> {
+    pub fn new(ctx: &mut ContextUpdate, player_id: NumID, inst_player: Rc<InstPlayer>) -> XResult<LogicCharaAction> {
         let skeleton = ctx.asset.load_skeleton(inst_player.skeleton_files)?;
         let mut model_transforms = vec![Transform3A::ZERO; skeleton.num_joints()];
         rest_poses_to_model_transforms(&skeleton, &mut model_transforms)?;
@@ -63,10 +60,15 @@ impl LogicCharaAction {
             new_velocity: Vec3A::ZERO,
             new_direction: DEFAULT_TOWARD_DIR_2D,
             cache_states: Vec::with_capacity(16),
+            action_events: Some(Vec::new()),
         })
     }
 
-    pub fn preload_assets(&self, ctx: &mut ContextUpdate<'_>, inst_player: Rc<InstPlayer>) -> XResult<Vec<AnimationFileMeta>> {
+    pub fn preload_assets(
+        &self,
+        ctx: &mut ContextUpdate,
+        inst_player: Rc<InstPlayer>,
+    ) -> XResult<Vec<AnimationFileMeta>> {
         let mut animations = Vec::with_capacity(16);
         let mut animation_files = DtHashMap::default();
 
@@ -81,7 +83,9 @@ impl LogicCharaAction {
                     ctx.asset.load_weapon_motion(anime.files)?;
                 }
                 match animation_files.entry(anime.files) {
-                    Entry::Vacant(e) => { e.insert(anime.file_meta()); }
+                    Entry::Vacant(e) => {
+                        e.insert(anime.file_meta());
+                    }
                     Entry::Occupied(mut e) => {
                         e.get_mut().root_motion |= anime.root_motion;
                         e.get_mut().weapon_motion |= anime.weapon_motion;
@@ -93,12 +97,7 @@ impl LogicCharaAction {
         Ok(animation_files.into_values().collect())
     }
 
-    pub fn update(
-        &mut self,
-        ctx: &mut ContextUpdate<'_>,
-        chara_physics: &LogicCharaPhysics,
-        initing: bool,
-    ) -> XResult<()> {
+    pub fn update(&mut self, ctx: &mut ContextUpdate, chara_physics: &LogicCharaPhysics, initing: bool) -> XResult<()> {
         if self.action_queue.is_empty() && !initing {
             return xres!(Unexpected; "action queue empty");
         }
@@ -111,7 +110,7 @@ impl LogicCharaAction {
 
     fn handle_inputs(
         &mut self,
-        ctx: &mut ContextUpdate<'_>,
+        ctx: &mut ContextUpdate,
         chara_physics: &LogicCharaPhysics,
     ) -> XResult<Option<Rc<dyn InstActionAny>>> {
         let current_act = match self.action_queue.last() {
@@ -135,18 +134,7 @@ impl LogicCharaAction {
             if event.pressed {
                 continue;
             }
-            if let Some(candidate) =
-                self.find_next_action(current_act, player_dir, event.key.into(), event.world_move_dir)
-            {
-                if let Some(next_act) = &mut next_act {
-                    if candidate.enter_level >= next_act.enter_level {
-                        *next_act = candidate;
-                    }
-                }
-                else {
-                    next_act = Some(candidate);
-                }
-            }
+            next_act = self.find_next_action(current_act, next_act, player_dir, event.key.into(), event.world_move_dir);
         }
 
         // Handle current frame events
@@ -154,28 +142,15 @@ impl LogicCharaAction {
             if event.pressed {
                 continue;
             }
-            if let Some(candidate) =
-                self.find_next_action(current_act, player_dir, event.key.into(), event.world_move_dir)
-            {
-                if let Some(next_act) = &mut next_act {
-                    if candidate.enter_level >= next_act.enter_level {
-                        *next_act = candidate;
-                    }
-                }
-                else {
-                    next_act = Some(candidate);
-                }
-            }
+            next_act = self.find_next_action(current_act, next_act, player_dir, event.key.into(), event.world_move_dir);
         }
 
-        // No next action found, try Walk/Run.
+        // No next action found, try Walk/Run/Dash.
         if next_act.is_none() {
             let mov = events.variables(frame)?.optimized_world_move();
             if let Some(mov_dir) = mov.move_dir() {
-                let mov_key = ifelse!(mov.slow, VirtualKey::Walk, VirtualKey::Run);
-                if let Some(candidate) = self.find_next_action(current_act, player_dir, mov_key, mov_dir) {
-                    next_act = Some(candidate);
-                }
+                let mov_key = mov.speed.to_virtual_key();
+                next_act = self.find_next_action(current_act, None, player_dir, mov_key, mov_dir);
             }
         }
 
@@ -188,10 +163,50 @@ impl LogicCharaAction {
     fn find_next_action(
         &self,
         current_act: &Box<dyn LogicActionAny>,
+        candidate_act: Option<Rc<dyn InstActionAny>>,
         player_dir: Vec2xz,
         key: VirtualKey,
         move_dir: Vec2xz,
     ) -> Option<Rc<dyn InstActionAny>> {
+        let check_enter_action =
+            |cur_derive_level: u16, new_inst_act: &dyn InstActionAny, new_enter_level: u16, new_enter_dir: Option<InputDir>| {
+                // Check not current action
+                if !current_act.derive_self() && new_inst_act.tmpl_id == current_act.tmpl_id() {
+                    return false;
+                }
+
+                // Check derive level
+                if new_enter_level <= cur_derive_level {
+                    return false;
+                }
+
+                // Check enter direction (move combination key)
+                if let Some(dir) = new_enter_dir {
+                    let in_range = match dir {
+                        InputDir::Forward(cos) => player_dir.dot(move_dir) > cos,
+                        InputDir::Backward(cos) => (-player_dir).dot(move_dir) > cos,
+                        InputDir::Left(cos) => Vec2xz::new(-player_dir.z, player_dir.x).dot(move_dir) > cos,
+                        InputDir::Right(cos) => Vec2xz::new(player_dir.z, -player_dir.x).dot(move_dir) > cos,
+                    };
+                    if !in_range {
+                        return false;
+                    }
+                }
+
+                // TODO: Check custom script
+
+                true
+            };
+        
+        let compare_with_candidate = |new_inst_act: Rc<dyn InstActionAny>, new_enter_level: u16| {
+            if let Some(candidate_act) = candidate_act.clone() {
+                if candidate_act.enter_level >= new_enter_level {
+                    return Some(candidate_act);
+                }
+            }
+            Some(new_inst_act)
+        };
+
         if let Some(derive_keeping) = self.derive_keeping {
             debug_assert!(current_act.inst.derive_keeping || current_act.tmpl_id() == derive_keeping.action_id);
             let DeriveKeeping {
@@ -199,65 +214,38 @@ impl LogicCharaAction {
                 derive_level,
                 ..
             } = derive_keeping;
-            for inst_act in self.inst_player.filter_derive_actions(&(action_id, key)) {
-                if Self::check_enter_action(inst_act.as_ref(), derive_level, player_dir, move_dir) {
-                    return Some(inst_act);
+            for (rule, inst_act) in self.inst_player.filter_derive_actions(&(action_id, key)) {
+                if check_enter_action(derive_level, inst_act.as_ref(), rule.level, rule.dir) {
+                    return compare_with_candidate(inst_act, rule.level);
                 }
             }
         }
 
-        for inst_act in self.inst_player.filter_actions(&(current_act.tmpl_id(), key)) {
-            if inst_act.tmpl_id == current_act.tmpl_id() {
-                continue;
-            }
-            let derive_level = match current_act.is_activing() {
-                true => current_act.derive_level,
-                false => 0, // TODO: error!!!
-            };
-            if Self::check_enter_action(inst_act.as_ref(), derive_level, player_dir, move_dir) {
-                return Some(inst_act);
-            }
-        }
-
-        None
-    }
-
-    fn check_enter_action(
-        new_inst_act: &dyn InstActionAny,
-        cur_derive_level: u16,
-        player_dir: Vec2xz,
-        move_dir: Vec2xz,
-    ) -> bool {
-        // Check derive level
-        if new_inst_act.enter_level <= cur_derive_level {
-            return false;
-        }
-
-        // Check enter direction (move combination key)
-        let Some(enter_key) = new_inst_act.enter_key
-        else {
-            return false;
+        let derive_level = match current_act.is_activing() {
+            true => current_act.derive_level,
+            false => 0, // TODO: error!!!
         };
-        if let Some(dir) = enter_key.dir {
-            let in_range = match dir {
-                VirtualDir::Forward(cos) => player_dir.dot(move_dir) > cos,
-                VirtualDir::Backward(cos) => (-player_dir).dot(move_dir) > cos,
-                VirtualDir::Left(cos) => Vec2xz::new(-player_dir.z, player_dir.x).dot(move_dir) > cos,
-                VirtualDir::Right(cos) => Vec2xz::new(player_dir.z, -player_dir.x).dot(move_dir) > cos,
-            };
-            if !in_range {
-                return false;
+
+        for (rule, inst_act) in self.inst_player.filter_derive_actions(&(current_act.tmpl_id(), key)) {
+            if check_enter_action(derive_level, inst_act.as_ref(), rule.level, rule.dir) {
+                return compare_with_candidate(inst_act, rule.level);
             }
         }
 
-        // TODO: Check custom script
+        for inst_act in self.inst_player.filter_primary_actions(&key) {
+            let enter_level = inst_act.enter_level;
+            let enter_dir = inst_act.enter_key.and_then(|k| k.dir);
+            if check_enter_action(derive_level, inst_act.as_ref(), enter_level, enter_dir) {
+                return compare_with_candidate(inst_act, enter_level);
+            }
+        }
 
-        true
+        candidate_act
     }
 
     fn update_states(
         &mut self,
-        ctx: &mut ContextUpdate<'_>,
+        ctx: &mut ContextUpdate,
         chara_physics: &LogicCharaPhysics,
         initing: bool,
         mut next_act: Option<Rc<dyn InstActionAny>>,
@@ -267,15 +255,19 @@ impl LogicCharaAction {
         self.new_direction = chara_physics.direction();
         self.cache_states.clear();
         self.cache_states.reserve(self.action_queue.len() + 1);
+        self.action_events = Some(Vec::new());
 
-        let variables = match initing {
-            true => InputVariables::default(),
-            false => ctx.input.player_events(self.player_id)?.borrow().variables(ctx.frame)?,
-        };
+        let mut input_vars = InputVariables::default();
+        let mut input_future_id = 0;
+        if !initing {
+            let events = ctx.input.player_events(self.player_id)?;
+            input_vars = events.borrow().variables(ctx.frame)?;
+            input_future_id = events.borrow().future_id();
+        }
 
         // Update current action
         if let Some(current_act) = self.action_queue.last_mut() {
-            let mut ctxa = ContextAction::new(self.player_id, chara_physics, variables);
+            let mut ctxa = ContextAction::new(self.player_id, chara_physics, input_vars);
             let ret = current_act.update(ctx, &mut ctxa)?;
             if let Some(new_velocity) = ret.new_velocity {
                 self.new_velocity = new_velocity;
@@ -283,6 +275,12 @@ impl LogicCharaAction {
             if let Some(new_direction) = ret.new_direction {
                 self.new_direction = new_direction;
             }
+
+            if ret.clear_preinput {
+                self.event_cursor_id = input_future_id;
+            }
+
+            self.action_events = Some(ret.custom_events);
 
             if current_act.is_stopping() && next_act.is_none() {
                 // Trigger derive keeping, when current action actively stops.
@@ -299,7 +297,7 @@ impl LogicCharaAction {
 
         // Update previous fade action
         for act in self.action_queue.iter_mut().rev().take_while(|act| act.is_fading()) {
-            let mut ctxa = ContextAction::new(self.player_id, chara_physics, variables);
+            let mut ctxa = ContextAction::new(self.player_id, chara_physics, input_vars);
             act.fade_update(ctx, &mut ctxa)?;
         }
 
@@ -317,12 +315,21 @@ impl LogicCharaAction {
 
             // Start current action
             let ret = {
-                let mut ctxa = ContextAction::new(self.player_id, chara_physics, variables);
+                let mut ctxa = ContextAction::new(self.player_id, chara_physics, input_vars);
                 if prev_act.is_some() {
                     ctxa.prev_action = prev_act.as_deref();
                 }
                 current_act.start(ctx, &mut ctxa)?
             };
+
+            if ret.clear_preinput {
+                self.event_cursor_id = input_future_id;
+            }
+
+            match self.action_events {
+                Some(ref mut events) => events.extend(ret.custom_events),
+                None => self.action_events = Some(ret.custom_events),
+            }
 
             // Clear derive keeping, if current action not supported.
             if !current_act.inst.derive_keeping {
@@ -330,7 +337,7 @@ impl LogicCharaAction {
             }
 
             // Handle previous action
-            let mut ctxa = ContextAction::new(self.player_id, chara_physics, variables);
+            let mut ctxa = ContextAction::new(self.player_id, chara_physics, input_vars);
             if let Some(prev_act) = prev_act {
                 let prev_fade_update =
                     ret.prev_fade_update && prev_act.is_activing() && prev_act.fade_start(ctx, &mut ctxa)?;
@@ -398,7 +405,7 @@ impl LogicCharaAction {
         self.cache_states.reverse();
 
         // Finalize actions
-        let mut ctxa = ContextAction::new(self.player_id, chara_physics, variables);
+        let mut ctxa = ContextAction::new(self.player_id, chara_physics, input_vars);
         for idx in 0..zero_count {
             if self.action_queue[idx].is_fading() {
                 self.action_queue[idx].stop(ctx, &mut ctxa)?;
@@ -412,10 +419,9 @@ impl LogicCharaAction {
         Ok(())
     }
 
-    fn apply_animations(&mut self, ctx: &mut ContextUpdate<'_>) -> XResult<()> {
+    fn apply_animations(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
         self.animator.discard(ctx.synced_frame);
-        self.animator
-            .update(ctx.frame, &self.cache_states, |res| ctx.asset.load_animation(*res))?;
+        self.animator.update(ctx.frame, &self.cache_states, &mut ctx.asset)?;
         self.animator.animate()?;
         self.animator.model_out_transforms(&mut self.model_transforms)
     }
@@ -444,18 +450,32 @@ impl LogicCharaAction {
         Ok(())
     }
 
-    pub fn states(&self) -> XResult<&[Box<dyn StateActionAny>]> {
-        if self.cache_states.is_empty() {
-            return xres!(LogicBadState; "states already taken");
-        }
-        Ok(&self.cache_states)
-    }
+    // pub fn states(&self) -> XResult<&[Box<dyn StateActionAny>]> {
+    //     if self.cache_states.is_empty() {
+    //         return xres!(LogicBadState; "states already taken");
+    //     }
+    //     Ok(&self.cache_states)
+    // }
 
     pub fn take_states(&mut self) -> XResult<Vec<Box<dyn StateActionAny>>> {
         if self.cache_states.is_empty() {
             return xres!(LogicBadState; "states already taken");
         }
         Ok(mem::take(&mut self.cache_states))
+    }
+
+    // pub fn action_events(&self) -> XResult<&[String]> {
+    //     match &self.action_events {
+    //         Some(v) => Ok(v),
+    //         None => xres!(LogicBadState; "action events already taken"),
+    //     }
+    // }
+
+    pub fn take_action_events(&mut self) -> XResult<Vec<CustomEvent>> {
+        match mem::take(&mut self.action_events) {
+            Some(v) => Ok(v),
+            None => xres!(LogicBadState; "action events already taken"),
+        }
     }
 
     #[inline]
