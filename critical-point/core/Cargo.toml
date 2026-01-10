@@ -5,39 +5,41 @@ edition = "2021"
 
 [dependencies]
 ahash = "0.8"
-anyhow = "1.0"
+anyhow = "1"
 approx = "0.5"
 base64 = "0.22"
-bytecheck = { version = "0.6", default-features = false }
-byteorder = "1.5.0"
+bytecheck = { version = "0.8", default-features = false }
+byteorder = "1"
 critical-point-csgen = { path = "../csgen" }
 const_format = "0.2"
 educe = { version = "0.6", features = ["Debug", "Default"] }
-enum-iterator = "2.1"
+enum-iterator = "2"
 glam = { version = "0.30", features = ["libm", "approx", "serde", "rkyv"] }
 glam-ext = { path = "../../../glam-ext", features = ["libm", "approx", "serde", "rkyv"] }
 jolt-physics-rs = { path = "../../../jolt-physics-rs", features = ["deterministic", "glam-ext", "serde", "rkyv"] }
-lazy_static = "1.4"
+lazy_static = "1"
 libc = "0.2"
 libm = "0.2"
 log = "0.4"
-mimalloc = "0.1.42"
+mimalloc = "0.1"
 ozz-animation-rs = { path = "../../../ozz-animation-rs", features = ["rkyv"] }
-paste = "1.0"
+paste = "1"
 pest = "2.7"
 pest_derive = "2.7"
 ptr_meta = "0.3"
 recastnavigation-rs = { path = "../../../recastnavigation-rs" }
-regex = "1.10"
-rkyv = { version = "0.8" }
-serde = { version = "1.0", features = ["serde_derive"] }
-serde_json = "1.0"
-static_assertions = "1.1"
+regex = "1"
+rkyv = { version = "0.8", features = ["thin-vec-0_2", "tinyvec-1"] }
+serde = { version = "1", features = ["serde_derive"] }
+serde_json = "1"
+static_assertions = "1"
+thin-vec ={ version = "0.2", features = ["serde"] }
+tinyvec = { version = "1", features = ["serde"] }
 typetag = "0.2"
-zip = { version = "2.2", default-features = false, features = [ "zstd" ] }
+zip = { version = "6", default-features = false, features = [ "zstd" ] }
 
 [dev-dependencies]
-ctor = "0.2"
+ctor = "0.6"
 
 [features]
 #default = ["server-side"]
