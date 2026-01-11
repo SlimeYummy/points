@@ -11,7 +11,7 @@ use std::{mem, ptr, u32};
 use zip::write::{SimpleFileOptions, ZipWriter};
 
 use crate::logic::base::StateAny;
-use crate::logic::system::input::InputFrameEvents;
+use crate::logic::system::input::InputFrameInputs;
 use crate::logic::system::state::StateSet;
 use crate::utils::{xerr, xerrf, xfromf, xres, xresf, XResult};
 
@@ -68,7 +68,7 @@ impl SaveStateUpdates {
 }
 
 enum SaveMessage {
-    Input(InputFrameEvents),
+    Input(InputFrameInputs),
     State(Arc<StateSet>),
     Exit(bool),
 }
@@ -148,7 +148,7 @@ impl SystemSave {
         res.map_err(xfromf!("file_path={:?}", file_path))
     }
 
-    pub fn save_input(&mut self, players: InputFrameEvents) -> XResult<()> {
+    pub fn save_input(&mut self, players: InputFrameInputs) -> XResult<()> {
         if self.thread.is_none() {
             return xres!(BadOperation; "thread stopped");
         }
@@ -221,7 +221,7 @@ impl SaveThread {
         }
     }
 
-    fn handle_input(&mut self, players: InputFrameEvents) -> Result<()> {
+    fn handle_input(&mut self, players: InputFrameInputs) -> Result<()> {
         use rkyv::rancor::Failure;
 
         let data_buf = rkyv::to_bytes::<Failure>(&players)?;
