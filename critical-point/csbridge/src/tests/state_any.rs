@@ -1,10 +1,11 @@
 #![allow(improper_ctypes_definitions)]
 
+use critical_point_core::animation::AnimationFileMeta;
 use critical_point_core::logic::{
     LogicType, StateAny, StateBase, StateCharaPhysics, StateGameInit, StateGameUpdate, StatePlayerInit,
     StatePlayerUpdate, StateType,
 };
-use critical_point_core::utils::{sb, AnimationFileMeta, CsVec3A};
+use critical_point_core::utils::{id, sb};
 use glam::Vec3A;
 use glam_ext::Vec2xz;
 use std::sync::Arc;
@@ -45,7 +46,7 @@ fn new_state_player_init() -> StatePlayerInit {
             AnimationFileMeta::new(sb!("mock_animation_2.ozz"), false, false),
         ],
         view_model: sb!("model.vrm"),
-        init_position: CsVec3A::new(1.0, 2.0, 3.0).into(),
+        init_position: Vec3A::new(1.0, 2.0, 3.0),
         init_direction: Vec2xz::Z,
     }
 }
@@ -115,5 +116,11 @@ fn new_state_player_update() -> StatePlayerUpdate {
             direction: Vec2xz::new(0.0, -1.0),
         },
         actions: vec![Box::new(new_state_action_idle()), Box::new(new_state_action_move())],
+        // action_events: vec!["Event0".to_string(), "Event1".to_string(), "Event2".to_string()],
+        custom_events: vec![
+            (id!("Action.One.Attack^1"), sb!("Event0")).into(),
+            (id!("Action.One.Attack^1"), sb!("Event1")).into(),
+            (id!("Action.One.Attack^1"), sb!("Event2")).into(),
+        ],
     }
 }

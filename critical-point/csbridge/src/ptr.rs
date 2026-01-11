@@ -6,7 +6,7 @@ use std::sync::Arc;
 use critical_point_core::animation::SkeletonMeta;
 use critical_point_core::logic::{
     StateActionAny, StateActionIdle, StateAny, StateGameInit, StateGameUpdate, StatePlayerInit, StatePlayerUpdate,
-    StateZoneInit, StateZoneUpdate, StateNpcInit, StateNpcUpdate, StateActionMove, StateSet,
+    StateZoneInit, StateZoneUpdate, StateNpcInit, StateNpcUpdate, StateActionMove, StateSet, StateActionGeneral
 };
 use critical_point_core::utils::Castable;
 
@@ -164,6 +164,13 @@ arc_drop!(state_action_move_arc_drop, StateActionMove);
 box_ref!(state_action_move_box_ref, Box<dyn StateActionAny>, StateActionMove);
 arc_ref!(state_action_move_arc_ref, Arc<dyn StateActionAny>, StateActionMove);
 arc_arc!(state_action_move_arc_arc, Arc<dyn StateActionAny>, StateActionMove);
+
+box_drop!(state_action_general_box_drop, StateActionGeneral);
+arc_clone!(state_action_general_arc_clone, StateActionGeneral);
+arc_drop!(state_action_general_arc_drop, StateActionGeneral);
+box_ref!(state_action_general_box_ref, Box<dyn StateActionAny>, StateActionGeneral);
+arc_ref!(state_action_general_arc_ref, Arc<dyn StateActionAny>, StateActionGeneral);
+arc_arc!(state_action_general_arc_arc, Arc<dyn StateActionAny>, StateActionGeneral);
 
 //
 // Others

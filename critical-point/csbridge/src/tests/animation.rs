@@ -16,7 +16,7 @@ pub extern "C" fn mock_skeleton_animator_state_actions() -> Vec<Box<dyn StateAct
     });
     idle._base.id = 111;
     idle._base.tmpl_id = id!("Action.One.Run");
-    idle.animations[0].files = sb!("girl_run.*");
+    idle.animations[0].files = sb!("Girl_Run_Empty.*");
     idle.animations[0].animation_id = 1;
     idle.animations[0].ratio = 0.0;
     idle.animations[0].weight = 1.0;
