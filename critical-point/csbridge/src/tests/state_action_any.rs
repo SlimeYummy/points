@@ -1,12 +1,13 @@
 #![allow(improper_ctypes_definitions)]
 
+use critical_point_core::animation::RootTrackName;
 use critical_point_core::logic::{
     ActionIdleMode, ActionMoveMode, LogicActionStatus, StateActionAnimation, StateActionAny, StateActionBase,
     StateActionGeneral, StateActionIdle, StateActionMove, StateActionType, StateMultiRootMotion, StateRootMotion,
 };
 use critical_point_core::template::TmplType;
-use critical_point_core::utils::{id, sb};
-use glam::{Quat, Vec3};
+use critical_point_core::utils::{TimeRange, id, sb};
+use glam::{Quat, Vec3A};
 use glam_ext::Vec2xz;
 use std::sync::Arc;
 
@@ -44,18 +45,8 @@ pub fn new_state_action_idle() -> StateActionIdle {
             derive_level: 50,
             poise_level: 100,
             animations: [
-                StateActionAnimation {
-                    files: sb!("mock_action_idle_1"),
-                    animation_id: 9999,
-                    ratio: 0.125,
-                    weight: 0.333,
-                },
-                StateActionAnimation {
-                    files: sb!("mock_action_idle_2"),
-                    animation_id: 3456,
-                    ratio: 0.6,
-                    weight: 0.7,
-                },
+                StateActionAnimation::new(sb!("mock_action_idle_1"), 9999, true, 0.125, 0.333),
+                StateActionAnimation::new(sb!("mock_action_idle_2"), 3456, false, 0.6, 0.7),
                 StateActionAnimation::default(),
                 StateActionAnimation::default(),
             ],
@@ -81,29 +72,19 @@ pub extern "C" fn mock_arc_state_action_move() -> Arc<StateActionMove> {
 pub fn new_state_action_move() -> StateActionMove {
     StateActionMove {
         _base: StateActionBase {
-            id: 23893,
+            id: 783,
             tmpl_id: id!("Action.One.Run"),
             typ: StateActionType::Move,
             tmpl_typ: TmplType::ActionMove,
-            status: LogicActionStatus::Stopping,
-            first_frame: 891,
+            status: LogicActionStatus::Activing,
+            first_frame: 123,
             last_frame: u32::MAX,
-            fade_in_weight: 0.342,
-            derive_level: 40,
-            poise_level: 40,
+            fade_in_weight: 0.77,
+            derive_level: 70,
+            poise_level: 68,
             animations: [
-                StateActionAnimation {
-                    files: sb!("mock_action_move_1"),
-                    animation_id: 888,
-                    ratio: 0.371,
-                    weight: 0.287,
-                },
-                StateActionAnimation {
-                    files: sb!("mock_action_move_2"),
-                    animation_id: 3456,
-                    ratio: 0.72,
-                    weight: 0.46,
-                },
+                StateActionAnimation::new(sb!("mock_action_move_1"), 888, true, 0.02, 0.287),
+                StateActionAnimation::new(sb!("mock_action_move_2"), 3456, false, 0.875, 0.46),
                 StateActionAnimation::default(),
                 StateActionAnimation::default(),
             ],
@@ -116,12 +97,11 @@ pub fn new_state_action_move() -> StateActionMove {
         stop_anim_idx: 3,
         root_motion: StateMultiRootMotion {
             local_id: 0,
+            pos_track: RootTrackName::Default,
             ratio: 0.0,
-            position: Vec3::new(-5.0, -4.0, -3.0),
-            position_delta: Vec3::ONE,
-            rotation_cursor: (-Quat::IDENTITY).into(),
-            rotation: Quat::IDENTITY.into(),
-            rotation_delta: Quat::IDENTITY.into(),
+            current_pos: Vec3A::new(-5.0, -4.0, -3.0),
+            previous_pos: Vec3A::new(-2.0, -1.0, 0.0),
+            pos_delta: Vec3A::ONE,
         },
         start_turn_angle_step: Vec2xz::NEG_Z,
         smooth_move_start_speed: 0.5,
@@ -143,41 +123,34 @@ pub extern "C" fn mock_arc_state_action_general() -> Arc<StateActionGeneral> {
 pub fn new_state_action_general() -> StateActionGeneral {
     StateActionGeneral {
         _base: StateActionBase {
-            id: 23893,
-            tmpl_id: id!("Action.One.Attack/1"),
-            typ: StateActionType::Move,
-            tmpl_typ: TmplType::ActionMove,
+            id: 5551,
+            tmpl_id: id!("Action.One.Attack^1"),
+            typ: StateActionType::General,
+            tmpl_typ: TmplType::ActionGeneral,
             status: LogicActionStatus::Activing,
             first_frame: 891,
             last_frame: u32::MAX,
-            fade_in_weight: 0.342,
-            derive_level: 40,
-            poise_level: 40,
+            fade_in_weight: 0.112,
+            derive_level: 9,
+            poise_level: 13,
             animations: [
-                StateActionAnimation {
-                    files: sb!("mock_action_move_1"),
-                    animation_id: 888,
-                    ratio: 0.371,
-                    weight: 0.287,
-                },
-                StateActionAnimation {
-                    files: sb!("mock_action_move_2"),
-                    animation_id: 3456,
-                    ratio: 0.72,
-                    weight: 0.46,
-                },
+                StateActionAnimation::new(sb!("mock_action_gen_1"), 81, true, 0.66, 0.74),
+                StateActionAnimation::default(),
                 StateActionAnimation::default(),
                 StateActionAnimation::default(),
             ],
         },
         current_time: 0.98,
+        from_rotation: 1.0,
+        to_rotation: 2.0,
+        current_rotation: 1.5,
+        rotation_time: TimeRange::new(10.0, 20.0),
         root_motion: StateRootMotion {
+            pos_track: RootTrackName::Move,
             ratio: 0.9,
-            position: Vec3::new(1.0, 2.0, 3.0),
-            position_delta: Vec3::new(4.0, 5.0, 6.0),
-            rotation_cursor: Quat::IDENTITY.into(),
-            rotation: Quat::IDENTITY.into(),
-            rotation_delta: (-Quat::IDENTITY).into(),
+            current_pos: Vec3A::new(1.0, 2.0, 3.0),
+            previous_pos: Vec3A::new(7.0, 7.0, 7.0),
+            pos_delta: Vec3A::new(4.0, 5.0, 6.0),
         },
     }
 }
