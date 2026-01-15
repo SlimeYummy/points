@@ -12,11 +12,15 @@ use std::marker::PhantomData;
 use std::ptr;
 use std::rc::Rc;
 use std::sync::Arc;
+use tinyvec::ArrayVec;
 
-use critical_point_core::animation::{rest_poses_to_model_matrices, SkeletonJointMeta, SkeletonMeta};
+use critical_point_core::animation::{
+    normalize_weapons_by_weight, rest_poses_to_model_matrices, sample_weapons_by_name_with_weight, SkeletonJointMeta,
+    SkeletonMeta, WeaponMotion, WeaponTransform,
+};
 use critical_point_core::consts::{INVALID_ACTION_ANIMATION_ID, MAX_ACTION_ANIMATION, MAX_ACTION_STATE};
 use critical_point_core::logic::StateActionAny;
-use critical_point_core::utils::{find_mut_offset_by, xfrom, xres, NumID, Symbol, TinyVec, TmplID, XResult};
+use critical_point_core::utils::{find_mut_offset_by, xfrom, xres, NumID, Symbol, TmplID, XResult};
 
 use crate::skeletal::resource;
 use crate::utils::Return;
@@ -27,7 +31,9 @@ pub struct SkeletalAnimator {
     blending_job: BlendingJob<Arc<Skeleton>>,
     l2m_job: LocalToModelJob<Arc<Skeleton>>,
     model_rest_poses: Vec<Mat4>,
-    actions: TinyVec<u16, { MAX_ACTION_STATE * 2 }>,
+    weapon_transforms: Vec<WeaponTransform>,
+    cs_weapon_transforms: Vec<WeaponTransform>,
+    actions: ArrayVec<[u16; MAX_ACTION_STATE * 2]>,
     act_arena: ActionArena,
     samp_arena: SamplingArena,
 }
@@ -46,7 +52,9 @@ impl SkeletalAnimator {
             blending_job: BlendingJob::default(),
             l2m_job: LocalToModelJob::default(),
             model_rest_poses,
-            actions: TinyVec::new(),
+            weapon_transforms: Vec::with_capacity(4),
+            cs_weapon_transforms: Vec::with_capacity(4),
+            actions: ArrayVec::new(),
             act_arena,
             samp_arena,
         };
@@ -63,7 +71,7 @@ impl SkeletalAnimator {
     }
 
     pub fn update(&mut self, states: &[Box<dyn StateActionAny>]) -> XResult<()> {
-        let mut new_acts = TinyVec::<u16, { MAX_ACTION_STATE * 2 }>::new();
+        let mut new_acts = ArrayVec::new();
         let is_init = self.actions.is_empty();
 
         // handle new actions
@@ -120,13 +128,25 @@ impl SkeletalAnimator {
 
     pub fn animate(&mut self, ratio: f32) -> XResult<()> {
         let ratio = ratio.clamp(0.0, 1.0);
+        self.weapon_transforms.clear();
         self.blending_job.layers_mut().clear();
         for act in self.actions.iter() {
             let ad = self.act_arena.act(*act);
-            ad.animate(&mut self.samp_arena, &mut self.blending_job, ratio)?;
+            ad.animate(
+                &mut self.samp_arena,
+                &mut self.blending_job,
+                &mut self.weapon_transforms,
+                ratio,
+            )?;
         }
         self.blending_job.run().map_err(xfrom!())?;
         self.l2m_job.run().map_err(xfrom!())?;
+
+        normalize_weapons_by_weight(&mut self.weapon_transforms);
+        self.cs_weapon_transforms.clear();
+        for i in 0..self.weapon_transforms.len() {
+            self.cs_weapon_transforms.push(self.weapon_transforms[i].into());
+        }
         Ok(())
     }
 
@@ -153,8 +173,18 @@ impl SkeletalAnimator {
     }
 
     #[inline]
-    pub fn model_out(&self) -> Ref<'_, Vec<Mat4>> {
+    pub fn model_poses(&self) -> Ref<'_, Vec<Mat4>> {
         self.l2m_job.output().unwrap().borrow()
+    }
+
+    // #[inline]
+    // pub fn weapon_transforms(&self) -> &[WeaponTransform] {
+    //     &self.weapon_transforms
+    // }
+
+    #[inline]
+    pub fn cs_weapon_transforms(&self) -> &[WeaponTransform] {
+        &self.cs_weapon_transforms
     }
 }
 
@@ -163,7 +193,7 @@ struct ActionData {
     next: u16,
     id: NumID,
     tmpl_id: TmplID,
-    samplings: TinyVec<u16, { MAX_ACTION_ANIMATION * 2 }>,
+    samplings: ArrayVec<[u16; MAX_ACTION_STATE * 2]>,
     phantoms: PhantomData<Arc<Animation>>,
 }
 
@@ -174,6 +204,7 @@ struct SamplingData {
     weight: [f32; 2],
     ratio: [f32; 2],
     sampling_job: SamplingJob<Arc<Animation>>,
+    weapon_motion: Option<Arc<WeaponMotion>>,
 }
 
 impl ActionData {
@@ -183,7 +214,7 @@ impl ActionData {
         arena: &mut SamplingArena,
         state: Option<&Box<dyn StateActionAny>>,
     ) -> XResult<()> {
-        let mut new_samps = TinyVec::<u16, { MAX_ACTION_ANIMATION * 2 }>::new();
+        let mut new_samps = ArrayVec::new();
 
         // handle new samplings
         if let Some(state) = state {
@@ -220,6 +251,9 @@ impl ActionData {
                     sd.animation_file = anim_state.files;
                     sd.sampling_job
                         .set_animation(resource::load_animation(sd.animation_file)?);
+                    if anim_state.weapon_motion {
+                        sd.weapon_motion = Some(resource::load_weapon_motion(sd.animation_file)?);
+                    }
                     if is_init {
                         sd.weight = [anim_state.weight * state.fade_in_weight; 2];
                     }
@@ -259,6 +293,7 @@ impl ActionData {
         &self,
         arena: &mut SamplingArena,
         blending_job: &mut BlendingJob<Arc<Skeleton>>,
+        weapon_transforms: &mut Vec<WeaponTransform>,
         ratio: f32,
     ) -> XResult<()> {
         for samp in self.samplings.iter().cloned() {
@@ -288,6 +323,10 @@ impl ActionData {
                 sd.sampling_job.output().unwrap().clone(),
                 anim_weight,
             ));
+
+            if let Some(weapon_motion) = &sd.weapon_motion {
+                sample_weapons_by_name_with_weight(weapon_motion, anim_ratio, anim_weight, weapon_transforms)?;
+            }
         }
         Ok(())
     }
@@ -297,7 +336,7 @@ impl ActionData {
 struct ActionArena {
     init_cap: usize,
     arena: Vec<ActionData>,
-    free: u16, // use animation_id as next pointer
+    free: u16,
 }
 
 impl ActionArena {
@@ -361,7 +400,7 @@ impl ActionArena {
             next: u16::MAX,
             id: NumID::default(),
             tmpl_id: TmplID::default(),
-            samplings: TinyVec::new(),
+            samplings: ArrayVec::new(),
             phantoms: PhantomData,
         }
     }
@@ -440,6 +479,7 @@ impl SamplingArena {
             weight: [0.0; 2],
             ratio: [0.0; 2],
             sampling_job: SamplingJob::default(),
+            weapon_motion: None,
         }
     }
 
@@ -464,6 +504,7 @@ impl SamplingArena {
         data.ratio = [0.0; 2];
         data.sampling_job.clear_animation();
         data.sampling_job.set_ratio(0.0);
+        data.weapon_motion = None;
     }
 }
 
@@ -530,11 +571,24 @@ pub extern "C" fn skeletal_animator_model_rest_poses<'t>(animator: *mut Skeletal
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_animator_model_out<'t>(animator: *mut SkeletalAnimator) -> Return<&'t [Mat4]> {
+pub extern "C" fn skeletal_animator_model_poses<'t>(animator: *mut SkeletalAnimator) -> Return<&'t [Mat4]> {
     let res: XResult<&[Mat4]> = (|| {
         let animator = as_animator(animator)?;
-        let ptr = animator.model_out().as_slice().as_ptr();
-        let len = animator.model_out().len();
+        let ptr = animator.model_poses().as_slice().as_ptr();
+        let len = animator.model_poses().len();
+        Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
+    })();
+    Return::from_result_with(res, &[])
+}
+
+#[no_mangle]
+pub extern "C" fn skeletal_animator_weapon_transforms<'t>(
+    animator: *mut SkeletalAnimator,
+) -> Return<&'t [WeaponTransform]> {
+    let res: XResult<&[WeaponTransform]> = (|| {
+        let animator = as_animator(animator)?;
+        let ptr = animator.cs_weapon_transforms().as_ptr();
+        let len = animator.cs_weapon_transforms().len();
         Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
     })();
     Return::from_result_with(res, &[])
@@ -649,7 +703,7 @@ mod tests {
 
     #[test]
     fn test_sampling_arena() {
-        let skeleton = resource::load_skeleton(sb!("girl.*")).unwrap();
+        let skeleton = resource::load_skeleton(sb!("Girl.*")).unwrap();
         let mut arena = SamplingArena::new(&skeleton, 3);
         assert_eq!(arena.arena.iter().map(|x| x.animation_id).collect::<Vec<_>>(), vec![
             1,
@@ -707,14 +761,14 @@ mod tests {
         states[0].tmpl_id = id!("Action.Empty/1");
         states[0].fade_in_weight = 1.0;
         states[0].animations[0].animation_id = 101;
-        states[0].animations[0].files = sb!("girl_idle.*");
+        states[0].animations[0].files = Symbol::default();
         states[0].animations[0].ratio = 1.0;
         states[0].animations[0].weight = 1.0;
         states[1].id = 22;
         states[1].tmpl_id = id!("Action.Empty/2");
         states[1].fade_in_weight = 1.0;
         states[1].animations[0].animation_id = 102;
-        states[1].animations[0].files = sb!("girl_jog.*");
+        states[1].animations[0].files = Symbol::default();
         states[1].animations[0].ratio = 1.0;
         states[1].animations[0].weight = 1.0;
         states
@@ -748,18 +802,18 @@ mod tests {
 
     #[test]
     fn test_skeleton_animator_update_normal() {
-        let mut animator = SkeletalAnimator::new(sb!("girl.*"), 3, 4).unwrap();
+        let mut animator = SkeletalAnimator::new(sb!("Girl.*"), 3, 4).unwrap();
 
         {
             let mut states = empty_states();
+            states[0].tmpl_id = id!("Action.Idle/1");
             states[0].id = 21;
-            states[0].tmpl_id = id!("Action.Empty/1");
             states[0].fade_in_weight = 0.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("girl_idle.*"), 101, 0.2, 0.0);
+            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Empty.*"), 101, false, 0.2, 0.0);
+            states[1].tmpl_id = id!("Action.Idle/2");
             states[1].id = 22;
-            states[1].tmpl_id = id!("Action.Empty/2");
             states[1].fade_in_weight = 0.5;
-            states[1].animations[0] = StateActionAnimation::new(sb!("girl_jog.*"), 102, 0.3, 0.1);
+            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Axe.*"), 102, true, 0.3, 0.1);
             animator.update(states.as_slice()).unwrap();
 
             assert_eq!(list_action_frees(&animator.act_arena), vec![2]);
@@ -767,28 +821,28 @@ mod tests {
 
             let ads = list_actions(&animator);
             assert_eq!(ads.len(), 2);
-            assert_action_data(&ads[0], 21, id!("Action.Empty/1"), vec![0]);
-            assert_action_data(&ads[1], 22, id!("Action.Empty/2"), vec![1]);
+            assert_action_data(&ads[0], 21, id!("Action.Idle/1"), vec![0]);
+            assert_action_data(&ads[1], 22, id!("Action.Idle/2"), vec![1]);
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 1);
-            assert_sampling_data(&sds[0], 101, sb!("girl_idle.*"), [0.2, 0.2], [0.0, 0.0]);
+            assert_sampling_data(&sds[0], 101, sb!("Girl_Idle_Empty.*"), [0.2, 0.2], [0.0, 0.0]);
 
             let sds = list_samplings(&animator, ads[1]);
             assert_eq!(sds.len(), 1);
-            assert_sampling_data(&sds[0], 102, sb!("girl_jog.*"), [0.3, 0.3], [0.05, 0.05]);
+            assert_sampling_data(&sds[0], 102, sb!("Girl_Idle_Axe.*"), [0.3, 0.3], [0.05, 0.05]);
         }
 
         {
             let mut states = empty_states();
             states[0].id = 21;
-            states[0].tmpl_id = id!("Action.Empty/1");
+            states[0].tmpl_id = id!("Action.Idle/1");
             states[0].fade_in_weight = 0.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("girl_idle.*"), 101, 0.3, 0.0);
+            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Empty.*"), 101, false, 0.3, 0.0);
             states[1].id = 22;
-            states[1].tmpl_id = id!("Action.Empty/2");
+            states[1].tmpl_id = id!("Action.Idle/2");
             states[1].fade_in_weight = 1.0;
-            states[1].animations[0] = StateActionAnimation::new(sb!("girl_jog.*"), 102, 0.4, 0.2);
+            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Axe.*"), 102, true, 0.4, 0.2);
             animator.update(states.as_slice()).unwrap();
 
             assert_eq!(list_action_frees(&animator.act_arena), vec![2]);
@@ -796,33 +850,33 @@ mod tests {
 
             let ads = list_actions(&animator);
             assert_eq!(ads.len(), 2);
-            assert_action_data(&ads[0], 21, id!("Action.Empty/1"), vec![0]);
-            assert_action_data(&ads[1], 22, id!("Action.Empty/2"), vec![1]);
+            assert_action_data(&ads[0], 21, id!("Action.Idle/1"), vec![0]);
+            assert_action_data(&ads[1], 22, id!("Action.Idle/2"), vec![1]);
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 1);
-            assert_sampling_data(&sds[0], 101, sb!("girl_idle.*"), [0.2, 0.3], [0.0, 0.0]);
+            assert_sampling_data(&sds[0], 101, sb!("Girl_Idle_Empty.*"), [0.2, 0.3], [0.0, 0.0]);
 
             let sds = list_samplings(&animator, ads[1]);
             assert_eq!(sds.len(), 1);
-            assert_sampling_data(&sds[0], 102, sb!("girl_jog.*"), [0.3, 0.4], [0.05, 0.2]);
+            assert_sampling_data(&sds[0], 102, sb!("Girl_Idle_Axe.*"), [0.3, 0.4], [0.05, 0.2]);
         }
     }
 
     #[test]
     fn test_skeleton_animator_update_change1() {
-        let mut animator = SkeletalAnimator::new(sb!("girl.*"), 3, 4).unwrap();
+        let mut animator = SkeletalAnimator::new(sb!("Girl.*"), 3, 4).unwrap();
 
         {
             let mut states = gen_states();
             states[0].id = 21;
             states[0].tmpl_id = id!("Action.Empty/1");
             states[0].fade_in_weight = 1.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("girl_idle.*"), 101, 0.2, 0.3);
+            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Empty.*"), 101, false, 0.2, 0.3);
             states[1].id = 22;
             states[1].tmpl_id = id!("Action.Empty/2");
             states[1].fade_in_weight = 1.0;
-            states[1].animations[0] = StateActionAnimation::new(sb!("girl_jog.*"), 102, 0.3, 0.7);
+            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Run_Empty.*"), 102, false, 0.3, 0.7);
             animator.update(states.as_slice()).unwrap();
 
             assert_eq!(list_action_frees(&animator.act_arena), vec![2]);
@@ -834,11 +888,11 @@ mod tests {
             states[0].id = 22;
             states[0].tmpl_id = id!("Action.Empty/2");
             states[0].fade_in_weight = 1.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("girl_jog.*"), 102, 0.4, 0.75);
+            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Run_Empty.*"), 102, false, 0.4, 0.75);
             states[1].id = 23;
             states[1].tmpl_id = id!("Action.Empty/3");
             states[1].fade_in_weight = 1.0;
-            states[1].animations[0] = StateActionAnimation::new(sb!("girl_jog_stop_l.*"), 31, 0.5, 1.0);
+            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_RunStop_L_Empty.*"), 31, false, 0.5, 1.0);
             animator.update(states.as_slice()).unwrap();
 
             assert!(list_action_frees(&animator.act_arena).is_empty());
@@ -852,15 +906,15 @@ mod tests {
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 1);
-            assert_sampling_data(&sds[0], 102, sb!("girl_jog.*"), [0.3, 0.4], [0.7, 0.75]);
+            assert_sampling_data(&sds[0], 102, sb!("Girl_Run_Empty.*"), [0.3, 0.4], [0.7, 0.75]);
 
             let sds = list_samplings(&animator, ads[1]);
-            assert_sampling_data(&sds[0], 31, sb!("girl_jog_stop_l.*"), [0.5, 0.5], [0.0, 1.0]);
+            assert_sampling_data(&sds[0], 31, sb!("Girl_RunStop_L_Empty.*"), [0.5, 0.5], [0.0, 1.0]);
             assert_eq!(sds.len(), 1);
 
             let sds = list_samplings(&animator, ads[2]);
             assert_eq!(sds.len(), 1);
-            assert_sampling_data(&sds[0], 101, sb!("girl_idle.*"), [0.2, 0.2], [0.3, 0.0]);
+            assert_sampling_data(&sds[0], 101, sb!("Girl_Idle_Empty.*"), [0.2, 0.2], [0.3, 0.0]);
         }
 
         {
@@ -868,11 +922,11 @@ mod tests {
             states[0].id = 23;
             states[0].tmpl_id = id!("Action.Empty/3");
             states[0].fade_in_weight = 1.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("girl_jog_stop_l.*"), 31, 0.4, 1.0);
+            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_RunStop_L_Empty.*"), 31, false, 0.4, 1.0);
             states[1].id = 35;
             states[1].tmpl_id = id!("Action.Empty/4");
             states[1].fade_in_weight = 1.0;
-            states[1].animations[0] = StateActionAnimation::new(sb!("girl_idle.*"), 17, 0.1, 0.1);
+            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Empty.*"), 17, false, 0.1, 0.1);
             animator.update(states.as_slice()).unwrap();
 
             assert_eq!(list_action_frees(&animator.act_arena), vec![0, 4, 5]);
@@ -886,32 +940,32 @@ mod tests {
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 1);
-            assert_sampling_data(&sds[0], 31, sb!("girl_jog_stop_l.*"), [0.5, 0.4], [1.0, 1.0]);
+            assert_sampling_data(&sds[0], 31, sb!("Girl_RunStop_L_Empty.*"), [0.5, 0.4], [1.0, 1.0]);
 
             let sds = list_samplings(&animator, ads[1]);
             assert_eq!(sds.len(), 1);
-            assert_sampling_data(&sds[0], 17, sb!("girl_idle.*"), [0.1, 0.1], [0.0, 0.1]);
+            assert_sampling_data(&sds[0], 17, sb!("Girl_Idle_Empty.*"), [0.1, 0.1], [0.0, 0.1]);
 
             let sds = list_samplings(&animator, ads[2]);
             assert_eq!(sds.len(), 1);
-            assert_sampling_data(&sds[0], 102, sb!("girl_jog.*"), [0.4, 0.4], [0.75, 0.0]);
+            assert_sampling_data(&sds[0], 102, sb!("Girl_Run_Empty.*"), [0.4, 0.4], [0.75, 0.0]);
         }
     }
 
     #[test]
     fn test_skeleton_animator_update_change2() {
-        let mut animator = SkeletalAnimator::new(sb!("girl.*"), 3, 4).unwrap();
+        let mut animator = SkeletalAnimator::new(sb!("Girl.*"), 3, 4).unwrap();
 
         {
             let mut states = gen_states();
             states[0].id = 21;
             states[0].tmpl_id = id!("Action.Empty/1");
             states[0].fade_in_weight = 1.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("girl_idle.*"), 101, 0.2, 0.3);
+            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Empty.*"), 101, false, 0.2, 0.3);
             states[1].id = 22;
             states[1].tmpl_id = id!("Action.Empty/2");
             states[1].fade_in_weight = 1.0;
-            states[1].animations[0] = StateActionAnimation::new(sb!("girl_jog.*"), 102, 0.3, 0.7);
+            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Run_Empty.*"), 102, false, 0.3, 0.7);
             animator.update(states.as_slice()).unwrap();
 
             assert_eq!(list_action_frees(&animator.act_arena), vec![2]);
@@ -922,8 +976,8 @@ mod tests {
         states[0].id = 22;
         states[0].tmpl_id = id!("Action.Empty/2");
         states[0].fade_in_weight = 1.0;
-        states[0].animations[0] = StateActionAnimation::new(sb!("girl_jog.*"), 102, 0.4, 0.75);
-        states[0].animations[1] = StateActionAnimation::new(sb!("girl_jog_stop_l.*"), 31, 0.1, 0.2);
+        states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Run_Empty.*"), 102, false, 0.4, 0.75);
+        states[0].animations[1] = StateActionAnimation::new(sb!("Girl_RunStop_L_Empty.*"), 31, false, 0.1, 0.2);
         {
             animator.update(states.as_slice()).unwrap();
 
@@ -937,12 +991,12 @@ mod tests {
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 2);
-            assert_sampling_data(&sds[0], 102, sb!("girl_jog.*"), [0.3, 0.4], [0.7, 0.75]);
-            assert_sampling_data(&sds[1], 31, sb!("girl_jog_stop_l.*"), [0.1, 0.1], [0.0, 0.2]);
+            assert_sampling_data(&sds[0], 102, sb!("Girl_Run_Empty.*"), [0.3, 0.4], [0.7, 0.75]);
+            assert_sampling_data(&sds[1], 31, sb!("Girl_RunStop_L_Empty.*"), [0.1, 0.1], [0.0, 0.2]);
 
             let sds = list_samplings(&animator, ads[1]);
             assert_eq!(sds.len(), 1);
-            assert_sampling_data(&sds[0], 101, sb!("girl_idle.*"), [0.2, 0.2], [0.3, 0.0]);
+            assert_sampling_data(&sds[0], 101, sb!("Girl_Idle_Empty.*"), [0.2, 0.2], [0.3, 0.0]);
         }
 
         {
@@ -957,8 +1011,42 @@ mod tests {
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 2);
-            assert_sampling_data(&sds[0], 102, sb!("girl_jog.*"), [0.4, 0.4], [0.75, 0.75]);
-            assert_sampling_data(&sds[1], 31, sb!("girl_jog_stop_l.*"), [0.1, 0.1], [0.2, 0.2]);
+            assert_sampling_data(&sds[0], 102, sb!("Girl_Run_Empty.*"), [0.4, 0.4], [0.75, 0.75]);
+            assert_sampling_data(&sds[1], 31, sb!("Girl_RunStop_L_Empty.*"), [0.1, 0.1], [0.2, 0.2]);
         }
+    }
+
+    #[test]
+    fn test_skeleton_animator_weapon_transforms() {
+        let mut animator = SkeletalAnimator::new(sb!("Girl.*"), 3, 4).unwrap();
+
+        let mut states = empty_states();
+        states[0].tmpl_id = id!("Action.Idle/1");
+        states[0].id = 21;
+        states[0].fade_in_weight = 0.5;
+        states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Axe.*"), 101, true, 0.8, 0.6);
+        states[1].tmpl_id = id!("Action.Attack/2");
+        states[1].id = 22;
+        states[1].fade_in_weight = 0.5;
+        states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Attack_01A.*"), 102, true, 0.1, 0.4);
+        animator.update(states.as_slice()).unwrap();
+        animator.animate(0.0).unwrap();
+
+        assert_eq!(animator.weapon_transforms.len(), 1);
+        assert_eq!(animator.weapon_transforms[0].name, "Axe");
+        assert_eq!(animator.weapon_transforms[0].weight, 1.0);
+
+        let idle_tracks = resource::load_weapon_motion(sb!("Girl_Idle_Axe.*")).unwrap();
+        let idle_track = idle_tracks.get(0).unwrap();
+        let (idle_pos, idle_rot) = idle_track.sample(0.8).unwrap();
+        let attack_tracks = resource::load_weapon_motion(sb!("Girl_Attack_01A.*")).unwrap();
+        let attack_track = attack_tracks.get(0).unwrap();
+        let (attack_pos, attack_rot) = attack_track.sample(0.1).unwrap();
+
+        let pos = (idle_pos * 0.6 * 0.5 + attack_pos * 0.4 * 0.5) / 0.5;
+        assert!(animator.weapon_transforms[0].position.abs_diff_eq(pos, 1e-6));
+
+        let rot = (idle_rot * 0.6 * 0.5 + attack_rot * 0.4 * 0.5).normalize();
+        assert!(animator.weapon_transforms[0].rotation.abs_diff_eq(rot, 1e-6));
     }
 }
