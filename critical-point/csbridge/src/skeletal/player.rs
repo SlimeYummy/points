@@ -1,3 +1,4 @@
+use glam::Vec4Swizzles;
 use glam_ext::{Mat4, Quat, Transform3A, Vec3};
 use libc::c_char;
 use ozz_animation_rs::{
@@ -5,13 +6,13 @@ use ozz_animation_rs::{
     Skeleton, SoaTransform, Track, TrackSamplingJob,
 };
 use std::ffi::CStr;
-use std::ptr;
 use std::rc::Rc;
+use std::{ptr, slice};
 
 use critical_point_core::animation::{
-    rest_poses_to_model_matrices, SkeletonJointMeta, SkeletonMeta, WeaponMotionTrackSet,
+    rest_poses_to_model_matrices, SkeletonJointMeta, SkeletonMeta, WeaponMotion, WeaponTransform,
 };
-use critical_point_core::utils::{lerp, xerrf, xres, WeaponMotionIsometry, XResult};
+use critical_point_core::utils::{lerp, xerrf, xres, XResult};
 
 use crate::utils::{as_slice, Return};
 
@@ -42,7 +43,7 @@ struct ClipInstance {
     rot_motion_job: Option<TrackSamplingJob<Quat>>,
     root_motion: Transform3A,
 
-    weapon_motion: Option<WeaponMotionTrackSet>,
+    weapon_motion: Option<WeaponMotion>,
 }
 
 pub struct SkeletalPlayer {
@@ -55,11 +56,10 @@ pub struct SkeletalPlayer {
     blending_job: BlendingJob,
     l2m_job: LocalToModelJob,
 
-    // local_rest_poses: Vec<Transform3A>,
     model_rest_poses: Vec<Mat4>,
-    // local_out: Vec<Transform3A>,
+    prev_root_motion: Mat4,
     root_motion: Mat4,
-    weapon_motions: Vec<WeaponMotionIsometry>,
+    weapon_transforms: Vec<WeaponTransform>,
 }
 
 #[cfg(feature = "debug-print")]
@@ -81,9 +81,6 @@ impl SkeletalPlayer {
         l2m_job.set_skeleton(skeleton.clone());
         l2m_job.set_output(ozz_rc_buf(vec![Mat4::IDENTITY; skeleton.num_joints()]));
 
-        // let mut local_rest_poses = vec![Transform3A::IDENTITY; skeleton.num_joints()];
-        // soa_transforms_to_transforms(skeleton.joint_rest_poses(), &mut local_rest_poses)?;
-
         let mut model_rest_poses = vec![Mat4::IDENTITY; skeleton.num_joints()];
         rest_poses_to_model_matrices(&skeleton, &mut model_rest_poses)?;
 
@@ -97,11 +94,10 @@ impl SkeletalPlayer {
             blending_job,
             l2m_job,
 
-            // local_rest_poses,
             model_rest_poses,
-            // local_out: vec![Transform3A::IDENTITY; skeleton.num_joints()],
+            prev_root_motion: Mat4::IDENTITY,
             root_motion: Mat4::IDENTITY,
-            weapon_motions: Vec::new(),
+            weapon_transforms: Vec::new(),
         })
     }
 
@@ -164,7 +160,7 @@ impl SkeletalPlayer {
 
             let mut weapon_motion = None;
             if !cfg.weapon_motion.is_empty() {
-                weapon_motion = Some(WeaponMotionTrackSet::from_path(&cfg.weapon_motion)?);
+                weapon_motion = Some(WeaponMotion::from_path(&cfg.weapon_motion)?);
             }
 
             instances.push(ClipInstance {
@@ -206,22 +202,40 @@ impl SkeletalPlayer {
     }
 
     fn set_progress(&mut self, progress: f32) {
+        let prev_progress_secs = self.progress_secs;
         if self.is_loop {
             self.progress_secs = progress.rem_euclid(self.duration_secs);
         }
         else {
             self.progress_secs = progress.clamp(0.0, self.duration_secs);
         }
+        if self.progress_secs < prev_progress_secs {
+            self.prev_root_motion = Mat4::IDENTITY;
+        }
     }
 
-    fn add_progress(&mut self, delta: f32) {
-        self.progress_secs += delta;
-        if self.is_loop {
-            self.progress_secs = self.progress_secs.rem_euclid(self.duration_secs);
+    fn root_motion_delta(&self) -> Mat4 {
+        let prev_pos = self.prev_root_motion.col(3).xyz();
+        let prev_rot = Quat::from_mat4(&self.prev_root_motion);
+        let pos = self.root_motion.col(3).xyz();
+        let rot = Quat::from_mat4(&self.root_motion);
+        let pos_delta = pos - prev_pos;
+        let rot_delta = rot * prev_rot.inverse(); // ?????
+        Mat4::from_rotation_translation(rot_delta, pos_delta)
+    }
+
+    fn current_animation(&self) -> (String, f32, f32) {
+        let mut clip_idx: usize = 0;
+        for (idx, clip) in self.clips.iter().enumerate() {
+            if self.progress_secs >= clip.start_secs && self.progress_secs <= clip.finish_secs {
+                clip_idx = idx;
+                break;
+            }
         }
-        else {
-            self.progress_secs = self.progress_secs.clamp(0.0, self.duration_secs);
-        }
+        let clip = &self.clips[clip_idx];
+        let seconds = self.progress_secs - clip.start_secs;
+        let ratio = Self::ratio_from_secs(clip, self.progress_secs, true);
+        (clip.animation.name().to_string(), seconds, ratio)
     }
 
     fn update(&mut self) -> XResult<()> {
@@ -239,6 +253,7 @@ impl SkeletalPlayer {
             }
         }
 
+        self.prev_root_motion = self.root_motion;
         self.root_motion = Mat4::IDENTITY;
         for (idx, clip) in self.clips.iter_mut().take(clip_idx + 1).enumerate() {
             if idx < clip_idx {
@@ -298,27 +313,27 @@ impl SkeletalPlayer {
             self.l2m_job.run()?;
         }
 
-        self.weapon_motions.clear();
+        self.weapon_transforms.clear();
         let clip = &self.clips[clip_idx];
         if let Some(weapon_motion) = &clip.weapon_motion {
             let ratio = Self::ratio_from_secs(clip, self.progress_secs, true);
             for wm in weapon_motion.iter() {
-                let (pos, rot) = wm.calc(ratio)?;
-                self.weapon_motions.push(WeaponMotionIsometry {
+                let (pos, rot) = wm.sample(ratio)?;
+                self.weapon_transforms.push(WeaponTransform {
                     name: wm.name(),
-                    position: pos.into(),
-                    rotation: rot.into(),
+                    position: pos,
+                    rotation: rot,
+                    weight: 1.0,
                 });
             }
         }
 
-        // soa_transforms_to_transforms(self.l2m_job.input().unwrap().borrow().as_slice(), &mut self.local_out);
         Ok(())
     }
 
     fn ratio_from_secs(clip: &ClipInstance, progress_secs: f32, wrapping: bool) -> f32 {
         let delta = (progress_secs - clip.start_secs) / (clip.finish_secs - clip.start_secs);
-        let ratio = lerp!(clip.start_ratio, clip.finish_ratio, delta);
+        let ratio = lerp(clip.start_ratio, clip.finish_ratio, delta);
         if wrapping {
             ratio.rem_euclid(1.0)
         }
@@ -439,12 +454,6 @@ pub extern "C" fn skeletal_player_set_progress(playback: *mut SkeletalPlayer, pr
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_player_add_progress(playback: *mut SkeletalPlayer, delta: f32) -> Return<()> {
-    let res: XResult<()> = as_playback(playback).map(|p| p.add_progress(delta));
-    Return::from_result(res)
-}
-
-#[no_mangle]
 pub extern "C" fn skeletal_player_update(playback: *mut SkeletalPlayer) -> Return<()> {
     let res: XResult<()> = as_playback(playback).and_then(|p| p.update());
     Return::from_result(res)
@@ -462,14 +471,14 @@ pub extern "C" fn skeletal_player_model_rest_poses<'t>(playback: *mut SkeletalPl
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_player_model_out<'t>(playback: *mut SkeletalPlayer) -> Return<&'t [Mat4]> {
+pub extern "C" fn skeletal_player_model_poses<'t>(playback: *mut SkeletalPlayer) -> Return<&'t [Mat4]> {
     let res: XResult<&[Mat4]> = (|| {
         let playback = as_playback(playback)?;
         if !playback.clips.is_empty() {
-            let model_out = playback.l2m_job.output().unwrap();
-            let model_out = model_out.borrow();
-            let ptr = model_out.as_ptr();
-            let len = model_out.len();
+            let model_poses = playback.l2m_job.output().unwrap();
+            let model_poses = model_poses.borrow();
+            let ptr = model_poses.as_ptr();
+            let len = model_poses.len();
             Ok(unsafe { std::slice::from_raw_parts(ptr, len) })
         }
         else {
@@ -482,7 +491,7 @@ pub extern "C" fn skeletal_player_model_out<'t>(playback: *mut SkeletalPlayer) -
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_player_root_motion_out(playback: *mut SkeletalPlayer) -> Return<Mat4> {
+pub extern "C" fn skeletal_player_root_motion(playback: *mut SkeletalPlayer) -> Return<Mat4> {
     let res: XResult<Mat4> = (|| {
         let playback = as_playback(playback)?;
         match playback.clips.is_empty() {
@@ -494,12 +503,58 @@ pub extern "C" fn skeletal_player_root_motion_out(playback: *mut SkeletalPlayer)
 }
 
 #[no_mangle]
-pub extern "C" fn skeletal_player_weapon_motions_out<'t>(playback: *mut SkeletalPlayer) -> Return<&'t[WeaponMotionIsometry]> {
-    let res: XResult<&[WeaponMotionIsometry]> = (|| {
+pub extern "C" fn skeletal_player_root_motion_delta(playback: *mut SkeletalPlayer) -> Return<Mat4> {
+    let res: XResult<Mat4> = (|| {
         let playback = as_playback(playback)?;
-        Ok(playback.weapon_motions.as_slice())
+        match playback.clips.is_empty() {
+            true => Ok(Mat4::IDENTITY),
+            false => Ok(playback.root_motion_delta()),
+        }
+    })();
+    Return::from_result_with(res, Mat4::IDENTITY)
+}
+
+#[no_mangle]
+pub extern "C" fn skeletal_player_weapon_transforms<'t>(
+    playback: *mut SkeletalPlayer,
+) -> Return<&'t [WeaponTransform]> {
+    let res: XResult<&[WeaponTransform]> = (|| {
+        let playback = as_playback(playback)?;
+        Ok(playback.weapon_transforms.as_slice())
     })();
     Return::from_result_with(res, &[])
+}
+
+#[no_mangle]
+pub extern "C" fn skeletal_player_current_animation(
+    playback: *mut SkeletalPlayer,
+    anim_buf: *mut c_char,
+    anim_len: usize,
+) -> Return<[f32; 2]> {
+    let progress: XResult<[f32; 2]> = (|| {
+        let playback = as_playback(playback)?;
+        match playback.clips.is_empty() {
+            true => {
+                if anim_len > 0 {
+                    unsafe { *anim_buf = 0 };
+                }
+                Ok([0.0; 2])
+            }
+            false => {
+                let (name, seconds, ratio) = playback.current_animation();
+                if name.len() + 1 > anim_len {
+                    return xres!(BadArgument; "anim_len too small");
+                }
+                unsafe {
+                    let buf = slice::from_raw_parts_mut(anim_buf as *mut u8, anim_len);
+                    buf[0..name.len()].copy_from_slice(name.as_bytes());
+                    buf[name.len()] = 0;
+                };
+                Ok([seconds, ratio])
+            }
+        }
+    })();
+    Return::from_result_with(progress, [0.0; 2])
 }
 
 fn as_playback<'t>(playback: *mut SkeletalPlayer) -> XResult<&'t mut SkeletalPlayer> {
