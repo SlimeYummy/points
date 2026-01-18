@@ -11,7 +11,7 @@ use std::{mem, panic, ptr};
 
 use critical_point_core::animation::SkeletonJointMeta;
 use critical_point_core::engine::{LogicEngine, LogicEngineStatus};
-use critical_point_core::logic::{InputPlayerEvents, StateActionAny, StateAny, StateSet};
+use critical_point_core::logic::{InputPlayerInputs, StateActionAny, StateAny, StateSet};
 use critical_point_core::parameter::{ParamPlayer, ParamZone};
 use critical_point_core::utils::{Symbol, XError, XResult};
 
@@ -173,15 +173,15 @@ pub extern "C" fn engine_start_game(
 #[no_mangle]
 pub extern "C" fn engine_update_game(
     engine: *mut LogicEngine,
-    events_data: *const u8,
-    events_len: u32,
+    inputs_data: *const u8,
+    inputs_len: u32,
 ) -> Return<Option<Arc<StateSet>>> {
     let res: XResult<Arc<StateSet>> = (|| {
         let engine = as_engine(engine)?;
-        let events_buf = as_slice(events_data, events_len, "engine_update_game() events data is null")?;
-        let events: Vec<InputPlayerEvents> =
+        let events_buf = as_slice(inputs_data, inputs_len, "engine_update_game() inputs data is null")?;
+        let inputs: Vec<InputPlayerInputs> =
             rmp_serde::from_slice(events_buf).map_err(|e| xerrf!(BadArgument; "{}", e))?;
-        engine.update_game(events)
+        engine.update_game(inputs)
     })();
     Return::from_result_with(res.map(|s| Some(s)), None)
 }
