@@ -3,7 +3,7 @@ use quote::ToTokens;
 use std::collections::HashMap;
 use std::ops::AddAssign;
 use syn::punctuated::Punctuated;
-use syn::{Attribute, Meta, Token};
+use syn::{Attribute, Meta, Token, TypeArray};
 
 //
 // Types
@@ -36,33 +36,40 @@ pub struct TypeGeneric {
     pub param_count: usize,
 }
 
+#[derive(Debug)]
 pub enum TypeOut {
     Value(TypeValue),
     Reference(TypeReference),
 }
 
 impl TypeOut {
-    pub fn new_value(rs_name: &str, cs_name: &str) -> TypeOut {
+    pub fn new_value(rs_name: &str, cs_name: &str, size: usize, align: usize) -> TypeOut {
         TypeOut::Value(TypeValue {
             rs_name: rs_name.into(),
             cs_name: cs_name.into(),
             is_primitive: false,
+            size,
+            align,
         })
     }
 
     #[allow(dead_code)]
-    pub fn new_primitive(rs_name: &str, cs_name: &str) -> TypeOut {
+    pub fn new_primitive(rs_name: &str, cs_name: &str, size: usize, align: usize) -> TypeOut {
         TypeOut::Value(TypeValue {
             rs_name: rs_name.into(),
             cs_name: cs_name.into(),
             is_primitive: true,
+            size,
+            align,
         })
     }
 
-    pub fn new_reference(rs_name: &str) -> TypeOut {
+    pub fn new_reference(rs_name: &str, size: usize, align: usize) -> TypeOut {
         TypeOut::Reference(TypeReference {
             rs_name: rs_name.into(),
             is_trait: false,
+            size,
+            align,
         })
     }
 
@@ -70,20 +77,56 @@ impl TypeOut {
         TypeOut::Reference(TypeReference {
             rs_name: rs_name.into(),
             is_trait: true,
+            size: 16,
+            align: 8,
         })
+    }
+
+    pub fn size(&self) -> usize {
+        match self {
+            TypeOut::Value(t) => t.size,
+            TypeOut::Reference(t) => t.size,
+        }
+    }
+
+    pub fn set_size(&mut self, size: usize) {
+        match self {
+            TypeOut::Value(t) => t.size = size,
+            TypeOut::Reference(t) => t.size = size,
+        }
+    }
+
+    pub fn align(&self) -> usize {
+        match self {
+            TypeOut::Value(t) => t.align,
+            TypeOut::Reference(t) => t.align,
+        }
+    }
+
+    pub fn set_align(&mut self, align: usize) {
+        match self {
+            TypeOut::Value(t) => t.align = align,
+            TypeOut::Reference(t) => t.align = align,
+        }
     }
 }
 
+#[derive(Debug)]
 pub struct TypeValue {
     #[allow(dead_code)]
     pub rs_name: String,
     pub cs_name: String,
     pub is_primitive: bool,
+    pub size: usize,
+    pub align: usize,
 }
 
+#[derive(Debug)]
 pub struct TypeReference {
     pub rs_name: String,
     pub is_trait: bool,
+    pub size: usize,
+    pub align: usize,
 }
 
 //
@@ -113,15 +156,15 @@ impl BaseMeta {
 // Task
 //
 
-pub trait Task: Send + Sync {
+pub trait GenerateTask: Send + Sync {
     // fn name(&self) -> &str;
-    fn gen(&self, ctx: &GenContext<'_>) -> Result<String>;
-    fn gen_base(&self, _ctx: &GenContext<'_>) -> Result<(String, String)> {
+    fn generate(&self, ctx: &GenerateContext<'_>) -> Result<String>;
+    fn generate_base(&self, _ctx: &GenerateContext<'_>) -> Result<(String, String)> {
         Ok((String::new(), String::new()))
     }
 }
 
-pub struct GenContext<'t> {
+pub struct GenerateContext<'t> {
     pub types_in: &'t HashMap<String, TypeIn>,
     pub types_out: &'t HashMap<String, TypeOut>,
     pub bases: &'t HashMap<String, BaseMeta>,
@@ -184,4 +227,25 @@ pub fn extract_attr_args(attrs: &[Attribute], name: &str) -> Result<Vec<String>>
         }
     }
     Ok(args)
+}
+
+#[derive(Debug)]
+pub enum ParsedArray {
+    Type(String),
+    Array(String, u32),
+}
+
+pub fn parse_type_array(array: &TypeArray, consts: &HashMap<String, u32>) -> Result<ParsedArray> {
+    let typ = array.elem.to_token_stream().to_string();
+    let len = array.len.to_token_stream().to_string();
+    let len: u32 = match consts.get(&len) {
+        Some(c) => *c,
+        None => len.parse()?,
+    };
+    if typ == "f32" && len == 2 {
+        Ok(ParsedArray::Type("[f32; 2]".into()))
+    }
+    else {
+        Ok(ParsedArray::Array(typ, len))
+    }
 }
