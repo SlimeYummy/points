@@ -483,4 +483,389 @@ impl TaskStructOut {
         ls += f!("  }}\r\n");
         Ok(ls.join())
     }
+
+    #[rustfmt::skip]
+    fn gen_ref_type_base(&self, ctx: &GenerateContext<'_>, meta: &BaseMeta) -> Result<String> {
+        let rs_name = &self.rs_name;
+        let trait_name = &meta.rs_trait_name;
+        let snake_case = trait_name.to_snake();
+        let mut ls = Lines::new(self.fields.len());
+
+        // RsBox
+        ls += f!("  internal unsafe struct RsBox{} {{", trait_name);
+        ls += f!("    private RsBoxDyn<Rs{}> _dyn;", rs_name);
+        ls += f!("    internal Ref{0} MakeRef() => new Ref{0}(_dyn);", trait_name);
+        ls += f!("    internal Box{0} MakeBox() => new Box{0}(_dyn);", trait_name);
+        ls += f!("  }}\r\n");
+
+        // Ref
+        ls += f!("  public unsafe ref struct Ref{} {{", trait_name);
+        ls += f!("    private RsBoxDyn<Rs{}> _dyn;", rs_name);
+        self.gen_ref_fields(ctx, &mut ls, "_dyn.ptr->")?;
+        ls += f!("");
+        ls += f!("    internal Ref{}(RsBoxDyn<Rs{}> dyn) => _dyn = dyn;", trait_name, rs_name);
+        ls += f!("    public Ref{0} Ref() => new Ref{0}(_dyn);", trait_name);
+        ls += f!("");
+        for derive in &meta.rs_derives {
+            let snake_derive = derive.to_snake();
+            ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+            ls += f!("    private static extern unsafe Rs{}* {}_box_ref(RsBoxDyn<Rs{}>* pbox);", derive, snake_derive, rs_name);
+            ls += f!("    public Ref{0} AsRef{0}() {{", derive);
+            ls += f!("      var dyn = _dyn;");
+            ls += f!("      var ptr = {}_box_ref(&dyn);", snake_derive);
+            ls += f!("      if (ptr == null) throw new NullReferenceException(\"Invalid {}\");", derive);
+            ls += f!("      return new Ref{}(ptr);", derive);
+            ls += f!("    }}");
+        }
+        ls += f!("  }}\r\n");
+
+        // Box
+        ls += f!("  public unsafe class Box{} : IDisposable {{", trait_name);
+        ls += f!("    private RsBoxDyn<Rs{}> _dyn;", rs_name);
+        self.gen_ref_fields(ctx, &mut ls, "_dyn.ptr->")?;
+        ls += f!("");
+        ls += f!("    internal Box{}(RsBoxDyn<Rs{}> dyn) => _dyn = dyn;", trait_name, rs_name);
+        ls += f!("    public Ref{0} Ref() => new Ref{0}(_dyn);", trait_name);
+        ls += f!("");
+        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    private static extern unsafe void {}_box_drop(RsBoxDyn<Rs{}> box);", snake_case, rs_name);
+        ls += f!("    public void Dispose() {{");
+        ls += f!("      if (!_dyn.IsNull) {{");
+        ls += f!("        {}_box_drop(_dyn);", snake_case);
+        ls += f!("        _dyn.Clear();");
+        ls += f!("      }}");
+        ls += f!("    }}");
+        ls += f!("    ~Box{}() => Dispose();", trait_name);
+        ls += f!("");
+        for derive in &meta.rs_derives {
+            ls += f!("    public Ref{0} AsRef{0}() => new Ref{1}(_dyn).AsRef{0}();", derive, trait_name);
+        }
+        ls += f!("  }}\r\n");
+
+        // RsArc
+        ls += f!("  internal unsafe struct RsArc{} {{", trait_name);
+        ls += f!("    private RsArcDyn<Rs{}> _dyn;", rs_name);
+        ls += f!("    internal Weak{0} MakeWeak() => new Weak{0}(_dyn);", trait_name);
+        ls += f!("    internal Arc{0} MakeArc() => new Arc{0}(_dyn);", trait_name);
+        ls += f!("  }}\r\n");
+
+        // Weak
+        ls += f!("  public unsafe ref struct Weak{} {{", trait_name);
+        ls += f!("    private RsArcDyn<Rs{}> _dyn;", rs_name);
+        self.gen_ref_fields(ctx, &mut ls, "_dyn.ptr->data.")?;
+        ls += f!("");
+        ls += f!("    internal Weak{}(RsArcDyn<Rs{}> dyn) => _dyn = dyn;", trait_name, rs_name);
+        ls += f!("    public Weak{0} Weak() => new Weak{0}(_dyn);", trait_name);
+        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    private static extern unsafe RsArcDyn<Rs{0}> {1}_arc_clone(RsArcDyn<Rs{0}>* parc);", rs_name, snake_case);
+        ls += f!("    public Arc{0} Arc() {{", trait_name);
+        ls += f!("      var dyn = _dyn;");
+        ls += f!("      return new Arc{}({}_arc_clone(&dyn));", trait_name, snake_case);
+        ls += f!("    }}");
+        ls += f!("");
+        for derive in &meta.rs_derives {
+            let snake_derive = derive.to_snake();
+            ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+            ls += f!("    private static extern unsafe RsArcInner<Rs{}>* {}_arc_ref(RsArcDyn<Rs{}>* dyn);", derive, snake_derive, rs_name);
+            ls += f!("    public Weak{0} AsWeak{0}() {{", derive);
+            ls += f!("      var dyn = _dyn;");
+            ls += f!("      var ptr = {}_arc_ref(&dyn);", snake_derive);
+            ls += f!("      if (ptr == null) throw new NullReferenceException(\"Invalid {}\");", derive);
+            ls += f!("      return new Weak{}(ptr);", derive);
+            ls += f!("    }}");
+            ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+            ls += f!("    private static extern unsafe RsArcInner<Rs{}>* {}_arc_arc(RsArcDyn<Rs{}>* dyn);", derive, snake_derive, rs_name);
+            ls += f!("    public Arc{0} AsArc{0}() {{", derive);
+            ls += f!("      var dyn = _dyn;");
+            ls += f!("      var ptr = {}_arc_arc(&dyn);", snake_derive);
+            ls += f!("      if (ptr == null) throw new NullReferenceException(\"Invalid {}\");", derive);
+            ls += f!("      return new Arc{}(ptr);", derive);
+            ls += f!("    }}");
+        }
+        ls += f!("  }}\r\n");
+
+        // Arc
+        ls += f!("  public unsafe class Arc{} : IDisposable {{", trait_name);
+        ls += f!("    private RsArcDyn<Rs{}> _dyn;", rs_name);
+        self.gen_ref_fields(ctx, &mut ls, "_dyn.ptr->data.")?;
+        ls += f!("");
+        ls += f!("    internal Arc{}(RsArcDyn<Rs{}> dyn) => _dyn = dyn;", trait_name, rs_name);
+        ls += f!("    public Weak{0} Weak() => new Weak{0}(_dyn);", trait_name);
+        ls += f!("    public Arc{0} Arc() => new Weak{0}(_dyn).Arc();", trait_name);
+        ls += f!("    public IntPtr StrongCount => _dyn.ptr->strong;");
+        ls += f!("    public IntPtr WeakCount => _dyn.ptr->weak;");
+        ls += f!("");
+        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    private static extern unsafe void {}_arc_drop(RsArcDyn<Rs{}> arc);", snake_case, rs_name);
+        ls += f!("    public void Dispose() {{");
+        ls += f!("      if (!_dyn.IsNull) {{");
+        ls += f!("        {}_arc_drop(_dyn);", snake_case);
+        ls += f!("        _dyn.Clear();");
+        ls += f!("      }}");
+        ls += f!("    }}");
+        ls += f!("    ~Arc{}() => Dispose();", trait_name);
+        ls += f!("");
+        for derive in &meta.rs_derives {
+            ls += f!("    public Weak{0} AsWeak{0}() => new Weak{1}(_dyn).AsWeak{0}();", derive, trait_name);
+            ls += f!("    public Arc{0} AsArc{0}() => new Weak{1}(_dyn).AsArc{0}();", derive, trait_name);
+        }
+        ls += f!("  }}\r\n");
+
+        Ok(ls.join())
+    }
+
+    #[rustfmt::skip]
+    fn gen_ref_type(&self, ctx: &GenerateContext<'_>) -> Result<String> {
+        let rs_name = &self.rs_name;
+        let snake_case = rs_name.to_snake();
+        let mut ls = Lines::new(self.fields.len());
+
+        // RsBox
+        ls += f!("  internal unsafe struct RsBox{} {{", rs_name);
+        ls += f!("    private Rs{}* _ptr;", rs_name);
+        ls += f!("    internal Ref{0} MakeRef() => new Ref{0}(_ptr);", rs_name);
+        ls += f!("    internal Box{0} MakeBox() => new Box{0}(_ptr);", rs_name);
+        ls += f!("  }}\r\n");
+
+        // Box
+        ls += f!("  public unsafe class Box{} : IDisposable {{", rs_name);
+        ls += f!("    private Rs{}* _ptr;", rs_name);
+        self.gen_ref_fields(ctx, &mut ls, "_ptr->")?;
+        ls += f!("");
+        ls += f!("    internal Box{0}(Rs{0}* ptr) => _ptr = ptr;", rs_name);
+        ls += f!("    public Ref{0} Ref() => new Ref{0}(_ptr);", rs_name);
+        ls += f!("");
+        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    private static extern unsafe void {}_box_drop(Rs{}* box);", snake_case, rs_name);
+        ls += f!("    public void Dispose() {{");
+        ls += f!("      if (_ptr != null) {{");
+        ls += f!("        {}_box_drop(_ptr);", snake_case);
+        ls += f!("        _ptr = null;");
+        ls += f!("      }}");
+        ls += f!("    }}");
+        ls += f!("    ~Box{}() => Dispose();", rs_name);
+        ls += f!("  }}\r\n");
+
+        // Ref
+        ls += f!("  public unsafe ref struct Ref{} {{", rs_name);
+        ls += f!("    private Rs{}* _ptr;", rs_name);
+        self.gen_ref_fields(ctx, &mut ls, "_ptr->")?;
+        ls += f!("");
+        ls += f!("    internal Ref{0}(Rs{0}* ptr) {{ _ptr = ptr; }}", rs_name);
+        ls += f!("  }}\r\n");
+
+        // RsArc
+        ls += f!("  internal unsafe struct RsArc{} {{", rs_name);
+        ls += f!("    private RsArcInner<Rs{}>* _ptr;", rs_name);
+        ls += f!("    internal Weak{0} MakeWeak() => new Weak{0}(_ptr);", rs_name);
+        ls += f!("    internal Arc{0} MakeArc() => new Arc{0}(_ptr);", rs_name);
+        ls += f!("  }}\r\n");
+
+        // Arc
+        ls += f!("  public unsafe class Arc{} : IDisposable {{", rs_name);
+        ls += f!("    private RsArcInner<Rs{}>* _ptr;", rs_name);
+        self.gen_ref_fields(ctx, &mut ls, "_ptr->data.")?;
+        ls += f!("");
+        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    private static extern unsafe RsArcInner<Rs{0}>* {1}_arc_clone(RsArcInner<Rs{0}>** pptr);", rs_name, snake_case);
+        ls += f!("    internal Arc{}(RsArcInner<Rs{}>* ptr) => _ptr = ptr;", rs_name, rs_name);
+        ls += f!("    public Weak{0} Weak() => new Weak{0}(_ptr);", rs_name);
+        ls += f!("    public Arc{} Arc() {{", rs_name);
+        ls += f!("      var ptr = _ptr;");
+        ls += f!("      return new Arc{}({}_arc_clone(&ptr));", rs_name, snake_case);
+        ls += f!("    }}");
+        ls += f!("    public IntPtr StrongCount => _ptr->strong;");
+        ls += f!("    public IntPtr WeakCount => _ptr->weak;");
+        ls += f!("");
+        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    private static extern unsafe void {}_arc_drop(RsArcInner<Rs{}>* ptr);", snake_case, rs_name);
+        ls += f!("    public void Dispose() {{");
+        ls += f!("      if (_ptr != null) {{");
+        ls += f!("        {}_arc_drop(_ptr);", snake_case);
+        ls += f!("        _ptr = null;");
+        ls += f!("      }}");
+        ls += f!("    }}");
+        ls += f!("    ~Arc{}() => Dispose();", rs_name);
+        ls += f!("  }}\r\n");
+
+        // Weak
+        ls += f!("  public unsafe ref struct Weak{} {{", rs_name);
+        ls += f!("    private RsArcInner<Rs{}>* _ptr;", rs_name);
+        self.gen_ref_fields(ctx, &mut ls, "_ptr->data.")?;
+        ls += f!("");
+        ls += f!("    internal Weak{}(RsArcInner<Rs{}>* ptr) => _ptr = ptr;", rs_name, rs_name);
+        ls += f!("    public Weak{0} Weak() => new Weak{0}(_ptr);", rs_name);
+        ls += f!("    public Arc{0} Arc() => new Weak{0}(_ptr).Arc();", rs_name);
+        ls += f!("  }}\r\n");
+
+        Ok(ls.join())
+    }
+
+    fn gen_ref_fields(&self, ctx: &GenerateContext<'_>, ls: &mut Lines, visitor: &str) -> Result<()> {
+        for (idx, field) in self.fields.iter().enumerate() {
+            if idx == 0 && field.field() == "_base" {
+                match ctx.bases.get(field.rs_type()) {
+                    Some(base) => *ls += base.code.replace("@@@@", visitor),
+                    None => return Err(anyhow!("Unknown base type {}", field.rs_type())),
+                };
+                continue;
+            }
+
+            let typ = ctx
+                .types_out
+                .get(field.rs_type())
+                .ok_or_else(|| anyhow!("Unknown type {} in {}", field.rs_type(), self.rs_name))?;
+
+            match field {
+                FieldOut::Type { field, rs_type } => {
+                    match typ {
+                        TypeOut::Value(v) => {
+                            *ls += f!("    public {0} {1} => {2}{1};", v.cs_name, field, visitor);
+                        }
+                        _ => return Err(anyhow!("Value type ({}) not found", rs_type)),
+                    };
+                }
+                FieldOut::Array { field, rs_type, .. } => {
+                    match typ {
+                        TypeOut::Value(v) => {
+                            *ls += f!("    public RefArrayVal<{0}> {1} => {2}{1};", v.cs_name, field, visitor);
+                        }
+                        _ => return Err(anyhow!("Value type ({}) not found", rs_type)),
+                    };
+                }
+                FieldOut::Vec { field, rs_type } => {
+                    match typ {
+                        TypeOut::Value(v) => {
+                            *ls += f!("    public RefVecVal<{0}> {1} => {2}{1};", v.cs_name, field, visitor);
+                        }
+                        TypeOut::Reference(r) if !r.is_trait => {
+                            *ls += f!("    public RefVecRs{0} {1} => {2}{1};", r.rs_name, field, visitor);
+                        }
+                        _ => return Err(anyhow!("Value type ({}) not found", rs_type)),
+                    };
+                }
+                FieldOut::String { field } => {
+                    *ls += f!("    public RefRsString {0} => {1}{0};", field, visitor);
+                }
+                FieldOut::VecReference {
+                    field,
+                    rs_type,
+                    ref_type,
+                } => match typ {
+                    TypeOut::Reference(r) => {
+                        if *ref_type == ReferenceType::Box {
+                            *ls += f!("    public RefVecBox{0} {1} => {2}{1};", r.rs_name, field, visitor);
+                        }
+                        else {
+                            *ls += f!("    public RefVecArc{0} {1} => {2}{1};", r.rs_name, field, visitor);
+                        }
+                    }
+                    _ => return Err(anyhow!("Reference type ({}) not found", rs_type)),
+                },
+                _ => return Err(anyhow!("Type ({}) not support", field.rs_type())),
+            };
+        }
+        Ok(())
+    }
+}
+
+pub struct LayoutTask {
+    pub rs_name: String,
+    fields: Vec<FieldOut>,
+    size: Cell<usize>,
+    align: Cell<usize>,
+}
+
+impl LayoutTask {
+    fn new(rs_name: &str, fields: Vec<FieldOut>) -> LayoutTask {
+        LayoutTask {
+            rs_name: rs_name.into(),
+            fields,
+            size: Cell::new(usize::MAX),
+            align: Cell::new(usize::MAX),
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        self.size.get()
+    }
+
+    pub fn align(&self) -> usize {
+        self.align.get()
+    }
+
+    pub fn compute(&self, tasks: &HashMap<String, LayoutTask>, types_out: &HashMap<String, TypeOut>) -> Result<()> {
+        if self.size.get() != usize::MAX && self.align.get() != usize::MAX {
+            return Ok(());
+        }
+
+        let mut calculator = LayoutCalculator::default();
+        for field in &self.fields {
+            match field {
+                FieldOut::Type { rs_type, .. } => {
+                    let (size, align) = Self::get_type_layout(tasks, types_out, rs_type)?;
+                    calculator.add_field(size, align, 1);
+                }
+                FieldOut::Array { rs_type, len, .. } => {
+                    let (size, align) = Self::get_type_layout(tasks, types_out, rs_type)?;
+                    calculator.add_field(size, align, *len as usize);
+                }
+                FieldOut::Vec { .. } | FieldOut::String { .. } | FieldOut::VecReference { .. } => {
+                    calculator.add_field(24, 8, 1);
+                }
+                FieldOut::Reference { .. } => {
+                    calculator.add_field(16, 8, 1);
+                }
+            }
+        }
+
+        calculator.finish();
+        self.size.set(calculator.size);
+        self.align.set(calculator.align);
+        return Ok(());
+    }
+
+    fn get_type_layout(
+        tasks: &HashMap<String, LayoutTask>,
+        types_out: &HashMap<String, TypeOut>,
+        rs_type: &str,
+    ) -> Result<(usize, usize)> {
+        match types_out.get(rs_type) {
+            Some(typ) => {
+                if typ.size() != usize::MAX && typ.align() != usize::MAX {
+                    return Ok((typ.size(), typ.align()));
+                }
+            }
+            None => return Err(anyhow!("Type ({}) not found", rs_type)),
+        }
+
+        match tasks.get(rs_type) {
+            Some(task) => {
+                if task.size.get() == usize::MAX || task.align.get() == usize::MAX {
+                    task.compute(tasks, types_out)?;
+                }
+                return Ok((task.size.get(), task.align.get()));
+            }
+            None => return Err(anyhow!("LayoutTask ({}) not found", rs_type)),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct LayoutCalculator {
+    size: usize,
+    align: usize,
+}
+
+impl LayoutCalculator {
+    fn add_field(&mut self, size: usize, align: usize, len: usize) -> usize {
+        let offset = (self.size + (align - 1)) & !(align - 1);
+        self.size = offset + len * size;
+        self.align = self.align.max(align);
+        return offset;
+    }
+
+    fn finish(&mut self) {
+        self.size = (self.size + (self.align - 1)) & !(self.align - 1);
+    }
 }
