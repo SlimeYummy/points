@@ -1,10 +1,12 @@
 mod base;
 mod gen_enum;
-mod gen_struct;
+mod gen_struct_in;
+mod gen_struct_out;
 
 use anyhow::{anyhow, Result};
 use gen_enum::parse_enum;
-use gen_struct::{parse_struct_in, parse_struct_out};
+use gen_struct_in::parse_struct_in;
+use gen_struct_out::parse_struct_out;
 use proc_macro::TokenStream;
 use quote::quote;
 use std::collections::HashMap;
@@ -14,12 +16,14 @@ use std::sync::{LazyLock, Mutex};
 use syn::*;
 
 use crate::base::*;
+use crate::gen_struct_out::LayoutTask;
 
 struct Generator {
     consts: HashMap<String, u32>,
     types_in: HashMap<String, TypeIn>,
     types_out: HashMap<String, TypeOut>,
-    tasks: Vec<Box<dyn Task>>,
+    generate_tasks: Vec<Box<dyn GenerateTask>>,
+    layout_tasks: HashMap<String, LayoutTask>,
     bases: HashMap<String, BaseMeta>,
 }
 
@@ -54,49 +58,51 @@ impl Generator {
         types_in.insert("Vec2".into(), TypeIn::new_primitive("Vec2"));
         types_in.insert("Vec3".into(), TypeIn::new_primitive("Vec3"));
         types_in.insert("Vec3A".into(), TypeIn::new_primitive("Vec3"));
-        types_in.insert("CsVec3A".into(), TypeIn::new_primitive("Vec3A"));
-        types_in.insert("CsVec4".into(), TypeIn::new_primitive("Vec4"));
-        types_in.insert("CsQuat".into(), TypeIn::new_primitive("Quat"));
-        types_in.insert("CsTransform3A".into(), TypeIn::new_primitive("Transform3A"));
+        types_in.insert("Vec3A".into(), TypeIn::new_primitive("Vec3A"));
+        types_in.insert("Vec4".into(), TypeIn::new_primitive("Vec4"));
+        types_in.insert("Quat".into(), TypeIn::new_primitive("Quat"));
+        types_in.insert("Transform3A".into(), TypeIn::new_primitive("Transform3A"));
         types_in.insert("String".into(), TypeIn::new_primitive("string"));
         types_in.insert("Vec".into(), TypeIn::new_generic("List", 1));
         types_in.insert("HashMap".into(), TypeIn::new_generic("Dictionary", 2));
         types_in.insert("HashSet".into(), TypeIn::new_generic("HashSet", 1));
 
         let mut types_out = HashMap::new();
-        types_out.insert("".into(), TypeOut::new_value("#error#", "#error#"));
-        types_out.insert("bool".into(), TypeOut::new_value("bool", "bool"));
-        types_out.insert("i8".into(), TypeOut::new_value("i8", "sbyte"));
-        types_out.insert("u8".into(), TypeOut::new_value("u8", "byte"));
-        types_out.insert("i16".into(), TypeOut::new_value("i16", "short"));
-        types_out.insert("u16".into(), TypeOut::new_value("u16", "ushort"));
-        types_out.insert("i32".into(), TypeOut::new_value("i32", "int"));
-        types_out.insert("u32".into(), TypeOut::new_value("u32", "uint"));
-        types_out.insert("i64".into(), TypeOut::new_value("i64", "long"));
-        types_out.insert("u64".into(), TypeOut::new_value("u64", "ulong"));
-        types_out.insert("f32".into(), TypeOut::new_value("f32", "float"));
-        types_out.insert("f64".into(), TypeOut::new_value("f64", "double"));
-        types_out.insert("TmplID".into(), TypeOut::new_value("TmplID", "TmplID"));
-        types_out.insert("NumID".into(), TypeOut::new_value("NumID", "ulong"));
-        types_out.insert("Symbol".into(), TypeOut::new_value("Symbol", "Symbol"));
-        types_out.insert("[f32; 2]".into(), TypeOut::new_value("[f32; 2]", "Vec2"));
-        types_out.insert("[f32; 3]".into(), TypeOut::new_value("[f32; 3]", "Vec3"));
-        types_out.insert("Vec2".into(), TypeOut::new_value("Vec2", "Vec2"));
-        types_out.insert("Vec2xz".into(), TypeOut::new_value("Vec2xz", "Vec2"));
-        types_out.insert("Vec3".into(), TypeOut::new_value("Vec3", "Vec3"));
-        types_out.insert("CsVec3A".into(), TypeOut::new_value("CsVec3A", "Vec3A"));
-        types_out.insert("CsVec4".into(), TypeOut::new_value("CsVec4", "Vec4"));
-        types_out.insert("CsQuat".into(), TypeOut::new_value("CsQuat", "Quat"));
         types_out.insert(
-            "CsTransform3A".into(),
-            TypeOut::new_value("CsTransform3A", "Transform3A"),
+            "".into(),
+            TypeOut::new_value("#error#", "#error#", usize::MAX, usize::MAX),
         );
-        types_out.insert("SoaVec3".into(), TypeOut::new_value("SoaVec3", "SoaVec3"));
-        types_out.insert("SoaQuat".into(), TypeOut::new_value("SoaQuat", "SoaQuat"));
+        types_out.insert("bool".into(), TypeOut::new_value("bool", "bool", 1, 1));
+        types_out.insert("i8".into(), TypeOut::new_value("i8", "sbyte", 1, 1));
+        types_out.insert("u8".into(), TypeOut::new_value("u8", "byte", 1, 1));
+        types_out.insert("i16".into(), TypeOut::new_value("i16", "short", 2, 2));
+        types_out.insert("u16".into(), TypeOut::new_value("u16", "ushort", 2, 2));
+        types_out.insert("i32".into(), TypeOut::new_value("i32", "int", 4, 4));
+        types_out.insert("u32".into(), TypeOut::new_value("u32", "uint", 4, 4));
+        types_out.insert("i64".into(), TypeOut::new_value("i64", "long", 8, 8));
+        types_out.insert("u64".into(), TypeOut::new_value("u64", "ulong", 8, 8));
+        types_out.insert("f32".into(), TypeOut::new_value("f32", "float", 4, 4));
+        types_out.insert("f64".into(), TypeOut::new_value("f64", "double", 8, 8));
+        types_out.insert("TmplID".into(), TypeOut::new_value("TmplID", "TmplID", 8, 8));
+        types_out.insert("NumID".into(), TypeOut::new_value("NumID", "ulong", 8, 8));
+        types_out.insert("Symbol".into(), TypeOut::new_value("Symbol", "Symbol", 8, 8));
+        types_out.insert("[f32; 2]".into(), TypeOut::new_value("[f32; 2]", "Vec2", 8, 4));
+        types_out.insert("[f32; 3]".into(), TypeOut::new_value("[f32; 3]", "Vec3", 12, 4));
+        types_out.insert("Vec2".into(), TypeOut::new_value("Vec2", "Vec2", 8, 4));
+        types_out.insert("Vec2xz".into(), TypeOut::new_value("Vec2xz", "Vec2", 8, 4));
+        types_out.insert("Vec3".into(), TypeOut::new_value("Vec3", "Vec3", 12, 4));
+        types_out.insert("Vec3A".into(), TypeOut::new_value("Vec3A", "Vec3A", 16, 16));
+        types_out.insert("Vec4".into(), TypeOut::new_value("Vec4", "Vec4", 16, 16));
+        types_out.insert("Quat".into(), TypeOut::new_value("Quat", "Quat", 16, 16));
         types_out.insert(
-            "SoaTransform".into(),
-            TypeOut::new_value("SoaTransform", "SoaTransform"),
+            "Transform3A".into(),
+            TypeOut::new_value("Transform3A", "Transform3A", 48, 16),
         );
+        types_out.insert(
+            "Isometry3A".into(),
+            TypeOut::new_value("Isometry3A", "Isometry3A", 32, 16),
+        );
+        // types_out.insert("String".into(), TypeOut::new_reference("String", 24, 8)); // TODO: Special handling for Vec<String>
         types_out.insert("dyn StateAny".into(), TypeOut::new_trait("StateAny"));
         types_out.insert("dyn StateActionAny".into(), TypeOut::new_trait("StateActionAny"));
 
@@ -113,14 +119,15 @@ impl Generator {
             consts,
             types_in,
             types_out,
-            tasks: Vec::new(),
+            generate_tasks: Vec::new(),
+            layout_tasks: HashMap::new(),
             bases,
         }
     }
 
     fn parse_enum(&mut self, input: &ItemEnum) -> Result<()> {
         let (rs_name, task, type_in, type_out) = parse_enum(input)?;
-        self.tasks.push(task);
+        self.generate_tasks.push(task);
         self.types_in.insert(rs_name.clone(), type_in);
         self.types_out.insert(rs_name.clone(), type_out);
         Ok(())
@@ -128,14 +135,14 @@ impl Generator {
 
     fn parse_struct_in(&mut self, input: &ItemStruct) -> Result<()> {
         let (rs_name, task, type_in) = parse_struct_in(input, &self.consts)?;
-        self.tasks.push(task);
+        self.generate_tasks.push(task);
         self.types_in.insert(rs_name.clone(), type_in);
         Ok(())
     }
 
     fn parse_struct_out(&mut self, input: &ItemStruct) -> Result<()> {
-        let (rs_name, base, task, type_out) = parse_struct_out(input, &self.consts)?;
-        self.tasks.push(task);
+        let (rs_name, base, task, layout_task, type_out) = parse_struct_out(input, &self.consts)?;
+        self.generate_tasks.push(task);
         self.types_out.insert(rs_name.clone(), type_out);
         if !base.is_empty() {
             if let Some(meta) = self.bases.get_mut(&base) {
@@ -145,6 +152,7 @@ impl Generator {
                 return Err(anyhow!("Base ({}) not found", base));
             }
         }
+        self.layout_tasks.insert(layout_task.rs_name.clone(), layout_task);
         Ok(())
     }
 
@@ -172,8 +180,26 @@ impl Generator {
             .as_bytes(),
         )?;
 
-        for task in &self.tasks {
-            let (rs_name, code) = task.gen_base(&GenContext {
+        println!("Rust -> C# types:\r\n");
+        let mut rs_types = Vec::with_capacity(self.layout_tasks.len());
+        for task in self.layout_tasks.values() {
+            task.compute(&self.layout_tasks, &self.types_out)?;
+            let Some(type_out) = self.types_out.get_mut(&task.rs_name)
+            else {
+                return Err(anyhow!("Type ({}) not found", task.rs_name));
+            };
+            type_out.set_size(task.size());
+            type_out.set_align(task.align());
+            rs_types.push((task.rs_name.clone(), task.size(), task.align()));
+        }
+        rs_types.sort();
+        rs_types
+            .iter()
+            .for_each(|(name, size, align)| println!("{} {} {}", name, size, align));
+        println!("");
+
+        for task in &self.generate_tasks {
+            let (rs_name, code) = task.generate_base(&GenerateContext {
                 types_in: &self.types_in,
                 types_out: &self.types_out,
                 bases: &self.bases,
@@ -186,8 +212,8 @@ impl Generator {
             }
         }
 
-        for task in &self.tasks {
-            let code = task.gen(&GenContext {
+        for task in &self.generate_tasks {
+            let code = task.generate(&GenerateContext {
                 types_in: &self.types_in,
                 types_out: &self.types_out,
                 bases: &self.bases,
@@ -202,9 +228,9 @@ impl Generator {
 
     extern "C" fn on_exit() {
         if let Ok(mut gen) = GENERATOR.lock() {
-            let res = gen.generate_file();
             println!("\r\n════════════════════════════════════════════════════════════");
             println!("------------------------------------------------------------\r\n");
+            let res = gen.generate_file();
             match res {
                 Ok(_) => {
                     println!("Critical Point generate C# OK.");
