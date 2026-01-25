@@ -116,6 +116,18 @@ namespace CriticalPoint {
         }
     }
 
+    //
+    // Rust Symbol wrapper
+    //
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal unsafe struct SymbolNode {
+        private SymbolNode* _next;
+        private uint _hash;
+        internal ushort length;
+        internal fixed byte chars[1];
+    };
+
     public struct Symbol {
         private nint _ptr;
 
@@ -146,6 +158,12 @@ namespace CriticalPoint {
         private static extern unsafe nint symbol_create([MarshalAs(UnmanagedType.LPStr)] string str);
 
         internal Symbol(string str) => this._ptr = symbol_create(str);
+    }
+
+    partial struct CustomEvent {
+        public string AsEventString() {
+            return $"{this.source.TryRead()}/{this.name.TryRead()}";
+        }
     }
 
     internal struct Return<T> where T : unmanaged {
@@ -187,18 +205,6 @@ namespace CriticalPoint {
 
         public EngineException(string message, Exception innerException) : base(message, innerException) { }
     }
-
-    //
-    // Rust Symbol wrapper
-    //
-
-    [StructLayout(LayoutKind.Sequential)]
-    internal unsafe struct SymbolNode {
-        private SymbolNode* _next;
-        private uint _hash;
-        internal ushort length;
-        internal fixed byte chars[1];
-    };
 
     //
     // Rust smart pointers wrapper
@@ -438,8 +444,20 @@ namespace CriticalPoint {
 
             public T Current { get => _slice[_index]; }
 
-            public bool MoveNext() => ++_index < _index;
+            public bool MoveNext() => ++_index < _slice.Length;
         }
+    }
+
+    //
+    // Rust ArrayVec helper
+    //
+
+    [StructLayout(LayoutKind.Explicit)]
+    internal unsafe struct ArrayVecLen<T> {
+        [FieldOffset(0)]
+        internal readonly ushort len;
+        [FieldOffset(0)]
+        private readonly T _padding;
     }
 
     //
@@ -461,10 +479,10 @@ namespace CriticalPoint {
         }
     }
 
-    public ref struct RefString {
+    public ref struct RefRsString {
         private RsString _str;
 
-        internal RefString(RsString str) => _str = str;
+        internal RefRsString(RsString str) => _str = str;
 
         public int Length { get => (int)_str.len; }
         public bool IsEmpty { get => _str.len == UIntPtr.Zero; }
@@ -532,6 +550,45 @@ namespace CriticalPoint {
             }
 
             public T Current { get => _vec[_index]; }
+
+            public bool MoveNext() => ++_index < _vec.Length;
+        }
+    }
+
+    public ref struct RefVecRsString {
+        private RsVec<RsString> _vec;
+
+        internal RefVecRsString(RsVec<RsString> vec) => _vec = vec;
+
+        public int Length { get => (int)_vec.len; }
+        public bool IsEmpty { get => _vec.len == UIntPtr.Zero; }
+
+        public RefRsString this[int index] {
+            get {
+                if ((uint)index >= (uint)_vec.len) {
+                    string msg = string.Format("index:{0} len:{1}", index, _vec.len);
+                    throw new IndexOutOfRangeException(msg);
+                }
+                unsafe {
+                    return new RefRsString(Unsafe.Add(ref *_vec.ptr, (nint)(uint)index));
+                }
+            }
+        }
+
+        internal RsSlice<RsString> AsSlice() => new RsSlice<RsString>(_vec);
+
+        public Enumerator GetEnumerator() => new Enumerator(this);
+
+        public ref struct Enumerator {
+            private RefVecRsString _vec;
+            private int _index;
+
+            public Enumerator(RefVecRsString vec) {
+                _vec = vec;
+                _index = -1;
+            }
+
+            public RefRsString Current { get => _vec[_index]; }
 
             public bool MoveNext() => ++_index < _vec.Length;
         }

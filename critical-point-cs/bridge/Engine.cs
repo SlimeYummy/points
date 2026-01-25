@@ -134,15 +134,15 @@ namespace CriticalPoint {
         [DllImport("critical_point_csbridge.dll")]
         private static extern unsafe Return<RsArcStateSet> engine_update_game(
             IntPtr engine,
-            byte* events_data,
-            uint events_len
+            byte* inputs_data,
+            uint inputs_len
         );
 
-        public ArcStateSet UpdateGame(List<InputPlayerEvents> events) {
-            byte[] events_bytes = MessagePackSerializer.Serialize(events, Static.MsgPackOpts);
+        public ArcStateSet UpdateGame(List<InputPlayerInputs> inputs) {
+            byte[] inputs_bytes = MessagePackSerializer.Serialize(inputs, Static.MsgPackOpts);
             unsafe {
-                fixed (byte* events_ptr = events_bytes) {
-                    var raw = engine_update_game(_engine, events_ptr, (uint)events_bytes.Length).Unwrap();
+                fixed (byte* inputs_ptr = inputs_bytes) {
+                    var raw = engine_update_game(_engine, inputs_ptr, (uint)inputs_bytes.Length).Unwrap();
                     return raw.MakeArc();
                 }
             }
