@@ -17,6 +17,7 @@ namespace CriticalPoint {
                     new TmplIDPlusFormatter(),
                     new Vec2Formatter(),
                     new Vec3Formatter(),
+                    new Vec3AFormatter(),
                     new Vec4Formatter(),
                     new QuatFormatter(),
                     new Mat4Formatter(),

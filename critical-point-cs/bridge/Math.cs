@@ -44,6 +44,8 @@ namespace CriticalPoint {
         }
 
         public bool Equals(Vec2 other) => x == other.x && y == other.y;
+        public override bool Equals(object? obj) => obj is Vec2 && Equals((Vec2) obj);
+        public override int GetHashCode() => HashCode.Combine(x, y);
 
         public static bool operator ==(Vec2 a, Vec2 b) => a.x == b.x && a.y == b.y;
         public static bool operator !=(Vec2 a, Vec2 b) => a.x != b.x || a.y != b.y;
@@ -120,6 +122,8 @@ namespace CriticalPoint {
         }
 
         public bool Equals(Vec3 other) => x == other.x && y == other.y && z == other.z;
+        public override bool Equals(object? obj) => obj is Vec3 && Equals((Vec3) obj);
+        public override int GetHashCode() => HashCode.Combine(x, y, z);
         public bool Equals(Vec3A other) => x == other.x && y == other.y && z == other.z;
 
         public static bool operator ==(Vec3 a, Vec3 b) => a.x == b.x && a.y == b.y && a.z == b.z;
@@ -203,8 +207,10 @@ namespace CriticalPoint {
             }
         }
 
-        public bool Equals(Vec3A other) => x == other.x && y == other.y && z == other.z;
         public bool Equals(Vec3 other) => x == other.x && y == other.y && z == other.z;
+        public override bool Equals(object? obj) => obj is Vec3A && Equals((Vec3A) obj);
+        public override int GetHashCode() => HashCode.Combine(x, y, z);
+        public bool Equals(Vec3A other) => x == other.x && y == other.y && z == other.z;
 
         public static bool operator ==(Vec3A a, Vec3A b) => a.x == b.x && a.y == b.y && a.z == b.z;
         public static bool operator !=(Vec3A a, Vec3A b) => a.x != b.x || a.y != b.y || a.z != b.z;
@@ -290,6 +296,8 @@ namespace CriticalPoint {
         }
 
         public bool Equals(Vec4 other) => x == other.x && y == other.y && z == other.z && w == other.w;
+        public override bool Equals(object? obj) => obj is Vec4 && Equals((Vec4) obj);
+        public override int GetHashCode() => HashCode.Combine(x, y, z, w);
 
         public static bool operator ==(Vec4 a, Vec4 b) => a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
         public static bool operator !=(Vec4 a, Vec4 b) => a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
@@ -352,6 +360,8 @@ namespace CriticalPoint {
         }
 
         public bool Equals(Quat other) => x == other.x && y == other.y && z == other.z && w == other.w;
+        public override bool Equals(object? obj) => obj is Quat && Equals((Quat) obj);
+        public override int GetHashCode() => HashCode.Combine(x, y, z, w);
 
         public static bool operator ==(Quat a, Quat b) => a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
         public static bool operator !=(Quat a, Quat b) => a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
@@ -430,6 +440,8 @@ namespace CriticalPoint {
             y_axis.Equals(other.y_axis) &&
             z_axis.Equals(other.z_axis) &&
             w_axis.Equals(other.w_axis);
+        public override bool Equals(object? obj) => obj is Mat4 other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(x_axis, y_axis, z_axis, w_axis);
         
         public static bool operator ==(Mat4 a, Mat4 b) =>
             a.x_axis == b.x_axis &&
@@ -535,11 +547,12 @@ namespace CriticalPoint {
             this.scale = scale;
         }
 
-        public bool Equals(Transform3A other) {
-            return translation.Equals(other.translation)
+        public bool Equals(Transform3A other) =>
+            translation.Equals(other.translation)
                 && rotation.Equals(other.rotation)
                 && scale.Equals(other.scale);
-        }
+        public override bool Equals(object? obj) => obj is Transform3A other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(translation, rotation, scale);
 
         public static readonly Transform3A ZERO = new Transform3A(Vec3A.ZERO, Quat.IDENTITY, Vec3A.ONE);
         public bool IsZero => translation.IsZero && rotation.IsZero && scale.IsZero;
@@ -575,6 +588,57 @@ namespace CriticalPoint {
             Quat rotation = new Quat(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
             Vec3A scale = new Vec3A(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
             return new Transform3A(translation, rotation, scale);
+        }
+    }
+
+    //
+    // glam-ext Isometry3A
+    //
+
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public struct Isometry3A : IEquatable<Isometry3A> {
+        public Vec3A translation;
+        public Quat rotation;
+
+        public Isometry3A(Vec3A translation, Quat rotation) {
+            this.translation = translation;
+            this.rotation = rotation;
+        }
+
+        public bool Equals(Isometry3A other) => translation.Equals(other.translation) && rotation.Equals(other.rotation);
+        public override bool Equals(object? obj) => obj is Isometry3A other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(translation, rotation);
+
+        public static readonly Transform3A ZERO = new Transform3A(Vec3A.ZERO, Quat.IDENTITY, Vec3A.ONE);
+        public bool IsZero => translation.IsZero && rotation.IsZero;
+
+        public static readonly Transform3A IDENTITY = new Transform3A(Vec3A.ZERO, Quat.IDENTITY, Vec3A.ONE);
+        public bool IsIdentity => translation.IsZero && rotation.IsIdentity;
+    }
+
+    public class Isometry3AFormatter : IMessagePackFormatter<Isometry3A> {
+        public void Serialize(ref MessagePackWriter writer, Isometry3A transform, MessagePackSerializerOptions options) {
+            writer.WriteArrayHeader(10);
+            writer.Write(transform.translation.x);
+            writer.Write(transform.translation.y);
+            writer.Write(transform.translation.z);
+            writer.Write(transform.rotation.x);
+            writer.Write(transform.rotation.y);
+            writer.Write(transform.rotation.z);
+            writer.Write(transform.rotation.w);
+        }
+
+        public Isometry3A Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options) {
+            if (reader.TryReadNil()) {
+                return new Isometry3A();
+            }
+            int count = reader.ReadArrayHeader();
+            if (count != 10) {
+                throw new MessagePackSerializationException("Invalid Isometry3A format");
+            }
+            Vec3A translation = new Vec3A(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            Quat rotation = new Quat(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            return new Isometry3A(translation, rotation);
         }
     }
 
