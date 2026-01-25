@@ -23,17 +23,33 @@ namespace CriticalPoint {
         }
 
         [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return0 skeletal_resource_load_weapon_tracks(Symbol wt);
+
+        public static void LoadWeaponTracks(Symbol wt) {
+            skeletal_resource_load_weapon_tracks(wt).Unwrap();
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
         private static extern unsafe Return0 skeletal_resource_load(
             Symbol* skels,
             uint skel_len,
             Symbol* anims,
-            uint anim_len
+            uint anim_len,
+            Symbol* wts,
+            uint wt_len
         );
 
-        public static void Load(Symbol[] skels, Symbol[] anims) {
+        public static void Load(Symbol[] skels, Symbol[] anims, Symbol[] wts) {
             unsafe {
-                fixed (Symbol* skels_ptr = skels, anims_ptr = anims) {
-                    skeletal_resource_load(skels_ptr, (uint)skels.Length, anims_ptr, (uint)anims.Length).Unwrap();
+                fixed (Symbol* skels_ptr = skels, anims_ptr = anims, wts_ptr = wts) {
+                    skeletal_resource_load(
+                        skels_ptr,
+                        (uint)skels.Length,
+                        anims_ptr,
+                        (uint)anims.Length,
+                        wts_ptr,
+                        (uint)wts.Length
+                    ).Unwrap();
                 }
             }
         }
@@ -47,6 +63,11 @@ namespace CriticalPoint {
         private static extern unsafe uint skeletal_resource_animation_count();
 
         public static uint AnimationCount() => skeletal_resource_animation_count();
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe uint skeletal_resource_weapon_tracks_count();
+
+        public static uint WeaponTracksCount() => skeletal_resource_weapon_tracks_count();
 
         [DllImport("critical_point_csbridge.dll")]
         private static extern unsafe void skeletal_resource_clear_unused();
@@ -123,10 +144,17 @@ namespace CriticalPoint {
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Return<RsSlice<Mat4>> skeletal_animator_model_out(IntPtr animator);
+        private static extern unsafe Return<RsSlice<Mat4>> skeletal_animator_model_poses(IntPtr animator);
 
-        public RefSliceVal<Mat4> ModelOut() {
-            return new RefSliceVal<Mat4>(skeletal_animator_model_out(_animator).Unwrap());
+        public RefSliceVal<Mat4> ModelPoses() {
+            return new RefSliceVal<Mat4>(skeletal_animator_model_poses(_animator).Unwrap());
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return<RsSlice<WeaponTransform>> skeletal_animator_weapon_transforms(IntPtr animator);
+
+        public RefSliceVal<WeaponTransform> WeaponTransforms() {
+            return new RefSliceVal<WeaponTransform>(skeletal_animator_weapon_transforms(_animator).Unwrap());
         }
     }
 
