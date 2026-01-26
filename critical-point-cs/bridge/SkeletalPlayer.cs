@@ -1,6 +1,7 @@
 using MessagePack;
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace CriticalPoint {
     [MessagePackObject(keyAsPropertyName: true)]
@@ -153,13 +154,6 @@ namespace CriticalPoint {
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Return0 skeletal_player_add_progress(IntPtr playback, float delta);
-
-        public void AddProgress(float delta) {
-            skeletal_player_add_progress(_player, delta).Unwrap();
-        }
-
-        [DllImport("critical_point_csbridge.dll")]
         private static extern unsafe Return0 skeletal_player_update(IntPtr playback);
 
         public void Update() {
@@ -174,24 +168,44 @@ namespace CriticalPoint {
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Return<RsSlice<Mat4>> skeletal_player_model_out(IntPtr playback);
+        private static extern unsafe Return<RsSlice<Mat4>> skeletal_player_model_poses(IntPtr playback);
 
-        public RefSliceVal<Mat4> ModelOut() {
-            return new RefSliceVal<Mat4>(skeletal_player_model_out(_player).Unwrap());
+        public RefSliceVal<Mat4> ModelPoses() {
+            return new RefSliceVal<Mat4>(skeletal_player_model_poses(_player).Unwrap());
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Return<Mat4> skeletal_player_root_motion_out(IntPtr playback);
+        private static extern unsafe Return<Mat4> skeletal_player_root_motion(IntPtr playback);
 
-        public Mat4 RootMotionOut() {
-            return skeletal_player_root_motion_out(_player).Unwrap();
+        public Mat4 RootMotion() {
+            return skeletal_player_root_motion(_player).Unwrap();
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Return<RsSlice<WeaponMotionIsometry>> skeletal_player_weapon_motions_out(IntPtr playback);
+        private static extern unsafe Return<Mat4> skeletal_player_root_motion_delta(IntPtr playback);
 
-        public RefSliceVal<WeaponMotionIsometry> WeaponMotionsOut() {
-            return new RefSliceVal<WeaponMotionIsometry>(skeletal_player_weapon_motions_out(_player).Unwrap());
+        public Mat4 RootMotionDelta() {
+            return skeletal_player_root_motion_delta(_player).Unwrap();
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return<RsSlice<WeaponTransform>> skeletal_player_weapon_transforms(IntPtr playback);
+
+        public RefSliceVal<WeaponTransform> WeaponTransforms() {
+            return new RefSliceVal<WeaponTransform>(skeletal_player_weapon_transforms(_player).Unwrap());
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return<Vec2> skeletal_player_current_animation(
+            IntPtr playback,
+            StringBuilder animBuf,
+            int animLen
+        );
+
+        public (string animation, float seconds, float ratio) CurrentAnimation() {
+            StringBuilder animBuf = new StringBuilder(256);
+            Vec2 res = skeletal_player_current_animation(_player, animBuf, animBuf.Capacity).Unwrap();
+            return (animBuf.ToString(), res.x, res.y);
         }
     }
 }
