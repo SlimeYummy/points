@@ -4,8 +4,8 @@ using System.Runtime.InteropServices;
 namespace CriticalPointTests {
     [TestClass]
     public class TestSkeletalAnimator {
-        const string SKELETON = "girl.ls-ozz";
-        const string ANIMATION = "girl_run.la-ozz";
+        const string SKELETON = "Girl.ls-ozz";
+        const string ANIMATION = "Girl_Run_Empty.la-ozz";
 
         [ClassInitialize]
         public static void TestInit(TestContext context) {
@@ -13,12 +13,13 @@ namespace CriticalPointTests {
             Assert.AreEqual(SkeletalAnimator.AnimationCount(), 0u);
             SkeletalAnimator.ClearUnused();
 
-            SkeletalAnimator.LoadSkeleton(new Symbol("girl.*"));
-            SkeletalAnimator.LoadAnimation(new Symbol("girl_run.*"));
-            SkeletalAnimator.LoadAnimation(new Symbol("girl_run_start.*"));
+            SkeletalAnimator.LoadSkeleton(new Symbol("Girl.*"));
+            SkeletalAnimator.LoadAnimation(new Symbol("Girl_Run_Empty.*"));
+            SkeletalAnimator.LoadAnimation(new Symbol("Girl_RunStart_Empty.*"));
             SkeletalAnimator.Load(
-                new Symbol[] { new Symbol("girl.*") },
-                new Symbol[] { new Symbol("girl_run_stop_l.*"), new Symbol("girl_run_stop_r.*") }
+                new Symbol[] { new Symbol("Girl.*") },
+                new Symbol[] { new Symbol("Girl_RunStop_L_Empty.*"), new Symbol("Girl_RunStop_R_Empty.*") },
+                new Symbol[] { }
             );
 
             Assert.AreEqual(SkeletalAnimator.SkeletonCount(), 1u);
@@ -30,7 +31,7 @@ namespace CriticalPointTests {
 
         [TestMethod]
         public void TestNewDelete() {
-            var sb = new Symbol("girl.*");
+            var sb = new Symbol("Girl.*");
             SkeletalAnimator animator = new SkeletalAnimator(sb);
             Assert.IsNotNull(animator);
             animator.Dispose();
@@ -38,7 +39,7 @@ namespace CriticalPointTests {
 
         [TestMethod]
         public void TestSkeletonMeta() {
-            using (var animator = new SkeletalAnimator(new Symbol("girl.*"))) {
+            using (var animator = new SkeletalAnimator(new Symbol("Girl.*"))) {
                 var meta = animator.SkeletonMeta();
                 Assert.AreEqual(54u, meta.num_joints);
                 Assert.AreEqual(14u, meta.num_soa_joints);
@@ -61,7 +62,7 @@ namespace CriticalPointTests {
 
         [TestMethod]
         public void TestUpdateAnimate() {
-            using (var animator = new SkeletalAnimator(new Symbol("girl.*"))) {
+            using (var animator = new SkeletalAnimator(new Symbol("Girl.*"))) {
                 var rest_poses = animator.ModelRestPoses();
                 var a = rest_poses[0];
                 Assert.AreEqual(54, rest_poses.Length);
@@ -70,9 +71,9 @@ namespace CriticalPointTests {
                 animator.Update(state_actions);
                 animator.Animate(0.5f);
 
-                var model_out = animator.ModelOut();
-                var b = model_out[0];
-                Assert.AreEqual(54, model_out.Length);
+                var model_poses = animator.ModelPoses();
+                var b = model_poses[0];
+                Assert.AreEqual(54, model_poses.Length);
             }
 
             System.Threading.Thread.Sleep(100);
@@ -88,8 +89,8 @@ namespace CriticalPointTests {
     [TestClass]
     public class TestSkeletalPlayer {
         const string ASSET_PATH = "../../../../../test-tmp/test-asset/";
-        const string SKELETON = "girl.ls-ozz";
-        const string ANIMATION = "girl_run.la-ozz";
+        const string SKELETON = "Girl.ls-ozz";
+        const string ANIMATION = "Girl_Run_Empty.la-ozz";
 
         [TestMethod]
         public void TestNewDelete() {
@@ -122,18 +123,18 @@ namespace CriticalPointTests {
         public void TestUpdate() {
             using (var player = new SkeletalPlayer(ASSET_PATH + SKELETON)) {
                 player.SetAnimations(new SkeletalAnimation[] { new SkeletalAnimation(ASSET_PATH + ANIMATION) });
-                player.AddProgress(0.05f);
+                player.SetProgress(0.05f);
                 player.Update();
 
                 var rest_poses = player.ModelRestPoses();
                 var a = rest_poses[0];
                 Assert.AreEqual(20, rest_poses.Length);
 
-                var model_out = player.ModelOut();
-                var b = model_out[0];
-                Assert.AreEqual(20, model_out.Length);
+                var model_poses = player.ModelPoses();
+                var b = model_poses[0];
+                Assert.AreEqual(20, model_poses.Length);
 
-                var motion_out = player.RootMotionOut();
+                var root_motion = player.RootMotion();
             }
         }
     }
