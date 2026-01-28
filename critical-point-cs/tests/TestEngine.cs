@@ -41,7 +41,7 @@ namespace CriticalPointTests {
         ParamPlayer NewParamPlayer() {
             return new ParamPlayer {
                 character = new TmplID("Character.One"),
-                style = new TmplID("Style.One/1"),
+                style = new TmplID("Style.One^1"),
                 level = 6,
                 equipments = new List<TmplIDLevel> {
                     new TmplIDLevel { id = new TmplID("Equipment.No1"), level = 4 },
@@ -53,12 +53,12 @@ namespace CriticalPointTests {
                 },
                 accessories = new List<ParamAccessory> {
                     new ParamAccessory {
-                        id = new TmplID("Accessory.AttackUp/1"), level = 0,
+                        id = new TmplID("Accessory.AttackUp^1"), level = 0,
                         entries = new List<TmplID> { new TmplID("Entry.DefenseUp")},
                     },
                 },
                 jewels = new List<TmplIDPlus> {
-                    new TmplIDPlus { id = new TmplID("Jewel.DefenseUp/1"), plus = 0 },
+                    new TmplIDPlus { id = new TmplID("Jewel.DefenseUp^1"), plus = 0 },
                 },
             };
         }
@@ -79,12 +79,12 @@ namespace CriticalPointTests {
                 Assert.AreEqual(state_set.inits.Length, 3);
                 state_set.Dispose();
 
-                var state_sets = engine.UpdateGame(new List<InputPlayerEvents> {
-                    new InputPlayerEvents {
+                var state_sets = engine.UpdateGame(new List<InputPlayerInputs> {
+                    new InputPlayerInputs {
                         frame = 1,
                         player_id = 100,
-                        events = new List<RawEvent> {
-                             new RawEvent { key = RawKey.Attack1, pressed = true },
+                        inputs = new List<RawInput> {
+                             new RawInput { key = RawKey.Attack1, pressed = true },
                         },
                     }
                 });

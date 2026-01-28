@@ -226,10 +226,14 @@ namespace CriticalPointTests {
             Assert.AreEqual("Action.One.Idle", update.actions[0].tmpl_id.TryRead());
             Assert.AreEqual(0.207f, update.actions[0].AsRefStateActionIdle().fade_in_weight);
             Assert.AreEqual("Action.One.Run", update.actions[1].tmpl_id.TryRead());
-            Assert.AreEqual(40u, update.actions[1].AsRefStateActionMove().derive_level);
+            Assert.AreEqual(70u, update.actions[1].AsRefStateActionMove().derive_level);
+            for (int idx = 0; idx < update.custom_events.Length; ++idx) {
+                Assert.AreEqual($"Action.One.Attack^1/Event{idx}", update.custom_events[idx].AsEventString());
+            }
 
             var ref_update = update.Ref();
             Assert.AreEqual(2, ref_update.actions.Length);
+            Assert.AreEqual(3, ref_update.custom_events.Length);
 
             update.Dispose();
         }
@@ -252,13 +256,18 @@ namespace CriticalPointTests {
             Assert.AreEqual("Action.One.Idle", update.actions[0].tmpl_id.TryRead());
             Assert.AreEqual(0.207f, update.actions[0].AsRefStateActionIdle().fade_in_weight);
             Assert.AreEqual("Action.One.Run", update.actions[1].tmpl_id.TryRead());
-            Assert.AreEqual(40u, update.actions[1].AsRefStateActionMove().derive_level);
+            Assert.AreEqual(70u, update.actions[1].AsRefStateActionMove().derive_level);
+            for (int idx = 0; idx < update.custom_events.Length; ++idx) {
+                Assert.AreEqual($"Action.One.Attack^1/Event{idx}", update.custom_events[idx].AsEventString());
+            }
 
             var update2 = update.Arc();
             Assert.AreEqual(2, update.actions.Length);
+            Assert.AreEqual(3, update.custom_events.Length);
 
             var weak_update = update.Weak();
             Assert.AreEqual(2, weak_update.actions.Length);
+            Assert.AreEqual(3, weak_update.custom_events.Length);
 
             Assert.AreEqual(2, update.StrongCount);
             update.Dispose();
