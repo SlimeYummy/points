@@ -18,122 +18,90 @@
   },
   "animations": [
     {
-      "clip": "idle",
+      "clip": "Idle_(Empty|Axe)",
       "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
       "raw": false,
       "additive": false,
       "optimize": true
     },
     {
-      "clip": "jog.*",
+      "clip": "(Run|Walk)(Start|Stop)?(_\\w{1,4})?_(Empty|Axe)",
       "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
       "raw": false,
       "additive": false,
       "optimize": true,
       "tracks": {
-        <% if (motion) { %>
+        <% if (root_motion) { %>
         "motion": {
           "enable": true,
-          "filename": "{{prefix}}_*.m-ozz",
+          "filename": "{{prefix}}_*.rm-ozz",
           "root_motion_joint": "Root"
         }
         <% } %>
       }
     },
     {
-      "clip": "run",
-      "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
-      "raw": false,
-      "additive": false,
-      "optimize": true,
-      "tracks": {
-        <% if (motion) { %>
-        "motion": {
-          "enable": true,
-          "filename": "{{prefix}}_*.m-ozz",
-          "position": {
-            "components": "xz",
-            "reference": "skeleton",
-            "bake": true,
-            "loop": true,
-            "raw": false,
-            "optimize": true
-          },
-          "rotation": {
-            "components": ""
-          }
-        }
-        <% } %>
-      }
-    },
-    {
-      "clip": "attack1.*",
-      "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
-      "raw": false,
-      "additive": false,
-      "optimize": true,
-      "tracks": {
-        <% if (motion) { %>
-        "motion": {
-          "enable": true,
-          "filename": "{{prefix}}_*.m-ozz",
-          "position": {
-            "components": "xz",
-            "reference": "skeleton",
-            "bake": true,
-            "loop": false,
-            "raw": false,
-            "optimize": true
-          },
-          "rotation": {
-            "components": "y",
-            "reference": "skeleton",
-            "bake": true,
-            "loop": false,
-            "raw": false,
-            "optimize": true
-          }
-        }
-        <% } %>
-      }
-    },
-    {
-      "clip": "attack2.*",
-      "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
-      "raw": false,
-      "additive": false,
-      "optimize": true,
-      "tracks": {
-        <% if (motion) { %>
-        "motion": {
-          "enable": true,
-          "filename": "{{prefix}}_*.m-ozz",
-          "position": {
-            "components": "xzB",
-            "reference": "skeleton",
-            "bake": true,
-            "loop": false,
-            "raw": false,
-            "optimize": true
-          },
-          "rotation": {
-            "components": "y",
-            "reference": "skeleton",
-            "bake": true,
-            "loop": false,
-            "raw": false,
-            "optimize": true
-          }
-        }
-        <% } %>
-      }
-    },
-    {
-      "clip": "^(?!tpose)$",
+      "clip": "Attack_\\d\\d\\w",
       "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
       "raw": false,
       "additive": false,
       "optimize": true
+      // "tracks": {
+      //   <% if (root_motion) { %>
+      //   "motion": {
+      //     "enable": true,
+      //     "filename": "{{prefix}}_*.rm-ozz",
+      //     "root_motion_joint": "Root"
+      //   }
+      //   <% } %>
+      // }
     }
+    // {
+    //   "clip": "Attack_\\d\\d\\a",
+    //   "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
+    //   "raw": false,
+    //   "additive": false,
+    //   "optimize": true,
+    //   "tracks": {
+    //     <% if (motion) { %>
+    //     "motion": {
+    //       "enable": true,
+    //       "filename": "{{prefix}}_*.rm-ozz",
+    //       "position": {
+    //         "components": "xzB",
+    //         "reference": "skeleton",
+    //         "bake": true,
+    //         "loop": false,
+    //         "raw": false,
+    //         "optimize": true
+    //       },
+    //       "rotation": {
+    //         "components": "y",
+    //         "reference": "skeleton",
+    //         "bake": true,
+    //         "loop": false,
+    //         "raw": false,
+    //         "optimize": true
+    //       }
+    //     }
+    //     <% } %>
+    //   }
+    // },
+    // {
+    //   "clip": "^(?!tpose)$",
+    //   "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
+    //   "raw": false,
+    //   "additive": false,
+    //   "optimize": true
+    // }
+  ],
+  "json_tracks": [
+    <% for(var i = 0; i < json_tracks.length; i++){ %>
+      {
+        "json": "<%= json_tracks[i].json %>",
+        "filename": "<%= json_tracks[i].filename %>"
+      }
+      <% if (i != json_tracks.length - 1) { %>, <% } %>
+    <% } %>
   ]
 }
