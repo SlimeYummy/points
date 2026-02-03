@@ -1,7 +1,7 @@
 use approx::abs_diff_eq;
-use critical_point_core::ifelse;
-use critical_point_core::utils::{RawEvent, RawKey};
 use core::f32;
+use critical_point_core::ifelse;
+use critical_point_core::utils::{RawInput, RawKey};
 use glam::Vec2;
 use jolt_physics_rs::debug::{DebugKey, DebugKeyboard, DebugMouse};
 use std::collections::HashMap;
@@ -16,7 +16,6 @@ pub enum CharacterType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum JoltMean {
     Dodge,
-    Guard,
     Interact,
     Lock,
     CombExtra,
@@ -52,7 +51,6 @@ enum JoltKey {
 const KEYS: &[(JoltMean, JoltKey)] = &[
     (JoltMean::CombExtra, JoltKey::K(DebugKey::Space)),
     (JoltMean::Dodge, JoltKey::K(DebugKey::LShift)),
-    (JoltMean::Guard, JoltKey::K(DebugKey::LAlt)),
     (JoltMean::Interact, JoltKey::K(DebugKey::F)),
     (JoltMean::Lock, JoltKey::K(DebugKey::T)),
     (JoltMean::Attack1, JoltKey::M(1)),
@@ -90,6 +88,7 @@ pub struct InputHandler {
     xkeys_state: Vec<bool>,
     mkeys_state: Vec<bool>,
     is_walking: bool,
+    is_dashing: bool,
     move_dir: Vec2,        // last move direction
     view_rads: Vec2,       // last view radius (yaw, pitch)
     combination_keys: u32, // any combination key down
@@ -97,7 +96,7 @@ pub struct InputHandler {
     aiming: bool,          // is aiming
     holding: HashMap<JoltMean, RawKey>,
     derive_holding: HashMap<JoltMean, RawKey>,
-    events: Vec<RawEvent>,
+    events: Vec<RawInput>,
 }
 
 impl InputHandler {
@@ -105,8 +104,9 @@ impl InputHandler {
         InputHandler {
             character,
             xkeys_state: vec![false; KEYS.len()],
-            mkeys_state: vec![false; 5],
+            mkeys_state: vec![false; 6],
             is_walking: false,
+            is_dashing: false,
             move_dir: Vec2::ZERO,
             view_rads: Vec2::new(f32::NAN, f32::NAN),
             combination_keys: 0,
@@ -118,7 +118,7 @@ impl InputHandler {
         }
     }
 
-    pub fn take_events(&mut self) -> Vec<RawEvent> {
+    pub fn take_events(&mut self) -> Vec<RawInput> {
         return self.events.drain(..).collect();
     }
 
@@ -136,7 +136,6 @@ impl InputHandler {
                 match mean {
                     JoltMean::CombExtra => self.start_extra(),
                     JoltMean::Dodge => self.start_dodge(mean),
-                    JoltMean::Guard => self.start_common(mean, RawKey::Guard),
                     JoltMean::Interact => self.start_common(mean, RawKey::Interact),
                     JoltMean::Lock => self.start_common(mean, RawKey::Lock),
                     JoltMean::Attack1 => self.start_attack(mean, RawKey::Attack1),
@@ -190,12 +189,22 @@ impl InputHandler {
                 return;
             }
         }
-        self.events.push(RawEvent::new_view(view_rads));
+        self.events.push(RawInput::new_view(view_rads));
     }
 
     fn handle_move(&mut self, keyboard: &mut DebugKeyboard) {
-        let mut key_events = [None; 5];
-        for (idx, key) in [DebugKey::A, DebugKey::D, DebugKey::S, DebugKey::W, DebugKey::LControl].iter().enumerate() {
+        let mut key_events = [None; 6];
+        for (idx, key) in [
+            DebugKey::A,
+            DebugKey::D,
+            DebugKey::S,
+            DebugKey::W,
+            DebugKey::LControl,
+            DebugKey::LAlt,
+        ]
+        .iter()
+        .enumerate()
+        {
             let pressed = keyboard.is_key_pressed(*key);
             let prev_state = self.mkeys_state[idx];
             self.mkeys_state[idx] = pressed;
@@ -234,7 +243,13 @@ impl InputHandler {
             _ => self.is_walking,
         };
 
-        if self.move_dir == prev_move_dir && self.is_walking == prev_is_walking {
+        let prev_is_dashing = self.is_dashing;
+        self.is_dashing = match key_events[5] {
+            Some(is_dashing) => is_dashing,
+            _ => self.is_dashing,
+        };
+
+        if self.move_dir == prev_move_dir && self.is_walking == prev_is_walking && self.is_dashing == prev_is_dashing {
             return;
         }
 
@@ -243,7 +258,10 @@ impl InputHandler {
             move_dir = move_dir.normalize();
         }
 
-        if self.is_walking {
+        if self.is_dashing {
+            move_dir *= 1.1;
+        }
+        else if self.is_walking {
             move_dir *= 0.4;
         }
 
@@ -253,7 +271,7 @@ impl InputHandler {
                 return;
             }
         }
-        self.events.push(RawEvent::new_move(move_dir));
+        self.events.push(RawInput::new_move(move_dir));
     }
 
     fn handle_key(
@@ -281,15 +299,15 @@ impl InputHandler {
 
     fn start_common(&mut self, mean: JoltMean, code: RawKey) {
         self.holding.insert(mean, code);
-        self.events.push(RawEvent::new_button(code, true));
+        self.events.push(RawInput::new_button(code, true));
     }
 
     fn cancel_common(&mut self, mean: JoltMean) {
         if let Some(code) = self.holding.remove(&mean) {
-            self.events.push(RawEvent::new_button(code, false));
+            self.events.push(RawInput::new_button(code, false));
         }
         if let Some(code) = self.derive_holding.remove(&mean) {
-            self.events.push(RawEvent::new_button(code, false));
+            self.events.push(RawInput::new_button(code, false));
         }
     }
 
@@ -304,7 +322,7 @@ impl InputHandler {
     fn start_dodge(&mut self, mean: JoltMean) {
         let code = ifelse!((self.combination_keys & COMB_EXTRA) != 0, RawKey::Jump, RawKey::Dodge);
         self.holding.insert(mean, code);
-        self.events.push(RawEvent::new_button(code, true));
+        self.events.push(RawInput::new_button(code, true));
     }
 
     fn start_attack(&mut self, mean: JoltMean, mut code: RawKey) {
@@ -368,11 +386,11 @@ impl InputHandler {
         }
 
         self.holding.insert(mean, code);
-        self.events.push(RawEvent::new_button(code, true));
+        self.events.push(RawInput::new_button(code, true));
 
         if let Some(derive) = derive {
             self.derive_holding.insert(mean, derive);
-            self.events.push(RawEvent::new_button(derive, true));
+            self.events.push(RawInput::new_button(derive, true));
         }
     }
 
@@ -385,10 +403,10 @@ impl InputHandler {
         }
 
         self.holding.insert(mean, RawKey::Spell);
-        self.events.push(RawEvent::new_button(RawKey::Spell, true));
+        self.events.push(RawInput::new_button(RawKey::Spell, true));
 
         self.derive_holding.insert(mean, RawKey::Derive3);
-        self.events.push(RawEvent::new_button(RawKey::Derive3, true));
+        self.events.push(RawInput::new_button(RawKey::Derive3, true));
     }
 
     fn start_shot(&mut self, mean: JoltMean) {
@@ -401,11 +419,11 @@ impl InputHandler {
 
         let code = ifelse!((self.combination_keys & COMB_EXTRA) != 0, RawKey::Shot2, RawKey::Shot1);
         self.holding.insert(mean, code);
-        self.events.push(RawEvent::new_button(code, true));
+        self.events.push(RawInput::new_button(code, true));
 
         if (self.combination_keys & COMB_EXTRA) != 0 {
             self.derive_holding.insert(mean, RawKey::Derive2);
-            self.events.push(RawEvent::new_button(RawKey::Derive2, true));
+            self.events.push(RawInput::new_button(RawKey::Derive2, true));
         }
     }
 
@@ -418,7 +436,7 @@ impl InputHandler {
         }
 
         self.holding.insert(mean, RawKey::Aim);
-        self.events.push(RawEvent::new_button(RawKey::Aim, true));
+        self.events.push(RawInput::new_button(RawKey::Aim, true));
         self.aiming = true;
     }
 
@@ -436,10 +454,10 @@ impl InputHandler {
         }
 
         self.holding.insert(mean, RawKey::Switch);
-        self.events.push(RawEvent::new_button(RawKey::Switch, true));
+        self.events.push(RawInput::new_button(RawKey::Switch, true));
 
         self.derive_holding.insert(mean, RawKey::Derive3);
-        self.events.push(RawEvent::new_button(RawKey::Derive3, true));
+        self.events.push(RawInput::new_button(RawKey::Derive3, true));
     }
 
     fn start_comb_skill(&mut self, comb_skill: u32) {
@@ -470,14 +488,14 @@ impl InputHandler {
             _ => return,
         };
         self.holding.insert(mean, code);
-        self.events.push(RawEvent::new_button(code, true));
+        self.events.push(RawInput::new_button(code, true));
 
         self.skilling = true;
     }
 
     fn cancel_skill(&mut self, mean: JoltMean) {
         if let Some(code) = self.holding.remove(&mean) {
-            self.events.push(RawEvent::new_button(code, false));
+            self.events.push(RawInput::new_button(code, false));
             self.skilling = false;
         }
     }
