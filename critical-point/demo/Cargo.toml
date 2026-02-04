@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0"
+anyhow = "1"
 approx = "0.5"
 chrono = "0.4"
 critical-point-core = { path = "../core", features = [] } # "debug-print"
@@ -13,6 +13,6 @@ glam = { version = "0.30", features = ["libm", "approx", "serde", "rkyv"] }
 glam-ext = { path = "../../../glam-ext", features = ["libm", "approx", "serde", "rkyv"] }
 jolt-physics-rs = { path = "../../../jolt-physics-rs", features = ["deterministic", "debug-renderer"] } # "debug-print"
 log = "0.4"
-serde = { version = "1.0", features = ["derive", "rc"] }
-serde_json = "1.0"
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
 structopt = "0.3"

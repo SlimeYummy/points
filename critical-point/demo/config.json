@@ -4,10 +4,10 @@
     },
     "players": [
         {
-            "character": "Character.DemoGirl",
-            "style": "Style.DemoGirl/1",
+            "character": "Character.Demo",
+            "style": "Style.Demo^1",
             "level": 1,
-            "position": [-50, 0, 63]
+            "position": [0, 0, 0]
         }
     ]
 }
