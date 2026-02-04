@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::Local;
 use critical_point_core::consts::{DEFAULT_VIEW_DIR_3D, FPS};
 use critical_point_core::engine::LogicEngine;
-use critical_point_core::logic::{InputPlayerEvents, StatePlayerUpdate, StateSet};
+use critical_point_core::logic::{InputPlayerInputs, StatePlayerUpdate, StateSet};
 use critical_point_core::parameter::{ParamPlayer, ParamZone};
 use critical_point_core::utils::{Castable, NumID};
 use glam::{Vec2, Vec3A};
@@ -100,7 +100,7 @@ impl DebugApp for Testbed {
         let events = self.input_handler.take_events();
         self.state_set = self
             .engine
-            .update_game(vec![InputPlayerEvents::new(100, self.logic_frame, events)])
+            .update_game(vec![InputPlayerInputs::new(100, self.logic_frame, events)])
             .unwrap();
         true
     }
@@ -148,7 +148,7 @@ fn main() {
         .apply()
         .unwrap();
 
-    // std::env::set_current_dir("/project/points/critical-point/demo").unwrap();
+    std::env::set_current_dir("/project/points/critical-point/demo").unwrap();
 
     // let opt = Opt::from_args();
     let opt = Opt {
