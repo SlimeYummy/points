@@ -1,11 +1,12 @@
 use regex::Regex;
+use rustc_hash::FxHasher;
 use std::alloc::Layout;
-use std::hash::{BuildHasher, Hash, Hasher};
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{alloc, fmt, fs, mem, ptr, slice, str, u64};
 
-use crate::utils::{rkyv_self, xerr, xfromf, xres, xresf, DeterministicState, XError, XResult};
+use crate::utils::{rkyv_self, xerr, xfromf, xres, xresf, XError, XResult};
 
 const MAX_SYMBOL_LEN: usize = 64;
 const MAX_SYMBOL_COUNT: usize = (u16::MAX - 1) as usize;
@@ -21,7 +22,6 @@ static mut SYMBOL_CACHE: TmplSymbolCache = TmplSymbolCache {
     buf_size: 0,
     list: Vec::new(),
     map: Vec::new(),
-    state: DeterministicState::new(),
     regex: None,
 };
 
@@ -71,7 +71,6 @@ pub struct TmplSymbolCache {
     buf_size: usize,
     list: Vec<u32>,
     map: Vec<u32>,
-    state: DeterministicState,
     regex: Option<Regex>,
 }
 
@@ -146,13 +145,12 @@ impl TmplSymbolCache {
         let map_len = Self::find_map_len((strings.len() as f64 * 1.5) as usize);
         let mut map = vec![u32::MAX; map_len];
 
-        let state = DeterministicState::new();
         let mut offset = 0;
         for (idx, string) in strings.iter().enumerate() {
             let string = string.as_ref();
             let node = unsafe { &mut *(buf.add(offset) as *mut TmplSymbol) };
             node.next = u32::MAX;
-            node.hash = Self::hash(&state, string);
+            node.hash = Self::hash(string);
             node.idx = idx as u16;
             node.len = string.len() as u8;
             unsafe {
@@ -180,7 +178,6 @@ impl TmplSymbolCache {
             buf_size,
             list,
             map,
-            state,
             regex: Some(regex),
         })
     }
@@ -202,7 +199,7 @@ impl TmplSymbolCache {
             return xres!(NotFound);
         }
 
-        let hash = Self::hash(&self.state, string);
+        let hash = Self::hash(string);
         let map_idx = hash as usize % self.map.len();
 
         let mut offset = self.map[map_idx];
@@ -246,8 +243,8 @@ impl TmplSymbolCache {
         }
     }
 
-    fn hash(state: &DeterministicState, string: &str) -> u32 {
-        let mut hasher = state.build_hasher();
+    fn hash(string: &str) -> u32 {
+        let mut hasher = FxHasher::default();
         hasher.write(string.as_bytes());
         let hash = hasher.finish();
         ((hash & 0xFFFFFFFF) ^ (hash >> 32)) as u32
@@ -263,6 +260,7 @@ impl TmplSymbolCache {
 pub enum TmplPrefix {
     Var,
     Character,
+    NpcCharacter,
     Style,
     Equipment,
     Entry,
@@ -271,6 +269,7 @@ pub enum TmplPrefix {
     Accessory,
     Jewel,
     Action,
+    NpcAction,
     Zone,
     Invalid = 0x3F,
 }
@@ -284,6 +283,7 @@ impl FromStr for TmplPrefix {
         let prefix = match s {
             "#" => TmplPrefix::Var,
             "Character" => TmplPrefix::Character,
+            "NpcCharacter" => TmplPrefix::NpcCharacter,
             "Style" => TmplPrefix::Style,
             "Equipment" => TmplPrefix::Equipment,
             "Entry" => TmplPrefix::Entry,
@@ -292,8 +292,9 @@ impl FromStr for TmplPrefix {
             "Accessory" => TmplPrefix::Accessory,
             "Jewel" => TmplPrefix::Jewel,
             "Action" => TmplPrefix::Action,
+            "NpcAction" => TmplPrefix::NpcAction,
             "Zone" => TmplPrefix::Zone,
-            _ => return xres!(NotFound),
+            _ => return xres!(NotFound; "TmplPrefix string"),
         };
         Ok(prefix)
     }
@@ -306,16 +307,18 @@ impl TryFrom<u8> for TmplPrefix {
         let prefix = match value {
             0 => TmplPrefix::Var,
             1 => TmplPrefix::Character,
-            2 => TmplPrefix::Style,
-            3 => TmplPrefix::Equipment,
-            4 => TmplPrefix::Entry,
-            5 => TmplPrefix::Perk,
-            6 => TmplPrefix::AccessoryPool,
-            7 => TmplPrefix::Accessory,
-            8 => TmplPrefix::Jewel,
-            9 => TmplPrefix::Action,
-            10 => TmplPrefix::Zone,
-            _ => return xres!(NotFound),
+            2 => TmplPrefix::NpcCharacter,
+            3 => TmplPrefix::Style,
+            4 => TmplPrefix::Equipment,
+            5 => TmplPrefix::Entry,
+            6 => TmplPrefix::Perk,
+            7 => TmplPrefix::AccessoryPool,
+            8 => TmplPrefix::Accessory,
+            9 => TmplPrefix::Jewel,
+            10 => TmplPrefix::Action,
+            11 => TmplPrefix::NpcAction,
+            12 => TmplPrefix::Zone,
+            _ => return xres!(NotFound; "TmplPrefix u8"),
         };
         Ok(prefix)
     }
@@ -326,6 +329,7 @@ impl AsRef<str> for TmplPrefix {
         match self {
             TmplPrefix::Var => "#",
             TmplPrefix::Character => "Character",
+            TmplPrefix::NpcCharacter => "NpcCharacter",
             TmplPrefix::Style => "Style",
             TmplPrefix::Equipment => "Equipment",
             TmplPrefix::Entry => "Entry",
@@ -334,6 +338,7 @@ impl AsRef<str> for TmplPrefix {
             TmplPrefix::Accessory => "Accessory",
             TmplPrefix::Jewel => "Jewel",
             TmplPrefix::Action => "Action",
+            TmplPrefix::NpcAction => "NpcAction",
             TmplPrefix::Zone => "Zone",
             TmplPrefix::Invalid => "?",
         }
@@ -437,7 +442,11 @@ impl TmplID {
     }
 
     fn new_with(s: &str, cache: &TmplSymbolCache) -> XResult<TmplID> {
-        let segs = Self::split_str(s, cache).ok_or_else(|| xerr!(BadArgument; "invalid string"))?;
+        let segs = match Self::split_str(s, cache) {
+            Some(segs) => segs,
+            None if s == "" => return Ok(TmplID::default()),
+            None => return xres!(BadArgument; "invalid string"),
+        };
         let prefix = TmplPrefix::from_str(segs[0])?;
         let key1 = cache.find_id(segs[1])?;
         let key2 = cache.find_id(segs[2])?;
@@ -824,6 +833,9 @@ mod tests {
         let id8 = TmplID::new_with("Character.Xxx.Yyy.Ooo^Z9", &cache).unwrap();
         assert_eq!(id8, make_id(Character, 23, 24, 14, 36 + 360 + 259));
         assert_eq!(id8.to_string_with(&cache), "Character.Xxx.Yyy.Ooo^Z9");
+
+        let id9 = TmplID::new_with("", &cache).unwrap();
+        assert!(id9.is_invalid());
 
         assert!(TmplID::new_with("Zzz", &cache).is_err());
         assert!(TmplID::new_with("Character", &cache).is_err());
