@@ -3,18 +3,14 @@ mod cache;
 
 use std::borrow::Borrow;
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
 
-use crate::utils::{IdentityState, XError, XResult};
+use crate::utils::{XError, XResult};
 
 #[cfg(not(feature = "server-side"))]
 pub use cache::*;
-
-pub type SymbolHashMap<V> = HashMap<Symbol, V, IdentityState>;
-pub type SymbolHashSet = HashSet<Symbol, IdentityState>;
 
 #[macro_export]
 macro_rules! sb {
@@ -26,6 +22,7 @@ macro_rules! sb {
         $crate::utils::Symbol::new(&res).unwrap()
     }}
 }
+use rustc_hash::{FxHashMap, FxHashSet};
 pub use sb;
 
 impl Symbol {
@@ -54,10 +51,24 @@ impl PartialEq<&str> for Symbol {
     }
 }
 
+impl PartialEq<Symbol> for &str {
+    #[inline]
+    fn eq(&self, other: &Symbol) -> bool {
+        other.as_str() == *self
+    }
+}
+
 impl PartialEq<String> for Symbol {
     #[inline]
     fn eq(&self, other: &String) -> bool {
         return self.as_str() == other;
+    }
+}
+
+impl PartialEq<Symbol> for String {
+    #[inline]
+    fn eq(&self, other: &Symbol) -> bool {
+        return other.as_str() == self;
     }
 }
 

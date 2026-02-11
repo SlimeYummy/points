@@ -3,7 +3,7 @@ use ozz_animation_rs::OzzError;
 use std::error::Error;
 use std::fmt;
 
-use crate::utils::id::TmplID;
+use crate::utils::id::{NumID, TmplID};
 
 const EMPTY_STR: &'static str = "";
 
@@ -109,7 +109,7 @@ macro_rules! val_to_string {
     };
 }
 
-val_to_string!(u64);
+val_to_string!(NumID);
 val_to_string!(TmplID);
 
 macro_rules! err_to_string {
@@ -164,7 +164,7 @@ pub enum XError {
 
     TmplNotFound(MixedError<TmplID>),
 
-    LogicNotFound(MixedError<u64>),
+    LogicNotFound(MixedError<NumID>),
     LogicBadState(MixedError<()>),
     LogicIDMismatch(MixedError<()>),
 

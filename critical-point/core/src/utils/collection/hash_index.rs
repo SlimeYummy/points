@@ -1,9 +1,10 @@
+use rustc_hash::FxBuildHasher;
 use std::alloc::Layout;
 use std::fmt::Debug;
-use std::hash::{BuildHasher, Hash, RandomState};
+use std::hash::{BuildHasher, Hash};
 use std::{alloc, fmt, ptr};
 
-use super::hash::{DeterministicState, PRIME_TABLE};
+use super::prime_table::PRIME_TABLE;
 
 const OCCUPANCY: f64 = 0.6;
 
@@ -15,7 +16,7 @@ struct IndexNode<K, V> {
     value: V,
 }
 
-pub struct HashIndex<K, V, S = RandomState> {
+pub struct HashIndex<K, V, S = FxBuildHasher> {
     nodes: *mut Option<IndexNode<K, V>>,
     prime: u32,
     prime_pos: i16,
@@ -24,7 +25,7 @@ pub struct HashIndex<K, V, S = RandomState> {
     state: S,
 }
 
-pub type DtHashIndex<K, V> = HashIndex<K, V, DeterministicState>;
+pub type DtHashIndex<K, V> = HashIndex<K, V, FxBuildHasher>;
 
 unsafe impl<K, V, S: BuildHasher> Send for HashIndex<K, V, S> {}
 unsafe impl<K, V, S: BuildHasher> Sync for HashIndex<K, V, S> {}
