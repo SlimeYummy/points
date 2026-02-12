@@ -1,7 +1,8 @@
-use std::hash::{BuildHasher, Hasher};
+use rustc_hash::FxHasher;
+use std::hash::Hasher;
 use std::ptr::{self, NonNull};
 
-use crate::utils::{DeterministicState, PRIME_TABLE};
+use crate::utils::PRIME_TABLE;
 
 pub const MAX_SYMBOL_SIZE: usize = 1 << 16;
 
@@ -17,7 +18,6 @@ pub(super) struct InnerMap<N: InnerNode> {
     prime: u32,
     prime_pos: usize,
     count: usize,
-    state: DeterministicState,
 }
 
 impl<N: InnerNode> InnerMap<N> {
@@ -37,13 +37,12 @@ impl<N: InnerNode> InnerMap<N> {
             prime: PRIME_TABLE[prime_pos],
             count: 0,
             prime_pos,
-            state: DeterministicState::new(),
         }
     }
 
     #[inline(always)]
     pub(super) fn hash(&self, string: &str) -> u32 {
-        let mut hasher = self.state.build_hasher();
+        let mut hasher = FxHasher::default();
         hasher.write(string.as_bytes());
         let hash = hasher.finish();
         ((hash & 0xFFFFFFFF) ^ (hash >> 32)) as u32
