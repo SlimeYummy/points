@@ -145,6 +145,36 @@ pub fn calc_fade_in(prev_weight: f32, time_step: f32, duration: f32) -> f32 {
     (prev_weight + time_step / duration).min(1.0)
 }
 
+#[inline(always)]
+pub fn default_position() -> Vec3A {
+    Vec3A::ZERO
+}
+
+#[inline(always)]
+pub fn default_rotation() -> Quat {
+    Quat::IDENTITY
+}
+
+#[inline(always)]
+pub fn default_scale() -> Vec3A {
+    Vec3A::ONE
+}
+
+#[inline(always)]
+pub fn default_axis_x() -> Vec3A {
+    Vec3A::X
+}
+
+#[inline(always)]
+pub fn default_axis_y() -> Vec3A {
+    Vec3A::Y
+}
+
+#[inline(always)]
+pub fn default_axis_z() -> Vec3A {
+    Vec3A::Z
+}
+
 #[inline]
 pub fn quat_from_dir_xz(dir: Vec2xz) -> Quat {
     // 2D coordinate system is left-handed.
