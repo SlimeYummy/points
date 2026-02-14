@@ -11,9 +11,9 @@ use std::ptr::NonNull;
 use std::rc::Rc;
 use std::{alloc, fmt, fs, mem, ptr, slice, u32};
 
-use crate::template::base::{ArchivedTmplAny, TmplAny, TmplHashMap};
+use crate::template::base::{ArchivedTmplAny, TmplAny};
 use crate::template::database::base::{load_json_to_rkyv, load_rkyv_into, TmplIndexCache};
-use crate::utils::{xerr, xfromf, xresf, IdentityState, TmplID, XResult};
+use crate::utils::{xerr, xfromf, xresf, DtHashMap, TmplID, XResult};
 
 //
 // Database
@@ -49,7 +49,7 @@ struct TmplDatabaseInner {
     is_rkyv: bool,
     is_aliving: bool,
     file: File,
-    map: TmplHashMap<NonNull<AtInnerHeader>>,
+    map: DtHashMap<TmplID, NonNull<AtInnerHeader>>,
     cache_head: *mut AtInnerCached,
     cache_tail: *mut AtInnerCached,
     size: usize,
@@ -83,7 +83,7 @@ impl TmplDatabaseInner {
             is_rkyv,
             is_aliving: true,
             file: File::open(&file_path).map_err(xfromf!("path={:?}", path))?,
-            map: TmplHashMap::with_hasher(IdentityState),
+            map: DtHashMap::default(),
             cache_head: Box::into_raw(Box::new(AtInnerCached::EMPTY)),
             cache_tail: Box::into_raw(Box::new(AtInnerCached::EMPTY)),
             size: 0,
@@ -242,15 +242,15 @@ pub struct TmplDatabase {
     inner: Rc<UnsafeCell<TmplDatabaseInner>>,
 }
 
-impl Drop for TmplDatabase {
-    fn drop(&mut self) {
-        if Rc::strong_count(&self.inner) <= 1 {
-            self.inner().free_all();
-            #[cfg(feature = "debug-print")]
-            log::debug!("TmplDatabase::drop() cleanup");
-        }
-    }
-}
+// impl Drop for TmplDatabase {
+//     fn drop(&mut self) {
+//         if Rc::strong_count(&self.inner) <= 1 {
+//             self.inner().free_all();
+//             #[cfg(feature = "debug-print")]
+//             log::debug!("TmplDatabase::drop() cleanup");
+//         }
+//     }
+// }
 
 impl TmplDatabase {
     #[inline]

@@ -4,10 +4,7 @@ use std::alloc::Layout;
 use std::any::Any;
 use std::{fmt, mem};
 
-use crate::utils::{rkyv_self, xres, Castable, IdentityState, TmplID, XError, XResult};
-
-pub type TmplHashMap<V> = std::collections::HashMap<TmplID, V, IdentityState>;
-pub type TmplHashSet = std::collections::HashSet<TmplID, IdentityState>;
+use crate::utils::{rkyv_self, xres, Castable, TmplID, XError, XResult};
 
 //
 // TmplType & TmplAny
@@ -17,6 +14,7 @@ pub type TmplHashSet = std::collections::HashSet<TmplID, IdentityState>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize, CsEnum)]
 pub enum TmplType {
     Character,
+    NpcCharacter,
     Style,
     Equipment,
     Entry,
@@ -27,9 +25,10 @@ pub enum TmplType {
 
     Zone,
 
-    ActionEmpty,
     ActionIdle,
+    NpcActionIdle,
     ActionMove,
+    NpcActionMove,
     ActionGeneral,
     ActionDodge,
     ActionGuard,
@@ -115,10 +114,12 @@ const _: () = {
 
     use super::accessory::{ArchivedTmplAccessory, ArchivedTmplAccessoryPool, TmplAccessory, TmplAccessoryPool};
     use super::action::{
-        ArchivedTmplActionGeneral, ArchivedTmplActionIdle, ArchivedTmplActionMove, TmplActionGeneral, TmplActionIdle,
-        TmplActionMove,
+        ArchivedTmplActionGeneral, ArchivedTmplActionIdle, ArchivedTmplActionMove, ArchivedTmplNpcActionIdle,
+        TmplActionGeneral, TmplActionIdle, TmplActionMove, TmplNpcActionIdle,
     };
-    use super::character::{ArchivedTmplCharacter, ArchivedTmplStyle, TmplCharacter, TmplStyle};
+    use super::character::{
+        ArchivedTmplCharacter, ArchivedTmplNpcCharacter, ArchivedTmplStyle, TmplCharacter, TmplNpcCharacter, TmplStyle,
+    };
     use super::entry::{ArchivedTmplEntry, TmplEntry};
     use super::equipment::{ArchivedTmplEquipment, TmplEquipment};
     use super::jewel::{ArchivedTmplJewel, TmplJewel};
@@ -155,6 +156,7 @@ const _: () = {
             let archived_ref: &dyn ArchivedTmplAny = unsafe {
                 match typ {
                     Character => mem::transmute_copy::<usize, &ArchivedTmplCharacter>(&0),
+                    NpcCharacter => mem::transmute_copy::<usize, &ArchivedTmplNpcCharacter>(&0),
                     Style => mem::transmute_copy::<usize, &ArchivedTmplStyle>(&0),
                     Equipment => mem::transmute_copy::<usize, &ArchivedTmplEquipment>(&0),
                     Entry => mem::transmute_copy::<usize, &ArchivedTmplEntry>(&0),
@@ -164,6 +166,7 @@ const _: () = {
                     Jewel => mem::transmute_copy::<usize, &ArchivedTmplJewel>(&0),
                     Zone => mem::transmute_copy::<usize, &ArchivedTmplZone>(&0),
                     ActionIdle => mem::transmute_copy::<usize, &ArchivedTmplActionIdle>(&0),
+                    NpcActionIdle => mem::transmute_copy::<usize, &ArchivedTmplNpcActionIdle>(&0),
                     ActionMove => mem::transmute_copy::<usize, &ArchivedTmplActionMove>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &ArchivedTmplActionGeneral>(&0),
                     _ => unreachable!("pointer_metadata() Invalid TmplType"),
@@ -203,6 +206,7 @@ const _: () = {
 
             match self.typ() {
                 Character => serialize::<TmplCharacter, _>(self, serializer),
+                NpcCharacter => serialize::<TmplNpcCharacter, _>(self, serializer),
                 Style => serialize::<TmplStyle, _>(self, serializer),
                 Equipment => serialize::<TmplEquipment, _>(self, serializer),
                 Entry => serialize::<TmplEntry, _>(self, serializer),
@@ -212,6 +216,7 @@ const _: () = {
                 Jewel => serialize::<TmplJewel, _>(self, serializer),
                 Zone => serialize::<TmplZone, _>(self, serializer),
                 ActionIdle => serialize::<TmplActionIdle, _>(self, serializer),
+                NpcActionIdle => serialize::<TmplNpcActionIdle, _>(self, serializer),
                 ActionMove => serialize::<TmplActionMove, _>(self, serializer),
                 ActionGeneral => serialize::<TmplActionGeneral, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid TmplType"),
@@ -245,6 +250,7 @@ const _: () = {
 
             match self.typ() {
                 Character => deserialize::<TmplCharacter, _>(self, deserializer, out),
+                NpcCharacter => deserialize::<TmplNpcCharacter, _>(self, deserializer, out),
                 Style => deserialize::<TmplStyle, _>(self, deserializer, out),
                 Equipment => deserialize::<TmplEquipment, _>(self, deserializer, out),
                 Entry => deserialize::<TmplEntry, _>(self, deserializer, out),
@@ -254,6 +260,7 @@ const _: () = {
                 Jewel => deserialize::<TmplJewel, _>(self, deserializer, out),
                 Zone => deserialize::<TmplZone, _>(self, deserializer, out),
                 ActionIdle => deserialize::<TmplActionIdle, _>(self, deserializer, out),
+                NpcActionIdle => deserialize::<TmplNpcActionIdle, _>(self, deserializer, out),
                 ActionMove => deserialize::<TmplActionMove, _>(self, deserializer, out),
                 ActionGeneral => deserialize::<TmplActionGeneral, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid TmplType"),
@@ -264,6 +271,7 @@ const _: () = {
             let value_ref: &dyn TmplAny = unsafe {
                 match self.typ() {
                     Character => mem::transmute_copy::<usize, &TmplCharacter>(&0),
+                    NpcCharacter => mem::transmute_copy::<usize, &TmplNpcCharacter>(&0),
                     Style => mem::transmute_copy::<usize, &TmplStyle>(&0),
                     Equipment => mem::transmute_copy::<usize, &TmplEquipment>(&0),
                     Entry => mem::transmute_copy::<usize, &TmplEntry>(&0),
@@ -273,6 +281,7 @@ const _: () = {
                     Jewel => mem::transmute_copy::<usize, &TmplJewel>(&0),
                     Zone => mem::transmute_copy::<usize, &TmplZone>(&0),
                     ActionIdle => mem::transmute_copy::<usize, &TmplActionIdle>(&0),
+                    NpcActionIdle => mem::transmute_copy::<usize, &TmplNpcActionIdle>(&0),
                     ActionMove => mem::transmute_copy::<usize, &TmplActionMove>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &TmplActionGeneral>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid TmplType"),

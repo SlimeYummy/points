@@ -1,3 +1,4 @@
+use rustc_hash::FxBuildHasher;
 use std::fmt::Debug;
 use std::fs;
 use std::fs::File;
@@ -5,8 +6,8 @@ use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
 
-use crate::template::base::{TmplAny, TmplHashMap};
-use crate::utils::{xerr, xerrf, xfromf, xresf, IdentityState, TmplID, XResult};
+use crate::template::base::TmplAny;
+use crate::utils::{xerr, xerrf, xfromf, xresf, DtHashMap, TmplID, XResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(super) struct TmplIndex {
@@ -37,13 +38,13 @@ const _: () = {
 };
 
 pub(super) struct TmplIndexCache {
-    indexes: TmplHashMap<TmplIndex>,
+    indexes: DtHashMap<TmplID, TmplIndex>,
     path: String,
 }
 
 impl TmplIndexCache {
     pub(super) const EMPTY: TmplIndexCache = TmplIndexCache {
-        indexes: TmplHashMap::with_hasher(IdentityState),
+        indexes: DtHashMap::with_hasher(FxBuildHasher),
         path: String::new(),
     };
 
@@ -58,14 +59,14 @@ impl TmplIndexCache {
 
         if fs::exists(&rkyv_path).unwrap_or(false) {
             let buf = fs::read(&rkyv_path).map_err(xfromf!("rkyv_path={:?}", rkyv_path))?;
-            let archived = unsafe { rkyv::access_unchecked::<Archived<TmplHashMap<TmplIndex>>>(&buf) };
+            let archived = unsafe { rkyv::access_unchecked::<Archived<DtHashMap<TmplID, TmplIndex>>>(&buf) };
             let indexes = rkyv::deserialize::<_, Failure>(archived).map_err(|_| xerr!(Rkyv))?;
             return Ok(TmplIndexCache { indexes, path });
         }
 
         if fs::exists(&json_path).unwrap_or(false) {
             let buf = fs::read(&json_path).map_err(xfromf!("json_path={:?}", json_path))?;
-            let indexes: TmplHashMap<TmplIndex> =
+            let indexes: DtHashMap<TmplID, TmplIndex> =
                 serde_json::from_slice(&buf).map_err(xfromf!("json_path={:?}", json_path))?;
             return Ok(TmplIndexCache { indexes, path });
         }
@@ -116,6 +117,7 @@ pub(super) fn load_json_to_rkyv(file: &mut File, id: TmplID, index: TmplIndex) -
         file_buf.set_len(index.len as usize);
     }
     file.read_exact(&mut file_buf).map_err(xfromf!("id={}", id))?;
+    // log::debug!(">>>>>>>>>> {}", str::from_utf8(&file_buf).unwrap_or(""));
     let tmpl: Box<dyn TmplAny> = serde_json::from_slice(&file_buf).map_err(xfromf!("id={}", id))?;
 
     let rkyv_buf = rkyv::to_bytes::<Failure>(&tmpl).map_err(|_| xerrf!(Unexpected; "id={}", id))?;
@@ -166,7 +168,7 @@ mod tests {
         assert!(TmplIndexCache::from_file(&test_dir).is_err());
 
         let rkyv_dir = test_dir.join("index.rkyv");
-        let mut map = TmplHashMap::with_hasher(IdentityState);
+        let mut map = DtHashMap::with_hasher(FxBuildHasher);
         map.insert(id!("Character.Aaa"), TmplIndex { ptr: 0, len: 1 });
         map.insert(id!("Character.Aaa^1"), TmplIndex { ptr: 2, len: 3 });
         map.insert(id!("Accessory.Bbb.Ccc"), TmplIndex { ptr: 4, len: 5 });
