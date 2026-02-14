@@ -64,3 +64,38 @@ impl ShapeTaperedCapsule {
         }
     }
 }
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ShapeCylinder {
+    pub half_height: f32,
+    pub radius: f32,
+}
+
+rkyv_self!(ShapeCylinder);
+
+impl ShapeCylinder {
+    #[inline]
+    pub fn new(half_height: f32, radius: f32) -> ShapeCylinder {
+        ShapeCylinder { half_height, radius }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ShapeTaperedCylinder {
+    pub half_height: f32,
+    pub top_radius: f32,
+    pub bottom_radius: f32,
+}
+
+rkyv_self!(ShapeTaperedCylinder);
+
+impl ShapeTaperedCylinder {
+    #[inline]
+    pub fn new(half_height: f32, top_radius: f32, bottom_radius: f32) -> ShapeTaperedCylinder {
+        ShapeTaperedCylinder {
+            half_height,
+            top_radius,
+            bottom_radius,
+        }
+    }
+}
