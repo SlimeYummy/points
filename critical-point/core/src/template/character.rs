@@ -3,7 +3,7 @@ use glam_ext::Vec2xz;
 
 use crate::template::attribute::TmplAttribute;
 use crate::template::base::impl_tmpl;
-use crate::utils::{impl_for, rkyv_self, JewelSlots, LevelRange, ShapeTaperedCapsule, Table, TmplID};
+use crate::utils::{impl_for, rkyv_self, JewelSlots, LevelRange, Table, TmplID};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
 #[repr(u8)]
@@ -23,10 +23,8 @@ pub struct TmplCharacter {
     pub level: LevelRange,
     pub styles: Vec<TmplID>,
     pub equipments: Vec<TmplID>,
-    pub bounding: ShapeTaperedCapsule,
     pub skeleton_files: String,
     pub skeleton_toward: Vec2xz,
-    pub body_file: String,
 }
 
 impl_tmpl!(TmplCharacter, Character, "Character");
@@ -56,6 +54,31 @@ pub struct TmplStyle {
 }
 
 impl_tmpl!(TmplStyle, Style, "Style");
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[rkyv(derive(Debug))]
+pub struct TmplNpcCharacter {
+    pub id: TmplID,
+    pub name: String,
+    pub tags: Vec<String>,
+    pub level: LevelRange,
+    pub attributes: Table<TmplAttribute, Vec<f32>>,
+    pub fixed_attributes: TmplFixedAttributes,
+    pub actions: Vec<TmplID>,
+    pub skeleton_files: String,
+    pub skeleton_toward: Vec2xz,
+    pub body_file: String,
+    pub view_model: String,
+}
+
+impl_tmpl!(TmplNpcCharacter, NpcCharacter, "NpcCharacter");
+
+impl_for!(TmplNpcCharacter, ArchivedTmplNpcCharacter, {
+    #[inline]
+    pub fn level_to_index(&self, level: u32) -> usize {
+        (level.clamp(self.level.min, self.level.max) - self.level.min) as usize
+    }
+});
 
 #[derive(Debug, Default, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct TmplFixedAttributes {
@@ -91,10 +114,8 @@ mod tests {
             id!("Equipment.No2"),
             id!("Equipment.No3")
         ]);
-        assert_eq!(character.bounding, ShapeTaperedCapsule::new(0.6, 0.3, 0.1));
         assert_eq!(character.skeleton_files, "Girl.*");
         assert_eq!(character.skeleton_toward, Vec2xz::Z);
-        assert_eq!(character.body_file, "Girl.body.json");
     }
 
     #[test]
@@ -149,15 +170,54 @@ mod tests {
         assert_eq!(style.fixed_attributes.guard_deposture_ratio_1, 0.8);
         assert_eq!(style.fixed_attributes.weak_damage_up, 0.25);
 
-        // assert_eq!(
-        //     style.perks.as_slice(),
-        //     &[id!("Perk.No1.AttackUp"), id!("Perk.No1.CriticalChance"),]
-        // );
-        // assert_eq!(
-        //     style.usable_perks.as_slice(),
-        //     &[id!("Perk.No1.Slot"), id!("Perk.No1.Empty"),]
-        // );
-        // assert_eq!(style.actions.as_slice(), &[]);
+        assert_eq!(style.perks.as_slice(), &[
+            id!("Perk.One.NormalAttack.Branch"),
+            id!("Perk.One.AttackUp")
+        ]);
+        assert_eq!(style.usable_perks.as_slice(), &[
+            id!("Perk.One.FinalPerk"),
+            id!("Perk.One.NormalAttack.Branch"),
+            id!("Perk.One.AttackUp")
+        ]);
+
+        assert_eq!(style.actions.as_slice(), &[
+            id!("Action.One.Idle"),
+            id!("Action.One.IdleX"),
+            id!("Action.One.Run"),
+            id!("Action.One.Attack^1"),
+            id!("Action.One.Attack^2"),
+        ]);
+
         assert_eq!(style.view_model, "StyleOne-1.vrm");
+    }
+
+    #[test]
+    fn test_load_npc() {
+        let db = TmplDatabase::new(10240, 150).unwrap();
+
+        let npc = db.find_as::<TmplNpcCharacter>(id!("NpcCharacter.Enemy")).unwrap();
+        assert_eq!(npc.id(), id!("NpcCharacter.Enemy"));
+        assert_eq!(npc.name, "Enemy");
+        assert_eq!(&npc.tags.as_slice(), &["Npc"]);
+
+        let attrs = npc.attributes.as_slice();
+        assert_eq!(attrs.len(), 1);
+        assert_eq!(attrs[0].k, TmplAttribute::MaxHealth);
+        assert_eq!(attrs[0].v.as_slice(), &[10000.0, 20000.0, 30000.0]);
+
+        assert_eq!(npc.fixed_attributes.damage_reduce_param_1, 0.05);
+        assert_eq!(npc.fixed_attributes.damage_reduce_param_2, 100.0);
+        assert_eq!(npc.fixed_attributes.guard_damage_ratio_1, 0.8);
+        assert_eq!(npc.fixed_attributes.deposture_reduce_param_1, 0.05);
+        assert_eq!(npc.fixed_attributes.deposture_reduce_param_2, 200.0);
+        assert_eq!(npc.fixed_attributes.guard_deposture_ratio_1, 0.8);
+        assert_eq!(npc.fixed_attributes.weak_damage_up, 0.25);
+
+        assert_eq!(npc.actions.as_slice(), &[id!("NpcAction.Enemy.Idle"),]);
+
+        assert_eq!(npc.skeleton_files, "TrainingDummy.*");
+        assert_eq!(npc.skeleton_toward, Vec2xz::Z);
+        assert_eq!(npc.body_file, "TrainingDummyBody.json");
+        assert_eq!(npc.view_model, "TrainingDummy.prefab");
     }
 }

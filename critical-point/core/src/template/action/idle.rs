@@ -24,6 +24,21 @@ pub struct TmplActionIdle {
 
 impl_tmpl!(TmplActionIdle, ActionIdle, "ActionIdle");
 
+#[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[rkyv(derive(Debug))]
+pub struct TmplNpcActionIdle {
+    pub id: TmplID,
+    pub characters: Vec<TmplID>,
+    pub tags: Vec<String>,
+    pub anim_idle: TmplAnimation,
+    #[serde(default)]
+    pub anim_ready: Option<TmplAnimation>,
+    pub auto_idle_delay: f32,
+    pub poise_level: u16,
+}
+
+impl_tmpl!(TmplNpcActionIdle, NpcActionIdle, "NpcActionIdle");
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -61,5 +76,23 @@ mod tests {
         assert_eq!(act2.id, id!("Action.One.IdleX"));
         assert_eq!(act2.anim_idle.files, "Girl_Idle_Empty.*");
         assert!(act2.anim_ready.is_none());
+    }
+
+    #[test]
+    fn test_load_npc_action_idle() {
+        let db = TmplDatabase::new(10240, 150).unwrap();
+
+        let act = db.find_as::<TmplNpcActionIdle>(id!("NpcAction.Enemy.Idle")).unwrap();
+        assert_eq!(act.id, id!("NpcAction.Enemy.Idle"));
+        assert_eq!(act.characters.as_slice(), &[id!("NpcCharacter.Enemy")]);
+        assert_eq!(act.tags.as_slice(), &["Idle"]);
+        assert_eq!(act.anim_idle.files, "TrainingDummy_Idle.*");
+        assert_eq!(act.anim_idle.duration, 4.0);
+        assert_eq!(act.anim_idle.fade_in, 0.1);
+        assert_eq!(act.anim_idle.root_motion, false);
+        assert_eq!(act.anim_idle.weapon_motion, false);
+        assert!(act.anim_ready.is_none());
+        assert_eq!(act.auto_idle_delay, 10.0);
+        assert_eq!(act.poise_level, 0);
     }
 }
