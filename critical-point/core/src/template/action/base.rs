@@ -12,6 +12,7 @@ pub struct TmplAnimation {
     pub fade_in: f32,
     pub root_motion: bool,
     pub weapon_motion: bool,
+    pub hit_motion: bool,
 }
 
 #[derive(
