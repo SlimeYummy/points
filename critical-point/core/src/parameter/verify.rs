@@ -1,8 +1,8 @@
 use crate::consts::{ACCESSORY_MAX_COUNT, EQUIPMENT_MAX_COUNT, MAX_ENTRY_PLUS};
-use crate::parameter::ParamPlayer;
+use crate::parameter::{ParamNpc, ParamPlayer};
 use crate::template::{
     TmplAccessory, TmplAccessoryPattern, TmplAccessoryPool, TmplCharacter, TmplDatabase, TmplEquipment, TmplJewel,
-    TmplJewelSlot, TmplPerk, TmplStyle,
+    TmplJewelSlot, TmplNpcCharacter, TmplPerk, TmplStyle,
 };
 use crate::utils::{xresf, JewelSlots, TmplIDLevel, TmplIDPlus, XResult};
 
@@ -146,6 +146,16 @@ fn verify_jewels(ctx: &mut ContextVerify<'_>, param: &ParamPlayer, slots: JewelS
             return xresf!(BadParameter; "idx={}, jewel.id={}, slot={:?}", idx, jewel.id, jewel.slot);
         }
         *count -= 1;
+    }
+
+    Ok(())
+}
+
+pub fn verify_npc(ctx: &mut ContextVerify<'_>, param: &ParamNpc) -> XResult<()> {
+    let character = ctx.tmpl_db.find_as::<TmplNpcCharacter>(param.character)?;
+
+    if param.level < character.level.min || param.level > character.level.max {
+        return xresf!(BadParameter; "character.id={}, param.level={}", character.id, param.level);
     }
 
     Ok(())
@@ -313,5 +323,20 @@ mod tests {
         ];
         let err = verify_jewels(&mut ctx, &param, JewelSlots::new(1, 1, 1)).unwrap_err();
         assert_eq!(err.msg(), "idx=1, jewel.id=Jewel.DefenseUp^1, slot=Defense");
+    }
+
+    #[test]
+    fn test_verify_npc() {
+        let db = TmplDatabase::new(10240, 150).unwrap();
+        let mut ctx = ContextVerify::new(&db);
+
+        let mut param = ParamNpc::default();
+        param.character = id!("NpcCharacter.Verify^1");
+        param.level = 1;
+        verify_npc(&mut ctx, &param).unwrap();
+
+        param.level = 5;
+        let err = verify_npc(&mut ctx, &param).unwrap_err();
+        assert_eq!(err.msg(), "character.id=NpcCharacter.Verify^1, param.level=5");
     }
 }
