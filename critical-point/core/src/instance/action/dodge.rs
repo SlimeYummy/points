@@ -25,7 +25,7 @@ unsafe impl InstActionAny for InstActionDodge {
 }
 
 impl InstActionDodge {
-    pub(crate) fn try_assemble(
+    pub(crate) fn new__from_action(
         ctx: &mut ContextActionAssemble<'_>,
         tmpl: Xrc<TmplActionDodge>,
     ) -> Option<InstActionDodge> {

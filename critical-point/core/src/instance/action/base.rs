@@ -7,15 +7,15 @@ use thin_vec::ThinVec;
 use crate::animation::AnimationFileMeta;
 use crate::template::{
     ArchivedTmplActionAttributes, ArchivedTmplAnimation, ArchivedTmplDeriveRule, ArchivedTmplTimelinePoint,
-    ArchivedTmplTimelineRange, ArchivedTmplVar, TmplHashMap, TmplType,
+    ArchivedTmplTimelineRange, ArchivedTmplVar,
 };
 use crate::utils::{
-    calc_fade_in, interface, ratio_saturating, ratio_warpping, sb, InputDir, Symbol, TimeRange, TimeRangeWith,
-    TimeWith, TmplID, VirtualKey, VirtualKeyDir, XResult,
+    calc_fade_in, interface, ratio_saturating, ratio_warpping, sb, ActionType, DtHashMap, InputDir, Symbol, TimeRange,
+    TimeRangeWith, TimeWith, TmplID, VirtualKey, VirtualKeyDir, XResult,
 };
 
 pub unsafe trait InstActionAny: Debug + Any {
-    fn typ(&self) -> TmplType;
+    fn typ(&self) -> ActionType;
     fn animations<'a>(&'a self, animations: &mut Vec<&'a InstAnimation>);
     fn derives(&self, derives: &mut Vec<InstDeriveRule>);
 }
@@ -36,7 +36,7 @@ pub struct InstActionBase {
 interface!(InstActionAny, InstActionBase);
 
 pub(crate) struct ContextActionAssemble<'t> {
-    pub var_indexes: &'t TmplHashMap<u32>,
+    pub var_indexes: &'t DtHashMap<TmplID, u32>,
 }
 
 impl<'t> ContextActionAssemble<'t> {
@@ -66,6 +66,7 @@ pub struct InstAnimation {
     pub fade_in: f32,
     pub root_motion: bool,
     pub weapon_motion: bool,
+    pub hit_motion: bool,
 }
 
 impl InstAnimation {
@@ -78,6 +79,7 @@ impl InstAnimation {
             fade_in: archived.fade_in.into(),
             root_motion: archived.root_motion,
             weapon_motion: archived.weapon_motion,
+            hit_motion: archived.hit_motion,
         }
     }
 

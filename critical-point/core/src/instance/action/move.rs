@@ -1,10 +1,8 @@
-use tinyvec::TinyVec;
-
 use crate::instance::action::base::{
     ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation, InstDeriveRule,
 };
-use crate::template::{At, TmplActionMove, TmplActionMoveStopEnter, TmplActionMoveStopLeave, TmplType};
-use crate::utils::{extend, lerp, loose_ge, loose_le, sb, TmplID, VirtualKeyDir};
+use crate::template::{At, TmplActionMove, TmplActionMoveStopEnter, TmplActionMoveStopLeave};
+use crate::utils::{extend, lerp, loose_ge, loose_le, sb, ActionType, SmallVec, TmplID, VirtualKeyDir};
 
 pub type InstActionMoveStopEnter = TmplActionMoveStopEnter;
 pub type InstActionMoveStopLeave = TmplActionMoveStopLeave;
@@ -50,14 +48,14 @@ pub struct InstActionMoveTurn {
 #[derive(Debug)]
 pub struct InstActionMoveStop {
     pub anim: InstAnimation,
-    pub enter_phase_table: TinyVec<[InstActionMoveStopEnter; 2]>,
-    pub leave_phase_table: TinyVec<[InstActionMoveStopLeave; 3]>,
+    pub enter_phase_table: SmallVec<[InstActionMoveStopEnter; 2]>,
+    pub leave_phase_table: SmallVec<[InstActionMoveStopLeave; 3]>,
 }
 
 unsafe impl InstActionAny for InstActionMove {
     #[inline]
-    fn typ(&self) -> TmplType {
-        TmplType::ActionMove
+    fn typ(&self) -> ActionType {
+        ActionType::Move
     }
 
     fn animations<'a>(&'a self, animations: &mut Vec<&'a InstAnimation>) {
@@ -68,7 +66,7 @@ unsafe impl InstActionAny for InstActionMove {
 }
 
 impl InstActionMove {
-    pub(crate) fn try_assemble(ctx: &ContextActionAssemble<'_>, tmpl: At<TmplActionMove>) -> Option<InstActionMove> {
+    pub(crate) fn new_from_action(ctx: &ContextActionAssemble<'_>, tmpl: At<TmplActionMove>) -> Option<InstActionMove> {
         if !ctx.solve_var(&tmpl.enabled) {
             return None;
         }
@@ -157,7 +155,6 @@ impl InstActionMove {
     }
 
     pub fn find_start_by_angle(&self, angle: f32) -> Option<(usize, &InstActionMoveStart)> {
-        println!("{:?}", self.starts.iter().map(|x| x.enter_angle).collect::<Vec<_>>());
         for (idx, start) in self.starts.iter().enumerate() {
             if loose_ge!(angle, start.enter_angle[0]) && loose_le!(angle, start.enter_angle[1]) {
                 return Some((idx, start));
@@ -248,21 +245,19 @@ impl InstActionMove {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::template::{TmplDatabase, TmplHashMap};
-    use crate::utils::{cf2s, id, VirtualKey, LEVEL_MOVE};
-    use ahash::HashMapExt;
-    use tinyvec::tiny_vec;
+    use crate::template::TmplDatabase;
+    use crate::utils::{cf2s, id, DtHashMap, VirtualKey, LEVEL_MOVE};
 
     #[test]
-    fn test_assemble() {
+    fn test_new() {
         let db = TmplDatabase::new(10240, 150).unwrap();
-        let var_indexes = TmplHashMap::new();
+        let var_indexes = DtHashMap::default();
 
         let tmpl_act = db.find_as::<TmplActionMove>(id!("Action.Instance.Run^1A")).unwrap();
         let ctx = ContextActionAssemble {
             var_indexes: &var_indexes,
         };
-        let inst_act = InstActionMove::try_assemble(&ctx, tmpl_act).unwrap();
+        let inst_act = InstActionMove::new_from_action(&ctx, tmpl_act).unwrap();
         assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Run^1A"));
         assert_eq!(inst_act.tags, vec![sb!("Run")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Run, None));
@@ -312,13 +307,13 @@ mod tests {
         assert_eq!(inst_act.stops[0].anim.files, "Girl_RunStop_L_Empty.*");
         assert_eq!(inst_act.stops[0].anim.fade_in, cf2s(4));
         assert_eq!(inst_act.stops[0].anim.root_motion, true);
-        assert_eq!(inst_act.stops[0].enter_phase_table, tiny_vec![
+        assert_eq!(inst_act.stops[0].enter_phase_table.as_slice(), &[
             InstActionMoveStopEnter {
                 phase: [0.75, 0.25],
                 offset: cf2s(2)
             }
         ]);
-        assert_eq!(inst_act.stops[0].leave_phase_table, tiny_vec![
+        assert_eq!(inst_act.stops[0].leave_phase_table.as_slice(), &[
             InstActionMoveStopLeave { time: 0.0, phase: 0.0 },
             InstActionMoveStopLeave {
                 time: cf2s(14),
@@ -326,13 +321,13 @@ mod tests {
             }
         ]);
         assert_eq!(inst_act.stops[1].anim.files, "Girl_RunStop_R_Empty.*");
-        assert_eq!(inst_act.stops[1].enter_phase_table, tiny_vec![
+        assert_eq!(inst_act.stops[1].enter_phase_table.as_slice(), &[
             InstActionMoveStopEnter {
                 phase: [0.25, 0.75],
                 offset: cf2s(2)
             }
         ]);
-        assert_eq!(inst_act.stops[1].leave_phase_table, tiny_vec![
+        assert_eq!(inst_act.stops[1].leave_phase_table.as_slice(), &[
             InstActionMoveStopLeave { time: 0.0, phase: 0.5 },
             InstActionMoveStopLeave {
                 time: cf2s(14),

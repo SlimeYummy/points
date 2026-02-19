@@ -26,7 +26,7 @@ unsafe impl InstActionAny for InstActionGuard {
 }
 
 impl InstActionGuard {
-    pub(crate) fn try_assemble(
+    pub(crate) fn assemble_from_action(
         ctx: &mut ContextActionAssemble<'_>,
         tmpl: Xrc<TmplActionGuard>,
     ) -> Option<InstActionGuard> {

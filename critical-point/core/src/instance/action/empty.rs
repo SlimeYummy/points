@@ -1,6 +1,5 @@
 use crate::instance::action::base::{InstActionAny, InstActionBase, InstAnimation, InstDeriveRule};
-use crate::template::TmplType;
-use crate::utils::{extend, TmplID, VirtualKey};
+use crate::utils::{extend, ActionType};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -12,8 +11,8 @@ extend!(InstActionEmpty, InstActionBase);
 
 unsafe impl InstActionAny for InstActionEmpty {
     #[inline]
-    fn typ(&self) -> TmplType {
-        TmplType::ActionEmpty
+    fn typ(&self) -> ActionType {
+        ActionType::Empty
     }
 
     fn animations<'a>(&'a self, animations: &mut Vec<&'a InstAnimation>) {
