@@ -21,43 +21,48 @@ use std::rc::Rc;
 use crate::template::{At, TmplAny, TmplType};
 use crate::utils::{xres, DtHashIndex, DtHashMap, TmplID, VirtualKey, XResult};
 
-pub(crate) fn try_assemble_action(
+pub(crate) fn assemble_action(
     ctx: &ContextActionAssemble<'_>,
     tmpl: At<dyn TmplAny>,
 ) -> XResult<Option<Rc<dyn InstActionAny>>> {
-    let ax: Rc<dyn InstActionAny> = match tmpl.typ() {
-        TmplType::ActionIdle => match InstActionIdle::try_assemble(ctx, unsafe { tmpl.cast_unchecked() }) {
-            Some(ax) => Rc::new(ax),
+    let act: Rc<dyn InstActionAny> = match tmpl.typ() {
+        TmplType::ActionIdle => match InstActionIdle::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
+            Some(act) => Rc::new(act),
             None => return Ok(None),
         },
-        TmplType::ActionMove => match InstActionMove::try_assemble(ctx, unsafe { tmpl.cast_unchecked() }) {
-            Some(ax) => Rc::new(ax),
+        TmplType::NpcActionIdle => match InstActionIdle::new_from_npc_action(unsafe { tmpl.cast_unchecked() }) {
+            Some(act) => Rc::new(act),
             None => return Ok(None),
         },
-        TmplType::ActionGeneral => match InstActionGeneral::try_assemble(ctx, unsafe { tmpl.cast_unchecked() })? {
-            Some(ax) => Rc::new(ax),
+        TmplType::ActionMove => match InstActionMove::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
+            Some(act) => Rc::new(act),
             None => return Ok(None),
         },
-        // TmplType::ActionDodge => match InstActionDodge::try_assemble(ctx, unsafe { tmpl.cast_as_unchecked() }) {
-        //     Some(ax) => Rc::new(ax),
+        TmplType::ActionGeneral => match InstActionGeneral::new_from_action(ctx, unsafe { tmpl.cast_unchecked() })? {
+            Some(act) => Rc::new(act),
+            None => return Ok(None),
+        },
+        // TmplType::ActionDodge => match InstActionDodge::new_from_action(ctx, unsafe { tmpl.cast_as_unchecked() }) {
+        //     Some(act) => Rc::new(act),
         //     None => return Ok(None),
         // },
-        // TmplType::ActionGuard => match InstActionGuard::try_assemble(ctx, unsafe { tmpl.cast_as_unchecked() }) {
-        //     Some(ax) => Rc::new(ax),
+        // TmplType::ActionGuard => match InstActionGuard::new_from_action(ctx, unsafe { tmpl.cast_as_unchecked() }) {
+        //     Some(act) => Rc::new(act),
         //     None => return Ok(None),
         // },
-        // TmplType::ActionAim => match InstActionAim::try_assemble(ctx, unsafe { tmpl.cast_as_unchecked() }) {
-        //     Some(ax) => Rc::new(ax),
+        // TmplType::ActionAim => match InstActionAim::new_from_action(ctx, unsafe { tmpl.cast_as_unchecked() }) {
+        //     Some(act) => Rc::new(act),
         //     None => return Ok(None),
         // },
         _ => return xres!(BadType),
     };
 
-    Ok(Some(ax))
+    Ok(Some(act))
 }
 
 pub(crate) fn collect_action_keys(
     actions: &DtHashMap<TmplID, Rc<dyn InstActionAny>>,
+    collect_derive: bool,
 ) -> XResult<(
     DtHashIndex<VirtualKey, TmplID>,
     DtHashIndex<(TmplID, VirtualKey), InstDeriveRule>,
@@ -71,9 +76,11 @@ pub(crate) fn collect_action_keys(
             primary_rules.insert(enter_key.key, *act_id);
         }
 
-        act.derives(&mut tmp_rules);
-        for rule in tmp_rules.drain(..) {
-            derive_rules.insert((*act_id, rule.key), rule);
+        if collect_derive {
+            act.derives(&mut tmp_rules);
+            for rule in tmp_rules.drain(..) {
+                derive_rules.insert((*act_id, rule.key), rule);
+            }
         }
     }
 

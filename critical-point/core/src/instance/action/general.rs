@@ -3,9 +3,9 @@ use crate::instance::action::base::{
     InstTimelinePoint, InstTimelineRange,
 };
 use crate::template::{
-    At, TmplActionGeneral, TmplActionGeneralMovement, TmplActionGeneralRootMotion, TmplActionGeneralRotation, TmplType,
+    At, TmplActionGeneral, TmplActionGeneralMovement, TmplActionGeneralRootMotion, TmplActionGeneralRotation,
 };
-use crate::utils::{extend, sb, Bitsetable, DeriveContinue, EnumBitset, Symbol, XResult};
+use crate::utils::{extend, sb, ActionType, Bitsetable, DeriveContinue, EnumBitset, Symbol, XResult};
 
 pub type InstActionGeneralMovement = TmplActionGeneralMovement;
 pub type InstActionGeneralRootMotion = TmplActionGeneralRootMotion;
@@ -28,8 +28,8 @@ extend!(InstActionGeneral, InstActionBase);
 
 unsafe impl InstActionAny for InstActionGeneral {
     #[inline]
-    fn typ(&self) -> TmplType {
-        TmplType::ActionGeneral
+    fn typ(&self) -> ActionType {
+        ActionType::General
     }
 
     fn animations<'a>(&'a self, animations: &mut Vec<&'a InstAnimation>) {
@@ -44,7 +44,7 @@ unsafe impl InstActionAny for InstActionGeneral {
 }
 
 impl InstActionGeneral {
-    pub(crate) fn try_assemble(
+    pub(crate) fn new_from_action(
         ctx: &ContextActionAssemble<'_>,
         tmpl: At<TmplActionGeneral>,
     ) -> XResult<Option<InstActionGeneral>> {
@@ -96,15 +96,15 @@ impl InstActionGeneral {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::animation::RootTrackName;
-    use crate::template::{TmplDatabase, TmplHashMap};
-    use crate::utils::{cf2s, id, sb, InputDir, TimeRange, VirtualKey, VirtualKeyDir, LEVEL_ACTION, LEVEL_ATTACK};
-    use ahash::HashMapExt;
+    use crate::template::TmplDatabase;
+    use crate::utils::{
+        cf2s, id, sb, DtHashMap, InputDir, TimeRange, VirtualKey, VirtualKeyDir, LEVEL_ACTION, LEVEL_ATTACK,
+    };
 
     #[test]
-    fn test_assemble() {
+    fn test_new_() {
         let db = TmplDatabase::new(10240, 150).unwrap();
-        let mut var_indexes = TmplHashMap::new();
+        let mut var_indexes = DtHashMap::default();
 
         {
             let tmpl_act = db
@@ -113,7 +113,7 @@ mod tests {
             let ctx = ContextActionAssemble {
                 var_indexes: &var_indexes,
             };
-            assert!(InstActionGeneral::try_assemble(&ctx, tmpl_act).unwrap().is_none());
+            assert!(InstActionGeneral::new_from_action(&ctx, tmpl_act).unwrap().is_none());
         }
         {
             let tmpl_act = db
@@ -123,7 +123,7 @@ mod tests {
             let ctx = ContextActionAssemble {
                 var_indexes: &var_indexes,
             };
-            let inst_act = InstActionGeneral::try_assemble(&ctx, tmpl_act).unwrap().unwrap();
+            let inst_act = InstActionGeneral::new_from_action(&ctx, tmpl_act).unwrap().unwrap();
             assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Attack^1A"));
             assert_eq!(inst_act.tags, vec![sb!("Attack")]);
             assert_eq!(

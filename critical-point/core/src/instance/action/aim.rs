@@ -24,7 +24,7 @@ unsafe impl InstActionAny for InstActionAim {
 }
 
 impl InstActionAim {
-    pub(crate) fn try_assemble(ctx: &mut ContextActionAssemble<'_>, tmpl: Xrc<TmplActionAim>) -> Option<InstActionAim> {
+    pub(crate) fn new_from_action(ctx: &mut ContextActionAssemble<'_>, tmpl: Xrc<TmplActionAim>) -> Option<InstActionAim> {
         if !query_switch(ctx.args, &tmpl.id, &tmpl.enabled) {
             return None;
         }
