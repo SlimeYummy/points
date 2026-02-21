@@ -370,3 +370,373 @@ impl HitMotion {
         self.weapon_tracks.get((hit_id & !TRACK_TYPE_MASK) as usize)
     }
 }
+
+#[derive(Debug)]
+pub struct HitTrackBase {
+    pub hit_id: u16,
+    pub shape: JRef<Shape>,
+    pub typ: HitType,
+    pub group: Symbol,
+    pub group_index: u16,
+    pub start_time: f32,
+    pub finish_time: f32,
+    pos_keys_ptr: *const HitKeyPosition,
+    pos_keys_len: u32,
+    rot_keys_ptr: *const HitKeyRotation,
+    rot_keys_len: u32,
+}
+
+impl HitTrackBase {
+    fn new(
+        hit_id: u16,
+        shape: JRef<Shape>,
+        typ: HitType,
+        group: Symbol,
+        positions_keys: &[HitKeyPosition],
+        rotations_keys: &[HitKeyRotation],
+    ) -> XResult<HitTrackBase> {
+        if positions_keys.len() < 2 {
+            return xresf!(BadAsset; "Positions keys size must >= 2");
+        }
+        if rotations_keys.len() < 2 {
+            return xresf!(BadAsset; "Rotations keys size must >= 2");
+        }
+
+        let pos_start = positions_keys.first().unwrap().time;
+        let rot_start = rotations_keys.first().unwrap().time;
+        if pos_start != rot_start {
+            return xresf!(BadAsset; "Start time mismatch");
+        }
+
+        let pos_finish = positions_keys.last().unwrap().time;
+        let rot_finish = rotations_keys.last().unwrap().time;
+        if pos_finish != rot_finish {
+            return xresf!(BadAsset; "Finish time mismatch");
+        }
+
+        Ok(HitTrackBase {
+            hit_id,
+            shape,
+            typ,
+            group,
+            group_index: 0,
+            start_time: pos_start,
+            finish_time: pos_finish,
+            pos_keys_ptr: positions_keys.as_ptr(),
+            pos_keys_len: positions_keys.len() as u32,
+            rot_keys_ptr: rotations_keys.as_ptr(),
+            rot_keys_len: rotations_keys.len() as u32,
+        })
+    }
+
+    #[inline]
+    pub fn positions_keys(&self) -> &[HitKeyPosition] {
+        unsafe { slice::from_raw_parts(self.pos_keys_ptr, self.pos_keys_len as usize) }
+    }
+
+    #[inline]
+    pub fn rotations_keys(&self) -> &[HitKeyRotation] {
+        unsafe { slice::from_raw_parts(self.rot_keys_ptr, self.rot_keys_len as usize) }
+    }
+}
+
+#[derive(Debug)]
+pub struct HitTrackJoint {
+    pub _base: HitTrackBase,
+    pub joint: Symbol,
+    pub ratio: f32,
+    pub joint2: Symbol,
+}
+
+impl Deref for HitTrackJoint {
+    type Target = HitTrackBase;
+    fn deref(&self) -> &Self::Target {
+        &self._base
+    }
+}
+
+impl DerefMut for HitTrackJoint {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self._base
+    }
+}
+
+impl HitTrackJoint {
+    #[inline]
+    fn from_raw(
+        raw: RawHitTrackJoint,
+        hit_id: u16,
+        shape: JRef<Shape>,
+        pos_keys: &[HitKeyPosition],
+        rot_keys: &[HitKeyRotation],
+    ) -> XResult<HitTrackJoint> {
+        Ok(HitTrackJoint {
+            _base: HitTrackBase::new(
+                hit_id,
+                shape,
+                raw.typ,
+                raw.group,
+                pos_keys,
+                rot_keys,
+            )?,
+            joint: raw.joint,
+            ratio: raw.ratio,
+            joint2: raw.joint2,
+        })
+    }
+
+    #[inline]
+    fn from_archived(
+        raw: &ArchivedRawHitTrackJoint,
+        hit_id: u16,
+        shape: JRef<Shape>,
+        pos_keys: &[HitKeyPosition],
+        rot_keys: &[HitKeyRotation],
+    ) -> XResult<HitTrackJoint> {
+        Ok(HitTrackJoint{
+            _base: HitTrackBase::new(
+                hit_id,
+                shape,
+                raw.typ,
+                Symbol::new(raw.group.as_str())?,
+                pos_keys,
+                rot_keys
+            )?,
+            joint: Symbol::new(raw.joint.as_str())?,
+            ratio: raw.ratio.into(),
+            joint2: Symbol::new(raw.joint2.as_str())?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct HitTrackWeapon {
+    pub _base: HitTrackBase,
+    pub weapon: Symbol,
+}
+
+impl Deref for HitTrackWeapon {
+    type Target = HitTrackBase;
+    fn deref(&self) -> &Self::Target {
+        &self._base
+    }
+}
+
+impl DerefMut for HitTrackWeapon {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self._base
+    }
+}
+
+impl HitTrackWeapon {
+    #[inline]
+    fn from_raw(
+        raw: RawHitTrackWeapon,
+        hit_id: u16,
+        shape: JRef<Shape>,
+        pos_keys: &[HitKeyPosition],
+        rot_keys: &[HitKeyRotation],
+    ) -> XResult<HitTrackWeapon> {
+        Ok(HitTrackWeapon {
+            _base: 
+            HitTrackBase::new(
+                hit_id,
+                shape,
+                raw.typ,
+                raw.group,
+                pos_keys,
+                rot_keys,
+            )?,
+            weapon: raw.weapon
+        })
+    }
+
+    #[inline]
+    fn from_archived(
+        raw: &ArchivedRawHitTrackWeapon,
+        hit_id: u16,
+        shape: JRef<Shape>,
+        pos_keys: &[HitKeyPosition],
+        rot_keys: &[HitKeyRotation],
+    ) -> XResult<HitTrackWeapon> {
+        Ok(HitTrackWeapon {
+            _base: HitTrackBase::new(
+                hit_id,
+                shape,
+                raw.typ,
+                Symbol::new(raw.group.as_str())?,
+                pos_keys,
+                rot_keys,
+            )?,
+            weapon: Symbol::new(raw.weapon.as_str())?,
+        })
+    }
+}
+
+#[repr(C)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+pub struct HitKeyPosition {
+    pub time: f32,
+    value: [f32; 3],
+    #[serde(skip)]
+    _padding: f32,
+}
+
+impl HitKeyPosition {
+    #[allow(dead_code)]
+    #[inline(always)]
+    pub fn new(time: f32, value: Vec3A) -> HitKeyPosition {
+        HitKeyPosition {
+            time,
+            value: value.to_array(),
+            _padding: 0.0,
+        }
+    }
+
+    #[inline(always)]
+    pub fn value(&self) -> Vec3A {
+        Vec3A::from_array(self.value)
+    }
+}
+
+#[repr(C)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+pub struct HitKeyRotation {
+    pub time: f32,
+    value: [f32; 4],
+}
+
+impl HitKeyRotation {
+    #[allow(dead_code)]
+    #[inline(always)]
+    pub fn new(time: f32, value: Quat) -> HitKeyRotation {
+        HitKeyRotation {
+            time,
+            value: value.to_array(),
+        }
+    }
+
+    #[inline(always)]
+    pub fn value(&self) -> Quat {
+        Quat::from_array(self.value)
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+struct HitKeyInner {
+    time: f32,
+    value: [f32; 4],
+}
+
+const_assert_eq!(mem::size_of::<HitKeyPosition>(), mem::size_of::<HitKeyInner>());
+const_assert_eq!(mem::size_of::<HitKeyRotation>(), mem::size_of::<HitKeyInner>());
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::consts::TEST_ASSET_PATH;
+    use crate::utils::sb;
+    use std::fs::File;
+    use std::io::Read;
+
+    fn check_hit_motion(hit_motion: &HitMotion) {
+        assert_eq!(hit_motion.keyframes_buf.len(), 16);
+
+        assert_eq!(hit_motion.joint_tracks.len(), 2);
+
+        assert_eq!(hit_motion.joint_tracks[0].hit_id, 0);
+        assert!(hit_motion.joint_tracks[0].shape.count_ref() > 0);
+        assert_eq!(hit_motion.joint_tracks[0].typ, HitType::Health);
+        assert_eq!(hit_motion.joint_tracks[0].group, sb!("Health"));
+        assert_eq!(hit_motion.joint_tracks[0].joint, sb!("Spine"));
+        assert_eq!(hit_motion.joint_tracks[0].ratio, 0.5);
+        assert_eq!(hit_motion.joint_tracks[0].joint2, sb!(""));
+        assert_eq!(hit_motion.joint_tracks[0].positions_keys(), &[
+            HitKeyPosition::new(0.5, Vec3A::new(0.0, 0.0, 0.0)),
+            HitKeyPosition::new(0.8333333, Vec3A::new(0.0, 0.0, 0.0)),
+        ]);
+        assert_eq!(hit_motion.joint_tracks[0].rotations_keys(), &[
+            HitKeyRotation::new(0.5, Quat::from_xyzw(0.0, 0.0, 0.0, 1.0)),
+            HitKeyRotation::new(0.8333333, Quat::from_xyzw(0.0, 0.0, 0.0, 1.0)),
+        ]);
+
+        assert_eq!(hit_motion.joint_tracks[1].hit_id, 1);
+        assert!(hit_motion.joint_tracks[1].shape.count_ref() > 0);
+        assert_eq!(hit_motion.joint_tracks[1].typ, HitType::Counter);
+        assert_eq!(hit_motion.joint_tracks[1].group, sb!("Counter"));
+        assert_eq!(hit_motion.joint_tracks[1].joint, sb!("LeftHand"));
+        assert_eq!(hit_motion.joint_tracks[1].ratio, 0.2);
+        assert_eq!(hit_motion.joint_tracks[1].joint2, sb!("LeftLowerArm"));
+        assert_eq!(hit_motion.joint_tracks[1].positions_keys(), &[
+            HitKeyPosition::new(1.0, Vec3A::new(0.1, 0.1, 0.0)),
+            HitKeyPosition::new(1.13333333, Vec3A::new(0.1, 0.1, 0.0)),
+        ]);
+        assert_eq!(hit_motion.joint_tracks[1].rotations_keys(), &[
+            HitKeyRotation::new(1.0, Quat::from_xyzw(1.0, 0.0, 0.0, 0.0)),
+            HitKeyRotation::new(1.13333333, Quat::from_xyzw(1.0, 0.0, 0.0, 0.0)),
+        ]);
+
+        assert_eq!(hit_motion.weapon_tracks.len(), 2);
+
+        assert_eq!(hit_motion.weapon_tracks[0].hit_id, 2);
+        assert!(hit_motion.weapon_tracks[0].shape.count_ref() > 0);
+        assert_eq!(hit_motion.weapon_tracks[0].typ, HitType::Attack);
+        assert_eq!(hit_motion.weapon_tracks[0].group, sb!("Axe"));
+        assert_eq!(hit_motion.weapon_tracks[0].weapon, sb!("Axe"));
+        assert_eq!(hit_motion.weapon_tracks[0].positions_keys(), &[
+            HitKeyPosition::new(1.05, Vec3A::new(0.0, -0.15, -0.7)),
+            HitKeyPosition::new(1.2, Vec3A::new(0.0, -0.15, -0.7)),
+        ]);
+        assert_eq!(hit_motion.weapon_tracks[0].rotations_keys(), &[
+            HitKeyRotation::new(1.05, Quat::from_xyzw(0.7071068, 0.0, 0.0, 0.7071068)),
+            HitKeyRotation::new(1.2, Quat::from_xyzw(0.7071068, 0.0, 0.0, 0.7071068)),
+        ]);
+
+        assert_eq!(hit_motion.weapon_tracks[1].hit_id, 3);
+        assert!(hit_motion.weapon_tracks[1].shape.count_ref() > 0);
+        assert_eq!(hit_motion.weapon_tracks[1].typ, HitType::Attack);
+        assert_eq!(hit_motion.weapon_tracks[1].group, sb!("Axe"));
+        assert_eq!(hit_motion.weapon_tracks[1].weapon, sb!("Axe"));
+        assert_eq!(hit_motion.weapon_tracks[1].positions_keys(), &[
+            HitKeyPosition::new(1.2166667, Vec3A::new(0.0, -0.15, -0.7)),
+            HitKeyPosition::new(1.36666667, Vec3A::new(0.0, -0.15, -0.7)),
+        ]);
+        assert_eq!(hit_motion.weapon_tracks[1].rotations_keys(), &[
+            HitKeyRotation::new(1.2166667, Quat::from_xyzw(0.7071068, 0.0, 0.0, 0.7071068)),
+            HitKeyRotation::new(1.36666667, Quat::from_xyzw(0.7071068, 0.0, 0.0, 0.7071068)),
+        ]);
+    }
+
+    #[test]
+    fn test_hit_motion_from_json_reader() {
+        let json_path = format!("{}/TestDemo.hm-json", TEST_ASSET_PATH);
+        let mut json_file = File::open(&json_path).unwrap();
+        let mut json_buf = Vec::new();
+        json_file.read_to_end(&mut json_buf).unwrap();
+        let hit_motion = HitMotion::from_json_bytes(&json_buf, Some(&json_path)).unwrap();
+        check_hit_motion(&hit_motion);
+    }
+}
