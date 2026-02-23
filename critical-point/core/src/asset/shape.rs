@@ -7,26 +7,15 @@ use jolt_physics_rs::{
 };
 
 use crate::asset::loader::AssetLoader;
-use crate::utils::{xfrom, ShapeBox, ShapeCapsule, ShapeSphere, Symbol, XResult};
+use crate::utils::{
+    default_axis_y, default_position, default_rotation, default_scale, xfrom, ShapeBox, ShapeCapsule, ShapeCylinder,
+    ShapeSphere, ShapeTaperedCapsule, ShapeTaperedCylinder, Symbol, XResult,
+};
 
-#[inline(always)]
-pub(crate) fn default_position() -> Vec3A {
-    Vec3A::ZERO
-}
-
-#[inline(always)]
-pub(crate) fn default_rotation() -> Quat {
-    Quat::IDENTITY
-}
-
-#[inline(always)]
-pub(crate) fn default_scale() -> Vec3A {
-    Vec3A::ONE
-}
-
-#[inline(always)]
-fn default_axis_y() -> Vec3A {
-    Vec3A::Y
+impl AssetLoader {
+    pub fn load_physics_shape_cached(&mut self, _shape: AssetShape) -> XResult<JRef<Shape>> {
+        unimplemented!();
+    }
 }
 
 #[derive(Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize)]
@@ -41,10 +30,43 @@ pub enum AssetShape {
     ConvexHull(AssetShapeConvexHull),
     Triangle(AssetShapeTriangle),
     Plane(AssetShapePlane),
-    MeshEmbedded(AssetShapeMeshEmbedded),
     Mesh(AssetShapeMesh),
-    HeightFieldEmbedded(AssetShapeHeightFieldEmbedded),
     HeightField(AssetShapeHeightField),
+}
+
+impl AssetShape {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        match self {
+            AssetShape::Box(shape) => shape.create_physics(),
+            AssetShape::Sphere(shape) => shape.create_physics(),
+            AssetShape::Capsule(shape) => shape.create_physics(),
+            AssetShape::TaperedCapsule(shape) => shape.create_physics(),
+            AssetShape::Cylinder(shape) => shape.create_physics(),
+            AssetShape::TaperedCylinder(shape) => shape.create_physics(),
+            AssetShape::ConvexHull(shape) => shape.create_physics(),
+            AssetShape::Triangle(shape) => shape.create_physics(),
+            AssetShape::Plane(shape) => shape.create_physics(),
+            AssetShape::Mesh(shape) => shape.create_physics(),
+            AssetShape::HeightField(shape) => shape.create_physics(),
+        }
+    }
+
+    fn apply_shape_transform(
+        mut jolt_shape: JRef<Shape>,
+        scale: &Vec3A,
+        position: &Vec3A,
+        rotation: &Quat,
+    ) -> XResult<JRef<Shape>> {
+        if *scale != Vec3A::ONE {
+            let settings = ScaledShapeSettings::new(jolt_shape, *scale);
+            jolt_shape = jolt::create_scaled_shape(&settings).map_err(xfrom!())?;
+        }
+        if *position != Vec3A::ZERO || *rotation != Quat::IDENTITY {
+            let settings = RotatedTranslatedShapeSettings::new(jolt_shape, *position, *rotation);
+            jolt_shape = jolt::create_rotated_translated_shape(&settings).map_err(xfrom!())?;
+        }
+        Ok(jolt_shape)
+    }
 }
 
 #[derive(
@@ -66,6 +88,14 @@ impl From<ShapeSphere> for AssetShapeSphere {
             radius: shape.radius,
             ..Default::default()
         }
+    }
+}
+
+impl AssetShapeSphere {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        let settings = SphereShapeSettings::new(self.radius);
+        let jolt_shape = jolt::create_sphere_shape(&settings).map_err(xfrom!())?;
+        AssetShape::apply_shape_transform(jolt_shape, &self.scale, &self.position, &self.rotation)
     }
 }
 
@@ -96,6 +126,17 @@ impl From<ShapeBox> for AssetShapeBox {
     }
 }
 
+impl AssetShapeBox {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        let mut settings = BoxShapeSettings::new(self.half_x, self.half_y, self.half_z);
+        if self.convex_radius >= 0.0 {
+            settings.convex_radius = self.convex_radius;
+        }
+        let jolt_shape = jolt::create_box_shape(&settings).map_err(xfrom!())?;
+        AssetShape::apply_shape_transform(jolt_shape, &self.scale, &self.position, &self.rotation)
+    }
+}
+
 #[derive(
     Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
@@ -120,6 +161,14 @@ impl From<ShapeCapsule> for AssetShapeCapsule {
     }
 }
 
+impl AssetShapeCapsule {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        let settings = CapsuleShapeSettings::new(self.half_height, self.radius);
+        let jolt_shape = jolt::create_capsule_shape(&settings).map_err(xfrom!())?;
+        AssetShape::apply_shape_transform(jolt_shape, &self.scale, &self.position, &self.rotation)
+    }
+}
+
 #[derive(
     Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
@@ -135,6 +184,25 @@ pub struct AssetShapeTaperedCapsule {
     pub rotation: Quat,
 }
 
+impl From<ShapeTaperedCapsule> for AssetShapeTaperedCapsule {
+    fn from(shape: ShapeTaperedCapsule) -> AssetShapeTaperedCapsule {
+        AssetShapeTaperedCapsule {
+            half_height: shape.half_height,
+            top_radius: shape.top_radius,
+            bottom_radius: shape.bottom_radius,
+            ..Default::default()
+        }
+    }
+}
+
+impl AssetShapeTaperedCapsule {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        let settings = TaperedCapsuleShapeSettings::new(self.half_height, self.top_radius, self.bottom_radius);
+        let jolt_shape = jolt::create_tapered_capsule_shape(&settings).map_err(xfrom!())?;
+        AssetShape::apply_shape_transform(jolt_shape, &self.scale, &self.position, &self.rotation)
+    }
+}
+
 #[derive(
     Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
@@ -148,6 +216,27 @@ pub struct AssetShapeCylinder {
     pub position: Vec3A,
     #[serde(default = "default_rotation")]
     pub rotation: Quat,
+}
+
+impl From<ShapeCylinder> for AssetShapeCylinder {
+    fn from(shape: ShapeCylinder) -> AssetShapeCylinder {
+        AssetShapeCylinder {
+            half_height: shape.half_height,
+            radius: shape.radius,
+            ..Default::default()
+        }
+    }
+}
+
+impl AssetShapeCylinder {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        let mut settings = CylinderShapeSettings::new(self.radius, self.half_height);
+        if self.convex_radius >= 0.0 {
+            settings.convex_radius = self.convex_radius;
+        }
+        let jolt_shape = jolt::create_cylinder_shape(&settings).map_err(xfrom!())?;
+        AssetShape::apply_shape_transform(jolt_shape, &self.scale, &self.position, &self.rotation)
+    }
 }
 
 #[derive(
@@ -166,6 +255,28 @@ pub struct AssetShapeTaperedCylinder {
     pub rotation: Quat,
 }
 
+impl From<ShapeTaperedCylinder> for AssetShapeTaperedCylinder {
+    fn from(shape: ShapeTaperedCylinder) -> AssetShapeTaperedCylinder {
+        AssetShapeTaperedCylinder {
+            half_height: shape.half_height,
+            top_radius: shape.top_radius,
+            bottom_radius: shape.bottom_radius,
+            ..Default::default()
+        }
+    }
+}
+
+impl AssetShapeTaperedCylinder {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        let mut settings = TaperedCylinderShapeSettings::new(self.half_height, self.top_radius, self.bottom_radius);
+        if self.convex_radius >= 0.0 {
+            settings.convex_radius = self.convex_radius;
+        }
+        let jolt_shape = jolt::create_tapered_cylinder_shape(&settings).map_err(xfrom!())?;
+        AssetShape::apply_shape_transform(jolt_shape, &self.scale, &self.position, &self.rotation)
+    }
+}
+
 #[derive(
     Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
@@ -175,26 +286,47 @@ pub struct AssetShapeConvexHull {
     pub max_error_convex_radius: f32,
     pub hull_tolerance: f32,
     pub convex_radius: f32,
-    #[serde(default = "default_scale")]
-    pub scale: Vec3A,
     #[serde(default = "default_position")]
     pub position: Vec3A,
     #[serde(default = "default_rotation")]
     pub rotation: Quat,
 }
 
+impl AssetShapeConvexHull {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        let mut settings = ConvexHullShapeSettings::new(&self.points);
+        if self.max_convex_radius >= 0.0 {
+            settings.max_convex_radius = self.max_convex_radius;
+        }
+        if self.max_error_convex_radius >= 0.0 {
+            settings.max_error_convex_radius = self.max_error_convex_radius;
+        }
+        let jolt_shape = jolt::create_convex_hull_shape(&settings).map_err(xfrom!())?;
+        AssetShape::apply_shape_transform(jolt_shape, &Vec3A::ONE, &self.position, &self.rotation)
+    }
+}
+
 #[derive(
     Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
 pub struct AssetShapeTriangle {
-    pub vertices: [Vec3A; 3],
+    pub vertices: [Vec3; 3],
     pub convex_radius: f32,
-    #[serde(default = "default_scale")]
-    pub scale: Vec3A,
     #[serde(default = "default_position")]
     pub position: Vec3A,
     #[serde(default = "default_rotation")]
     pub rotation: Quat,
+}
+
+impl AssetShapeTriangle {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        let mut settings = TriangleShapeSettings::new(self.vertices[0].into(), self.vertices[1].into(), self.vertices[2].into());
+        if self.convex_radius >= 0.0 {
+            settings.convex_radius = self.convex_radius;
+        }
+        let jolt_shape = jolt::create_triangle_shape(&settings).map_err(xfrom!())?;
+        AssetShape::apply_shape_transform(jolt_shape, &Vec3A::ONE, &self.position, &self.rotation)
+    }
 }
 
 #[derive(
@@ -213,194 +345,114 @@ pub struct AssetShapePlane {
     pub rotation: Quat,
 }
 
-#[derive(
-    Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
-)]
-pub struct AssetShapeMeshEmbedded {
-    pub triangle_vertices: Vec<Vec3>,
-    pub indexed_triangles: Vec<IndexedTriangle>,
-    #[serde(default = "default_scale")]
-    pub scale: Vec3A,
-    #[serde(default = "default_position")]
-    pub position: Vec3A,
-    #[serde(default = "default_rotation")]
-    pub rotation: Quat,
+impl AssetShapePlane {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        let plane = Plane::new(self.normal.into(), self.distance);
+        let settings = PlaneShapeSettings::new(plane, self.half_extent);
+        let jolt_shape = jolt::create_plane_shape(&settings).map_err(xfrom!())?;
+        AssetShape::apply_shape_transform(jolt_shape, &self.scale, &self.position, &self.rotation)
+    }
 }
 
 #[derive(
     Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
 pub struct AssetShapeMesh {
-    pub file: Symbol,
-    #[serde(default = "default_scale")]
-    pub scale: Vec3A,
+    pub triangle_vertices: Vec<Vec3>,
+    pub indexed_triangles: Vec<IndexedTriangle>,
     #[serde(default = "default_position")]
     pub position: Vec3A,
     #[serde(default = "default_rotation")]
     pub rotation: Quat,
 }
 
+impl AssetShapeMesh {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        let settings = MeshShapeSettings::new(&self.triangle_vertices, &self.indexed_triangles);
+        let jolt_shape = jolt::create_mesh_shape(&settings).map_err(xfrom!())?;
+        AssetShape::apply_shape_transform(jolt_shape, &Vec3A::ONE, &self.position, &self.rotation)
+    }
+}
+
 #[derive(
     Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
-pub struct AssetShapeHeightFieldEmbedded {
-    pub sample_count: u32,
-    pub min_height: f32,
-    pub max_height: f32,
-    pub heights: Vec<f32>,
-    #[serde(default = "default_scale")]
-    pub scale: Vec3A,
+pub struct AssetShapeMeshFile {
+    pub file: Symbol,
     #[serde(default = "default_position")]
     pub position: Vec3A,
     #[serde(default = "default_rotation")]
     pub rotation: Quat,
+}
+
+impl AssetShapeMeshFile {
+    fn create_physics(&self) -> XResult<JRef<Shape>> {
+        unimplemented!()
+    }
 }
 
 #[derive(
     Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
 pub struct AssetShapeHeightField {
-    pub file: Symbol,
     pub sample_count: u32,
     pub min_height: f32,
     pub max_height: f32,
-    #[serde(default = "default_scale")]
-    pub scale: Vec3A,
+    pub heights: Vec<f32>,
     #[serde(default = "default_position")]
     pub position: Vec3A,
     #[serde(default = "default_rotation")]
     pub rotation: Quat,
 }
 
-impl AssetLoader {
-    pub fn load_shape(&mut self, shape: &AssetShape) -> XResult<JRef<Shape>> {
-        match shape {
-            AssetShape::Box(shape) => self.load_shape_box(&shape),
-            AssetShape::Sphere(shape) => self.load_shape_sphere(&shape),
-            AssetShape::Capsule(shape) => self.load_shape_capsule(&shape),
-            AssetShape::TaperedCapsule(shape) => self.load_shape_tapered_capsule(&shape),
-            AssetShape::Cylinder(shape) => self.load_shape_cylinder(&shape),
-            AssetShape::TaperedCylinder(shape) => self.load_shape_tapered_cylinder(&shape),
-            AssetShape::ConvexHull(shape) => self.load_shape_convex_hull(&shape),
-            AssetShape::Triangle(shape) => self.load_shape_triangle(&shape),
-            AssetShape::Plane(shape) => self.load_shape_plane(&shape),
-            AssetShape::MeshEmbedded(shape) => self.load_shape_mesh_embedded(&shape),
-            AssetShape::Mesh(shape) => self.load_shape_mesh(&shape),
-            AssetShape::HeightFieldEmbedded(shape) => self.load_shape_height_field_embedded(&shape),
-            AssetShape::HeightField(shape) => self.load_shape_height_field(&shape),
-        }
-    }
-
-    fn load_shape_box(&mut self, shape: &AssetShapeBox) -> XResult<JRef<Shape>> {
-        let mut settings = BoxShapeSettings::new(shape.half_x, shape.half_y, shape.half_z);
-        if shape.convex_radius >= 0.0 {
-            settings.convex_radius = shape.convex_radius;
-        }
-        let jolt_shape = jolt::create_box_shape(&settings).map_err(xfrom!())?;
-        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
-    }
-
-    fn load_shape_sphere(&mut self, shape: &AssetShapeSphere) -> XResult<JRef<Shape>> {
-        let settings = SphereShapeSettings::new(shape.radius);
-        let jolt_shape = jolt::create_sphere_shape(&settings).map_err(xfrom!())?;
-        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
-    }
-
-    fn load_shape_capsule(&mut self, shape: &AssetShapeCapsule) -> XResult<JRef<Shape>> {
-        let settings = CapsuleShapeSettings::new(shape.half_height, shape.radius);
-        let jolt_shape = jolt::create_capsule_shape(&settings).map_err(xfrom!())?;
-        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
-    }
-
-    fn load_shape_tapered_capsule(&mut self, shape: &AssetShapeTaperedCapsule) -> XResult<JRef<Shape>> {
-        let settings = TaperedCapsuleShapeSettings::new(shape.half_height, shape.top_radius, shape.bottom_radius);
-        let jolt_shape = jolt::create_tapered_capsule_shape(&settings).map_err(xfrom!())?;
-        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
-    }
-
-    fn load_shape_cylinder(&mut self, shape: &AssetShapeCylinder) -> XResult<JRef<Shape>> {
-        let mut settings = CylinderShapeSettings::new(shape.radius, shape.half_height);
-        if shape.convex_radius >= 0.0 {
-            settings.convex_radius = shape.convex_radius;
-        }
-        let jolt_shape = jolt::create_cylinder_shape(&settings).map_err(xfrom!())?;
-        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
-    }
-
-    fn load_shape_tapered_cylinder(&mut self, shape: &AssetShapeTaperedCylinder) -> XResult<JRef<Shape>> {
-        let mut settings = TaperedCylinderShapeSettings::new(shape.half_height, shape.top_radius, shape.bottom_radius);
-        if shape.convex_radius >= 0.0 {
-            settings.convex_radius = shape.convex_radius;
-        }
-        let jolt_shape = jolt::create_tapered_cylinder_shape(&settings).map_err(xfrom!())?;
-        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
-    }
-
-    fn load_shape_convex_hull(&mut self, shape: &AssetShapeConvexHull) -> XResult<JRef<Shape>> {
-        let mut settings = ConvexHullShapeSettings::new(&shape.points);
-        if shape.max_convex_radius >= 0.0 {
-            settings.max_convex_radius = shape.max_convex_radius;
-        }
-        if shape.max_error_convex_radius >= 0.0 {
-            settings.max_error_convex_radius = shape.max_error_convex_radius;
-        }
-        let jolt_shape = jolt::create_convex_hull_shape(&settings).map_err(xfrom!())?;
-        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
-    }
-
-    fn load_shape_triangle(&mut self, shape: &AssetShapeTriangle) -> XResult<JRef<Shape>> {
-        let mut settings = TriangleShapeSettings::new(shape.vertices[0], shape.vertices[1], shape.vertices[2]);
-        if shape.convex_radius >= 0.0 {
-            settings.convex_radius = shape.convex_radius;
-        }
-        let jolt_shape = jolt::create_triangle_shape(&settings).map_err(xfrom!())?;
-        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
-    }
-
-    fn load_shape_plane(&mut self, shape: &AssetShapePlane) -> XResult<JRef<Shape>> {
-        let plane = Plane::new(shape.normal.into(), shape.distance);
-        let settings = PlaneShapeSettings::new(plane, shape.half_extent);
-        let jolt_shape = jolt::create_plane_shape(&settings).map_err(xfrom!())?;
-        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
-    }
-
-    fn load_shape_mesh_embedded(&mut self, shape: &AssetShapeMeshEmbedded) -> XResult<JRef<Shape>> {
-        let settings = MeshShapeSettings::new(&shape.triangle_vertices, &shape.indexed_triangles);
-        let jolt_shape = jolt::create_mesh_shape(&settings).map_err(xfrom!())?;
-        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
-    }
-
-    fn load_shape_mesh(&mut self, _shape: &AssetShapeMesh) -> XResult<JRef<Shape>> {
-        unimplemented!()
-    }
-
-    fn load_shape_height_field_embedded(&mut self, shape: &AssetShapeHeightFieldEmbedded) -> XResult<JRef<Shape>> {
-        let mut settings = HeightFieldShapeSettings::new(&shape.heights, shape.sample_count);
-        settings.min_height_value = shape.min_height;
-        settings.max_height_value = shape.max_height;
+impl AssetShapeHeightField {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
+        let mut settings = HeightFieldShapeSettings::new(&self.heights, self.sample_count);
+        settings.min_height_value = self.min_height;
+        settings.max_height_value = self.max_height;
         let jolt_shape = jolt::create_height_field_shape(&settings).map_err(xfrom!())?;
-        self.apply_shape_transform(jolt_shape, &shape.scale, &shape.position, &shape.rotation)
+        AssetShape::apply_shape_transform(jolt_shape, &Vec3A::ONE, &self.position, &self.rotation)
     }
+}
 
-    fn load_shape_height_field(&mut self, _shape: &AssetShapeHeightField) -> XResult<JRef<Shape>> {
+#[derive(
+    Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
+)]
+pub struct AssetShapeHeightFieldFile {
+    pub file: Symbol,
+    pub sample_count: u32,
+    pub min_height: f32,
+    pub max_height: f32,
+    #[serde(default = "default_position")]
+    pub position: Vec3A,
+    #[serde(default = "default_rotation")]
+    pub rotation: Quat,
+}
+
+impl AssetShapeHeightFieldFile {
+    pub fn create_physics(&self) -> XResult<JRef<Shape>> {
         unimplemented!()
     }
+}
 
-    fn apply_shape_transform(
-        &mut self,
-        mut jolt_shape: JRef<Shape>,
-        scale: &Vec3A,
-        position: &Vec3A,
-        rotation: &Quat,
-    ) -> XResult<JRef<Shape>> {
-        if *scale != Vec3A::ONE {
-            let settings = ScaledShapeSettings::new(jolt_shape, *scale);
-            jolt_shape = jolt::create_scaled_shape(&settings).map_err(xfrom!())?;
-        }
-        if *position != Vec3A::ZERO || *rotation != Quat::IDENTITY {
-            let settings = RotatedTranslatedShapeSettings::new(jolt_shape, *position, *rotation);
-            jolt_shape = jolt::create_rotated_translated_shape(&settings).map_err(xfrom!())?;
-        }
-        Ok(jolt_shape)
-    }
+#[derive(
+    Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
+)]
+pub struct AssetIndxedCompoundShape {
+    pub sub_shapes: Vec<AssetIndexedSubshape>,
+    #[serde(default = "default_position")]
+    pub position: Vec3A,
+    #[serde(default = "default_rotation")]
+    pub rotation: Quat,
+}
+
+#[derive(
+    Default, Debug, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
+)]
+pub struct AssetIndexedSubshape {
+    pub shape_index: u32,
+    #[serde(default = "default_position")]
+    pub position: Vec3A,
+    #[serde(default = "default_rotation")]
+    pub rotation: Quat,
 }
