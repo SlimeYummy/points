@@ -5,20 +5,19 @@ use std::hint::likely;
 use std::io::{ErrorKind, Read};
 use std::ops::Index;
 use std::path::Path;
-use tinyvec::TinyVec;
 
 use crate::animation::utils::WeaponTransform;
 use crate::utils::{ifelse, strict_gt, xres, Symbol, XResult};
 
 #[derive(Debug)]
 pub struct WeaponMotion {
-    tracks: TinyVec<[WeaponTracks; 2]>,
+    tracks: Vec<WeaponTrack>,
 }
 
 impl WeaponMotion {
     #[inline]
     pub fn from_archive(archive: &mut Archive<impl Read>) -> XResult<WeaponMotion> {
-        let mut tracks = TinyVec::new();
+        let mut tracks = Vec::with_capacity(2);
         loop {
             let position = match Track::<Vec3>::from_archive(archive) {
                 Ok(track) => track,
@@ -34,7 +33,7 @@ impl WeaponMotion {
                 return xres!(BadAsset; "name missmatch");
             }
 
-            tracks.push(WeaponTracks {
+            tracks.push(WeaponTrack {
                 name: Symbol::new(pos_name)?,
                 position,
                 rotation,
@@ -78,12 +77,12 @@ impl WeaponMotion {
     }
 
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = &WeaponTracks> {
+    pub fn iter(&self) -> impl Iterator<Item = &WeaponTrack> {
         self.tracks.iter()
     }
 
     #[inline]
-    pub fn get(&self, index: usize) -> Option<&WeaponTracks> {
+    pub fn get(&self, index: usize) -> Option<&WeaponTrack> {
         self.tracks.get(index)
     }
 
@@ -94,7 +93,7 @@ impl WeaponMotion {
 }
 
 impl Index<usize> for WeaponMotion {
-    type Output = WeaponTracks;
+    type Output = WeaponTrack;
 
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
@@ -103,13 +102,13 @@ impl Index<usize> for WeaponMotion {
 }
 
 #[derive(Debug, Default)]
-pub struct WeaponTracks {
+pub struct WeaponTrack {
     name: Symbol,
     position: Track<Vec3>,
     rotation: Track<Quat>,
 }
 
-impl WeaponTracks {
+impl WeaponTrack {
     #[inline]
     pub fn name(&self) -> Symbol {
         self.name
@@ -207,7 +206,7 @@ mod tests {
         assert_eq!(transform[0].weight, 1.2);
         let (pos2, rot2) = tracks.tracks[0].sample(0.6).unwrap();
         assert_eq!(transform[0].position, pos2 * 0.7 + pos1 * 0.5);
-        assert_eq!(transform[0].rotation, rot2 * 0.7 + rot1 * 0.5);
+        assert_eq!(transform[0].rotation, -rot2 * 0.7 + rot1 * 0.5);
     }
 
     #[test]
