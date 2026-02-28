@@ -1,5 +1,4 @@
 use critical_point_csgen::{CsEnum, CsOut};
-use enum_iterator::{cardinality, Sequence};
 use glam::Vec3A;
 use glam_ext::Vec2xz;
 use std::alloc::Layout;
@@ -7,78 +6,13 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::hint::unlikely;
 use std::rc::Rc;
-use std::{mem, u32};
 
 use crate::consts::{MAX_ACTION_ANIMATION, SPF};
 use crate::instance::{InstActionAny, InstAnimation};
 use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::ContextUpdate;
 use crate::logic::system::input::InputVariables;
-use crate::template::TmplType;
-use crate::utils::{interface, rkyv_self, xres, CustomEvent, NumID, Symbol, TmplID, XError, XResult};
-
-#[repr(u16)]
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash, Sequence, serde::Serialize, serde::Deserialize, CsEnum,
-)]
-pub enum StateActionType {
-    Empty,
-    Idle,
-    Move,
-    General,
-}
-
-rkyv_self!(StateActionType);
-
-impl StateActionType {
-    #[inline]
-    pub fn tmpl_typ(&self) -> TmplType {
-        match self {
-            StateActionType::Empty => TmplType::ActionEmpty,
-            StateActionType::Idle => TmplType::ActionIdle,
-            StateActionType::Move => TmplType::ActionMove,
-            StateActionType::General => TmplType::ActionGeneral,
-        }
-    }
-}
-
-impl From<StateActionType> for u16 {
-    #[inline]
-    fn from(val: StateActionType) -> Self {
-        unsafe { mem::transmute::<StateActionType, u16>(val) }
-    }
-}
-
-impl TryFrom<u16> for StateActionType {
-    type Error = XError;
-
-    #[inline]
-    fn try_from(value: u16) -> XResult<Self> {
-        if value as usize >= cardinality::<StateActionType>() {
-            return xres!(Overflow);
-        }
-        Ok(unsafe { mem::transmute::<u16, StateActionType>(value) })
-    }
-}
-
-impl From<StateActionType> for rkyv::primitive::ArchivedU16 {
-    #[inline]
-    fn from(val: StateActionType) -> Self {
-        unsafe { mem::transmute::<StateActionType, u16>(val) }.into()
-    }
-}
-
-impl TryFrom<rkyv::primitive::ArchivedU16> for StateActionType {
-    type Error = XError;
-
-    #[inline]
-    fn try_from(val: rkyv::primitive::ArchivedU16) -> XResult<Self> {
-        if val.to_native() as usize >= cardinality::<StateActionType>() {
-            return xres!(Overflow);
-        }
-        Ok(unsafe { mem::transmute::<u16, StateActionType>(val.to_native()) })
-    }
-}
+use crate::utils::{interface, rkyv_self, xres, ActionType, ArrayVec, CustomEvent, NumID, Symbol, TmplID, XResult};
 
 //
 // StateActionAny & StateActionBase
@@ -90,8 +24,7 @@ where
     Self: Debug + Any + Send + Sync,
 {
     fn id(&self) -> NumID;
-    fn typ(&self) -> StateActionType;
-    fn tmpl_typ(&self) -> TmplType;
+    fn typ(&self) -> ActionType;
     fn layout(&self) -> Layout;
 }
 
@@ -112,15 +45,14 @@ where
 pub struct StateActionBase {
     pub id: NumID,
     pub tmpl_id: TmplID,
-    pub typ: StateActionType,
-    pub tmpl_typ: TmplType,
+    pub typ: ActionType,
     pub status: LogicActionStatus,
     pub first_frame: u32,
     pub last_frame: u32,
     pub fade_in_weight: f32,
     pub derive_level: u16,
     pub poise_level: u16,
-    pub animations: [StateActionAnimation; MAX_ACTION_ANIMATION],
+    pub animations: ArrayVec<StateActionAnimation, MAX_ACTION_ANIMATION>,
 }
 
 interface!(StateActionAny, StateActionBase);
@@ -133,12 +65,11 @@ impl Drop for StateActionBase {
 }
 
 impl StateActionBase {
-    pub fn new(typ: StateActionType, tmpl_typ: TmplType) -> StateActionBase {
+    pub fn new(typ: ActionType) -> StateActionBase {
         StateActionBase {
-            id: 0,
+            id: NumID::INVALID,
             tmpl_id: TmplID::default(),
             typ,
-            tmpl_typ,
             status: LogicActionStatus::Starting,
             first_frame: 0,
             last_frame: 0,
@@ -152,14 +83,14 @@ impl StateActionBase {
 
 pub trait ArchivedStateActionAny: Debug + Any {
     fn id(&self) -> NumID;
-    fn typ(&self) -> StateActionType;
-    fn tmpl_typ(&self) -> TmplType;
+    fn typ(&self) -> ActionType;
 }
 
 #[repr(C)]
 #[derive(
     Debug,
     Clone,
+    Copy,
     PartialEq,
     serde::Serialize,
     serde::Deserialize,
@@ -173,6 +104,7 @@ pub struct StateActionAnimation {
     pub files: Symbol,
     pub animation_id: u16,
     pub weapon_motion: bool,
+    pub hit_motion: bool,
     pub ratio: f32,
     pub weight: f32,
 }
@@ -184,6 +116,7 @@ impl Default for StateActionAnimation {
             files: Symbol::default(),
             animation_id: u16::MAX,
             weapon_motion: false,
+            hit_motion: false,
             ratio: 0.0,
             weight: 1.0,
         }
@@ -192,11 +125,31 @@ impl Default for StateActionAnimation {
 
 impl StateActionAnimation {
     #[inline]
-    pub fn new(files: Symbol, animation_id: u16, weapon_motion: bool, ratio: f32, weight: f32) -> Self {
+    pub fn new(
+        files: Symbol,
+        animation_id: u16,
+        weapon_motion: bool,
+        hit_motion: bool,
+        ratio: f32,
+        weight: f32,
+    ) -> Self {
         StateActionAnimation {
             files,
             animation_id,
             weapon_motion,
+            hit_motion,
+            ratio,
+            weight,
+        }
+    }
+
+    #[inline]
+    pub fn new_no_motion(files: Symbol, animation_id: u16, ratio: f32, weight: f32) -> Self {
+        StateActionAnimation {
+            files,
+            animation_id,
+            weapon_motion: false,
+            hit_motion: false,
             ratio,
             weight,
         }
@@ -208,6 +161,7 @@ impl StateActionAnimation {
             files: inst.files,
             animation_id: inst.local_id,
             weapon_motion: inst.weapon_motion,
+            hit_motion: inst.hit_motion,
             ratio,
             weight,
         }
@@ -249,21 +203,21 @@ const _: () = {
     use crate::logic::action::idle::{ArchivedStateActionIdle, StateActionIdle};
     use crate::logic::action::r#move::{ArchivedStateActionMove, StateActionMove};
     use crate::utils::Castable;
-    use StateActionType::*;
+    use ActionType::*;
 
     impl PartialEq for dyn StateActionAny {
         fn eq(&self, other: &Self) -> bool {
             match (self.typ(), other.typ()) {
-                (StateActionType::Empty, StateActionType::Empty) => unsafe {
+                (Empty, Empty) => unsafe {
                     self.cast_unchecked::<StateActionEmpty>() == other.cast_unchecked::<StateActionEmpty>()
                 },
-                (StateActionType::Idle, StateActionType::Idle) => unsafe {
+                (Idle, Idle) => unsafe {
                     self.cast_unchecked::<StateActionIdle>() == other.cast_unchecked::<StateActionIdle>()
                 },
-                (StateActionType::Move, StateActionType::Move) => unsafe {
+                (Move, Move) => unsafe {
                     self.cast_unchecked::<StateActionMove>() == other.cast_unchecked::<StateActionMove>()
                 },
-                (StateActionType::General, StateActionType::General) => unsafe {
+                (General, General) => unsafe {
                     self.cast_unchecked::<StateActionGeneral>() == other.cast_unchecked::<StateActionGeneral>()
                 },
                 _ => false,
@@ -296,14 +250,14 @@ const _: () = {
         type ArchivedMetadata = StateActionAnyMetadata;
 
         fn pointer_metadata(archived: &Self::ArchivedMetadata) -> <Self as Pointee>::Metadata {
-            let typ = StateActionType::try_from(archived.0).expect("Invalid StateActionType");
+            let typ = ActionType::try_from(archived.0).expect("Invalid ActionType");
             let archived_ref: &Self = unsafe {
                 match typ {
                     Empty => mem::transmute_copy::<usize, &ArchivedStateActionEmpty>(&0),
                     Idle => mem::transmute_copy::<usize, &ArchivedStateActionIdle>(&0),
                     Move => mem::transmute_copy::<usize, &ArchivedStateActionMove>(&0),
                     General => mem::transmute_copy::<usize, &ArchivedStateActionGeneral>(&0),
-                    _ => unreachable!("pointer_metadata() Invalid StateActionType"),
+                    _ => unreachable!("pointer_metadata() Invalid ActionType"),
                 }
             };
             ptr::metadata(archived_ref)
@@ -346,7 +300,7 @@ const _: () = {
                 Idle => serialize::<StateActionIdle, _>(self, serializer),
                 Move => serialize::<StateActionMove, _>(self, serializer),
                 General => serialize::<StateActionGeneral, _>(self, serializer),
-                _ => unreachable!("serialize_unsized() Invalid StateActionType"),
+                _ => unreachable!("serialize_unsized() Invalid ActionType"),
             }
         }
     }
@@ -384,7 +338,7 @@ const _: () = {
                 Idle => deserialize::<StateActionIdle, _>(self, deserializer, out),
                 Move => deserialize::<StateActionMove, _>(self, deserializer, out),
                 General => deserialize::<StateActionGeneral, _>(self, deserializer, out),
-                _ => unreachable!("deserialize_unsized() Invalid StateActionType"),
+                _ => unreachable!("deserialize_unsized() Invalid ActionType"),
             }
         }
 
@@ -395,7 +349,7 @@ const _: () = {
                     Idle => mem::transmute_copy::<usize, &StateActionIdle>(&0),
                     Move => mem::transmute_copy::<usize, &StateActionMove>(&0),
                     General => mem::transmute_copy::<usize, &StateActionGeneral>(&0),
-                    _ => unreachable!("deserialize_metadata() Invalid StateActionType"),
+                    _ => unreachable!("deserialize_metadata() Invalid ActionType"),
                 }
             };
             ptr::metadata(value_ref)
@@ -404,7 +358,7 @@ const _: () = {
 };
 
 macro_rules! impl_state_action {
-    ($typ:ty, $tmpl_enum:ident, $state_enum:ident, $serde_tag:expr) => {
+    ($typ:ty, $state_enum:ident, $serde_tag:expr) => {
         paste::paste! {
             #[typetag::serde(name = $serde_tag)]
             unsafe impl $crate::logic::action::StateActionAny for $typ {
@@ -414,18 +368,12 @@ macro_rules! impl_state_action {
                 }
 
                 #[inline]
-                fn typ(&self) -> $crate::logic::action::StateActionType {
+                fn typ(&self) -> $crate::utils::ActionType {
                     debug_assert_eq!(
                         self._base.typ,
-                        $crate::logic::action::StateActionType::$state_enum
+                        $crate::utils::ActionType::$state_enum
                     );
-                    $crate::logic::action::StateActionType::$state_enum
-                }
-
-                #[inline]
-                fn tmpl_typ(&self) -> $crate::template::TmplType {
-                    debug_assert_eq!(self._base.tmpl_typ, $crate::template::TmplType::$tmpl_enum);
-                    $crate::template::TmplType::$tmpl_enum
+                    $crate::utils::ActionType::$state_enum
                 }
 
                 #[inline]
@@ -437,28 +385,78 @@ macro_rules! impl_state_action {
             impl $crate::logic::action::ArchivedStateActionAny for [<Archived $typ>] {
                 #[inline]
                 fn id(&self) -> crate::utils::NumID {
-                    self._base.id.to_native()
+                    crate::utils::NumID::from_rkyv(self._base.id)
                 }
 
                 #[inline]
-                fn typ(&self) -> $crate::logic::action::StateActionType {
+                fn typ(&self) -> $crate::utils::ActionType {
                     debug_assert_eq!(
                         self._base.typ,
-                        $crate::logic::action::StateActionType::$state_enum
+                        $crate::utils::ActionType::$state_enum
                     );
-                    $crate::logic::action::StateActionType::$state_enum
-                }
-
-                #[inline]
-                fn tmpl_typ(&self) -> $crate::template::TmplType {
-                    debug_assert_eq!(self._base.tmpl_typ, $crate::template::TmplType::$tmpl_enum);
-                    $crate::template::TmplType::$tmpl_enum
+                    $crate::utils::ActionType::$state_enum
                 }
             }
         }
     };
 }
 pub(crate) use impl_state_action;
+
+#[repr(C)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    CsOut,
+)]
+#[rkyv(derive(Debug))]
+pub struct LogicActionAnimationID {
+    pub action_id: NumID,
+    pub animation_id: u16,
+}
+
+impl Default for LogicActionAnimationID {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            action_id: NumID::INVALID,
+            animation_id: u16::MAX,
+        }
+    }
+}
+
+impl LogicActionAnimationID {
+    pub const INVALID: LogicActionAnimationID = LogicActionAnimationID {
+        action_id: NumID::INVALID,
+        animation_id: u16::MAX,
+    };
+
+    #[inline]
+    pub fn new(action_id: NumID, animation_id: u16) -> LogicActionAnimationID {
+        LogicActionAnimationID {
+            action_id,
+            animation_id,
+        }
+    }
+
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        self.action_id != u32::MAX && self.animation_id != u16::MAX
+    }
+
+    #[inline]
+    pub fn is_invalid(&self) -> bool {
+        self.action_id == u32::MAX || self.animation_id == u16::MAX
+    }
+}
 
 //
 // LogicActionAny & LogicActionBase
@@ -477,8 +475,7 @@ pub enum LogicActionStatus {
 rkyv_self!(LogicActionStatus);
 
 pub unsafe trait LogicActionAny: Debug + Any {
-    fn typ(&self) -> StateActionType;
-    fn tmpl_typ(&self) -> TmplType;
+    fn typ(&self) -> ActionType;
     fn save(&self) -> Box<dyn StateActionAny>;
     fn restore(&mut self, state: &(dyn StateActionAny + 'static)) -> XResult<()>;
 
@@ -536,7 +533,7 @@ pub struct ActionUpdateReturn {
     pub new_velocity: Option<Vec3A>,
     pub new_direction: Option<Vec2xz>,
     pub clear_preinput: bool,
-    pub derive_keeping: Option<DeriveKeeping>,
+    pub derive_keeping: DeriveKeeping,
     pub custom_events: Vec<CustomEvent>,
 }
 
@@ -614,12 +611,11 @@ impl LogicActionBase {
         Ok(())
     }
 
-    pub fn save(&self, typ: StateActionType, tmpl_typ: TmplType) -> StateActionBase {
+    pub fn save(&self, typ: ActionType) -> StateActionBase {
         StateActionBase {
             id: self.id,
             tmpl_id: self.inst.tmpl_id,
             typ,
-            tmpl_typ,
             status: self.status,
             first_frame: self.first_frame,
             last_frame: self.last_frame,
@@ -747,7 +743,6 @@ pub struct ContextAction<'a, 'b> {
     pub input_vars: InputVariables,
     pub time_speed: f32,
     pub time_step: f32,
-    // pub outs: Option<&'c mut LogicActionOuts>,
 }
 
 impl<'a, 'b> ContextAction<'a, 'b> {
@@ -767,23 +762,29 @@ impl<'a, 'b> ContextAction<'a, 'b> {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct LogicActionOuts {
-    pub events: Vec<String>,
-}
-
-impl LogicActionOuts {
-    #[inline]
-    pub fn clear(&mut self) {
-        self.events.clear();
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, CsOut)]
 pub struct DeriveKeeping {
     pub action_id: TmplID,
     pub derive_level: u16,
     pub end_time: f32,
+}
+
+impl DeriveKeeping {
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        self.action_id.is_valid()
+    }
+
+    #[inline]
+    pub fn is_invalid(&self) -> bool {
+        self.action_id.is_invalid()
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        *self = Self::default();
+    }
 }
 
 rkyv_self!(DeriveKeeping);
