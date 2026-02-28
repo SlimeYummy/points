@@ -1,24 +1,24 @@
-use ahash::HashMapExt;
-use jolt_physics_rs::{JRef, Shape};
+// use jolt_physics_rs::{JRef, Shape};
 use ozz_animation_rs::{Animation, Skeleton};
+use rustc_hash::FxBuildHasher;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use crate::animation::{RootMotion, WeaponMotion};
-use crate::utils::{xfromf, xresf, SymbolHashMap, XResult};
+use crate::animation::{HitMotion, RootMotion, WeaponMotion};
+use crate::utils::{xfromf, xresf, DtHashMap, Symbol, XResult};
 
 pub struct AssetLoader {
     asset_path: PathBuf,
 
-    pub(super) shape_mesh_cache: SymbolHashMap<JRef<Shape>>,
-    pub(super) shape_heigh_tfield_cache: SymbolHashMap<JRef<Shape>>,
-
-    pub(super) skeleton_cache: SymbolHashMap<Rc<Skeleton>>,
-    pub(super) animation_cache: SymbolHashMap<Rc<Animation>>,
-    pub(super) root_motion_cache: SymbolHashMap<Rc<RootMotion>>,
-    pub(super) weapon_motion_cache: SymbolHashMap<Rc<WeaponMotion>>,
+    // pub(super) shape_mesh_cache: DtHashMap<Symbol, JRef<Shape>>,
+    // pub(super) shape_heigh_tfield_cache: DtHashMap<Symbol, JRef<Shape>>,
+    pub(super) skeleton_cache: DtHashMap<Symbol, Rc<Skeleton>>,
+    pub(super) animation_cache: DtHashMap<Symbol, Rc<Animation>>,
+    pub(super) root_motion_cache: DtHashMap<Symbol, Rc<RootMotion>>,
+    pub(super) weapon_motion_cache: DtHashMap<Symbol, Rc<WeaponMotion>>,
+    pub(super) hit_motion_cache: DtHashMap<Symbol, Rc<HitMotion>>,
 }
 
 #[cfg(feature = "debug-print")]
@@ -37,13 +37,13 @@ impl AssetLoader {
         return Ok(AssetLoader {
             asset_path: asset_path.as_ref().to_path_buf(),
 
-            shape_mesh_cache: SymbolHashMap::with_capacity(64),
-            shape_heigh_tfield_cache: SymbolHashMap::with_capacity(16),
-
-            skeleton_cache: SymbolHashMap::with_capacity(64),
-            animation_cache: SymbolHashMap::with_capacity(512),
-            root_motion_cache: SymbolHashMap::with_capacity(384),
-            weapon_motion_cache: SymbolHashMap::with_capacity(384),
+            // shape_mesh_cache: DtHashMap::with_capacity_and_hasher(64, FxBuildHasher),
+            // shape_heigh_tfield_cache: DtHashMap::with_capacity_and_hasher(16, FxBuildHasher),
+            skeleton_cache: DtHashMap::with_capacity_and_hasher(64, FxBuildHasher),
+            animation_cache: DtHashMap::with_capacity_and_hasher(512, FxBuildHasher),
+            root_motion_cache: DtHashMap::with_capacity_and_hasher(384, FxBuildHasher),
+            weapon_motion_cache: DtHashMap::with_capacity_and_hasher(384, FxBuildHasher),
+            hit_motion_cache: DtHashMap::with_capacity_and_hasher(384, FxBuildHasher),
         });
     }
 
