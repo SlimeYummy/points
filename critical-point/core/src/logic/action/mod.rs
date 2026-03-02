@@ -18,29 +18,28 @@ use std::rc::Rc;
 
 use crate::instance::InstActionAny;
 use crate::logic::game::ContextUpdate;
-use crate::template::TmplType;
-use crate::utils::{xres, Castable, XResult};
+use crate::utils::{xres, ActionType, Castable, XResult};
 
 pub(crate) fn new_logic_action(
     ctx: &mut ContextUpdate,
     inst_act: Rc<dyn InstActionAny + 'static>,
 ) -> XResult<Box<dyn LogicActionAny + 'static>> {
-    use TmplType::*;
+    use ActionType::*;
 
     let logic_act: Box<dyn LogicActionAny> = match inst_act.typ() {
-        ActionEmpty => {
+        Empty => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
             Box::new(LogicActionEmpty::new(ctx, inst_act))
         }
-        ActionIdle => {
+        Idle => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
             Box::new(LogicActionIdle::new(ctx, inst_act)?)
         }
-        ActionMove => {
+        Move => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
             Box::new(LogicActionMove::new(ctx, inst_act)?)
         }
-        ActionGeneral => {
+        General => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
             Box::new(LogicActionGeneral::new(ctx, inst_act)?)
         }
@@ -54,31 +53,31 @@ pub(crate) fn try_reuse_logic_action(
     ctx: &mut ContextUpdate,
     inst_act: Rc<dyn InstActionAny>,
 ) -> XResult<bool> {
-    use TmplType::*;
+    use ActionType::*;
 
     match inst_act.typ() {
-        ActionEmpty => {
+        Empty => {
             if let Ok(logic_act) = logic_act.cast::<LogicActionEmpty>() {
                 let inst_act = unsafe { inst_act.cast_unchecked() };
                 *logic_act = LogicActionEmpty::new(ctx, inst_act);
                 return Ok(true);
             }
         }
-        ActionIdle => {
+        Idle => {
             if let Ok(logic_act) = logic_act.cast::<LogicActionIdle>() {
                 let inst_act = unsafe { inst_act.cast_unchecked() };
                 *logic_act = LogicActionIdle::new(ctx, inst_act)?;
                 return Ok(true);
             }
         }
-        ActionMove => {
+        Move => {
             if let Ok(logic_act) = logic_act.cast::<LogicActionMove>() {
                 let inst_act = unsafe { inst_act.cast_unchecked() };
                 *logic_act = LogicActionMove::new(ctx, inst_act)?;
                 return Ok(true);
             }
         }
-        ActionGeneral => {
+        General => {
             if let Ok(logic_act) = logic_act.cast::<LogicActionGeneral>() {
                 let inst_act = unsafe { inst_act.cast_unchecked() };
                 *logic_act = LogicActionGeneral::new(ctx, inst_act)?;

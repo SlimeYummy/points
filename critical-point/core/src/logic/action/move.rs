@@ -12,15 +12,14 @@ use crate::consts::{CFG_SPF, MAX_ACTION_ANIMATION};
 use crate::instance::{InstActionMove, InstAnimation};
 use crate::logic::action::base::{
     impl_state_action, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
-    StateActionAnimation, StateActionAny, StateActionBase, StateActionType,
+    StateActionAnimation, StateActionAny, StateActionBase,
 };
 use crate::logic::action::root_motion::LogicMultiRootMotion;
 use crate::logic::game::ContextUpdate;
 use crate::logic::StateMultiRootMotion;
-use crate::template::TmplType;
 use crate::utils::{
-    calc_fade_in, extend, lerp, loose_ge, loose_le, ratio_warpping, s2ff_round, strict_gt, xres, xresf, Castable,
-    XResult, ifelse
+    calc_fade_in, extend, ifelse, lerp, loose_ge, loose_le, ratio_warpping, s2ff_round, strict_gt, xres, xresf,
+    ActionType, Castable, XResult,
 };
 
 #[repr(u8)]
@@ -82,7 +81,7 @@ pub struct StateActionMove {
 }
 
 extend!(StateActionMove, StateActionBase);
-impl_state_action!(StateActionMove, ActionMove, Move, "Move");
+impl_state_action!(StateActionMove, Move, "Move");
 
 #[repr(C)]
 #[derive(Debug)]
@@ -126,7 +125,7 @@ impl LogicActionMove {
             _base: LogicActionBase {
                 derive_level: inst_act.derive_level,
                 poise_level: inst_act.poise_level,
-                ..LogicActionBase::new(ctx.gene.gen_id(), inst_act.clone())
+                ..LogicActionBase::new(ctx.gene.gen_num_id(), inst_act.clone())
             },
             inst: inst_act.clone(),
             speed_ratio,
@@ -153,13 +152,8 @@ impl LogicActionMove {
 
 unsafe impl LogicActionAny for LogicActionMove {
     #[inline]
-    fn typ(&self) -> StateActionType {
-        StateActionType::Move
-    }
-
-    #[inline]
-    fn tmpl_typ(&self) -> TmplType {
-        TmplType::ActionMove
+    fn typ(&self) -> ActionType {
+        ActionType::Move
     }
 
     fn restore(&mut self, state: &(dyn StateActionAny + 'static)) -> XResult<()> {
@@ -194,7 +188,7 @@ unsafe impl LogicActionAny for LogicActionMove {
 
     fn save(&self) -> Box<dyn StateActionAny> {
         let mut state = Box::new(StateActionMove {
-            _base: self._base.save(self.typ(), self.tmpl_typ()),
+            _base: self._base.save(self.typ()),
             mode: self.mode,
             smooth_move_switch: self.smooth_move_switch,
             start_anim_idx: self.start_anim_idx,
@@ -210,9 +204,9 @@ unsafe impl LogicActionAny for LogicActionMove {
             root_motion: self.root_motion.save(),
         });
 
-        debug_assert!(self.anim_queue.len() <= state.animations.len());
-        state.animations[0..self.anim_queue.len()].clone_from_slice(&self.anim_queue);
-        state.animations[self.anim_queue.len()] = self.save_current_animation();
+        debug_assert!(self.anim_queue.len() + 1 <= MAX_ACTION_ANIMATION);
+        state.animations.extend(self.anim_queue.iter().cloned());
+        state.animations.push(self.save_current_animation());
         state
     }
 
@@ -829,7 +823,7 @@ impl LogicActionMove {
 //     #[test]
 //     fn test_state_rkyv() {
 //         let mut raw_state = Box::new(StateActionMove {
-//             _base: StateActionBase::new(StateActionType::Move, TmplType::ActionMove),
+//             _base: StateActionBase::new(ActionType::Move, TmplType::ActionMove),
 //             mode: ActionMoveMode::Move,
 //             switch_time: 5.0,
 //             current_time: 10.0,
@@ -843,7 +837,7 @@ impl LogicActionMove {
 //         raw_state.poise_level = 2;
 //         raw_state.animations[0] = StateActionAnimation::new(sb!("move"), 1, 0.5, 0.5);
 
-//         let state = test_state_action_rkyv(raw_state, StateActionType::Move, TmplType::ActionMove).unwrap();
+//         let state = test_state_action_rkyv(raw_state, ActionType::Move, TmplType::ActionMove).unwrap();
 //         let state = state.cast::<StateActionMove>().unwrap();
 
 //         assert_eq!(state.id, 123);

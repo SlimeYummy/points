@@ -1,20 +1,19 @@
-use glam::{Quat, Vec2, Vec3A};
+use glam::Vec3A;
 use std::rc::Rc;
 
 use crate::consts::{DEFAULT_TOWARD_DIR_2D, TEST_ASSET_PATH};
-use crate::instance::{assemble_player, InstActionEmpty, InstPlayer};
-use crate::logic::action::base::{ContextAction, StateActionAny, StateActionType};
+use crate::instance::{InstActionEmpty, InstCharacter};
+use crate::logic::action::base::{ContextAction, StateActionAny};
 use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::{ContextUpdate, LogicSystems};
 use crate::logic::{InputVariables, LogicActionEmpty};
 use crate::parameter::ParamPlayer;
-use crate::template::{TmplDatabase, TmplType};
-use crate::utils::{id, NumID, XResult, MIN_PLAYER_ID};
+use crate::template::TmplDatabase;
+use crate::utils::{id, ActionType, NumID, XResult};
 
 pub(super) fn test_state_action_rkyv(
     state: Box<dyn StateActionAny>,
-    typ: StateActionType,
-    tmpl_typ: TmplType,
+    typ: ActionType,
 ) -> XResult<Box<dyn StateActionAny>> {
     use rkyv::rancor::Error;
     use rkyv::Archived;
@@ -22,16 +21,14 @@ pub(super) fn test_state_action_rkyv(
     let buffer = rkyv::to_bytes::<Error>(&state).unwrap();
     let archived = unsafe { rkyv::access_unchecked::<Archived<Box<dyn StateActionAny>>>(&buffer) };
     assert_eq!(archived.typ(), typ);
-    assert_eq!(archived.tmpl_typ(), tmpl_typ);
     let result: Box<dyn StateActionAny> = rkyv::deserialize::<_, Error>(archived).unwrap();
     assert_eq!(result.typ(), typ);
-    assert_eq!(result.tmpl_typ(), tmpl_typ);
     Ok(result)
 }
 
 pub(super) struct TestEnv {
     pub systems: LogicSystems,
-    pub inst_player: Rc<InstPlayer>,
+    pub inst_player: Rc<InstCharacter>,
     pub chara_physics: LogicCharaPhysics,
     pub inst_empty: Rc<InstActionEmpty>,
     pub logic_empty: LogicActionEmpty,
@@ -39,7 +36,7 @@ pub(super) struct TestEnv {
 
 impl TestEnv {
     pub const FRAME: u32 = 100;
-    pub const PLAYER_ID: NumID = MIN_PLAYER_ID + 1;
+    pub const PLAYER_ID: NumID = NumID(NumID::MIN_PLAYER.0 + 1);
 
     pub fn new() -> XResult<TestEnv> {
         let db = TmplDatabase::new(10240, 150)?;
@@ -52,7 +49,7 @@ impl TestEnv {
             level: 1,
             ..Default::default()
         };
-        let inst_player = Rc::new(assemble_player(&mut ctx.context_assemble(), &param_player)?);
+        let inst_player = Rc::new(InstCharacter::new_player(&mut ctx.context_assemble(), &param_player)?);
 
         let chara_physics = LogicCharaPhysics::new(
             &mut ctx,

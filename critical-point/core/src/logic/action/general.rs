@@ -8,18 +8,17 @@ use std::rc::Rc;
 
 use crate::animation::RootTrackName;
 use crate::instance::{InstActionGeneral, InstActionGeneralMovement};
-use crate::logic::InputMoveSpeed;
 use crate::logic::action::base::{
     impl_state_action, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
-    StateActionAnimation, StateActionAny, StateActionBase, StateActionType,
+    StateActionAnimation, StateActionAny, StateActionBase,
 };
 use crate::logic::action::root_motion::{LogicRootMotion, StateRootMotion};
 use crate::logic::action::DeriveKeeping;
 use crate::logic::game::ContextUpdate;
-use crate::template::TmplType;
+use crate::logic::InputMoveSpeed;
 use crate::utils::{
-    ease_in_out_quad, extend, lerp_with, quat_from_dir_xz, strict_lt, xresf, Castable, CustomEvent, TimeRange, XResult,
-    LEVEL_IDLE,
+    ease_in_out_quad, extend, lerp_with, quat_from_dir_xz, strict_lt, xresf, ActionType, Castable, CustomEvent,
+    TimeRange, XResult, LEVEL_IDLE,
 };
 
 #[repr(C)]
@@ -39,7 +38,7 @@ pub struct StateActionGeneral {
 }
 
 extend!(StateActionGeneral, StateActionBase);
-impl_state_action!(StateActionGeneral, ActionGeneral, General, "General");
+impl_state_action!(StateActionGeneral, General, "General");
 
 #[repr(C)]
 #[derive(Debug)]
@@ -65,7 +64,7 @@ impl LogicActionGeneral {
                     Some(v) => v.poise_level,
                     None => 0,
                 },
-                ..LogicActionBase::new(ctx.gene.gen_id(), inst_act.clone())
+                ..LogicActionBase::new(ctx.gene.gen_num_id(), inst_act.clone())
             },
             inst: inst_act.clone(),
             current_time: 0.0,
@@ -80,13 +79,8 @@ impl LogicActionGeneral {
 
 unsafe impl LogicActionAny for LogicActionGeneral {
     #[inline]
-    fn typ(&self) -> StateActionType {
-        StateActionType::General
-    }
-
-    #[inline]
-    fn tmpl_typ(&self) -> TmplType {
-        TmplType::ActionGeneral
+    fn typ(&self) -> ActionType {
+        ActionType::General
     }
 
     fn restore(&mut self, state: &(dyn StateActionAny + 'static)) -> XResult<()> {
@@ -166,11 +160,11 @@ unsafe impl LogicActionAny for LogicActionGeneral {
             ret = ActionUpdateReturn::new();
 
             if self.inst.derive_levels.end_time() > self.current_time {
-                ret.derive_keeping = Some(DeriveKeeping {
+                ret.derive_keeping = DeriveKeeping {
                     action_id: self.tmpl_id(),
                     derive_level: *self.inst.derive_levels.end_value().unwrap_or(&LEVEL_IDLE),
                     end_time: ctx.time + (self.inst.derive_levels.end_time() - self.current_time),
-                })
+                }
             }
         }
 
@@ -187,7 +181,7 @@ unsafe impl LogicActionAny for LogicActionGeneral {
 
     fn save(&self) -> Box<dyn StateActionAny> {
         let mut state = Box::new(StateActionGeneral {
-            _base: self._base.save(self.typ(), self.tmpl_typ()),
+            _base: self._base.save(self.typ()),
             current_time: self.current_time,
             current_rotation: self.current_rotation,
             from_rotation: self.from_rotation,
@@ -197,7 +191,9 @@ unsafe impl LogicActionAny for LogicActionGeneral {
         });
 
         let ratio = self.inst.anim_main.ratio_saturating(self.current_time);
-        state.animations[0] = StateActionAnimation::new_with_anim(&self.inst.anim_main, ratio, 1.0);
+        state
+            .animations
+            .push(StateActionAnimation::new_with_anim(&self.inst.anim_main, ratio, 1.0));
         state
     }
 }
@@ -221,7 +217,8 @@ impl LogicActionGeneral {
                         self.root_motion.set_position_track(RootTrackName::MoveEx)?;
                         clear_preinput = true;
                         log::info!("root_motion: {:?}", RootTrackName::MoveEx);
-                    } else if rm.mov {
+                    }
+                    else if rm.mov {
                         self.root_motion.set_position_track(RootTrackName::Move)?;
                         clear_preinput = true;
                         log::info!("root_motion: {:?}", RootTrackName::Move);
@@ -274,10 +271,10 @@ impl LogicActionGeneral {
             self.current_rotation = lerp_with(self.from_rotation, self.to_rotation, t, ease_in_out_quad);
         }
         else {
-            println!(
-                "current_time: {} > rotation_time.end: {}",
-                self.current_time, self.rotation_time.end
-            );
+            // println!(
+            //     "current_time: {} > rotation_time.end: {}",
+            //     self.current_time, self.rotation_time.end
+            // );
             debug_assert!(self.current_time > self.rotation_time.end);
             self.current_rotation = self.to_rotation;
             self.from_rotation = 0.0;
@@ -295,12 +292,12 @@ mod tests {
     use crate::logic::action::base::LogicActionStatus;
     use crate::logic::action::test_utils::*;
     use crate::utils::tests::FrameTicker;
-    use crate::utils::{id, ratio_saturating, s2f, sb, LEVEL_ACTION, LEVEL_ATTACK};
+    use crate::utils::{id, ratio_saturating, s2f, sb, NumID, LEVEL_ACTION, LEVEL_ATTACK};
 
     #[test]
     fn test_state_rkyv() {
         let mut raw_state = Box::new(StateActionGeneral {
-            _base: StateActionBase::new(StateActionType::General, TmplType::ActionGeneral),
+            _base: StateActionBase::new(ActionType::General),
             current_time: 4.0,
             root_motion: StateRootMotion::default(),
             current_rotation: 0.0,
@@ -308,16 +305,18 @@ mod tests {
             to_rotation: 0.5,
             rotation_time: TimeRange::new(1.0, 2.0),
         });
-        raw_state.id = 123;
+        raw_state.id = NumID(123);
         raw_state.tmpl_id = id!("Action.Instance.Attack^1A");
         raw_state.status = LogicActionStatus::Activing;
         raw_state.first_frame = 15;
         raw_state.last_frame = 99;
         raw_state.derive_level = 1;
         raw_state.poise_level = 2;
-        raw_state.animations[0] = StateActionAnimation::new(sb!("idle.ozz"), 1, true, 0.5, 0.5);
+        raw_state
+            .animations
+            .push(StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, 0.5, 0.5));
 
-        let state = test_state_action_rkyv(raw_state, StateActionType::General, TmplType::ActionGeneral).unwrap();
+        let state = test_state_action_rkyv(raw_state, ActionType::General).unwrap();
         let state = state.cast::<StateActionGeneral>().unwrap();
 
         assert_eq!(state.id, 123);
@@ -327,13 +326,11 @@ mod tests {
         assert_eq!(state.last_frame, 99);
         assert_eq!(state.derive_level, 1);
         assert_eq!(state.poise_level, 2);
+        assert_eq!(state.animations.len(), 1);
         assert_eq!(
             state.animations[0],
-            StateActionAnimation::new(sb!("idle.ozz"), 1, true, 0.5, 0.5)
+            StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, 0.5, 0.5)
         );
-        assert_eq!(state.animations[1], StateActionAnimation::default());
-        assert_eq!(state.animations[2], StateActionAnimation::default());
-        assert_eq!(state.animations[3], StateActionAnimation::default());
         assert_eq!(state.current_time, 4.0);
         assert_eq!(state.root_motion, StateRootMotion::default());
         assert_eq!(state.current_rotation, 0.0);
@@ -379,13 +376,13 @@ mod tests {
             let ret = logic_gen.update(&mut ctx, &mut ctxa).unwrap();
             if !ft.last {
                 assert!(logic_gen.is_activing());
-                assert!(ret.derive_keeping.is_none());
+                assert!(ret.derive_keeping.is_invalid());
             }
             else {
                 assert!(logic_gen.is_stopping());
-                assert_eq!(ret.derive_keeping.unwrap().action_id, inst_gen.tmpl_id);
-                assert_eq!(ret.derive_keeping.unwrap().derive_level, LEVEL_ATTACK);
-                assert_eq!(ret.derive_keeping.unwrap().end_time, 4.5);
+                assert_eq!(ret.derive_keeping.action_id, inst_gen.tmpl_id);
+                assert_eq!(ret.derive_keeping.derive_level, LEVEL_ATTACK);
+                assert_eq!(ret.derive_keeping.end_time, 4.5);
             }
             assert_eq!(logic_gen.current_time, ft.time(1));
 
@@ -400,11 +397,11 @@ mod tests {
             }
             assert_eq!(state.poise_level, 1);
 
+            assert_eq!(state.animations.len(), 1);
             assert_eq!(state.animations[0].animation_id, 0);
             assert_eq!(state.animations[0].files, ATTACK1_OZZ);
             assert_eq!(state.animations[0].ratio, ft.time(1) / inst_gen.anim_main.duration);
             assert_eq!(state.animations[0].weight, 1.0);
-            assert!(state.animations[1].is_empty());
         }
     }
 }
