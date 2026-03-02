@@ -5,11 +5,10 @@ use std::rc::Rc;
 use crate::instance::InstActionEmpty;
 use crate::logic::action::base::{
     impl_state_action, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase, StateActionAny,
-    StateActionBase, StateActionType,
+    StateActionBase,
 };
 use crate::logic::game::ContextUpdate;
-use crate::template::TmplType;
-use crate::utils::{extend, NumID, XResult};
+use crate::utils::{extend, ActionType, NumID, XResult};
 
 #[repr(C)]
 #[derive(
@@ -26,12 +25,12 @@ extend!(StateActionEmpty, StateActionBase);
 impl Default for StateActionEmpty {
     fn default() -> Self {
         StateActionEmpty {
-            _base: StateActionBase::new(StateActionType::Empty, TmplType::ActionEmpty),
+            _base: StateActionBase::new(ActionType::Empty),
         }
     }
 }
 
-impl_state_action!(StateActionEmpty, ActionEmpty, Empty, "Empty");
+impl_state_action!(StateActionEmpty, Empty, "Empty");
 
 #[repr(C)]
 #[derive(Debug)]
@@ -44,7 +43,7 @@ extend!(LogicActionEmpty, LogicActionBase);
 impl LogicActionEmpty {
     pub fn new(ctx: &mut ContextUpdate, inst: Rc<InstActionEmpty>) -> LogicActionEmpty {
         LogicActionEmpty {
-            _base: LogicActionBase::new(ctx.gene.gen_id(), inst),
+            _base: LogicActionBase::new(ctx.gene.gen_num_id(), inst),
         }
     }
 
@@ -56,17 +55,13 @@ impl LogicActionEmpty {
 }
 
 unsafe impl LogicActionAny for LogicActionEmpty {
-    fn typ(&self) -> StateActionType {
-        StateActionType::Empty
-    }
-
-    fn tmpl_typ(&self) -> TmplType {
-        TmplType::ActionEmpty
+    fn typ(&self) -> ActionType {
+        ActionType::Empty
     }
 
     fn save(&self) -> Box<dyn StateActionAny> {
         Box::new(StateActionEmpty {
-            _base: self._base.save(self.typ(), self.tmpl_typ()),
+            _base: self._base.save(self.typ()),
         })
     }
 
