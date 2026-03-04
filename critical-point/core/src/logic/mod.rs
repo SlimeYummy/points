@@ -15,6 +15,7 @@ pub use character::*;
 pub use game::*;
 pub use physics::*;
 // pub use playback::*;
+pub use system::generation::*;
 pub use system::input::*;
 pub use system::state::*;
 pub use zone::*;
