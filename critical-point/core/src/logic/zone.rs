@@ -1,13 +1,15 @@
 use critical_point_csgen::CsOut;
-use jolt_physics_rs::BodyID;
+use jolt_physics_rs::{BodyCreationSettings, BodyID};
 use std::sync::Arc;
 
-use crate::instance::{assemble_zone, InstZone};
+use crate::instance::InstZone;
 use crate::logic::base::{impl_state, LogicAny, LogicType, StateAny, StateBase, StateType};
 use crate::logic::game::{ContextRestore, ContextUpdate};
+use crate::logic::physics::phy_layer;
+use crate::logic::PhyBodyUserData;
 use crate::parameter::ParamZone;
 use crate::template::TmplZone;
-use crate::utils::{extend, NumID, XResult, STAGE_ID};
+use crate::utils::{extend, NumID, XResult};
 
 #[repr(C)]
 #[derive(
@@ -69,18 +71,30 @@ impl LogicAny for LogicZone {
 
 impl LogicZone {
     pub fn new(ctx: &mut ContextUpdate, param: &ParamZone) -> XResult<(Box<LogicZone>, Arc<dyn StateAny>)> {
-        let inst_zone = assemble_zone(&mut ctx.context_assemble(), param)?;
+        let inst_zone = InstZone::new(&mut ctx.context_assemble(), param)?;
         let tmpl_zone = ctx.tmpl_db.find_as::<TmplZone>(inst_zone.tmpl_zone)?;
 
         let asset = &mut ctx.systems.asset;
-        let physics = &mut ctx.systems.physics;
-        let phy_bodies = asset.load_zone(&tmpl_zone.zone_file, physics.body_itf())?.bodies;
-        for body_id in &phy_bodies {
-            ctx.physics.body_itf().add_body(*body_id, false);
+        let zone_phy = asset.load_zone_physics(&tmpl_zone.zone_file)?;
+
+        let bofy_itf = &mut ctx.systems.physics.body_itf();
+
+        let mut phy_bodies = Vec::with_capacity(zone_phy.bodies.len());
+        for asset_body in &zone_phy.bodies {
+            let mut settings = BodyCreationSettings::new_static(
+                asset_body.shape.clone(),
+                phy_layer!(StaticScenery, All),
+                asset_body.position,
+                asset_body.rotation,
+            );
+            settings.user_data = PhyBodyUserData::new_zone().into();
+
+            let body_id = bofy_itf.create_add_body(&settings, false)?;
+            phy_bodies.push(body_id);
         }
 
         let zone = Box::new(LogicZone {
-            id: STAGE_ID,
+            id: NumID::STAGE,
             inst: inst_zone,
             phy_bodies,
         });

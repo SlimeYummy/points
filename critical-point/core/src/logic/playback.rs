@@ -184,7 +184,7 @@ mod tests {
 
     use super::*;
     use crate::logic::base::{LogicType, StateBase, StateType};
-    use crate::logic::character::{StatePlayerInit, StatePlayerUpdate};
+    use crate::logic::character::{StateCharacterInit, StateCharacterUpdate};
     use crate::logic::game::{StateGameInit, StateGameUpdate};
     use crate::logic::system::input::InputPlayerEvents;
     use crate::logic::system::save::SystemSave;
@@ -284,14 +284,14 @@ mod tests {
         ss.save_state(state1.clone()).unwrap();
 
         let mut state2 = StateSet::new(2, 0, 0);
-        state2.inits.push(Arc::new(StatePlayerInit {
-            _base: StateBase::new(100, StateType::PlayerInit, LogicType::Player),
+        state2.inits.push(Arc::new(StateCharacterInit {
+            _base: StateBase::new(100, StateType::CharacterInit, LogicType::Player),
             skeleton_file: asb!("skel.ozz"),
             animation_files: vec![asb!("Girl_Idle_Empty.ozz"), asb!("Girl_Idle_Axe.ozz")],
             view_model: "model.ozz".into(),
         }));
-        state2.updates.push(Box::new(StatePlayerUpdate {
-            _base: StateBase::new(100, StateType::PlayerUpdate, LogicType::Player),
+        state2.updates.push(Box::new(StateCharacterUpdate {
+            _base: StateBase::new(100, StateType::CharacterUpdate, LogicType::Player),
             physics: StateCharaPhysics::default(),
             actions: vec![],
         }));
