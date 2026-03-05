@@ -1,11 +1,11 @@
 mod action;
 mod ai;
-mod npc;
+mod character;
 mod physics;
-mod player;
+mod values;
 
-pub(crate) use action::LogicCharaAction;
-pub use npc::*;
-pub(crate) use physics::LogicCharaPhysics;
+pub use action::StateCharaAction;
+pub(crate) use action::*;
+pub use character::*;
 pub use physics::StateCharaPhysics;
-pub use player::*;
+pub(crate) use physics::*;
