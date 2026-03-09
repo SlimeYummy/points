@@ -8,7 +8,7 @@ use std::f32::consts::{FRAC_PI_2, PI};
 use std::rc::Rc;
 
 use crate::consts::{DEFAULT_VIEW_DIR_2D, DEFAULT_VIEW_DIR_3D, FPS_USIZE, MAX_PLAYER};
-use crate::utils::{MIN_PLAYER_ID, NumID, RawInput, RawKey, VirtualInput, VirtualKey, XResult, xerrf, xres, xresf};
+use crate::utils::{xerrf, xres, xresf, NumID, RawInput, RawKey, VirtualInput, VirtualKey, XResult};
 
 const FIRST_EVENT_ID: u64 = 1;
 
@@ -138,7 +138,7 @@ impl SystemInput {
 
         self.queues = Vec::with_capacity(player_count);
         for player_idx in 0..player_count {
-            let player_id = (player_idx as u64) + MIN_PLAYER_ID;
+            let player_id = NumID::MIN_PLAYER + player_idx as u32;
             let queue = Rc::new(RefCell::new(InputEventQueue::new(player_id, self.input_window)));
             self.queues.push(queue);
         }
@@ -154,7 +154,7 @@ impl SystemInput {
         let base_frame = player_events.iter().map(|e| e.frame.wrapping_sub(1)).min().unwrap_or(0);
 
         for inputs in player_events {
-            let player_idx = inputs.player_id.wrapping_sub(MIN_PLAYER_ID);
+            let player_idx = inputs.player_id.0 - NumID::MIN_PLAYER.0;
             match self.queues.get(player_idx as usize) {
                 Some(queue) => {
                     let mut queue = queue.borrow_mut();
@@ -180,7 +180,7 @@ impl SystemInput {
 
     #[inline]
     pub fn player_events(&mut self, player_id: NumID) -> XResult<Rc<RefCell<InputEventQueue>>> {
-        let player_idx = player_id.wrapping_sub(MIN_PLAYER_ID);
+        let player_idx = player_id.0 - NumID::MIN_PLAYER.0;
         match self.queues.get(player_idx as usize) {
             Some(queue) => Ok(queue.clone()),
             None => xresf!(NotFound; "player_id={}", player_id),
@@ -675,7 +675,7 @@ mod tests {
 
     #[test]
     fn test_input_queue_empty() {
-        let mut iq: InputEventQueue = InputEventQueue::new(100, 3);
+        let mut iq: InputEventQueue = InputEventQueue::new(NumID(100), 3);
         assert_eq!(iq.current_frame, 0);
         assert_eq!(iq.synced_frame, 0);
         assert_eq!(iq.base_frame, 1);
@@ -738,7 +738,7 @@ mod tests {
         let s1_down = RawInput::new_button(RawKey::Skill1, true);
         let s1_up = RawInput::new_button(RawKey::Skill1, false);
 
-        let mut iq = InputEventQueue::new(0, 3);
+        let mut iq = InputEventQueue::new(NumID(0), 3);
 
         // produce=1
         iq.produce(1, &[a1_down, a1_up]).unwrap();
@@ -845,7 +845,7 @@ mod tests {
         let aim = RawInput::new_button(RawKey::Aim, true);
         let shoot = RawInput::new_button(RawKey::Shot1, true);
 
-        let mut iq = InputEventQueue::new(0, 3);
+        let mut iq = InputEventQueue::new(NumID(0), 3);
 
         // produce=0
         iq.produce(1, &[s1_down, s1_up]).unwrap();
@@ -952,7 +952,7 @@ mod tests {
         let s1_down = RawInput::new_button(RawKey::Skill1, true);
         let s1_up = RawInput::new_button(RawKey::Skill1, false);
 
-        let mut iq = InputEventQueue::new(0, 3);
+        let mut iq = InputEventQueue::new(NumID(0), 3);
         iq.produce(1, &[
             a5_down,
             RawInput::new_view(Vec2::new(PI, 0.0)),
@@ -1046,12 +1046,12 @@ mod tests {
         assert_eq!(si.player_count(), 2);
         assert_eq!(si.input_window(), 3);
 
-        let player0 = si.player_events(100).unwrap();
-        let player1 = si.player_events(101).unwrap();
+        let player0 = si.player_events(NumID(100)).unwrap();
+        let player1 = si.player_events(NumID(101)).unwrap();
 
         // p1=1, p2=?
         let inputs = vec![InputPlayerInputs {
-            player_id: 100,
+            player_id: NumID(100),
             frame: 1,
             inputs: vec![a1_down, a1_up],
         }];
@@ -1069,7 +1069,7 @@ mod tests {
 
         // p1=1, p2=1
         let inputs = vec![InputPlayerInputs {
-            player_id: 101,
+            player_id: NumID(101),
             frame: 1,
             inputs: vec![s1_down],
         }];
@@ -1087,12 +1087,12 @@ mod tests {
         // p1=3, p2=1
         let inputs = vec![
             InputPlayerInputs {
-                player_id: 100,
+                player_id: NumID(100),
                 frame: 2,
                 inputs: vec![],
             },
             InputPlayerInputs {
-                player_id: 100,
+                player_id: NumID(100),
                 frame: 3,
                 inputs: vec![aim, shot],
             },
@@ -1108,7 +1108,7 @@ mod tests {
 
         // p1=3, p2=2
         let inputs = vec![InputPlayerInputs {
-            player_id: 101,
+            player_id: NumID(101),
             frame: 2,
             inputs: vec![s1_up],
         }];
