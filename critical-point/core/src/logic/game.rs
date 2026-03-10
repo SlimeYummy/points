@@ -1,26 +1,28 @@
 use critical_point_csgen::CsOut;
-use jolt_physics_rs::{BodyInterface, PhysicsSystem};
+use jolt_physics_rs::PhysicsSystem;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::asset::AssetLoader;
-use crate::consts::{FPS, MAX_INPUT_WINDOW};
+use crate::consts::{FPS, MAX_INPUT_WINDOW, SPF};
 use crate::instance::ContextAssemble;
-use crate::logic::base::{impl_state, ArchivedStateAny, LogicAny, LogicType, StateAny, StateBase, StateType};
-use crate::logic::character::{LogicNpc, LogicPlayer};
+use crate::logic::base::{impl_state, LogicAny, LogicType, StateAny, StateBase, StateType};
+use crate::logic::character::LogicCharacter;
 use crate::logic::physics::{
-    BroadPhaseLayerInterfaceImpl, ObjectLayerPairFilterImpl, ObjectVsBroadPhaseLayerFilterImpl,
+    PhyBroadPhaseLayerInterface, PhyContactCollector, PhyObjectLayerPairFilter, PhyObjectVsBroadPhaseLayerFilter,
+    PhyHitCharacterEvent
 };
-use crate::logic::system::generation::SystemGeneration;
+use crate::logic::system::generation::{StateGeneration, SystemGeneration};
 use crate::logic::system::input::{InputFrameInputs, InputPlayerInputs, SystemInput};
 use crate::logic::system::save::SystemSave;
 use crate::logic::system::state::{StateSet, SystemState};
 use crate::logic::zone::LogicZone;
-use crate::parameter::{ParamPlayer, ParamZone};
+use crate::parameter::ParamGame;
+use crate::logic::physics::PhyBodyUserData;
 // use crate::script::ScriptExecutor;
 use crate::template::TmplDatabase;
-use crate::utils::{bubble_sort_by, extend, xres, Castable, HistoryVec, NumID, XResult, GAME_ID};
+use crate::utils::{Castable, DtHashMap, HistoryVec, NumID, XResult, bubble_sort_by, extend, xres};
 
 //
 // LogicLoop
@@ -30,6 +32,7 @@ pub struct LogicLoop {
     systems: LogicSystems,
     game: Option<Box<LogicGame>>,
     frame: u32, // The current game frame for library user's side
+    local_mode: bool,
 }
 
 impl Drop for LogicLoop {
@@ -45,32 +48,89 @@ impl LogicLoop {
     pub fn new<P: AsRef<Path>>(
         tmpl_db: TmplDatabase,
         asset_path: P,
-        param_zone: ParamZone,
-        param_players: Vec<ParamPlayer>,
+        param: ParamGame,
         save_path: Option<PathBuf>,
     ) -> XResult<(LogicLoop, Arc<StateSet>)> {
+        let local_mode = param.local_mode;
+        if local_mode && param.players.len() != 1 {
+            return xres!(BadArgument; "local mode only supports one player");
+        }
+
         let mut systems = LogicSystems::new(tmpl_db, asset_path, save_path)?;
-        systems.input.init(param_players.len())?;
+        systems.input.init(param.players.len())?;
 
         let mut ctx = ContextUpdate::new(&mut systems, 0, 0);
-        let (game, state_set) = LogicGame::new(&mut ctx, param_zone, param_players)?;
+        let (game, state_set) = LogicGame::new(&mut ctx, param)?;
         systems.state.init(state_set.clone())?;
+
+        systems.physics.optimize_broad_phase();
 
         let logic_loop = LogicLoop {
             systems,
             game: Some(game),
             frame: 0,
+            local_mode,
         };
         Ok((logic_loop, state_set))
     }
 
-    pub fn update(&mut self, mut player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
+    pub fn update(&mut self, player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
         if self.systems.stopped {
             return xres!(Unexpected; "system stopped");
         }
 
         println!("--------------------{}--------------------", self.frame);
 
+        if self.local_mode {
+            self.update_local(player_events)
+        }
+        else {
+            self.update_online(player_events)
+        }
+    }
+
+    fn update_local(&mut self, player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
+        if player_events.len() != 1 {
+            return xres!(BadArgument; "local mode must have one InputPlayerInputs per frame");
+        }
+
+        let systems = &mut self.systems;
+        let game = self.game.as_mut().unwrap();
+        self.frame += 1;
+
+        if let Some(save) = systems.save.as_mut() {
+            let player_events = InputFrameInputs::new(self.frame, &player_events);
+            save.save_input(player_events)?;
+        }
+
+        let base_frame = systems.input.produce(&player_events)?;
+        assert_eq!(base_frame, game.frame);
+
+        let synced_frame = systems.input.synced_frame();
+        assert_eq!(synced_frame, self.frame);
+
+        let mut cl = PhyContactCollector::new_vpair(PhyContactCollector::new(game));
+        systems.physics.update_with_listeners::<_, ()>(SPF, 1, Some(&mut cl), None)?;
+
+        let mut ctx = ContextUpdate::new(systems, game.frame + 1, synced_frame);
+        let state_set = game.update(&mut ctx)?;
+
+        systems.state.append(state_set.clone())?;
+        let ret_state = systems.state[game.frame].clone();
+        assert_eq!(self.frame, game.frame);
+
+        systems.gene.update(game.frame);
+
+        systems.input.confirm()?;
+        let state_sets = systems.state.confirm(systems.input.synced_frame())?;
+        if let Some(save) = self.systems.save.as_mut() {
+            save.save_states(state_sets)?;
+        }
+
+        Ok(ret_state)
+    }
+
+    fn update_online(&mut self, mut player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
         let systems = &mut self.systems;
         let game = self.game.as_mut().unwrap();
         self.frame += 1;
@@ -103,11 +163,12 @@ impl LogicLoop {
             let synced_frame = systems.input.synced_frame();
             let mut ctx = ContextUpdate::new(systems, frame, synced_frame);
             let state_set = game.update(&mut ctx)?;
+            // systems.physics.update(delta);
             systems.state.append(state_set.clone())?;
 
             systems.gene.update(frame);
         }
-        let res_state = systems.state[game.frame].clone();
+        let ret_state = systems.state[game.frame].clone();
 
         systems.input.confirm()?;
         let state_sets = systems.state.confirm(systems.input.synced_frame())?;
@@ -115,7 +176,7 @@ impl LogicLoop {
             save.save_states(state_sets)?;
         }
 
-        Ok(res_state)
+        Ok(ret_state)
     }
 
     pub fn stop(&mut self) -> XResult<()> {
@@ -145,14 +206,13 @@ impl LogicLoop {
 
 pub struct LogicSystems {
     stopped: bool,
-    pub tmpl_db: TmplDatabase,
-    pub asset: AssetLoader,
-    // pub executor: Box<ScriptExecutor>,
-    pub gene: SystemGeneration,
-    pub input: SystemInput,
-    pub state: SystemState,
-    pub save: Option<SystemSave>,
-    pub physics: PhysicsSystem,
+    pub(crate) tmpl_db: TmplDatabase,
+    pub(crate) asset: AssetLoader,
+    pub(crate) gene: SystemGeneration,
+    pub(crate) input: SystemInput,
+    pub(crate) state: SystemState,
+    pub(crate) save: Option<SystemSave>,
+    pub(crate) physics: PhysicsSystem,
 }
 
 #[cfg(feature = "debug-print")]
@@ -163,17 +223,18 @@ impl Drop for LogicSystems {
 }
 
 impl LogicSystems {
-    pub fn new<P: AsRef<Path>>(
+    pub(crate) fn new<P: AsRef<Path>>(
         tmpl_db: TmplDatabase,
         asset_path: P,
         save_path: Option<PathBuf>,
     ) -> XResult<LogicSystems> {
         let physics = PhysicsSystem::new(
-            BroadPhaseLayerInterfaceImpl::new_vbox(BroadPhaseLayerInterfaceImpl),
-            ObjectVsBroadPhaseLayerFilterImpl::new_vbox(ObjectVsBroadPhaseLayerFilterImpl),
-            ObjectLayerPairFilterImpl::new_vbox(ObjectLayerPairFilterImpl),
+            PhyBroadPhaseLayerInterface::new_vbox(PhyBroadPhaseLayerInterface),
+            PhyObjectVsBroadPhaseLayerFilter::new_vbox(PhyObjectVsBroadPhaseLayerFilter),
+            PhyObjectLayerPairFilter::new_vbox(PhyObjectLayerPairFilter),
         );
-        let engine = LogicSystems {
+
+        let system = LogicSystems {
             stopped: false,
             tmpl_db,
             asset: AssetLoader::new(asset_path)?,
@@ -187,21 +248,8 @@ impl LogicSystems {
                 None => None,
             },
         };
-        Ok(engine)
+        Ok(system)
     }
-
-    // #[inline]
-    // pub fn context_assemble(&mut self) -> ContextAssemble<'_> {
-    //     return ContextAssemble {
-    //         tmpl_db: &self.tmpl_db,
-    //         executor: &mut self.executor,
-    //     };
-    // }
-
-    // #[inline]
-    // pub fn context_update(&mut self, frame: u32, synced_frame: u32, new_cap: usize, update_cap: usize) -> ContextUpdate {
-    //     return ContextUpdate::new(self, frame, synced_frame, new_cap, update_cap);
-    // }
 
     fn stop(&mut self) -> XResult<()> {
         if self.stopped {
@@ -213,11 +261,11 @@ impl LogicSystems {
 }
 
 pub struct ContextUpdate<'t> {
-    pub systems: &'t mut LogicSystems,
-    pub frame: u32,
-    pub synced_frame: u32,
-    pub time: f32,
-    pub synced_time: f32,
+    pub(crate) systems: &'t mut LogicSystems,
+    pub(crate) frame: u32,
+    pub(crate) synced_frame: u32,
+    pub(crate) time: f32,
+    pub(crate) synced_time: f32,
 }
 
 impl Deref for ContextUpdate<'_> {
@@ -317,7 +365,7 @@ impl_state!(StateGameInit, Game, GameInit, "GameInit");
 pub struct StateGameUpdate {
     pub _base: StateBase,
     pub frame: u32,
-    pub id_gen_counter: NumID,
+    pub gene: StateGeneration,
 }
 
 extend!(StateGameUpdate, StateBase);
@@ -329,8 +377,7 @@ pub struct LogicGame {
     id: NumID,
     frame: u32, // Internal logical restorable frame
     zone: Box<LogicZone>,
-    players: HistoryVec<Box<LogicPlayer>>,
-    npces: HistoryVec<Box<LogicNpc>>,
+    characters: HistoryVec<Box<LogicCharacter>>,
 }
 
 impl LogicAny for LogicGame {
@@ -356,39 +403,38 @@ impl LogicAny for LogicGame {
 }
 
 impl LogicGame {
-    pub fn new(
-        ctx: &mut ContextUpdate,
-        param_zone: ParamZone,
-        param_players: Vec<ParamPlayer>,
-    ) -> XResult<(Box<LogicGame>, Arc<StateSet>)> {
+    fn new(ctx: &mut ContextUpdate, param: ParamGame) -> XResult<(Box<LogicGame>, Arc<StateSet>)> {
         let mut state_set = StateSet::new(0, 16, 0);
 
         let game_init = Arc::new(StateGameInit {
-            _base: StateBase::new(GAME_ID, StateType::GameInit, LogicType::Game),
+            _base: StateBase::new(NumID::GAME, StateType::GameInit, LogicType::Game),
         });
         state_set.inits.push(game_init);
 
         // new zone
-        let (zone, zone_init) = LogicZone::new(ctx, &param_zone)?;
+        let (zone, zone_init) = LogicZone::new(ctx, &param.zone)?;
         state_set.inits.push(zone_init);
 
-        // new players
-        let mut logic_players = HistoryVec::with_capacity(param_players.len());
-        for param_player in param_players {
-            let (logic_player, player_init) = LogicPlayer::new(ctx, &param_player)?;
-            logic_players.append_new(logic_player);
+        // new players & npcs
+        let mut logic_characters = HistoryVec::with_capacity(param.players.len() + param.npcs.len());
+
+        for param_player in param.players {
+            let (logic_player, player_init) = LogicCharacter::new_player(ctx, &param_player)?;
+            logic_characters.append_new(logic_player);
             state_set.inits.push(player_init);
         }
 
-        // TODO: new ememies
-        let logic_enemies = HistoryVec::new();
+        for param_npc in param.npcs {
+            let (logic_npc, npc_init) = LogicCharacter::new_npc(ctx, &param_npc)?;
+            logic_characters.append_new(logic_npc);
+            state_set.inits.push(npc_init);
+        }
 
         let mut game = Box::new(LogicGame {
-            id: GAME_ID,
+            id: NumID::GAME,
             frame: 0,
             zone,
-            players: logic_players,
-            npces: logic_enemies,
+            characters: logic_characters,
         });
 
         state_set.updates = game.collect_states_updates(ctx)?;
@@ -400,25 +446,25 @@ impl LogicGame {
         self.frame = ctx.frame;
         self.zone.restore(ctx)?;
 
-        self.players.restore_when(|player| {
-            if player.death_frame() < self.frame {
+        self.characters.restore_when(|chara| {
+            if chara.death_frame() < self.frame {
                 Ok(-1)
             }
-            else if player.spawn_frame() > self.frame {
+            else if chara.spawn_frame() > self.frame {
                 return Ok(1);
             }
             else {
-                player.restore(ctx)?;
+                chara.restore(ctx)?;
                 return Ok(0);
             }
         })?;
-        // self.npces.restore(self.frame, |npc| {
+        // self.npcs.restore(self.frame, |npc| {
         //     return npc.restore(ctx);
         // })?;
         Ok(())
     }
 
-    pub fn update(&mut self, ctx: &mut ContextUpdate) -> XResult<Arc<StateSet>> {
+    fn update(&mut self, ctx: &mut ContextUpdate) -> XResult<Arc<StateSet>> {
         self.frame = ctx.frame;
 
         // TODO: Detect hits
@@ -427,16 +473,12 @@ impl LogicGame {
 
         // TODO: Clear dead objects
 
-        // Apply inputs to player
-        for player in self.players.iter_mut_by(|p| p.is_alive()) {
-            player.update(ctx)?;
+        // Update player
+        for chara in self.characters.iter_mut_by(|p| p.is_alive()) {
+            chara.update(ctx)?;
         }
 
         self.zone.update(ctx)?;
-
-        for npc in self.npces.iter_mut_by(|p| p.is_alive()) {
-            npc.update_ai(ctx)?;
-        }
 
         // Collect states
         let mut state_set = StateSet::new(self.frame, 0, 0);
@@ -445,23 +487,31 @@ impl LogicGame {
     }
 
     fn collect_states_updates(&mut self, ctx: &mut ContextUpdate) -> XResult<Vec<Box<dyn StateAny>>> {
-        let mut updates: Vec<Box<dyn StateAny>> = Vec::with_capacity(1 + self.players.len() + self.npces.len());
+        let mut updates: Vec<Box<dyn StateAny>> = Vec::with_capacity(1 + self.characters.len());
         updates.push(Box::new(StateGameUpdate {
             _base: StateBase::new(self.id, StateType::GameUpdate, LogicType::Game),
             frame: self.frame,
-            id_gen_counter: ctx.gene.counter(),
+            gene: ctx.gene.state(),
         }));
 
         updates.push(self.zone.state());
 
-        for player in self.players.iter_mut() {
-            updates.push(player.state()?);
-        }
-
-        for npc in self.npces.iter_mut() {
-            updates.push(npc.state());
+        for chara in self.characters.iter_mut() {
+            updates.push(chara.state()?);
         }
         Ok(updates)
+    }
+
+    // fn character_mut(&mut self, id: NumID) -> Option<&mut LogicCharacter> {
+    //     let chara = self.characters.get_mut(*idx)?;
+    //     Some(chara.as_mut())
+    // }
+
+    pub(crate) fn on_hit_character<'t>(&mut self, event: &PhyHitCharacterEvent<'t>) -> Option<()> {
+        let src = self.characters.iter().position(|c| c.id() == event.src_chara_id)?;
+        let dst = self.characters.iter().position(|c| c.id() == event.dst_chara_id)?;
+        
+        Some(())
     }
 }
 
@@ -469,6 +519,7 @@ impl LogicGame {
 mod tests {
     use super::*;
     use crate::consts::TEST_ASSET_PATH;
+    use crate::parameter::{ParamNpc, ParamPlayer, ParamZone};
     use crate::utils::{id, RawInput, RawKey};
 
     #[ctor::ctor]
@@ -479,17 +530,25 @@ mod tests {
     #[test]
     fn test_logic_loop_common() {
         let tmpl_db = TmplDatabase::new(10240, 150).unwrap();
-        let param_zone = ParamZone { zone: id!("Zone.Demo") };
-        let param_player = ParamPlayer {
-            character: id!("Character.One"),
-            style: id!("Style.One^1"),
-            level: 4,
-            ..Default::default()
+        let param = ParamGame {
+            zone: ParamZone { zone: id!("Zone.Demo") },
+            players: vec![ParamPlayer {
+                character: id!("Character.One"),
+                style: id!("Style.One^1"),
+                level: 4,
+                ..Default::default()
+            }],
+            npcs: vec![ParamNpc {
+                character: id!("NpcCharacter.Instance^1"),
+                level: 2,
+                ..Default::default()
+            }],
+            local_mode: false,
         };
-        let (mut ll, _) = LogicLoop::new(tmpl_db, TEST_ASSET_PATH, param_zone, vec![param_player], None).unwrap();
+        let (mut ll, _) = LogicLoop::new(tmpl_db, TEST_ASSET_PATH, param, None).unwrap();
         ll.update(vec![InputPlayerInputs {
             frame: 1,
-            player_id: 100,
+            player_id: NumID::MIN_PLAYER,
             inputs: vec![RawInput::new_button(RawKey::Attack1, true)],
         }])
         .unwrap();

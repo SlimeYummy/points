@@ -4,9 +4,9 @@ use log::info;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::instance::{assemble_player, ContextAssemble, InstPlayer};
-use crate::logic::{InputPlayerInputs, LogicLoop, StateSet};
-use crate::parameter::{verify_player, ContextVerify, ParamPlayer, ParamZone};
+use crate::instance::{assemble_npc, assemble_player, ContextAssemble, InstCharacter};
+use crate::logic::{InputPlayerInputs, LogicLoop, PhyContactCollector, StateSet};
+use crate::parameter::{verify_npc, verify_player, ContextVerify, ParamGame, ParamNpc, ParamPlayer};
 use crate::template::TmplDatabase;
 use crate::utils::{xerr, xres, XResult};
 
@@ -81,9 +81,21 @@ impl LogicEngine {
     }
 
     #[inline]
-    pub fn assemble_player(&mut self, param: ParamPlayer) -> XResult<InstPlayer> {
+    pub fn assemble_player(&mut self, param: ParamPlayer) -> XResult<InstCharacter> {
         let mut ctx = ContextAssemble::new(&self.tmpl_database);
         assemble_player(&mut ctx, &param)
+    }
+
+    #[inline]
+    pub fn verify_npc(&mut self, param: &ParamNpc) -> XResult<()> {
+        let mut ctx = ContextVerify::new(&self.tmpl_database);
+        verify_npc(&mut ctx, param)
+    }
+
+    #[inline]
+    pub fn assemble_npc(&mut self, param: ParamNpc) -> XResult<InstCharacter> {
+        let mut ctx = ContextAssemble::new(&self.tmpl_database);
+        assemble_npc(&mut ctx, &param)
     }
 
     #[inline]
@@ -107,16 +119,8 @@ impl LogicEngine {
         }
     }
 
-    pub fn start_game(
-        &mut self,
-        param_zone: ParamZone,
-        param_players: Vec<ParamPlayer>,
-        save_path: Option<PathBuf>,
-    ) -> XResult<Arc<StateSet>> {
-        info!(
-            "LogicEngine::new() param_zone={:?} param_players={:?} save_path={:?}",
-            &param_zone, &param_players, &save_path
-        );
+    pub fn start_game(&mut self, param: ParamGame, save_path: Option<PathBuf>) -> XResult<Arc<StateSet>> {
+        info!("LogicEngine::new() param={:?} save_path={:?}", &param, &save_path);
 
         if self.logic_loop.is_some() {
             return xres!(Unexpected; "game already running");
@@ -128,8 +132,7 @@ impl LogicEngine {
             unsafe {
                 ENV_PATH.asset_path.clone()
             },
-            param_zone,
-            param_players,
+            param,
             save_path,
         )?;
         self.logic_loop = Some(logic_loop);
