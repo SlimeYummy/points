@@ -1,12 +1,16 @@
-// #![allow(improper_ctypes_definitions)]
 #![allow(static_mut_refs)]
 
-use critical_point_core::animation::WeaponMotion;
+use libc::c_char;
 use ozz_animation_rs::{Animation, Skeleton};
 use std::collections::HashMap;
+use std::ffi::CStr;
 use std::path::Path;
+use std::ptr;
 use std::sync::{Arc, LazyLock, RwLock};
 
+use critical_point_core::animation::{
+    self as cp, AnimationMeta, HitMotionMeta, RootMotionMeta, SkeletonMeta, WeaponMotion, WeaponMotionMeta
+};
 use critical_point_core::engine::ENV_PATH;
 use critical_point_core::utils::{Symbol, XResult};
 
@@ -284,6 +288,56 @@ pub extern "C" fn skeletal_resource_clear_unused() {
 #[no_mangle]
 pub extern "C" fn skeletal_resource_clear_all() {
     SKELETAL_RESOURCE.write().unwrap().clear_all();
+}
+
+#[no_mangle]
+pub extern "C" fn load_skeleton_meta(path: *const c_char, with_joints: bool) -> Return<*const SkeletonMeta> {
+    let res: XResult<*const SkeletonMeta> = (|| {
+        let path = unsafe { CStr::from_ptr(path).to_string_lossy().into_owned() };
+        let meta = Box::new(cp::load_skeleton_meta(path, with_joints)?);
+        Ok(Box::into_raw(meta) as *const _)
+    })();
+    Return::from_result_with(res, ptr::null())
+}
+
+#[no_mangle]
+pub extern "C" fn load_animation_meta(path: *const c_char) -> Return<*const AnimationMeta> {
+    let res: XResult<*const AnimationMeta> = (|| {
+        let path = unsafe { CStr::from_ptr(path).to_string_lossy().into_owned() };
+        let meta = Box::new(cp::load_animation_meta(path)?);
+        Ok(Box::into_raw(meta) as *const _)
+    })();
+    Return::from_result_with(res, ptr::null())
+}
+
+#[no_mangle]
+pub extern "C" fn load_root_motion_meta(path: *const c_char) -> Return<*const RootMotionMeta> {
+    let res: XResult<*const RootMotionMeta> = (|| {
+        let path = unsafe { CStr::from_ptr(path).to_string_lossy().into_owned() };
+        let meta = Box::new(cp::load_root_motion_meta(path)?);
+        Ok(Box::into_raw(meta) as *const _)
+    })();
+    Return::from_result_with(res, ptr::null())
+}
+
+#[no_mangle]
+pub extern "C" fn load_weapon_motion_meta(path: *const c_char, with_names: bool) -> Return<*const WeaponMotionMeta> {
+    let res: XResult<*const WeaponMotionMeta> = (|| {
+        let path = unsafe { CStr::from_ptr(path).to_string_lossy().into_owned() };
+        let meta = Box::new(cp::load_weapon_motion_meta(path, with_names)?);
+        Ok(Box::into_raw(meta) as *const _)
+    })();
+    Return::from_result_with(res, ptr::null())
+}
+
+#[no_mangle]
+pub extern "C" fn load_hit_motion_meta(path: *const c_char) -> Return<*const HitMotionMeta> {
+    let res: XResult<*const HitMotionMeta> = (|| {
+        let path = unsafe { CStr::from_ptr(path).to_string_lossy().into_owned() };
+        let meta = Box::new(cp::load_hit_motion_meta(path)?);
+        Ok(Box::into_raw(meta) as *const _)
+    })();
+    Return::from_result_with(res, ptr::null())
 }
 
 // #[cfg(test)]

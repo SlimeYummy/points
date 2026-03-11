@@ -111,6 +111,7 @@ impl SkeletalPlayer {
             };
         }
         SkeletonMeta {
+            version: Skeleton::version(),
             num_joints: self.skeleton.num_joints() as u32,
             num_soa_joints: self.skeleton.num_soa_joints() as u32,
             joint_metas,
