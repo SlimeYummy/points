@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ahash = "0.8"
 anyhow = "1"
 approx = "0.5"
+arrayvec = { version = "0.7", features = ["serde"] }
 base64 = "0.22"
 bytecheck = { version = "0.8", default-features = false }
 byteorder = "1"
@@ -29,12 +29,13 @@ pest_derive = "2.7"
 ptr_meta = "0.3"
 recastnavigation-rs = { path = "../../../recastnavigation-rs" }
 regex = "1"
-rkyv = { version = "0.8", features = ["thin-vec-0_2", "tinyvec-1"] }
+rkyv = { version = "0.8", features = ["arrayvec-0_7", "thin-vec-0_2", "smallvec-1"] }
+rustc-hash = "2"
 serde = { version = "1", features = ["serde_derive"] }
 serde_json = "1"
+smallvec = "1"
 static_assertions = "1"
 thin-vec ={ version = "0.2", features = ["serde"] }
-tinyvec = { version = "1", features = ["serde"] }
 typetag = "0.2"
 zip = { version = "6", default-features = false, features = [ "zstd" ] }
 
