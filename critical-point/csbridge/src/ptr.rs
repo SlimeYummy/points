@@ -3,7 +3,7 @@
 use std::{ptr, mem};
 use std::sync::Arc;
 
-use critical_point_core::animation::SkeletonMeta;
+use critical_point_core::animation::{SkeletonJointMeta, SkeletonMeta, AnimationMeta, RootMotionMeta, WeaponMotionMeta};
 use critical_point_core::logic::{
     StateActionAny, StateActionIdle, StateAny, StateGameInit, StateGameUpdate, StatePlayerInit, StatePlayerUpdate,
     StateZoneInit, StateZoneUpdate, StateNpcInit, StateNpcUpdate, StateActionMove, StateSet, StateActionGeneral
@@ -183,3 +183,19 @@ arc_drop!(state_set_arc_drop, StateSet);
 box_drop!(skeleton_meta_box_drop, SkeletonMeta);
 arc_clone!(skeleton_meta_arc_clone, SkeletonMeta);
 arc_drop!(skeleton_meta_arc_drop, SkeletonMeta);
+
+box_drop!(skeleton_joint_meta_box_drop, SkeletonJointMeta);
+arc_clone!(skeleton_joint_meta_arc_clone, SkeletonJointMeta);
+arc_drop!(skeleton_joint_meta_arc_drop, SkeletonJointMeta);
+
+box_drop!(animation_meta_box_drop, AnimationMeta);
+arc_clone!(animation_meta_arc_clone, AnimationMeta);
+arc_drop!(animation_meta_arc_drop, AnimationMeta);
+
+box_drop!(root_motion_meta_box_drop, RootMotionMeta);
+arc_clone!(root_motion_meta_arc_clone, RootMotionMeta);
+arc_drop!(root_motion_meta_arc_drop, RootMotionMeta);
+
+box_drop!(weapon_motion_meta_box_drop, WeaponMotionMeta);
+arc_clone!(weapon_motion_meta_arc_clone, WeaponMotionMeta);
+arc_drop!(weapon_motion_meta_arc_drop, WeaponMotionMeta);

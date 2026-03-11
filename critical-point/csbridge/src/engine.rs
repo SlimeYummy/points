@@ -12,7 +12,7 @@ use std::{mem, panic, ptr};
 use critical_point_core::animation::SkeletonJointMeta;
 use critical_point_core::engine::{LogicEngine, LogicEngineStatus};
 use critical_point_core::logic::{InputPlayerInputs, StateActionAny, StateAny, StateSet};
-use critical_point_core::parameter::{ParamPlayer, ParamZone};
+use critical_point_core::parameter::{ParamGame, ParamNpc, ParamPlayer};
 use critical_point_core::utils::{Symbol, XError, XResult};
 
 use crate::skeletal::resource::SKELETAL_RESOURCE;
@@ -135,7 +135,18 @@ pub extern "C" fn engine_verify_player(
     Return::from_result(res)
 }
 
-// TODO: assemble_player
+#[no_mangle]
+pub extern "C" fn engine_verify_npc(engine: *mut LogicEngine, npc_data: *const u8, npc_len: u32) -> Return<()> {
+    let res: XResult<()> = (|| {
+        let engine = as_engine(engine)?;
+        let player_buf = as_slice(npc_data, npc_len, "engine_verify_npc() npc data is null")?;
+        let npc: ParamNpc = rmp_serde::from_slice(player_buf).map_err(|e| xerrf!(BadArgument; "{}", e))?;
+        engine.verify_npc(&npc)
+    })();
+    Return::from_result(res)
+}
+
+// TODO: assemble_player && assemble_npc
 
 #[no_mangle]
 pub extern "C" fn engine_get_game_status(engine: *mut LogicEngine) -> Return<LogicEngineStatus> {
@@ -153,18 +164,14 @@ pub extern "C" fn engine_get_game_status(engine: *mut LogicEngine) -> Return<Log
 #[no_mangle]
 pub extern "C" fn engine_start_game(
     engine: *mut LogicEngine,
-    zone_data: *const u8,
-    zone_len: u32,
-    players_data: *const u8,
-    players_len: u32,
+    param_data: *const u8,
+    param_len: u32,
 ) -> Return<Option<Arc<StateSet>>> {
     let res: XResult<Arc<StateSet>> = (|| {
         let engine = as_engine(engine)?;
-        let zone_buf = as_slice(zone_data, zone_len, "engine_start_game() zone data is null")?;
-        let players_buf = as_slice(players_data, players_len, "engine_start_game() players data is null")?;
-        let zone: ParamZone = rmp_serde::from_slice(zone_buf).map_err(|e| xerrf!(BadArgument; "{}", e))?;
-        let players: Vec<ParamPlayer> = rmp_serde::from_slice(players_buf).map_err(|e| xerrf!(BadArgument; "{}", e))?;
-        engine.start_game(zone, players, None)
+        let param_buf = as_slice(param_data, param_len, "engine_start_game() param data is null")?;
+        let param: ParamGame = rmp_serde::from_slice(param_buf).map_err(|e| xerrf!(BadArgument; "{}", e))?;
+        engine.start_game(param, None)
     })();
     assert_eq!(unsafe { mem::transmute::<Option<Arc<StateSet>>, usize>(None) }, 0);
     Return::from_result_with(res.map(|s| Some(s)), None)
@@ -310,15 +317,24 @@ fn check_memory_layout() {
 
     #[repr(C)]
     struct StringLayout {
-        len: usize,
-        data: *const u8,
         cap: usize,
+        data: *const u8,
+        len: usize,
     }
-    let s = "hello".to_string();
+    let mut s = "hello:".to_string();
+    s.pop();
     let slayout: StringLayout = unsafe { mem::transmute_copy(&s) };
     assert_eq!(slayout.len, s.len());
     assert_eq!(slayout.cap, s.capacity());
     assert_eq!(slayout.data, s.as_ptr());
+
+    let mut vs = vec!["hello".to_string()];
+    vs[0].push('!');
+    vs[0].push('!');
+    let vslayout: StringLayout = unsafe { mem::transmute_copy(&vs[0]) };
+    assert_eq!(vslayout.len, vs[0].len());
+    assert_eq!(vslayout.cap, vs[0].capacity());
+    assert_eq!(vslayout.data, vs[0].as_ptr());
 }
 
 #[cfg(test)]

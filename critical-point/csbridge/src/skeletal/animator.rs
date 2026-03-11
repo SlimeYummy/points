@@ -161,6 +161,7 @@ impl SkeletalAnimator {
             };
         }
         SkeletonMeta {
+            version: Skeleton::version(),
             num_joints: skeleton.num_joints() as u32,
             num_soa_joints: skeleton.num_soa_joints() as u32,
             joint_metas,
@@ -218,16 +219,12 @@ impl ActionData {
 
         // handle new samplings
         if let Some(state) = state {
-            if state.animations[0].is_empty() {
+            if state.animations.is_empty() {
                 return xres!(LogicBadState; "animations empty");
             }
 
             let mut offset = 0;
             for anim_state in &state.animations {
-                if anim_state.is_empty() {
-                    break;
-                }
-
                 let samp;
                 (samp, offset) = find_mut_offset_by(self.samplings.as_mut_slice(), offset, |samp| {
                     *samp != INVALID_ACTION_ANIMATION_ID && arena.samp(*samp).animation_id == anim_state.animation_id
@@ -753,25 +750,10 @@ mod tests {
     }
 
     fn gen_states() -> Vec<Box<dyn StateActionAny>> {
-        let mut states: Vec<Box<dyn StateActionAny>> = vec![
+        vec![
             Box::new(StateActionEmpty::default()),
             Box::new(StateActionEmpty::default()),
-        ];
-        states[0].id = 21;
-        states[0].tmpl_id = id!("Action.Empty/1");
-        states[0].fade_in_weight = 1.0;
-        states[0].animations[0].animation_id = 101;
-        states[0].animations[0].files = Symbol::default();
-        states[0].animations[0].ratio = 1.0;
-        states[0].animations[0].weight = 1.0;
-        states[1].id = 22;
-        states[1].tmpl_id = id!("Action.Empty/2");
-        states[1].fade_in_weight = 1.0;
-        states[1].animations[0].animation_id = 102;
-        states[1].animations[0].files = Symbol::default();
-        states[1].animations[0].ratio = 1.0;
-        states[1].animations[0].weight = 1.0;
-        states
+        ]
     }
 
     fn empty_states() -> Vec<Box<dyn StateActionAny>> {
@@ -781,7 +763,7 @@ mod tests {
         ]
     }
 
-    fn assert_action_data(ad: &ActionData, id: u64, tmpl_id: TmplID, samplings: Vec<u16>) {
+    fn assert_action_data(ad: &ActionData, id: NumID, tmpl_id: TmplID, samplings: Vec<u16>) {
         assert_eq!(ad.id, id);
         assert_eq!(ad.tmpl_id, tmpl_id);
         assert_eq!(ad.samplings.as_slice(), samplings);
@@ -806,14 +788,22 @@ mod tests {
 
         {
             let mut states = empty_states();
-            states[0].tmpl_id = id!("Action.Idle/1");
+            states[0].tmpl_id = id!("Action.Idle^1");
             states[0].id = 21;
             states[0].fade_in_weight = 0.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Empty.*"), 101, false, 0.2, 0.0);
-            states[1].tmpl_id = id!("Action.Idle/2");
+            states[0].animations.push(StateActionAnimation::new(
+                sb!("Girl_Idle_Empty.*"),
+                101,
+                false,
+                0.2,
+                0.0,
+            ));
+            states[1].tmpl_id = id!("Action.Idle^2");
             states[1].id = 22;
             states[1].fade_in_weight = 0.5;
-            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Axe.*"), 102, true, 0.3, 0.1);
+            states[1]
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl_Idle_Axe.*"), 102, true, 0.3, 0.1));
             animator.update(states.as_slice()).unwrap();
 
             assert_eq!(list_action_frees(&animator.act_arena), vec![2]);
@@ -821,8 +811,8 @@ mod tests {
 
             let ads = list_actions(&animator);
             assert_eq!(ads.len(), 2);
-            assert_action_data(&ads[0], 21, id!("Action.Idle/1"), vec![0]);
-            assert_action_data(&ads[1], 22, id!("Action.Idle/2"), vec![1]);
+            assert_action_data(&ads[0], 21, id!("Action.Idle^1"), vec![0]);
+            assert_action_data(&ads[1], 22, id!("Action.Idle^2"), vec![1]);
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 1);
@@ -836,13 +826,21 @@ mod tests {
         {
             let mut states = empty_states();
             states[0].id = 21;
-            states[0].tmpl_id = id!("Action.Idle/1");
+            states[0].tmpl_id = id!("Action.Idle^1");
             states[0].fade_in_weight = 0.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Empty.*"), 101, false, 0.3, 0.0);
+            states[0].animations.push(StateActionAnimation::new(
+                sb!("Girl_Idle_Empty.*"),
+                101,
+                false,
+                0.3,
+                0.0,
+            ));
             states[1].id = 22;
-            states[1].tmpl_id = id!("Action.Idle/2");
+            states[1].tmpl_id = id!("Action.Idle^2");
             states[1].fade_in_weight = 1.0;
-            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Axe.*"), 102, true, 0.4, 0.2);
+            states[1]
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl_Idle_Axe.*"), 102, true, 0.4, 0.2));
             animator.update(states.as_slice()).unwrap();
 
             assert_eq!(list_action_frees(&animator.act_arena), vec![2]);
@@ -850,8 +848,8 @@ mod tests {
 
             let ads = list_actions(&animator);
             assert_eq!(ads.len(), 2);
-            assert_action_data(&ads[0], 21, id!("Action.Idle/1"), vec![0]);
-            assert_action_data(&ads[1], 22, id!("Action.Idle/2"), vec![1]);
+            assert_action_data(&ads[0], 21, id!("Action.Idle^1"), vec![0]);
+            assert_action_data(&ads[1], 22, id!("Action.Idle^2"), vec![1]);
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 1);
@@ -870,13 +868,21 @@ mod tests {
         {
             let mut states = gen_states();
             states[0].id = 21;
-            states[0].tmpl_id = id!("Action.Empty/1");
+            states[0].tmpl_id = id!("Action.Empty^1");
             states[0].fade_in_weight = 1.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Empty.*"), 101, false, 0.2, 0.3);
+            states[0].animations.push(StateActionAnimation::new(
+                sb!("Girl_Idle_Empty.*"),
+                101,
+                false,
+                0.2,
+                0.3,
+            ));
             states[1].id = 22;
-            states[1].tmpl_id = id!("Action.Empty/2");
+            states[1].tmpl_id = id!("Action.Empty^2");
             states[1].fade_in_weight = 1.0;
-            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Run_Empty.*"), 102, false, 0.3, 0.7);
+            states[1]
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl_Run_Empty.*"), 102, false, 0.3, 0.7));
             animator.update(states.as_slice()).unwrap();
 
             assert_eq!(list_action_frees(&animator.act_arena), vec![2]);
@@ -886,13 +892,25 @@ mod tests {
         {
             let mut states = gen_states();
             states[0].id = 22;
-            states[0].tmpl_id = id!("Action.Empty/2");
+            states[0].tmpl_id = id!("Action.Empty^2");
             states[0].fade_in_weight = 1.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Run_Empty.*"), 102, false, 0.4, 0.75);
+            states[0].animations.push(StateActionAnimation::new(
+                sb!("Girl_Run_Empty.*"),
+                102,
+                false,
+                0.4,
+                0.75,
+            ));
             states[1].id = 23;
-            states[1].tmpl_id = id!("Action.Empty/3");
+            states[1].tmpl_id = id!("Action.Empty^3");
             states[1].fade_in_weight = 1.0;
-            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_RunStop_L_Empty.*"), 31, false, 0.5, 1.0);
+            states[1].animations.push(StateActionAnimation::new(
+                sb!("Girl_RunStop_L_Empty.*"),
+                31,
+                false,
+                0.5,
+                1.0,
+            ));
             animator.update(states.as_slice()).unwrap();
 
             assert!(list_action_frees(&animator.act_arena).is_empty());
@@ -900,9 +918,9 @@ mod tests {
 
             let ads = list_actions(&animator);
             assert_eq!(ads.len(), 3);
-            assert_action_data(&ads[0], 22, id!("Action.Empty/2"), vec![1]);
-            assert_action_data(&ads[1], 23, id!("Action.Empty/3"), vec![2]);
-            assert_action_data(&ads[2], 21, id!("Action.Empty/1"), vec![0]);
+            assert_action_data(&ads[0], 22, id!("Action.Empty^2"), vec![1]);
+            assert_action_data(&ads[1], 23, id!("Action.Empty^3"), vec![2]);
+            assert_action_data(&ads[2], 21, id!("Action.Empty^1"), vec![0]);
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 1);
@@ -920,13 +938,21 @@ mod tests {
         {
             let mut states = gen_states();
             states[0].id = 23;
-            states[0].tmpl_id = id!("Action.Empty/3");
+            states[0].tmpl_id = id!("Action.Empty^3");
             states[0].fade_in_weight = 1.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_RunStop_L_Empty.*"), 31, false, 0.4, 1.0);
+            states[0].animations.push(StateActionAnimation::new(
+                sb!("Girl_RunStop_L_Empty.*"),
+                31,
+                false,
+                0.4,
+                1.0,
+            ));
             states[1].id = 35;
-            states[1].tmpl_id = id!("Action.Empty/4");
+            states[1].tmpl_id = id!("Action.Empty^4");
             states[1].fade_in_weight = 1.0;
-            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Empty.*"), 17, false, 0.1, 0.1);
+            states[1]
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl_Idle_Empty.*"), 17, false, 0.1, 0.1));
             animator.update(states.as_slice()).unwrap();
 
             assert_eq!(list_action_frees(&animator.act_arena), vec![0, 4, 5]);
@@ -934,9 +960,9 @@ mod tests {
 
             let ads = list_actions(&animator);
             assert_eq!(ads.len(), 3);
-            assert_action_data(&ads[0], 23, id!("Action.Empty/3"), vec![2]);
-            assert_action_data(&ads[1], 35, id!("Action.Empty/4"), vec![3]);
-            assert_action_data(&ads[2], 22, id!("Action.Empty/2"), vec![1]);
+            assert_action_data(&ads[0], 23, id!("Action.Empty^3"), vec![2]);
+            assert_action_data(&ads[1], 35, id!("Action.Empty^4"), vec![3]);
+            assert_action_data(&ads[2], 22, id!("Action.Empty^2"), vec![1]);
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 1);
@@ -959,13 +985,21 @@ mod tests {
         {
             let mut states = gen_states();
             states[0].id = 21;
-            states[0].tmpl_id = id!("Action.Empty/1");
+            states[0].tmpl_id = id!("Action.Empty^1");
             states[0].fade_in_weight = 1.0;
-            states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Empty.*"), 101, false, 0.2, 0.3);
+            states[0].animations.push(StateActionAnimation::new(
+                sb!("Girl_Idle_Empty.*"),
+                101,
+                false,
+                0.2,
+                0.3,
+            ));
             states[1].id = 22;
-            states[1].tmpl_id = id!("Action.Empty/2");
+            states[1].tmpl_id = id!("Action.Empty^2");
             states[1].fade_in_weight = 1.0;
-            states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Run_Empty.*"), 102, false, 0.3, 0.7);
+            states[1]
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl_Run_Empty.*"), 102, false, 0.3, 0.7));
             animator.update(states.as_slice()).unwrap();
 
             assert_eq!(list_action_frees(&animator.act_arena), vec![2]);
@@ -974,10 +1008,22 @@ mod tests {
 
         let mut states: Vec<Box<dyn StateActionAny>> = vec![Box::new(StateActionEmpty::default())];
         states[0].id = 22;
-        states[0].tmpl_id = id!("Action.Empty/2");
+        states[0].tmpl_id = id!("Action.Empty^2");
         states[0].fade_in_weight = 1.0;
-        states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Run_Empty.*"), 102, false, 0.4, 0.75);
-        states[0].animations[1] = StateActionAnimation::new(sb!("Girl_RunStop_L_Empty.*"), 31, false, 0.1, 0.2);
+        states[0].animations.push(StateActionAnimation::new(
+            sb!("Girl_Run_Empty.*"),
+            102,
+            false,
+            0.4,
+            0.75,
+        ));
+        states[0].animations.push(StateActionAnimation::new(
+            sb!("Girl_RunStop_L_Empty.*"),
+            31,
+            false,
+            0.1,
+            0.2,
+        ));
         {
             animator.update(states.as_slice()).unwrap();
 
@@ -986,8 +1032,8 @@ mod tests {
 
             let ads = list_actions(&animator);
             assert_eq!(ads.len(), 2);
-            assert_action_data(&ads[0], 22, id!("Action.Empty/2"), vec![1, 2]);
-            assert_action_data(&ads[1], 21, id!("Action.Empty/1"), vec![0]);
+            assert_action_data(&ads[0], 22, id!("Action.Empty^2"), vec![1, 2]);
+            assert_action_data(&ads[1], 21, id!("Action.Empty^1"), vec![0]);
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 2);
@@ -1007,7 +1053,7 @@ mod tests {
 
             let ads = list_actions(&animator);
             assert_eq!(ads.len(), 1);
-            assert_action_data(&ads[0], 22, id!("Action.Empty/2"), vec![1, 2]);
+            assert_action_data(&ads[0], 22, id!("Action.Empty^2"), vec![1, 2]);
 
             let sds = list_samplings(&animator, ads[0]);
             assert_eq!(sds.len(), 2);
@@ -1021,14 +1067,18 @@ mod tests {
         let mut animator = SkeletalAnimator::new(sb!("Girl.*"), 3, 4).unwrap();
 
         let mut states = empty_states();
-        states[0].tmpl_id = id!("Action.Idle/1");
+        states[0].tmpl_id = id!("Action.Idle^1");
         states[0].id = 21;
         states[0].fade_in_weight = 0.5;
-        states[0].animations[0] = StateActionAnimation::new(sb!("Girl_Idle_Axe.*"), 101, true, 0.8, 0.6);
-        states[1].tmpl_id = id!("Action.Attack/2");
+        states[0]
+            .animations
+            .push(StateActionAnimation::new(sb!("Girl_Idle_Axe.*"), 101, true, 0.8, 0.6));
+        states[1].tmpl_id = id!("Action.Attack^2");
         states[1].id = 22;
         states[1].fade_in_weight = 0.5;
-        states[1].animations[0] = StateActionAnimation::new(sb!("Girl_Attack_01A.*"), 102, true, 0.1, 0.4);
+        states[1]
+            .animations
+            .push(StateActionAnimation::new(sb!("Girl_Attack_01A.*"), 102, true, 0.1, 0.4));
         animator.update(states.as_slice()).unwrap();
         animator.animate(0.0).unwrap();
 
@@ -1046,7 +1096,7 @@ mod tests {
         let pos = (idle_pos * 0.6 * 0.5 + attack_pos * 0.4 * 0.5) / 0.5;
         assert!(animator.weapon_transforms[0].position.abs_diff_eq(pos, 1e-6));
 
-        let rot = (idle_rot * 0.6 * 0.5 + attack_rot * 0.4 * 0.5).normalize();
+        let rot = (idle_rot * 0.6 * 0.5 - attack_rot * 0.4 * 0.5).normalize();
         assert!(animator.weapon_transforms[0].rotation.abs_diff_eq(rot, 1e-6));
     }
 }
