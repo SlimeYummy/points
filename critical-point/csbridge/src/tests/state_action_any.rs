@@ -3,11 +3,10 @@
 use critical_point_core::animation::RootTrackName;
 use critical_point_core::logic::{
     ActionIdleMode, ActionMoveMode, LogicActionStatus, StateActionAnimation, StateActionAny, StateActionBase,
-    StateActionGeneral, StateActionIdle, StateActionMove, StateActionType, StateMultiRootMotion, StateRootMotion,
+    StateActionGeneral, StateActionIdle, StateActionMove, StateMultiRootMotion, StateRootMotion,
 };
-use critical_point_core::template::TmplType;
-use critical_point_core::utils::{TimeRange, id, sb};
-use glam::{Quat, Vec3A};
+use critical_point_core::utils::{id, sb, ActionType, ArrayVec, TimeRange};
+use glam::Vec3A;
 use glam_ext::Vec2xz;
 use std::sync::Arc;
 
@@ -32,24 +31,33 @@ pub extern "C" fn mock_arc_state_action_idle() -> Arc<StateActionIdle> {
 }
 
 pub fn new_state_action_idle() -> StateActionIdle {
+    let mut animations = ArrayVec::new();
+    animations.push(StateActionAnimation::new(
+        sb!("mock_action_idle_1"),
+        9999,
+        true,
+        0.125,
+        0.333,
+    ));
+    animations.push(StateActionAnimation::new(
+        sb!("mock_action_idle_2"),
+        3456,
+        false,
+        0.6,
+        0.7,
+    ));
     StateActionIdle {
         _base: StateActionBase {
             id: 1234,
             tmpl_id: id!("Action.One.Idle"),
-            typ: StateActionType::Idle,
-            tmpl_typ: TmplType::ActionIdle,
+            typ: ActionType::Idle,
             status: LogicActionStatus::Activing,
             first_frame: 555,
             last_frame: u32::MAX,
             fade_in_weight: 0.207,
             derive_level: 50,
             poise_level: 100,
-            animations: [
-                StateActionAnimation::new(sb!("mock_action_idle_1"), 9999, true, 0.125, 0.333),
-                StateActionAnimation::new(sb!("mock_action_idle_2"), 3456, false, 0.6, 0.7),
-                StateActionAnimation::default(),
-                StateActionAnimation::default(),
-            ],
+            animations,
         },
         mode: ActionIdleMode::Idle,
         idle_time: 3.3,
@@ -70,24 +78,33 @@ pub extern "C" fn mock_arc_state_action_move() -> Arc<StateActionMove> {
 }
 
 pub fn new_state_action_move() -> StateActionMove {
+    let mut animations = ArrayVec::new();
+    animations.push(StateActionAnimation::new(
+        sb!("mock_action_move_1"),
+        888,
+        true,
+        0.02,
+        0.287,
+    ));
+    animations.push(StateActionAnimation::new(
+        sb!("mock_action_move_2"),
+        3456,
+        false,
+        0.875,
+        0.46,
+    ));
     StateActionMove {
         _base: StateActionBase {
             id: 783,
             tmpl_id: id!("Action.One.Run"),
-            typ: StateActionType::Move,
-            tmpl_typ: TmplType::ActionMove,
+            typ: ActionType::Move,
             status: LogicActionStatus::Activing,
             first_frame: 123,
             last_frame: u32::MAX,
             fade_in_weight: 0.77,
             derive_level: 70,
             poise_level: 68,
-            animations: [
-                StateActionAnimation::new(sb!("mock_action_move_1"), 888, true, 0.02, 0.287),
-                StateActionAnimation::new(sb!("mock_action_move_2"), 3456, false, 0.875, 0.46),
-                StateActionAnimation::default(),
-                StateActionAnimation::default(),
-            ],
+            animations,
         },
         mode: ActionMoveMode::Move,
         smooth_move_switch: false,
@@ -121,24 +138,26 @@ pub extern "C" fn mock_arc_state_action_general() -> Arc<StateActionGeneral> {
 }
 
 pub fn new_state_action_general() -> StateActionGeneral {
+    let mut animations = ArrayVec::new();
+    animations.push(StateActionAnimation::new(
+        sb!("mock_action_gen_1"),
+        81,
+        true,
+        0.66,
+        0.74,
+    ));
     StateActionGeneral {
         _base: StateActionBase {
             id: 5551,
             tmpl_id: id!("Action.One.Attack^1"),
-            typ: StateActionType::General,
-            tmpl_typ: TmplType::ActionGeneral,
+            typ: ActionType::General,
             status: LogicActionStatus::Activing,
             first_frame: 891,
             last_frame: u32::MAX,
             fade_in_weight: 0.112,
             derive_level: 9,
             poise_level: 13,
-            animations: [
-                StateActionAnimation::new(sb!("mock_action_gen_1"), 81, true, 0.66, 0.74),
-                StateActionAnimation::default(),
-                StateActionAnimation::default(),
-                StateActionAnimation::default(),
-            ],
+            animations,
         },
         current_time: 0.98,
         from_rotation: 1.0,
