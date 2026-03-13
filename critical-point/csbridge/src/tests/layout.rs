@@ -1,21 +1,26 @@
-use critical_point_core::animation::{AnimationFileMeta, SkeletonJointMeta, SkeletonMeta, WeaponTransform};
+use critical_point_core::animation::{
+    AnimationFileMeta, AnimationMeta, HitMotionMeta, HitTrackGroupMeta, RootMotionMeta, RootMotionPositionMeta, SkeletonJointMeta, SkeletonMeta, WeaponMotionMeta, WeaponTransform
+};
 use critical_point_core::engine::LogicEngineStatus;
 use critical_point_core::logic::{
-    StateActionAnimation, StateActionBase, StateActionEmpty, StateActionGeneral, StateActionIdle, StateActionMove,
-    StateBase, StateCharaPhysics, StateGameInit, StateGameUpdate, StateMultiRootMotion, StateNpcInit, StateNpcUpdate,
-    StatePlayerInit, StatePlayerUpdate, StateRootMotion, StateSet, StateZoneInit, StateZoneUpdate,
+    DeriveKeeping, StateActionAnimation, StateActionBase, StateActionEmpty, StateActionGeneral, StateActionIdle, StateActionMove, StateBase, StateCharaPhysics, StateGameInit, StateGameUpdate, StateGeneration, StateMultiRootMotion, StateNpcInit, StateNpcUpdate, StatePlayerInit, StatePlayerUpdate, StateRootMotion, StateSet, StateZoneInit, StateZoneUpdate
 };
-use critical_point_core::utils::CustomEvent;
+use critical_point_core::utils::{CustomEvent, TimeRange};
 use std::collections::HashMap;
-use std::mem;
-use std::ptr;
+use std::{mem, ptr};
 
 #[no_mangle]
 pub extern "C" fn get_rust_layouts(buf: *mut u8, len: usize) -> usize {
     let mut layouts = HashMap::new();
     layouts.insert("AnimationFileMeta", Layout::new::<AnimationFileMeta>());
+    layouts.insert("AnimationMeta", Layout::new::<AnimationMeta>());
     layouts.insert("CustomEvent", Layout::new::<CustomEvent>());
+    layouts.insert("DeriveKeeping", Layout::new::<DeriveKeeping>());
+    layouts.insert("HitMotionMeta", Layout::new::<HitMotionMeta>());
+    layouts.insert("HitTrackGroupMeta", Layout::new::<HitTrackGroupMeta>());
     layouts.insert("LogicEngineStatus", Layout::new::<LogicEngineStatus>());
+    layouts.insert("RootMotionMeta", Layout::new::<RootMotionMeta>());
+    layouts.insert("RootMotionPositionMeta", Layout::new::<RootMotionPositionMeta>());
     layouts.insert("SkeletonJointMeta", Layout::new::<SkeletonJointMeta>());
     layouts.insert("SkeletonMeta", Layout::new::<SkeletonMeta>());
     layouts.insert("StateActionAnimation", Layout::new::<StateActionAnimation>());
@@ -28,6 +33,7 @@ pub extern "C" fn get_rust_layouts(buf: *mut u8, len: usize) -> usize {
     layouts.insert("StateCharaPhysics", Layout::new::<StateCharaPhysics>());
     layouts.insert("StateGameInit", Layout::new::<StateGameInit>());
     layouts.insert("StateGameUpdate", Layout::new::<StateGameUpdate>());
+    layouts.insert("StateGeneration", Layout::new::<StateGeneration>());
     layouts.insert("StateMultiRootMotion", Layout::new::<StateMultiRootMotion>());
     layouts.insert("StateNpcInit", Layout::new::<StateNpcInit>());
     layouts.insert("StateNpcUpdate", Layout::new::<StateNpcUpdate>());
@@ -37,6 +43,8 @@ pub extern "C" fn get_rust_layouts(buf: *mut u8, len: usize) -> usize {
     layouts.insert("StateSet", Layout::new::<StateSet>());
     layouts.insert("StateZoneInit", Layout::new::<StateZoneInit>());
     layouts.insert("StateZoneUpdate", Layout::new::<StateZoneUpdate>());
+    layouts.insert("TimeRange", Layout::new::<TimeRange>());
+    layouts.insert("WeaponMotionMeta", Layout::new::<WeaponMotionMeta>());
     layouts.insert("WeaponTransform", Layout::new::<WeaponTransform>());
 
     let tmp = rmp_serde::to_vec_named(&layouts).unwrap();

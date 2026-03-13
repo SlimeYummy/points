@@ -2,8 +2,8 @@
 
 use critical_point_core::animation::AnimationFileMeta;
 use critical_point_core::logic::{
-    LogicType, StateAny, StateBase, StateCharaPhysics, StateGameInit, StateGameUpdate, StatePlayerInit,
-    StatePlayerUpdate, StateType,
+    DeriveKeeping, LogicType, StateAny, StateBase, StateCharaAction, StateCharaPhysics, StateGameInit, StateGameUpdate,
+    StateNpcInit, StateNpcUpdate, StatePlayerInit, StatePlayerUpdate, StateType,
 };
 use critical_point_core::utils::{id, sb};
 use glam::Vec3A;
@@ -45,11 +45,40 @@ fn new_state_player_init() -> StatePlayerInit {
             AnimationFileMeta::new(sb!("mock_animation_1.ozz"), false, false),
             AnimationFileMeta::new(sb!("mock_animation_2.ozz"), false, false),
         ],
-        view_model: sb!("model.vrm"),
+        view_model: "model.vrm".to_string(),
         init_position: Vec3A::new(1.0, 2.0, 3.0),
         init_direction: Vec2xz::Z,
     }
 }
+
+// #[no_mangle]
+// pub extern "C" fn mock_box_state_npc_init() -> Box<StateNpcInit> {
+//     Box::new(new_state_npc_init())
+// }
+
+// #[no_mangle]
+// pub extern "C" fn mock_arc_state_npc_init() -> Arc<StateNpcInit> {
+//     Arc::new(new_state_npc_init())
+// }
+
+// fn new_state_npc_init() -> StateNpcInit {
+//     StateNpcInit {
+//         _base: StateBase {
+//             id: 123,
+//             typ: StateType::NpcInit,
+//             logic_typ: LogicType::Npc,
+//         },
+//         skeleton_file: sb!("npc_skeleton.ozz"),
+//         animation_metas: vec![
+//             AnimationFileMeta::new(sb!("npc_animation_0.ozz"), false, false),
+//             AnimationFileMeta::new(sb!("npc_animation_1.ozz"), false, false),
+//             AnimationFileMeta::new(sb!("npc_animation_2.ozz"), false, false),
+//         ],
+//         view_model: "npc.vrm".to_string(),
+//         init_position: Vec3A::new(5.0, 6.0, 7.0),
+//         init_direction: Vec2xz::X,
+//     }
+// }
 
 #[no_mangle]
 pub extern "C" fn mock_box_state_game_init() -> Box<StateGameInit> {
@@ -115,12 +144,49 @@ fn new_state_player_update() -> StatePlayerUpdate {
             position: Vec3A::new(1.0, 2.0, 3.0).into(),
             direction: Vec2xz::new(0.0, -1.0),
         },
+        action: StateCharaAction {
+            event_cursor_id: 33,
+            derive_keeping: DeriveKeeping::default(),
+        },
         actions: vec![Box::new(new_state_action_idle()), Box::new(new_state_action_move())],
-        // action_events: vec!["Event0".to_string(), "Event1".to_string(), "Event2".to_string()],
         custom_events: vec![
             (id!("Action.One.Attack^1"), sb!("Event0")).into(),
             (id!("Action.One.Attack^1"), sb!("Event1")).into(),
             (id!("Action.One.Attack^1"), sb!("Event2")).into(),
+        ],
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn mock_box_state_npc_update() -> Box<StateNpcUpdate> {
+    Box::new(new_state_npc_update())
+}
+
+#[no_mangle]
+pub extern "C" fn mock_arc_state_npc_update() -> Arc<StateNpcUpdate> {
+    Arc::new(new_state_npc_update())
+}
+
+fn new_state_npc_update() -> StateNpcUpdate {
+    StateNpcUpdate {
+        _base: StateBase {
+            id: 999,
+            typ: StateType::NpcUpdate,
+            logic_typ: LogicType::Npc,
+        },
+        physics: StateCharaPhysics {
+            velocity: Vec3A::new(7.7, 8.8, 9.9).into(),
+            position: Vec3A::new(30.0, 40.0, 50.0).into(),
+            direction: Vec2xz::new(0.0, 1.0),
+        },
+        action: StateCharaAction {
+            event_cursor_id: 0,
+            derive_keeping: DeriveKeeping::default(),
+        },
+        actions: vec![Box::new(new_state_action_move())],
+        custom_events: vec![
+            (id!("Action.One.Attack^1"), sb!("EventX")).into(),
+            (id!("Action.One.Attack^2"), sb!("EventY")).into(),
         ],
     }
 }
