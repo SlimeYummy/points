@@ -12,7 +12,7 @@ use quote::quote;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{LazyLock, Mutex, MutexGuard};
 use syn::*;
 
 use crate::base::*;
@@ -28,6 +28,16 @@ struct Generator {
 }
 
 static GENERATOR: LazyLock<Mutex<Generator>> = LazyLock::new(|| Mutex::new(Generator::new()));
+
+fn lock_generator() -> MutexGuard<'static, Generator> {
+    match GENERATOR.lock() {
+        Ok(g) => g,
+        Err(_) => {
+            GENERATOR.clear_poison();
+            GENERATOR.lock().unwrap()
+        }
+    }
+}
 
 impl Generator {
     fn new() -> Generator {
@@ -51,10 +61,10 @@ impl Generator {
         types_in.insert("f32".into(), TypeIn::new_primitive("float"));
         types_in.insert("f64".into(), TypeIn::new_primitive("double"));
         types_in.insert("TmplID".into(), TypeIn::new_primitive("TmplID"));
-        types_in.insert("NumID".into(), TypeIn::new_primitive("ulong"));
+        types_in.insert("NumID".into(), TypeIn::new_primitive("uint"));
         types_in.insert("Symbol".into(), TypeIn::new_primitive("string"));
-        types_in.insert("[f32; 2]".into(), TypeIn::new_primitive("Vec2"));
-        types_in.insert("[f32; 3]".into(), TypeIn::new_primitive("Vec3"));
+        // types_in.insert("[f32; 2]".into(), TypeIn::new_primitive("Vec2"));
+        // types_in.insert("[f32; 3]".into(), TypeIn::new_primitive("Vec3"));
         types_in.insert("Vec2".into(), TypeIn::new_primitive("Vec2"));
         types_in.insert("Vec3".into(), TypeIn::new_primitive("Vec3"));
         types_in.insert("Vec3A".into(), TypeIn::new_primitive("Vec3"));
@@ -84,10 +94,10 @@ impl Generator {
         types_out.insert("f32".into(), TypeOut::new_value("f32", "float", 4, 4));
         types_out.insert("f64".into(), TypeOut::new_value("f64", "double", 8, 8));
         types_out.insert("TmplID".into(), TypeOut::new_value("TmplID", "TmplID", 8, 8));
-        types_out.insert("NumID".into(), TypeOut::new_value("NumID", "ulong", 8, 8));
+        types_out.insert("NumID".into(), TypeOut::new_value("NumID", "uint", 8, 8));
         types_out.insert("Symbol".into(), TypeOut::new_value("Symbol", "Symbol", 8, 8));
-        types_out.insert("[f32; 2]".into(), TypeOut::new_value("[f32; 2]", "Vec2", 8, 4));
-        types_out.insert("[f32; 3]".into(), TypeOut::new_value("[f32; 3]", "Vec3", 12, 4));
+        // types_out.insert("[f32; 2]".into(), TypeOut::new_value("[f32; 2]", "Vec2", 8, 4));
+        // types_out.insert("[f32; 3]".into(), TypeOut::new_value("[f32; 3]", "Vec3", 12, 4));
         types_out.insert("Vec2".into(), TypeOut::new_value("Vec2", "Vec2", 8, 4));
         types_out.insert("Vec2xz".into(), TypeOut::new_value("Vec2xz", "Vec2", 8, 4));
         types_out.insert("Vec3".into(), TypeOut::new_value("Vec3", "Vec3", 12, 4));
@@ -227,36 +237,36 @@ impl Generator {
     }
 
     extern "C" fn on_exit() {
-        if let Ok(mut gen) = GENERATOR.lock() {
-            println!("\r\n════════════════════════════════════════════════════════════");
-            println!("------------------------------------------------------------\r\n");
-            let res = gen.generate_file();
-            match res {
-                Ok(_) => {
-                    println!("Critical Point generate C# OK.");
-                }
-                Err(e) => {
-                    println!("Critical Point generate C# error:");
-                    println!("{:?}", e);
-                }
+        let mut generator = lock_generator();
+
+        println!("\r\n════════════════════════════════════════════════════════════");
+        println!("------------------------------------------------------------\r\n");
+        let res = generator.generate_file();
+        match res {
+            Ok(_) => {
+                println!("Critical Point generate C# OK.");
             }
-            println!("\r\n------------------------------------------------------------");
-            println!("════════════════════════════════════════════════════════════\r\n");
+            Err(e) => {
+                println!("Critical Point generate C# error:");
+                println!("{:?}", e);
+            }
         }
+        println!("\r\n------------------------------------------------------------");
+        println!("════════════════════════════════════════════════════════════\r\n");
     }
 }
 
 #[proc_macro_derive(CsEnum)]
 pub fn csharp_enum_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemEnum);
-    GENERATOR.lock().unwrap().parse_enum(&input).unwrap();
+    lock_generator().parse_enum(&input).unwrap();
     TokenStream::from(quote! {})
 }
 
 #[proc_macro_derive(CsIn, attributes(cs_attr))]
 pub fn csharp_struct_in_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
-    let res = GENERATOR.lock().unwrap().parse_struct_in(&input);
+    let res = lock_generator().parse_struct_in(&input);
     res.unwrap();
     TokenStream::from(quote! {})
 }
@@ -264,7 +274,7 @@ pub fn csharp_struct_in_derive(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(CsOut, attributes(cs_attr))]
 pub fn csharp_struct_out_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
-    let res = GENERATOR.lock().unwrap().parse_struct_out(&input);
+    let res = lock_generator().parse_struct_out(&input);
     res.unwrap();
     TokenStream::from(quote! {})
 }
