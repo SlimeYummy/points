@@ -5,11 +5,11 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 use syn::*;
 
-use super::base::*;
+use crate::base::*;
 
 pub fn parse_struct_in(
     input: &ItemStruct,
-    consts: &HashMap<String, u32>,
+    _consts: &HashMap<String, u32>,
 ) -> Result<(String, Box<dyn GenerateTask>, TypeIn)> {
     let rs_name = input.ident.to_string();
     let args = extract_attr_args(&input.attrs, "cs_attr")?;
@@ -45,14 +45,8 @@ pub fn parse_struct_in(
                 };
             }
             Type::Array(array) => {
-                match parse_type_array(array, &consts)? {
-                    ParsedArray::Type(rs_type) => {
-                        task.fields.push(FieldIn::Type { field, rs_type });
-                    }
-                    ParsedArray::Array(rs_type, _) => {
-                        task.fields.push(FieldIn::Array { field, rs_type });
-                    }
-                };
+                let rs_type = array.elem.to_token_stream().to_string();
+                task.fields.push(FieldIn::Array { field, rs_type });
             }
             _ => return Err(anyhow!("Not supported type")),
         }

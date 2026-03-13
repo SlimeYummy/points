@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 use syn::*;
 
-use super::base::*;
+use crate::base::*;
 
 pub fn parse_struct_out(
     input: &ItemStruct,
@@ -80,10 +80,19 @@ pub fn parse_struct_out(
                         }
                         ParsedPathOut::Generic(rs_type, args) => {
                             if rs_type == "Vec" && args.len() == 1 {
-                                task.fields.push(FieldOut::Vec {
-                                    field,
-                                    rs_type: args[0].clone(),
-                                });
+                                if args[0] == "String" {
+                                    task.fields.push(FieldOut::VecString { field });
+                                } else {
+                                    task.fields.push(FieldOut::Vec {
+                                        field,
+                                        rs_type: args[0].clone(),
+                                    });
+                                }
+                            }
+                            else if rs_type == "ArrayVec" && args.len() == 2 {
+                                let rs_type = args[0].clone();
+                                let len = parse_int_or_consts(consts, &args[1])?;
+                                task.fields.push(FieldOut::Array { field, rs_type, len, array_vec: true });
                             }
                             else {
                                 return Err(anyhow!("Unknown generic type ({})", rs_type));
@@ -92,14 +101,9 @@ pub fn parse_struct_out(
                     };
                 }
                 Type::Array(array) => {
-                    match parse_type_array(array, &consts)? {
-                        ParsedArray::Type(rs_type) => {
-                            task.fields.push(FieldOut::Type { field, rs_type });
-                        }
-                        ParsedArray::Array(rs_type, len) => {
-                            task.fields.push(FieldOut::Array { field, rs_type, len });
-                        }
-                    };
+                    let rs_type = array.elem.to_token_stream().to_string();
+                    let len = parse_int_or_consts(consts, &array.len.to_token_stream().to_string())?;
+                    task.fields.push(FieldOut::Array { field, rs_type, len, array_vec: false });
                 }
                 _ => return Err(anyhow!("Not supported type")),
             }
@@ -137,7 +141,7 @@ enum ParsedPathOut {
 }
 
 static RE_COMMON: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^\w+$"#).unwrap());
-static RE_GENERIC: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^(\w+)\s*<(\s*(\w+)\s*,)*\s*(\w+)\s*>$"#).unwrap());
+static RE_GENERIC: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^(\w+)\s*<(?:\s*(\w+)\s*,)*\s*(\w+)\s*>$"#).unwrap());
 static RE_BOX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^Box < ((?:dyn )?\w+) >$"#).unwrap());
 static RE_ARC: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^Arc < ((?:dyn )?\w+) >$"#).unwrap());
 static RE_VEC_BOX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^Vec < Box < ((?:dyn )?\w+) > >$"#).unwrap());
@@ -189,12 +193,16 @@ enum FieldOut {
         field: String,
         rs_type: String,
         len: u32,
+        array_vec: bool,
     },
     Vec {
         field: String,
         rs_type: String,
     },
     String {
+        field: String,
+    },
+    VecString {
         field: String,
     },
     // Box<dyn _> | Arc<dyn _>
@@ -219,6 +227,7 @@ impl FieldOut {
             FieldOut::Array { field, .. } => field,
             FieldOut::Vec { field, .. } => field,
             FieldOut::String { field } => field,
+            FieldOut::VecString { field } => field,
             FieldOut::Reference { field, .. } => field,
             FieldOut::VecReference { field, .. } => field,
         }
@@ -231,6 +240,7 @@ impl FieldOut {
             FieldOut::Vec { rs_type, .. } => rs_type,
             FieldOut::String { .. } => "",
             FieldOut::Reference { rs_type, .. } => rs_type,
+            FieldOut::VecString { .. } => "",
             FieldOut::VecReference { rs_type, .. } => rs_type,
         }
     }
@@ -341,17 +351,35 @@ impl TaskStructOut {
                         _ => return Err(anyhow!("Value type ({}) not found", rs_type)),
                     };
                 }
-                FieldOut::Array { field, rs_type, len } => {
+                FieldOut::Array { field, rs_type, len, array_vec } => {
                     match typ {
                         TypeOut::Value(v) => {
+                            if *array_vec {
+                                let offset = calculator.add_field(4, typ.align().max(4), 1);
+                                ls += f!(
+                                    "    [FieldOffset({0})] private int {1}_len;",
+                                    offset,
+                                    field
+                                );
+                            }
+                            let len_str = match array_vec {
+                                true => format!("{}_len", field),
+                                false => len.to_string(),
+                            };
                             if v.is_primitive {
                                 let offset = calculator.add_field(typ.size(), typ.align(), *len as usize);
                                 ls += f!(
-                                    "    [FieldOffset({0})] private fixed {1} {2}[{3}];",
+                                    "    [FieldOffset({0})] private fixed {1} {2}_[{3}];",
                                     offset,
                                     v.cs_name,
                                     field,
                                     len
+                                );
+                                ls += f!(
+                                    "    public RefArrayVal<{0}> {1} => new RefArrayVal<{0}>(ref {1}_, {2});",
+                                    v.cs_name,
+                                    field,
+                                    len_str
                                 );
                             }
                             else {
@@ -369,7 +397,7 @@ impl TaskStructOut {
                                     "    public RefArrayVal<{0}> {1} => new RefArrayVal<{0}>(ref {1}_0, {2});",
                                     v.cs_name,
                                     field,
-                                    len
+                                    len_str
                                 );
                             }
                         }
@@ -408,6 +436,11 @@ impl TaskStructOut {
                     let offset = calculator.add_field(24, 8, 1);
                     ls += f!("    [FieldOffset({0})] private RsString _{1};", offset, field);
                     ls += f!("    public RefRsString {0} => new RefRsString(_{0});", field);
+                }
+                FieldOut::VecString { field } => {
+                    let offset = calculator.add_field(24, 8, 1);
+                    ls += f!("    [FieldOffset({0})] private RsVec<RsString> _{1};", offset, field);
+                    ls += f!("    public RefVecRsString {0} => new RefVecRsString(_{0});", field);
                 }
                 FieldOut::VecReference {
                     field,
@@ -747,6 +780,9 @@ impl TaskStructOut {
                 FieldOut::String { field } => {
                     *ls += f!("    public RefRsString {0} => {1}{0};", field, visitor);
                 }
+                FieldOut::VecString { field } => {
+                    *ls += f!("    public RefVecRsString {0} => {1}{0};", field, visitor);
+                }
                 FieldOut::VecReference {
                     field,
                     rs_type,
@@ -806,11 +842,14 @@ impl LayoutTask {
                     let (size, align) = Self::get_type_layout(tasks, types_out, rs_type)?;
                     calculator.add_field(size, align, 1);
                 }
-                FieldOut::Array { rs_type, len, .. } => {
+                FieldOut::Array { rs_type, len, array_vec, .. } => {
                     let (size, align) = Self::get_type_layout(tasks, types_out, rs_type)?;
+                    if *array_vec {
+                        calculator.add_field(4, align.max(4), 1);
+                    }
                     calculator.add_field(size, align, *len as usize);
                 }
-                FieldOut::Vec { .. } | FieldOut::String { .. } | FieldOut::VecReference { .. } => {
+                FieldOut::Vec { .. } | FieldOut::String { .. } | FieldOut::VecString { .. } | FieldOut::VecReference { .. } => {
                     calculator.add_field(24, 8, 1);
                 }
                 FieldOut::Reference { .. } => {

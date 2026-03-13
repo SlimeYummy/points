@@ -3,7 +3,7 @@ use quote::ToTokens;
 use std::collections::HashMap;
 use std::ops::AddAssign;
 use syn::punctuated::Punctuated;
-use syn::{Attribute, Meta, Token, TypeArray};
+use syn::{Attribute, Meta, Token};
 
 //
 // Types
@@ -229,23 +229,10 @@ pub fn extract_attr_args(attrs: &[Attribute], name: &str) -> Result<Vec<String>>
     Ok(args)
 }
 
-#[derive(Debug)]
-pub enum ParsedArray {
-    Type(String),
-    Array(String, u32),
-}
-
-pub fn parse_type_array(array: &TypeArray, consts: &HashMap<String, u32>) -> Result<ParsedArray> {
-    let typ = array.elem.to_token_stream().to_string();
-    let len = array.len.to_token_stream().to_string();
-    let len: u32 = match consts.get(&len) {
+pub fn parse_int_or_consts(consts: &HashMap<String, u32>, num: &str) -> Result<u32> {
+    let n = match consts.get(num) {
         Some(c) => *c,
-        None => len.parse()?,
+        None => num.parse()?,
     };
-    if typ == "f32" && len == 2 {
-        Ok(ParsedArray::Type("[f32; 2]".into()))
-    }
-    else {
-        Ok(ParsedArray::Array(typ, len))
-    }
+    Ok(n)
 }
