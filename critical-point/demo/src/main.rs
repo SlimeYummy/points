@@ -1,25 +1,23 @@
 mod input;
 
-use anyhow::Result;
 use chrono::Local;
 use critical_point_core::consts::{DEFAULT_VIEW_DIR_3D, FPS};
 use critical_point_core::engine::LogicEngine;
-use critical_point_core::logic::{InputPlayerInputs, StatePlayerUpdate, StateSet};
-use critical_point_core::parameter::{ParamPlayer, ParamZone};
+use critical_point_core::logic::{InputPlayerInputs, StateCharacterUpdate, StateSet};
+use critical_point_core::parameter::{ParamGame};
 use critical_point_core::utils::{Castable, NumID};
 use glam::{Vec2, Vec3A};
 use input::{CharacterType, InputHandler};
 use jolt_physics_rs::debug::{run_debug_application, CameraState, DebugApp, DebugKeyboard, DebugMouse};
-use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::sync::{Arc, Mutex};
 use structopt::StructOpt;
 
 const F_FPS: f32 = FPS as f32;
 const FRAC_FPS: f32 = 1.0 / F_FPS;
 
-const PLAYER_ID: NumID = 100;
+const PLAYER_ID: NumID = NumID::MIN_PLAYER;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "testbed")]
@@ -30,21 +28,8 @@ struct Opt {
     asset: PathBuf,
     #[structopt(short, long)]
     save: Option<PathBuf>,
-    #[structopt(short, long, default_value = "./config.json")]
-    config: PathBuf,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Config {
-    pub zone: ParamZone,
-    pub players: Vec<ParamPlayer>,
-}
-
-impl Config {
-    fn from_path<P: AsRef<Path>>(config_path: P) -> Result<Config> {
-        let buf = fs::read_to_string(config_path).unwrap();
-        Ok(serde_json::from_str(&buf)?)
-    }
+    #[structopt(short, long, default_value = "./param.json")]
+    param: PathBuf,
 }
 
 struct Testbed {
@@ -57,13 +42,13 @@ struct Testbed {
 }
 
 impl Testbed {
-    fn new(opt: &Opt, cfg: Config) -> Testbed {
+    fn new(opt: &Opt, param: ParamGame) -> Testbed {
         let mut engine = Box::new(LogicEngine::new().unwrap());
         let save_path = match &opt.save {
             Some(p) => Some(p.join(format!("save_{}", Local::now().format("%Y%m%d_%H%M%S")))),
             None => None,
         };
-        let state_set = engine.start_game(cfg.zone, cfg.players, save_path).unwrap();
+        let state_set = engine.start_game(param, save_path).unwrap();
         Testbed {
             engine,
             state_set,
@@ -100,7 +85,7 @@ impl DebugApp for Testbed {
         let events = self.input_handler.take_events();
         self.state_set = self
             .engine
-            .update_game(vec![InputPlayerInputs::new(100, self.logic_frame, events)])
+            .update_game(vec![InputPlayerInputs::new(PLAYER_ID, self.logic_frame, events)])
             .unwrap();
         true
     }
@@ -124,7 +109,7 @@ impl DebugApp for Testbed {
             .find(|x| x.id == PLAYER_ID)
             .unwrap()
             .as_ref()
-            .cast::<StatePlayerUpdate>()
+            .cast::<StateCharacterUpdate>()
             .unwrap();
 
         let fwd = Vec3A::new(pitch.cos() * heading.cos(), pitch.sin(), pitch.cos() * heading.sin());
@@ -155,7 +140,7 @@ fn main() {
         template: PathBuf::from("/project/points/test-tmp/demo-template"),
         asset: PathBuf::from("/project/points/test-tmp/test-asset"),
         save: None,
-        config: PathBuf::from("./config.json"),
+        param: PathBuf::from("./param.json"),
     };
     if !opt.template.is_dir() {
         panic!("template not found: {:?}", opt.template);
@@ -165,8 +150,11 @@ fn main() {
     }
     LogicEngine::initialize(&opt.template, &opt.asset).unwrap();
 
-    let cfg = Config::from_path(&opt.config).unwrap();
-    let testbed = Arc::new(Mutex::new(Testbed::new(&opt, cfg)));
+    
+    let buf = fs::read_to_string(&opt.param).unwrap();
+    let param = serde_json::from_str(&buf).unwrap();
+
+    let testbed = Arc::new(Mutex::new(Testbed::new(&opt, param)));
     run_debug_application(testbed.clone());
     println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> x");
 }
