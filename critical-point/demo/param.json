@@ -9,5 +9,13 @@
             "level": 1,
             "position": [0, 0, 0]
         }
-    ]
+    ],
+    "npcs": [
+        {
+            "character": "NpcCharacter.TrainingDummy",
+            "level": 1,
+            "position": [3, 0, 3]
+        }
+    ],
+    "local_mode": true
 }
