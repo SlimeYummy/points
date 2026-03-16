@@ -105,6 +105,28 @@ namespace CriticalPoint {
         }
 
         [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe Return0 engine_verify_npc(
+            IntPtr engine,
+            byte* npc_data,
+            uint npc_len
+        );
+
+        // Return "OK" success
+        // Return error message if failed
+        public string VerifyNpc(ParamNpc npc) {
+            byte[] bytes = MessagePackSerializer.Serialize(npc, Static.MsgPackOpts);
+            unsafe {
+                fixed (byte* ptr = bytes) {
+                    Return0 ret = engine_verify_npc(_engine, ptr, (uint)bytes.Length);
+                    if (ret.IsError) {
+                        return ret.ErrMsg;
+                    }
+                    return "OK";
+                }
+            }
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
         private static extern unsafe Return<LogicEngineStatus> engine_get_game_status(IntPtr engine);
 
         LogicEngineStatus GetGameStatus() {
@@ -114,18 +136,15 @@ namespace CriticalPoint {
         [DllImport("critical_point_csbridge.dll")]
         private static extern unsafe Return<RsArcStateSet> engine_start_game(
             IntPtr engine,
-            byte* zone_data,
-            uint zone_len,
-            byte* players_data,
-            uint players_len
+            byte* param_data,
+            uint param_len
         );
 
-        public ArcStateSet StartGame(ParamZone zone, List<ParamPlayer> players) {
-            byte[] zone_bytes = MessagePackSerializer.Serialize(zone, Static.MsgPackOpts);
-            byte[] players_bytes = MessagePackSerializer.Serialize(players, Static.MsgPackOpts);
+        public ArcStateSet StartGame(ParamGame param) {
+            byte[] param_bytes = MessagePackSerializer.Serialize(param, Static.MsgPackOpts);
             unsafe {
-                fixed (byte* zone_ptr = zone_bytes, players_ptr = players_bytes) {
-                    var raw = engine_start_game(_engine, zone_ptr, (uint)zone_bytes.Length, players_ptr, (uint)players_bytes.Length).Unwrap();
+                fixed (byte* param_ptr = param_bytes) {
+                    var raw = engine_start_game(_engine, param_ptr, (uint)param_bytes.Length).Unwrap();
                     return raw.MakeArc();
                 }
             }

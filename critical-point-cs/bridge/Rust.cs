@@ -466,9 +466,9 @@ namespace CriticalPoint {
 
     [StructLayout(LayoutKind.Sequential)]
     internal unsafe struct RsString {
-        internal UIntPtr len;
-        internal IntPtr ptr;
         internal UIntPtr cap;
+        internal IntPtr ptr;
+        internal UIntPtr len;
 
         internal bool IsNull => ptr == IntPtr.Zero;
 
