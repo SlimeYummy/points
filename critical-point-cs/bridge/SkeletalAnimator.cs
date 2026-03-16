@@ -198,4 +198,41 @@ namespace CriticalPoint {
             public bool MoveNext() => ++_index < _vec.Length;
         }
     }
+
+    public ref struct RefVecRsHitTrackGroupMeta {
+        private RsVec<RsHitTrackGroupMeta> _vec;
+
+        internal RefVecRsHitTrackGroupMeta(RsVec<RsHitTrackGroupMeta> vec) => _vec = vec;
+
+        public int Length { get => (int)_vec.len; }
+        public bool IsEmpty { get => _vec.len == UIntPtr.Zero; }
+
+        public RefHitTrackGroupMeta this[int index] {
+            get {
+                if ((uint)index >= (uint)_vec.len) {
+                    string msg = string.Format("index:{0} len:{1}", index, _vec.len);
+                    throw new IndexOutOfRangeException(msg);
+                }
+                unsafe {
+                    return new RefHitTrackGroupMeta(&_vec.ptr[index]);
+                }
+            }
+        }
+
+        public Enumerator GetEnumerator() => new Enumerator(this);
+
+        public ref struct Enumerator {
+            private RefVecRsHitTrackGroupMeta _vec;
+            private int _index;
+
+            public Enumerator(RefVecRsHitTrackGroupMeta vec) {
+                _vec = vec;
+                _index = -1;
+            }
+
+            public RefHitTrackGroupMeta Current { get => _vec[_index]; }
+
+            public bool MoveNext() => ++_index < _vec.Length;
+        }
+    }
 }
