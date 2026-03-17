@@ -61,14 +61,15 @@ namespace CriticalPointTests {
 
             Assert.AreEqual(1234ul, idle.id);
             Assert.AreEqual("Action.One.Idle", idle.tmpl_id.TryRead());
-            Assert.AreEqual(StateActionType.Idle, idle.typ);
-            Assert.AreEqual(TmplType.ActionIdle, idle.tmpl_typ);
+            Assert.AreEqual(ActionType.Idle, idle.typ);
             Assert.AreEqual(LogicActionStatus.Activing, idle.status);
             Assert.AreEqual(555u, idle.first_frame);
             Assert.AreEqual(uint.MaxValue, idle.last_frame);
             Assert.AreEqual(0.207f, idle.fade_in_weight);
             Assert.AreEqual(50u, idle.derive_level);
             Assert.AreEqual(100u, idle.poise_level);
+
+            Assert.AreEqual(2, idle.animations.Length);
 
             Assert.AreEqual("mock_action_idle_1", idle.animations[0].files.TryRead());
             Assert.AreEqual(9999u, idle.animations[0].animation_id);
@@ -81,12 +82,6 @@ namespace CriticalPointTests {
             Assert.AreEqual(false, idle.animations[1].weapon_motion);
             Assert.AreEqual(0.6f, idle.animations[1].ratio);
             Assert.AreEqual(0.7f, idle.animations[1].weight);
-
-            Assert.AreEqual("", idle.animations[2].files.TryRead());
-            Assert.AreEqual(0xffffu, idle.animations[2].animation_id);
-            Assert.AreEqual(false, idle.animations[2].weapon_motion);
-            Assert.AreEqual(0f, idle.animations[2].ratio);
-            Assert.AreEqual(1f, idle.animations[2].weight);
 
             Assert.AreEqual(ActionIdleMode.Idle, idle.mode);
             Assert.AreEqual(3.3f, idle.idle_time);
@@ -109,14 +104,15 @@ namespace CriticalPointTests {
 
             Assert.AreEqual(1234ul, idle.id);
             Assert.AreEqual("Action.One.Idle", idle.tmpl_id.TryRead());
-            Assert.AreEqual(StateActionType.Idle, idle.typ);
-            Assert.AreEqual(TmplType.ActionIdle, idle.tmpl_typ);
+            Assert.AreEqual(ActionType.Idle, idle.typ);
             Assert.AreEqual(LogicActionStatus.Activing, idle.status);
             Assert.AreEqual(555u, idle.first_frame);
             Assert.AreEqual(uint.MaxValue, idle.last_frame);
             Assert.AreEqual(0.207f, idle.fade_in_weight);
             Assert.AreEqual(50u, idle.derive_level);
             Assert.AreEqual(100u, idle.poise_level);
+
+            Assert.AreEqual(2, idle.animations.Length);
 
             Assert.AreEqual("mock_action_idle_1", idle.animations[0].files.TryRead());
             Assert.AreEqual(9999u, idle.animations[0].animation_id);
@@ -129,12 +125,6 @@ namespace CriticalPointTests {
             Assert.AreEqual(false, idle.animations[1].weapon_motion);
             Assert.AreEqual(0.6f, idle.animations[1].ratio);
             Assert.AreEqual(0.7f, idle.animations[1].weight);
-
-            Assert.AreEqual("", idle.animations[2].files.TryRead());
-            Assert.AreEqual(0xffffu, idle.animations[2].animation_id);
-            Assert.AreEqual(false, idle.animations[2].weapon_motion);
-            Assert.AreEqual(0f, idle.animations[2].ratio);
-            Assert.AreEqual(1f, idle.animations[2].weight);
 
             Assert.AreEqual(ActionIdleMode.Idle, idle.mode);
             Assert.AreEqual(3.3f, idle.idle_time);
@@ -163,14 +153,15 @@ namespace CriticalPointTests {
 
             Assert.AreEqual(783ul, move.id);
             Assert.AreEqual("Action.One.Run", move.tmpl_id.TryRead());
-            Assert.AreEqual(StateActionType.Move, move.typ);
-            Assert.AreEqual(TmplType.ActionMove, move.tmpl_typ);
+            Assert.AreEqual(ActionType.Move, move.typ);
             Assert.AreEqual(LogicActionStatus.Activing, move.status);
             Assert.AreEqual(123u, move.first_frame);
             Assert.AreEqual(uint.MaxValue, move.last_frame);
             Assert.AreEqual(0.77f, move.fade_in_weight);
             Assert.AreEqual(70u, move.derive_level);
             Assert.AreEqual(68u, move.poise_level);
+
+            Assert.AreEqual(2, move.animations.Length);
 
             Assert.AreEqual("mock_action_move_1", move.animations[0].files.TryRead());
             Assert.AreEqual(888u, move.animations[0].animation_id);
@@ -183,12 +174,6 @@ namespace CriticalPointTests {
             Assert.AreEqual(false, move.animations[1].weapon_motion);
             Assert.AreEqual(0.875f, move.animations[1].ratio);
             Assert.AreEqual(0.46f, move.animations[1].weight);
-
-            Assert.AreEqual("", move.animations[2].files.TryRead());
-            Assert.AreEqual(0xffffu, move.animations[2].animation_id);
-            Assert.AreEqual(false, move.animations[2].weapon_motion);
-            Assert.AreEqual(0f, move.animations[2].ratio);
-            Assert.AreEqual(1f, move.animations[2].weight);
 
             Assert.AreEqual(ActionMoveMode.Move, move.mode);
             Assert.AreEqual(false, move.smooth_move_switch);
@@ -219,14 +204,15 @@ namespace CriticalPointTests {
 
             Assert.AreEqual(783ul, move.id);
             Assert.AreEqual("Action.One.Run", move.tmpl_id.TryRead());
-            Assert.AreEqual(StateActionType.Move, move.typ);
-            Assert.AreEqual(TmplType.ActionMove, move.tmpl_typ);
+            Assert.AreEqual(ActionType.Move, move.typ);
             Assert.AreEqual(LogicActionStatus.Activing, move.status);
             Assert.AreEqual(123u, move.first_frame);
             Assert.AreEqual(uint.MaxValue, move.last_frame);
             Assert.AreEqual(0.77f, move.fade_in_weight);
             Assert.AreEqual(70u, move.derive_level);
             Assert.AreEqual(68u, move.poise_level);
+
+            Assert.AreEqual(2, move.animations.Length);
 
             Assert.AreEqual("mock_action_move_1", move.animations[0].files.TryRead());
             Assert.AreEqual(888u, move.animations[0].animation_id);
@@ -239,12 +225,6 @@ namespace CriticalPointTests {
             Assert.AreEqual(false, move.animations[1].weapon_motion);
             Assert.AreEqual(0.875f, move.animations[1].ratio);
             Assert.AreEqual(0.46f, move.animations[1].weight);
-
-            Assert.AreEqual("", move.animations[2].files.TryRead());
-            Assert.AreEqual(0xffffu, move.animations[2].animation_id);
-            Assert.AreEqual(false, move.animations[2].weapon_motion);
-            Assert.AreEqual(0f, move.animations[2].ratio);
-            Assert.AreEqual(1f, move.animations[2].weight);
 
             Assert.AreEqual(ActionMoveMode.Move, move.mode);
             Assert.AreEqual(false, move.smooth_move_switch);
@@ -287,8 +267,7 @@ namespace CriticalPointTests {
 
             Assert.AreEqual(5551ul, gen.id);
             Assert.AreEqual("Action.One.Attack^1", gen.tmpl_id.TryRead());
-            Assert.AreEqual(StateActionType.General, gen.typ);
-            Assert.AreEqual(TmplType.ActionGeneral, gen.tmpl_typ);
+            Assert.AreEqual(ActionType.General, gen.typ);
             Assert.AreEqual(LogicActionStatus.Activing, gen.status);
             Assert.AreEqual(891u, gen.first_frame);
             Assert.AreEqual(uint.MaxValue, gen.last_frame);
@@ -296,17 +275,12 @@ namespace CriticalPointTests {
             Assert.AreEqual(9u, gen.derive_level);
             Assert.AreEqual(13u, gen.poise_level);
 
+            Assert.AreEqual(1, gen.animations.Length);
             Assert.AreEqual("mock_action_gen_1", gen.animations[0].files.TryRead());
             Assert.AreEqual(81u, gen.animations[0].animation_id);
             Assert.AreEqual(true, gen.animations[0].weapon_motion);
             Assert.AreEqual(0.66f, gen.animations[0].ratio);
             Assert.AreEqual(0.74f, gen.animations[0].weight);
-
-            Assert.AreEqual("", gen.animations[1].files.TryRead());
-            Assert.AreEqual(0xffffu, gen.animations[1].animation_id);
-            Assert.AreEqual(false, gen.animations[1].weapon_motion);
-            Assert.AreEqual(0f, gen.animations[1].ratio);
-            Assert.AreEqual(1f, gen.animations[1].weight);
 
             Assert.AreEqual(0.98f, gen.current_time);
             Assert.AreEqual(1.0f, gen.from_rotation);
@@ -330,8 +304,7 @@ namespace CriticalPointTests {
 
             Assert.AreEqual(5551ul, gen.id);
             Assert.AreEqual("Action.One.Attack^1", gen.tmpl_id.TryRead());
-            Assert.AreEqual(StateActionType.General, gen.typ);
-            Assert.AreEqual(TmplType.ActionGeneral, gen.tmpl_typ);
+            Assert.AreEqual(ActionType.General, gen.typ);
             Assert.AreEqual(LogicActionStatus.Activing, gen.status);
             Assert.AreEqual(891u, gen.first_frame);
             Assert.AreEqual(uint.MaxValue, gen.last_frame);
@@ -339,17 +312,12 @@ namespace CriticalPointTests {
             Assert.AreEqual(9u, gen.derive_level);
             Assert.AreEqual(13u, gen.poise_level);
 
+            Assert.AreEqual(1, gen.animations.Length);
             Assert.AreEqual("mock_action_gen_1", gen.animations[0].files.TryRead());
             Assert.AreEqual(81u, gen.animations[0].animation_id);
             Assert.AreEqual(true, gen.animations[0].weapon_motion);
             Assert.AreEqual(0.66f, gen.animations[0].ratio);
             Assert.AreEqual(0.74f, gen.animations[0].weight);
-
-            Assert.AreEqual("", gen.animations[1].files.TryRead());
-            Assert.AreEqual(0xffffu, gen.animations[1].animation_id);
-            Assert.AreEqual(false, gen.animations[1].weapon_motion);
-            Assert.AreEqual(0f, gen.animations[1].ratio);
-            Assert.AreEqual(1f, gen.animations[1].weight);
 
             Assert.AreEqual(0.98f, gen.current_time);
             Assert.AreEqual(1.0f, gen.from_rotation);

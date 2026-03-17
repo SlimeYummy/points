@@ -38,6 +38,12 @@ namespace CriticalPointTests {
             }
         }
 
+        ParamZone NewParamZone() {
+            return new ParamZone {
+                zone = new TmplID("Zone.Demo"),
+            };
+        }
+
         ParamPlayer NewParamPlayer() {
             return new ParamPlayer {
                 character = new TmplID("Character.One"),
@@ -63,20 +69,22 @@ namespace CriticalPointTests {
             };
         }
 
-        ParamZone NewParamZone() {
-            return new ParamZone {
-                zone = new TmplID("Zone.Demo"),
+        ParamNpc NewParamNpc() {
+            return new ParamNpc {
+                character = new TmplID("NpcCharacter.Enemy"),
+                level = 3,
             };
         }
 
         [TestMethod]
         public void TestStartGame() {
             using (var engine = new LogicEngine()) {
-                var zone = NewParamZone();
-                var player = NewParamPlayer();
-
-                var state_set = engine.StartGame(zone, new List<ParamPlayer> { player });
-                Assert.AreEqual(state_set.inits.Length, 3);
+                var state_set = engine.StartGame(new ParamGame {
+                    zone = NewParamZone(),
+                    players = new List<ParamPlayer> { NewParamPlayer() },
+                    npcs = new List<ParamNpc> { NewParamNpc() },
+                });
+                Assert.AreEqual(4, state_set.inits.Length);
                 state_set.Dispose();
 
                 var state_sets = engine.UpdateGame(new List<InputPlayerInputs> {

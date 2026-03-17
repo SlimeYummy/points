@@ -274,5 +274,125 @@ namespace CriticalPointTests {
             Assert.AreEqual(1, update2.StrongCount);
             update2.Dispose();
         }
+
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe RsBoxStateNpcInit mock_box_state_npc_init();
+
+        [TestMethod]
+        public void TestBoxStateNpcInit() {
+            var init = mock_box_state_npc_init().MakeBox();
+
+            Assert.AreEqual(123ul, init.id);
+            Assert.AreEqual(StateType.NpcInit, init.typ);
+            Assert.AreEqual(LogicType.Npc, init.logic_typ);
+
+            Assert.AreEqual("npc_skeleton.ozz", init.skeleton_file.TryRead());
+            var idx = 0;
+            foreach (var meta in init.animation_metas) {
+                Assert.AreEqual(string.Format("npc_animation_{0}.ozz", idx++), meta.files.TryRead());
+            }
+
+            var ref_init = init.Ref();
+            Assert.AreEqual(string.Format("npc_animation_2.ozz"), ref_init.animation_metas[2].files.TryRead());
+
+            Assert.AreEqual("npc.vrm", init.view_model.TryRead());
+            Assert.AreEqual(new Vec3A(5.0f, 6.0f, 7.0f), init.init_position);
+            Assert.AreEqual(new Vec2(1.0f, 0.0f), init.init_direction);
+
+            init.Dispose();
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe RsArcStateNpcInit mock_arc_state_npc_init();
+
+        [TestMethod]
+        public void TestArcStateNpcInit() {
+            var init = mock_arc_state_npc_init().MakeArc();
+
+            Assert.AreEqual(123ul, init.id);
+            Assert.AreEqual(StateType.NpcInit, init.typ);
+            Assert.AreEqual(LogicType.Npc, init.logic_typ);
+
+            Assert.AreEqual("npc_skeleton.ozz", init.skeleton_file.TryRead());
+            var idx = 0;
+            foreach (var meta in init.animation_metas) {
+                Assert.AreEqual(string.Format("npc_animation_{0}.ozz", idx++), meta.files.TryRead());
+            }
+
+            var init2 = init.Arc();
+            Assert.AreEqual(string.Format("npc_animation_0.ozz"), init2.animation_metas[0].files.TryRead());
+
+            var weak_init = init.Weak();
+            Assert.AreEqual(string.Format("npc_animation_2.ozz"), weak_init.animation_metas[2].files.TryRead());
+
+            Assert.AreEqual(2, init.StrongCount);
+            init.Dispose();
+            Assert.AreEqual(1, init2.StrongCount);
+            init2.Dispose();
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe RsBoxStateNpcUpdate mock_box_state_npc_update();
+
+        [TestMethod]
+        public void TestBoxStateNpcUpdate() {
+            var update = mock_box_state_npc_update().MakeBox();
+
+            Assert.AreEqual(999ul, update.id);
+            Assert.AreEqual(StateType.NpcUpdate, update.typ);
+            Assert.AreEqual(LogicType.Npc, update.logic_typ);
+
+            Assert.AreEqual(new Vec3A(7.7f, 8.8f, 9.9f), update.physics.velocity);
+            Assert.AreEqual(new Vec3A(30.0f, 40.0f, 50.0f), update.physics.position);
+            Assert.AreEqual(new Vec2(0.0f, 1.0f), update.physics.direction);
+            Assert.AreEqual(1, update.actions.Length);
+            Assert.AreEqual("Action.One.Run", update.actions[0].tmpl_id.TryRead());
+            Assert.AreEqual(70u, update.actions[0].AsRefStateActionMove().derive_level);
+            Assert.AreEqual(2, update.custom_events.Length);
+            Assert.AreEqual($"Action.One.Attack^1/EventX", update.custom_events[0].AsEventString());
+            Assert.AreEqual($"Action.One.Attack^2/EventY", update.custom_events[1].AsEventString());
+
+            var ref_update = update.Ref();
+            Assert.AreEqual(1, ref_update.actions.Length);
+            Assert.AreEqual(2, ref_update.custom_events.Length);
+
+            update.Dispose();
+        }
+
+        [DllImport("critical_point_csbridge.dll")]
+        private static extern unsafe RsArcStateNpcUpdate mock_arc_state_npc_update();
+
+        [TestMethod]
+        public void TestArcStateNpcUpdate() {
+            var update = mock_arc_state_npc_update().MakeArc();
+
+            Assert.AreEqual(999ul, update.id);
+            Assert.AreEqual(StateType.NpcUpdate, update.typ);
+            Assert.AreEqual(LogicType.Npc, update.logic_typ);
+
+            Assert.AreEqual(new Vec3A(7.7f, 8.8f, 9.9f), update.physics.velocity);
+            Assert.AreEqual(new Vec3A(30.0f, 40.0f, 50.0f), update.physics.position);
+            Assert.AreEqual(new Vec2(0.0f, 1.0f), update.physics.direction);
+            Assert.AreEqual(1, update.actions.Length);
+            Assert.AreEqual("Action.One.Run", update.actions[0].tmpl_id.TryRead());
+            Assert.AreEqual(70u, update.actions[0].AsRefStateActionMove().derive_level);
+            Assert.AreEqual(2, update.custom_events.Length);
+            Assert.AreEqual($"Action.One.Attack^1/EventX", update.custom_events[0].AsEventString());
+            Assert.AreEqual($"Action.One.Attack^2/EventY", update.custom_events[1].AsEventString());
+
+            var update2 = update.Arc();
+            Assert.AreEqual(1, update.actions.Length);
+            Assert.AreEqual(2, update.custom_events.Length);
+
+            var weak_update = update.Weak();
+            Assert.AreEqual(1, weak_update.actions.Length);
+            Assert.AreEqual(2, weak_update.custom_events.Length);
+
+            Assert.AreEqual(2, update.StrongCount);
+            update.Dispose();
+            Assert.AreEqual(1, update2.StrongCount);
+            update2.Dispose();
+        }
     }
 }
