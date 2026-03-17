@@ -44,8 +44,14 @@ namespace CriticalPointTests {
         private Dictionary<string, Layout> GetCsLayouts() {
             var layouts = new Dictionary<string, Layout>();
             layouts["AnimationFileMeta"] = MakeLayout<AnimationFileMeta>(AnimationFileMeta.SIZE, AnimationFileMeta.ALIGN);
+            layouts["AnimationMeta"] = MakeLayout<RsAnimationMeta>(RsAnimationMeta.SIZE, RsAnimationMeta.ALIGN);
             layouts["CustomEvent"] = MakeLayout<CustomEvent>(CustomEvent.SIZE, CustomEvent.ALIGN);
+            layouts["DeriveKeeping"] = MakeLayout<DeriveKeeping>(DeriveKeeping.SIZE, DeriveKeeping.ALIGN);
+            layouts["HitMotionMeta"] = MakeLayout<RsHitMotionMeta>(RsHitMotionMeta.SIZE, RsHitMotionMeta.ALIGN);
+            layouts["HitTrackGroupMeta"] = MakeLayout<RsHitTrackGroupMeta>(RsHitTrackGroupMeta.SIZE, RsHitTrackGroupMeta.ALIGN);
             layouts["LogicEngineStatus"] = MakeLayout<LogicEngineStatus>(LogicEngineStatus.SIZE, LogicEngineStatus.ALIGN);
+            layouts["RootMotionMeta"] = MakeLayout<RsRootMotionMeta>(RsRootMotionMeta.SIZE, RsRootMotionMeta.ALIGN);
+            layouts["RootMotionPositionMeta"] = MakeLayout<RootMotionPositionMeta>(RootMotionPositionMeta.SIZE, RootMotionPositionMeta.ALIGN);
             layouts["SkeletonJointMeta"] = MakeLayout<RsSkeletonJointMeta>(RsSkeletonJointMeta.SIZE, RsSkeletonJointMeta.ALIGN);
             layouts["SkeletonMeta"] = MakeLayout<RsSkeletonMeta>(RsSkeletonMeta.SIZE, RsSkeletonMeta.ALIGN);
             layouts["StateActionAnimation"] = MakeLayout<StateActionAnimation>(StateActionAnimation.SIZE, StateActionAnimation.ALIGN);
@@ -58,6 +64,7 @@ namespace CriticalPointTests {
             layouts["StateCharaPhysics"] = MakeLayout<StateCharaPhysics>(StateCharaPhysics.SIZE, StateCharaPhysics.ALIGN);
             layouts["StateGameInit"] = MakeLayout<RsStateGameInit>(RsStateGameInit.SIZE, RsStateGameInit.ALIGN);
             layouts["StateGameUpdate"] = MakeLayout<RsStateGameUpdate>(RsStateGameUpdate.SIZE, RsStateGameUpdate.ALIGN);
+            layouts["StateGeneration"] = MakeLayout<StateGeneration>(StateGeneration.SIZE, StateGeneration.ALIGN);
             layouts["StateMultiRootMotion"] = MakeLayout<StateMultiRootMotion>(StateMultiRootMotion.SIZE, StateMultiRootMotion.ALIGN);
             layouts["StateNpcInit"] = MakeLayout<RsStateNpcInit>(RsStateNpcInit.SIZE, RsStateNpcInit.ALIGN);
             layouts["StateNpcUpdate"] = MakeLayout<RsStateNpcUpdate>(RsStateNpcUpdate.SIZE, RsStateNpcUpdate.ALIGN);
@@ -67,6 +74,8 @@ namespace CriticalPointTests {
             layouts["StateSet"] = MakeLayout<RsStateSet>(RsStateSet.SIZE, RsStateSet.ALIGN);
             layouts["StateZoneInit"] = MakeLayout<RsStateZoneInit>(RsStateZoneInit.SIZE, RsStateZoneInit.ALIGN);
             layouts["StateZoneUpdate"] = MakeLayout<RsStateZoneUpdate>(RsStateZoneUpdate.SIZE, RsStateZoneUpdate.ALIGN);
+            layouts["TimeRange"] = MakeLayout<TimeRange>(TimeRange.SIZE, TimeRange.ALIGN);
+            layouts["WeaponMotionMeta"] = MakeLayout<RsWeaponMotionMeta>(RsWeaponMotionMeta.SIZE, RsWeaponMotionMeta.ALIGN);
             layouts["WeaponTransform"] = MakeLayout<WeaponTransform>(WeaponTransform.SIZE, WeaponTransform.ALIGN);
             return layouts;
         }
