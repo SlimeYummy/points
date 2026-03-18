@@ -1,5 +1,4 @@
-import { int, parseFloatArray } from './common';
-import { float } from './common';
+import { float, int, parseFloatArray } from './common';
 
 const _PRIMARY_ATTRIBUTES = [
     'MaxHealth',

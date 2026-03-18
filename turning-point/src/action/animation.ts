@@ -1,7 +1,7 @@
 import { FilePath, float, int, parseBool, parseFile, parseTime } from '../common';
 import * as native from '../native';
 
-export type AniamtionArgs = {
+export type AnimationArgs = {
     /**
      * 动画文件 一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.la-ozz 逻辑动画
@@ -22,9 +22,12 @@ export type AniamtionArgs = {
 
     /** 是否启用武器轨迹 */
     weapon_motion?: boolean;
+
+    /** 是否启用命中判定盒 */
+    hit_motion?: boolean;
 };
 
-export class Aniamtion {
+export class Animation {
     /**
      * 动画文件 一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.la-ozz 逻辑动画
@@ -52,82 +55,71 @@ export class Aniamtion {
     /** 是否启用武器轨迹 */
     public readonly weapon_motion: boolean;
 
+    /** 是否启用命中判定盒 */
+    public readonly hit_motion: boolean;
+
     public constructor(
-        args: AniamtionArgs,
+        args: AnimationArgs,
         where: string,
-        opts?: {
+        opts: {
             root_motion?: boolean;
             weapon_motion?: boolean;
-        },
-    );
-    public constructor(
-        files: string,
-        duration: int,
-        fade_in?: int,
-        root_motion?: boolean,
-        weapon_motion?: boolean,
-    );
-    public constructor() {
-        if (typeof arguments[0] === 'object') {
-            const args: AniamtionArgs = arguments[0];
-            const where: string = arguments[1];
-            const opts = arguments[2] || {};
+            hit_motion?: boolean;
+        } = {},
+    ) {
+        this.files = parseFile(args.files, `${where}.files`, { extension: '.*' });
+        // 确保动画存在
+        const anim = native.loadAnimationMeta(this.files, `${where}.files: file not found (${this.files})`);
 
-            this.files = parseFile(args.files, `${where}.files`, { extension: '.*' });
-            const anim = native.loadAnimationMeta(this.files); // 确保动画存在
+        this.duration = parseTime(
+            args.duration == null ? anim.duration : args.duration,
+            `${where}.duration`,
+            { min: 0 },
+        );
+        this.fade_in =
+            args.fade_in == null
+                ? 0.1
+                : parseTime(args.fade_in, `${where}.fade_in`, { min: 0 });
 
-            this.duration = parseTime(
-                args.duration == null ? anim.duration : args.duration,
-                `${where}.duration`,
-                { min: 0 },
-            );
-            this.fade_in =
-                args.fade_in == null
-                    ? 0.1
-                    : parseTime(args.fade_in, `${where}.fade_in`, { min: 0 });
-
-            this.root_motion =
-                args.root_motion == null
-                    ? false
-                    : parseBool(args.root_motion, `${where}.root_motion`);
-            if (opts.root_motion !== undefined && this.root_motion !== opts.root_motion) {
-                throw new Error(`${where}.root_motion: must be ${!!opts.root_motion}`);
-            }
-
-            this.weapon_motion =
-                args.weapon_motion == null
-                    ? false
-                    : parseBool(args.weapon_motion, `${where}.weapon_motion`);
-            if (opts.weapon_motion !== undefined && this.weapon_motion !== opts.weapon_motion) {
-                throw new Error(`${where}.weapon_motion: must be ${!!opts.weapon_motion}`);
-            }
-        } else {
-            this.files = arguments[0];
-            this.duration = arguments[1];
-            this.fade_in = arguments[2] || 0.2;
-            this.root_motion = arguments[3] || false;
-            this.weapon_motion = arguments[4] || false;
+        this.root_motion =
+            args.root_motion == null
+                ? false
+                : parseBool(args.root_motion, `${where}.root_motion`);
+        if (opts.root_motion !== undefined && this.root_motion !== opts.root_motion) {
+            throw new Error(`${where}.root_motion: must be ${!!opts.root_motion}`);
+        }
+        if (this.root_motion) {
+            // 确保RootMotion存在
+            native.loadRootMotionMeta(this.files, `${where}.files: file not found (${this.files})`);
         }
 
-        if (this.root_motion) {
-            native.loadRootMotionMeta(this.files); // 确保RootMotion存在
+        this.weapon_motion =
+            args.weapon_motion == null
+                ? false
+                : parseBool(args.weapon_motion, `${where}.weapon_motion`);
+        if (opts.weapon_motion !== undefined && this.weapon_motion !== opts.weapon_motion) {
+            throw new Error(`${where}.weapon_motion: must be ${!!opts.weapon_motion}`);
+        }
+
+        this.hit_motion =
+            args.hit_motion == null
+                ? false
+                : parseBool(args.hit_motion, `${where}.hit_motion`);
+        if (opts.hit_motion !== undefined && this.hit_motion !== opts.hit_motion) {
+            throw new Error(`${where}.hit_motion: must be ${!!opts.hit_motion}`);
         }
 
         this.local_id = 65535;
     }
 
-    public static fromFile(_file: string, _where: string): Aniamtion {
-        return null as any;
-    }
-
     public static parseArray(
-        raw: ReadonlyArray<AniamtionArgs>,
+        raw: ReadonlyArray<AnimationArgs>,
         where: string,
-    ): ReadonlyArray<Aniamtion> {
-        return raw.map((args, idx) => new Aniamtion(args, `${where}[${idx}]`));
+    ): ReadonlyArray<Animation> {
+        return raw.map((args, idx) => new Animation(args, `${where}[${idx}]`));
     }
 
-    public static generateLocalID(animation: Array<Aniamtion | undefined | null>) {
+    public static generateLocalID(animation: Array<Animation | undefined | null>) {
         for (let pos = 0; pos < animation.length; ++pos) {
             if (animation[pos]) {
                 (animation[pos] as any).local_id = pos;

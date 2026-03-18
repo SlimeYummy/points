@@ -11,10 +11,10 @@ import {
     parseString,
     parseTime,
 } from '../common';
-import { Aniamtion, AniamtionArgs } from './animation';
+import { Animation, AnimationArgs } from './animation';
 import { Action, ActionArgs, LEVEL_MOVE, parseActionLevel } from './base';
 
-export type ActionMoveStartArgs = AniamtionArgs & {
+export type ActionMoveStartArgs = AnimationArgs & {
     /** 进入该动画的角度（右手系XZ平面） */
     enter_angle: [float | string, float | string];
 
@@ -25,7 +25,7 @@ export type ActionMoveStartArgs = AniamtionArgs & {
     quick_stop_end?: float | string;
 };
 
-export class ActionMoveStart extends Aniamtion {
+export class ActionMoveStart extends Animation {
     /** 进入该动画的角度（右手系XZ平面） */
     public readonly enter_angle: readonly [float, float];
 
@@ -53,7 +53,7 @@ export class ActionMoveStart extends Aniamtion {
     }
 }
 
-export type ActionMoveTurnArgs = AniamtionArgs & {
+export type ActionMoveTurnArgs = AnimationArgs & {
     /** 进入该动画的角度（右手系XZ平面） */
     enter_angle: [float | string, float | string];
 
@@ -61,7 +61,7 @@ export type ActionMoveTurnArgs = AniamtionArgs & {
     turn_in_place_end: float | string;
 };
 
-export class ActionMoveTurn extends Aniamtion {
+export class ActionMoveTurn extends Animation {
     /** 进入该动画的角度（右手系XZ平面） */
     public readonly enter_angle: readonly [float, float];
 
@@ -90,7 +90,7 @@ export type ActionMoveStopLeaveArgs =
       }
     | [float | string, float | string];
 
-export type ActionMoveStopArgs = AniamtionArgs & {
+export type ActionMoveStopArgs = AnimationArgs & {
     /** 进入该动画的相位表  */
     enter_phase_table: Array<ActionMoveStopEnterArgs>;
 
@@ -98,7 +98,7 @@ export type ActionMoveStopArgs = AniamtionArgs & {
     leave_phase_table?: Array<ActionMoveStopLeaveArgs>;
 };
 
-export class ActionMoveStop extends Aniamtion {
+export class ActionMoveStop extends Animation {
     /** 进入该动画的相位表 */
     public readonly enter_phase_table: ReadonlyArray<{
         /** 进入该动画的相位 [开始, 结束] */
@@ -209,7 +209,7 @@ export type ActionMoveArgs = ActionArgs & {
     special_derive_level?: int;
 
     /** 前向移动动画 */
-    anim_move: AniamtionArgs;
+    anim_move: AnimationArgs;
 
     /** 移动速度（m/s） 以anim_move为参考 影响Action内全部动画 */
     move_speed: float;
@@ -269,7 +269,7 @@ export class ActionMove extends Action {
     public readonly special_derive_level: int;
 
     /** 前向移动动画 */
-    public readonly anim_move: Aniamtion;
+    public readonly anim_move: Animation;
 
     /** 移动速度（m/s） 以anim_move为参考 影响Action内全部动画 */
     public readonly move_speed: float;
@@ -326,7 +326,7 @@ export class ActionMove extends Action {
             args.special_derive_level || LEVEL_MOVE + 10,
             this.w('special_derive_level'),
         );
-        this.anim_move = new Aniamtion(args.anim_move, this.w('anim_move'), {
+        this.anim_move = new Animation(args.anim_move, this.w('anim_move'), {
             root_motion: true,
         });
         this.move_speed = parseFloat(args.move_speed, this.w('move_speed'), { min: 0, max: 1000 });
@@ -361,7 +361,7 @@ export class ActionMove extends Action {
             { min: 0 },
         );
 
-        Aniamtion.generateLocalID([this.anim_move, ...this.starts, ...this.turns, ...this.stops]);
+        Animation.generateLocalID([this.anim_move, ...this.starts, ...this.turns, ...this.stops]);
     }
 
     public override verify() {
