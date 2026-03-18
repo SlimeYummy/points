@@ -1,6 +1,13 @@
 import { float, parseFloat } from './builtin';
 
-export class Shape {}
+export class Shape {
+    public toJSON() {
+        return {
+            T: this.constructor.name,
+            ...this,
+        };
+    }
+}
 
 export class Box extends Shape {
     public readonly half_x: float;
@@ -49,5 +56,33 @@ export class TaperedCapsule extends Shape {
         });
         this.top_radius = parseFloat(top_radius, 'Capsule.top_radius', { min: 0 });
         this.bottom_radius = parseFloat(bottom_radius, 'Capsule.bottom_radius', { min: 0 });
+    }
+}
+
+export class Cylinder extends Shape {
+    public readonly half_height: number;
+    public readonly radius: number;
+
+    public constructor(half_height: number, radius: number) {
+        super();
+        this.half_height = parseFloat(half_height, 'Cylinder.half_height', {
+            min: 0,
+        });
+        this.radius = parseFloat(radius, 'Cylinder.radius', { min: 0 });
+    }
+}
+
+export class TaperedCylinder extends Shape {
+    public readonly half_height: number;
+    public readonly top_radius: number;
+    public readonly bottom_radius: number;
+
+    public constructor(half_height: number, top_radius: number, bottom_radius: number) {
+        super();
+        this.half_height = parseFloat(half_height, 'TaperedCylinder.half_height', {
+            min: 0,
+        });
+        this.top_radius = parseFloat(top_radius, 'Cylinder.top_radius', { min: 0 });
+        this.bottom_radius = parseFloat(bottom_radius, 'Cylinder.bottom_radius', { min: 0 });
     }
 }

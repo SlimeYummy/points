@@ -1,4 +1,5 @@
 import {
+    Capsule,
     checkType,
     FilePath,
     float,
@@ -17,7 +18,7 @@ import {
     TaperedCapsule,
 } from './common';
 import { Resource } from './resource';
-import { Action } from './action';
+import { Action, NpcAction } from './action';
 import {
     parseAttributeTable,
     PRIMARY_ATTRIBUTES,
@@ -28,6 +29,7 @@ import {
 import { Equipment } from './equipment';
 import { parseJevelSlotsArray } from './jewel';
 import { Perk } from './perk';
+import * as native from './native';
 
 export type CharacterArgs = {
     /** 角色名字 */
@@ -43,7 +45,7 @@ export type CharacterArgs = {
     equipments: ReadonlyArray<ID>;
 
     /** 用于移动的包围胶囊体 */
-    bounding: TaperedCapsule;
+    bounding: Capsule | TaperedCapsule;
 
     /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
@@ -53,13 +55,10 @@ export type CharacterArgs = {
 
     /** 模型在XZ平面上的朝向（正面方向） */
     skeleton_toward: readonly [float, float];
-
-    /** 角色角色判定体（包围盒） xxx.rkyv (.json) */
-    body_file: FilePath;
 };
 
 /**
- * 角色，即游戏中的一个角色，如LK/LL/WQ/YJ等。
+ * 角色，即游戏中的一个玩家控制的角色。
  * 注意区分Character与Style，一个Character对应多个Style。
  * Character里包含该角色所有Style通用的数据。
  */
@@ -87,7 +86,7 @@ export class Character extends Resource {
     public readonly equipments: ReadonlyArray<ID>;
 
     /** 用于移动的包围胶囊体 */
-    public readonly bounding: TaperedCapsule;
+    public readonly bounding: Capsule | TaperedCapsule;
 
     /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
@@ -98,23 +97,33 @@ export class Character extends Resource {
     /** 模型在XZ平面上的朝向（正面方向） */
     public readonly skeleton_toward: readonly [float, float];
 
-    /** 角色角色判定体（包围盒） xxx.rkyv (.json) */
-    public readonly body_file: FilePath;
-
     public constructor(id: ID, args: CharacterArgs) {
         super(id);
-        this.name = parseString(args.name, this.w('name'), { max_len: 32 });
+        this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
         this.level = parseIntRange(args.level, this.w('level'), { min: 0 });
         this.styles = parseIDArray(args.styles, 'Style', this.w('styles'));
         this.equipments = parseIDArray(args.equipments, 'Equipment', this.w('equipments'));
-        this.bounding = checkType(args.bounding, TaperedCapsule, this.w('bounding'));
+        this.bounding = checkType(args.bounding, [Capsule, TaperedCapsule], this.w('bounding'));
         this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), {
             extension: '.*',
         });
         this.skeleton_toward = parseVec2(args.skeleton_toward, this.w('skeleton_toward'), {
             normalized: true,
         });
-        this.body_file = parseFile(args.body_file, this.w('body_file'), { extension: '.json' });
+
+        this.checkSkeletonFiles();
+    }
+
+    private checkSkeletonFiles() {
+        if (!native.existCharacterPhysics(this.skeleton_files)) {
+            throw this.e('skeleton_files', `file not found (${this.skeleton_files})`);
+        }
+
+        native.loadSkeletonMeta(
+            this.skeleton_files,
+            false,
+            `${this.w('skeleton_files')}: file not found (${this.skeleton_files})`,
+        );
     }
 
     public override verify() {
@@ -168,6 +177,9 @@ export type StyleArgs = {
     view_model: FilePath;
 };
 
+/**
+ * 角色风格，玩家可控角色的不同变体。
+ */
 export class Style extends Resource {
     public static override readonly prefix: IDPrefix = 'Style';
 
@@ -283,6 +295,143 @@ export class Style extends Resource {
             const action = Action.find(entry_id, this.w(`actions[${idx}]`));
             if (!action.styles.includes(this.id)) {
                 throw this.e(`actions[${idx}]`, 'Style and Action mismatch');
+            }
+        }
+    }
+}
+
+export type NpcCharacterArgs = {
+    /** 角色名字 */
+    name: string;
+
+    /** 标签 */
+    tags?: ReadonlyArray<string>;
+
+    /** 最大等级 */
+    level: readonly [int, int];
+
+    /** 每一级的属性 */
+    attributes: Readonly<
+        Partial<Record<PrimaryAttribute | SecondaryAttribute, ReadonlyArray<float | string>>>
+    >;
+
+    /** 不随等级变动的属性 */
+    fixed_attributes: FixedAttributesArgs;
+
+    /** 可用的动作列表 */
+    actions: ReadonlyArray<ID>;
+
+    /** 用于移动的包围胶囊体 */
+    bounding: Capsule | TaperedCapsule;
+
+    /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
+     * - xxx.ls-ozz 逻辑骨骼
+     * - xxx.vs-ozz 视图骨骼
+     */
+    skeleton_files: FilePath;
+
+    /** 模型在XZ平面上的朝向（正面方向） */
+    skeleton_toward: readonly [float, float];
+
+    /** 角色角色判定体（包围盒） xxx.rkyv (.json) */
+    body_file: FilePath;
+
+    /** 角色模型（渲染） */
+    view_model: FilePath;
+};
+
+/**
+ * NPC角色，包括敌人、BOSS、队友等非玩家控制角色。
+ */
+export class NpcCharacter extends Resource {
+    public static override readonly prefix: IDPrefix = 'NpcCharacter';
+
+    public static override find(id: string, where: string): NpcCharacter {
+        const res = Resource.find(id, where);
+        if (!(res instanceof NpcCharacter)) {
+            throw new Error(`${where}: Resource type miss match`);
+        }
+        return res;
+    }
+
+    /** 角色名字 */
+    public readonly name: string;
+
+    /** 标签 */
+    public readonly tags: ReadonlyArray<string>;
+
+    /** 最大等级 */
+    public readonly level: readonly [int, int];
+
+    /** 每级的属性列表 */
+    public readonly attributes: Readonly<
+        Partial<Record<PrimaryAttribute | SecondaryAttribute, ReadonlyArray<float>>>
+    >;
+
+    /** 不随等级变动的属性 */
+    public readonly fixed_attributes: FixedAttributes;
+
+    /** 可用的动作列表 */
+    public readonly actions: ReadonlyArray<ID>;
+
+    /** 用于移动的包围胶囊体 */
+    public readonly bounding: Capsule | TaperedCapsule;
+
+    /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
+     * - xxx.ls-ozz 逻辑骨骼
+     * - xxx.vs-ozz 视图骨骼
+     */
+    public readonly skeleton_files: FilePath;
+
+    /** 模型在XZ平面上的朝向（正面方向） */
+    public readonly skeleton_toward: readonly [float, float];
+
+    /** 角色角色判定体（包围盒） xxx.rkyv (.json) */
+    public readonly body_file: FilePath;
+
+    /** 角色模型（渲染） */
+    public readonly view_model: FilePath;
+
+    public constructor(id: ID, args: NpcCharacterArgs) {
+        super(id);
+        this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
+        this.tags = parseStringArray(args.tags || [], this.w('tags'), { deduplicate: true });
+        this.level = parseIntRange(args.level, this.w('level'), { min: 0 });
+        this.attributes = parseAttributeTable<PrimaryAttribute | SecondaryAttribute>(
+            args.attributes,
+            [PRIMARY_ATTRIBUTES, SECONDARY_ATTRIBUTES],
+            this.w('attributes'),
+        );
+        this.fixed_attributes = new FixedAttributes(
+            args.fixed_attributes,
+            this.w('fixed_attributes'),
+        );
+        this.actions = parseIDArray(args.actions, 'NpcAction', this.w('actions'));
+        this.bounding = checkType(args.bounding, [Capsule, TaperedCapsule], this.w('bounding'));
+        this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), {
+            extension: '.*',
+        });
+        this.skeleton_toward = parseVec2(args.skeleton_toward, this.w('skeleton_toward'), {
+            normalized: true,
+        });
+        this.body_file = parseFile(args.body_file, this.w('body_file'), { extension: '.json' });
+        this.view_model = parseFile(args.view_model, this.w('view_model'), {
+            extension: ['.vrm', '.prefab'],
+        });
+    }
+
+    public verify(): void {
+        const level_count = this.level[1] - this.level[0] + 1;
+        for (const vals of Object.values(this.attributes)) {
+            if (vals.length !== level_count) {
+                throw this.e('attributes', `len must = ${vals.length}`);
+            }
+        }
+
+        for (const [idx, entry_id] of this.actions.entries()) {
+            const action = NpcAction.find(entry_id, this.w(`actions[${idx}]`));
+            if (!action.characters.includes(this.id)) {
+                throw this.e(`actions[${idx}]`, 'NpcCharacter and NpcAction mismatch');
             }
         }
     }

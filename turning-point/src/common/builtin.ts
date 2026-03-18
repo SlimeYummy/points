@@ -358,13 +358,22 @@ export function checkRecord<V>(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function checkType<T, C extends new (...args: any[]) => T>(
+export function checkType<T, C extends new (...args: any[]) => any>(
     obj: T,
-    cls: C,
+    cls: C | C[],
     where: string,
 ): T {
-    if (!(obj instanceof cls)) {
-        throw new Error(`${where}: must be a ${cls.name}`);
+    if (Array.isArray(cls)) {
+        for (const c of cls) {
+            if (obj instanceof c) {
+                return obj;
+            }
+        }
+        throw new Error(`${where}: must be a ${cls.map((c) => c.name).join('/')}`);
+    } else {
+        if (!(obj instanceof cls)) {
+            throw new Error(`${where}: must be a ${cls.name}`);
+        }
+        return obj;
     }
-    return obj;
 }
