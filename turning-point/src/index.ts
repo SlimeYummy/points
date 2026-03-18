@@ -11,3 +11,4 @@ export * from './perk';
 export * from './resource';
 export * from './variable';
 export * from './zone';
+export * from './hit';
