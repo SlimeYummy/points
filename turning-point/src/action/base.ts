@@ -1,5 +1,4 @@
 import {
-    FilePath,
     float,
     ID,
     IDPrefix,
@@ -12,7 +11,7 @@ import {
     parseStringArray,
 } from '../common';
 import { Resource } from '../resource';
-import { Character, Style } from '../character';
+import { Character, NpcCharacter, Style } from '../character';
 import {
     parseVarBool,
     parseVarFloat,
@@ -188,7 +187,7 @@ export type ActionArgs = {
 };
 
 /**
- * 所有动作的抽象基类
+ * 所有玩家角色动作的抽象基类
  */
 export abstract class Action extends Resource {
     public static override readonly prefix: IDPrefix = 'Action';
@@ -231,13 +230,62 @@ export abstract class Action extends Resource {
 
         if (this.styles) {
             for (const [idx, id] of this.styles.entries()) {
-                const usable_style = Style.find(id, this.w(`styles[${idx}]`));
-                if (this.character !== usable_style.character) {
+                const style = Style.find(id, this.w(`styles[${idx}]`));
+                if (this.character !== style.character) {
                     throw this.e(`styles[${idx}]`, 'character mismatch with styles');
                 }
-                if (!usable_style.actions.includes(this.id)) {
+                if (!style.actions.includes(this.id)) {
                     throw this.e(`styles[${idx}]`, 'Style and Action mismatch');
                 }
+            }
+        }
+    }
+}
+
+export type NpcActionArgs = {
+    /** 所属NPC角色ID NpcAction科关联多个角色 */
+    characters: ReadonlyArray<ID>;
+
+    /** 标签 */
+    tags?: ReadonlyArray<string>;
+};
+
+/**
+ * 所有NPC角色动作的抽象基类
+ */
+export abstract class NpcAction extends Resource {
+    public static override readonly prefix: IDPrefix = 'NpcAction';
+
+    public static override find(id: string, where: string): NpcAction {
+        const res = Resource.find(id, where);
+        if (!(res instanceof NpcAction)) {
+            throw new Error(`${where}: Resource type miss match`);
+        }
+        return res;
+    }
+
+    /** 所属NPC角色ID NpcAction科关联多个角色 */
+    public readonly characters: ReadonlyArray<ID>;
+
+    /** 标签 */
+    public readonly tags: ReadonlyArray<string>;
+
+    public constructor(id: ID, args: NpcActionArgs) {
+        super(id);
+        this.characters = parseIDArray(args.characters, 'NpcCharacter', this.w('characters'), {
+            min_len: 1,
+        });
+        this.tags = parseStringArray(args.tags || [], this.w('tags'), {
+            // includes: ['Idle', 'Run', 'Walk', 'Attack', 'Skill'],
+            deduplicate: true,
+        });
+    }
+
+    public override verify() {
+        for (const [idx, id] of this.characters.entries()) {
+            const character = NpcCharacter.find(id, this.w(`characters[${idx}]`));
+            if (!character.actions.includes(this.id)) {
+                throw this.e(`characters[${idx}]`, 'NpcCharacter and NpcAction mismatch');
             }
         }
     }

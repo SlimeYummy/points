@@ -14,7 +14,7 @@ import {
 } from '../common';
 import { Resource } from '../resource';
 import { parseVarFloat, parseVarInt, Var, VarValueArgs } from '../variable';
-import { Aniamtion, AniamtionArgs } from './animation';
+import { Animation, AnimationArgs } from './animation';
 import {
     Action,
     ActionArgs,
@@ -35,7 +35,7 @@ import {
     VirtualKeyDirArgs,
 } from './keys';
 
-// export type TimelineGeneralArgs = AniamtionArgs & {
+// export type TimelineGeneralArgs = AnimationArgs & {
 //     /** 详细数值时间轴 */
 //     attributes: ReadonlyArray<ReadonlyArray<int | string>>;
 
@@ -46,7 +46,7 @@ import {
 //     // just_window?: readonly [int | string, int | string];
 // };
 
-// export class TimelineGeneral extends Aniamtion {
+// export class TimelineGeneral extends Animation {
 //     /** 详细数值时间轴 */
 //     public readonly attributes: ReadonlyArray<TimeFragment>;
 
@@ -125,7 +125,7 @@ export class ActionGeneralRotation {
 }
 
 export type ActionGeneralArgs = ActionArgs & {
-    anim_main: AniamtionArgs;
+    anim_main: AnimationArgs;
 
     /** 进入按键 */
     enter_key?: VirtualKeyDirArgs;
@@ -177,7 +177,7 @@ export class ActionGeneral extends Action {
     }
 
     /** 动画配置文件 */
-    public readonly anim_main: Aniamtion;
+    public readonly anim_main: Animation;
 
     /** 进入按键 */
     public readonly enter_key?: VirtualKeyDir;
@@ -216,7 +216,7 @@ export class ActionGeneral extends Action {
 
     public constructor(id: ID, args: ActionGeneralArgs) {
         super(id, args);
-        this.anim_main = new Aniamtion(args.anim_main, this.w('anim_main'), { root_motion: true });
+        this.anim_main = new Animation(args.anim_main, this.w('anim_main'), { root_motion: true });
         this.enter_key =
             args.enter_key == null
                 ? undefined
@@ -267,7 +267,7 @@ export class ActionGeneral extends Action {
                   parseString,
               );
 
-        Aniamtion.generateLocalID([this.anim_main]);
+        Animation.generateLocalID([this.anim_main]);
     }
 
     private static parseInputMovement(
