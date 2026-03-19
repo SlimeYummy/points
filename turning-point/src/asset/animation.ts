@@ -49,9 +49,10 @@ export function gltf2ozz(
         }
     });
 
-    let jsonTracks: { json: string; filename: string }[] = [];
-    if (jsonTrackFolder) {
-        for (const json of fs.readdirSync(gltfFile + `/../${jsonTrackFolder}`)) {
+    const jsonTracks: { json: string; filename: string }[] = [];
+    const jsonTrackPath = gltfFile + `/../${jsonTrackFolder}`;
+    if (jsonTrackFolder && fs.existsSync(jsonTrackPath)) {
+        for (const json of fs.readdirSync(jsonTrackPath)) {
             if (json.endsWith('.wm-json')) {
                 jsonTracks.push({
                     json: `${jsonTrackFolder}/${json}`,
