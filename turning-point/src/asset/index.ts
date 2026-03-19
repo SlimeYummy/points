@@ -140,9 +140,13 @@ export class Asset {
     //     }
     // }
 
+    /**
+     * Travel srcDir, use dir and file to call filterMap.
+     * If filterMap return a path, copy file to this path.
+     */
     public static copyFiles(
         srcDir: string,
-        filter_map: (dir: string, file: string) => string | null | undefined,
+        filterMap: (dir: string, file: string) => string | null | undefined,
     ) {
         const dstDirs = new Set<string>();
         fs.mkdirSync(INPUT_ASSET, { recursive: true });
@@ -161,7 +165,7 @@ export class Asset {
                 if (entry.isDirectory()) {
                     travelDir(path.join(dir, entry.name));
                 } else if (entry.isFile()) {
-                    let dst = filter_map(dir, entry.name);
+                    let dst = filterMap(dir, entry.name);
                     if (!dst) {
                         continue;
                     }
