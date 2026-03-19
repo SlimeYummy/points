@@ -1,4 +1,18 @@
-import { Character, Equipment, Perk, Slot1, Slot3, Style, TaperedCapsule } from '../src';
+import {
+    Capsule,
+    Character,
+    Equipment,
+    NpcCharacter,
+    Perk,
+    Slot1,
+    Slot3,
+    Style,
+    TaperedCapsule,
+} from '../src';
+
+//
+// Player
+//
 
 const fixed_attributes = {
     damage_reduce_param_1: 0.05,
@@ -18,7 +32,6 @@ new Character('Character.Verify^1', {
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'Girl.*',
     skeleton_toward: [0, 1],
-    body_file: 'Girl.body.json',
 });
 
 new Style('Style.Verify^1A', {
@@ -50,9 +63,8 @@ new Character('Character.Verify^2', {
     styles: ['Style.Verify^2'],
     equipments: ['Equipment.Verify^2A'],
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
-    skeleton_files: 'skel.*',
+    skeleton_files: 'Girl.*',
     skeleton_toward: [0, 1],
-    body_file: 'body2.json',
 });
 
 new Style('Style.Verify^2', {
@@ -123,4 +135,24 @@ new Perk('Perk.Verify^2A', {
     character: 'Character.Verify^2',
     style: 'Style.Verify^2',
     max_level: 2,
+});
+
+//
+// NPC
+//
+
+new NpcCharacter('NpcCharacter.Verify^1', {
+    name: 'Verify^1',
+    tags: ['Npc'],
+    level: [1, 3],
+    attributes: {
+        MaxHealth: [10000, 20000, 30000],
+    },
+    fixed_attributes,
+    actions: [],
+    bounding: new Capsule(0.5, 0.5),
+    skeleton_files: 'TrainingDummy.*',
+    skeleton_toward: [0, 1],
+    body_file: 'TrainingDummyBody.json',
+    view_model: 'TrainingDummy.prefab',
 });

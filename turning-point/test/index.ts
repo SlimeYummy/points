@@ -4,8 +4,16 @@ if (!FORCE_GEN) {
     // Asset.enableIncrement();
 }
 
+const files = ['GirlBody.json', 'TrainingDummyBody.json', 'TestZone.json', 'Demo1Zone.json'];
 Asset.copyFiles('../test-asset/', (_dir, file) => {
-    return ['Girl.body.json', 'TestZone.json', 'Demo1Zone.json'].includes(file) ? file : null;
+    if (files.includes(file)) {
+        return file;
+    } else if (file.endsWith('.hm-json')) {
+        return file;
+    } else if (file.endsWith('.cp-json')) {
+        return file;
+    }
+    return null;
 });
 
 const MAPPING_VRM_HUMAN = {
@@ -16,6 +24,15 @@ const MAPPING_VRM_HUMAN = {
 Asset.gltf2ozz('', '', [['GirlLocomotion.glb', 'config_vrm_human.json', MAPPING_VRM_HUMAN, null, 'Girl']]);
 Asset.gltf2ozz('', '', [
     ['GirlAttack.glb', 'config_vrm_human.json', MAPPING_VRM_HUMAN, 'GirlAttack', 'Girl'],
+]);
+
+const MAPPING_SIMPLE = {
+    logicFile: 'mapping_simple.json',
+    viewFile: 'mapping_simple.json',
+}
+
+Asset.gltf2ozz('', '', [
+    ['TrainingDummy.glb', 'config_simple.json', MAPPING_SIMPLE, 'TrainingDummy', 'TrainingDummy'],
 ]);
 
 console.log('\nGenerate assets done\n');
