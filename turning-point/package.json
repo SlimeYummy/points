@@ -35,25 +35,25 @@
     "native-version": "napi version"
   },
   "devDependencies": {
-    "@eslint/js": "^9.19",
+    "@eslint/js": "^9.39",
     "@jest/globals": "^30.2",
     "@napi-rs/cli": "^3.3",
-    "@trivago/prettier-plugin-sort-imports": "^5.2",
-    "@types/node": "^24.7",
+    "@trivago/prettier-plugin-sort-imports": "^6.0",
+    "@types/node": "^25.0",
     "@types/tmp": "^0.2",
     "cross-env": "^10.1",
     "eslint": "^9.19",
     "jest": "^30.2",
-    "prettier": "^3.4",
+    "prettier": "^3.7",
     "ts-jest": "^29.2",
     "ts-node": "^10.9",
     "typescript": "^5.7",
-    "typescript-eslint": "^8.21"
+    "typescript-eslint": "^8.46"
   },
   "dependencies": {
-    "@formatjs/fast-memoize": "^2.2",
+    "@formatjs/fast-memoize": "^3.0",
     "art-template": "^4.13",
-    "exit-hook": "^4.0",
+    "exit-hook": "^5.0",
     "tmp": "^0.2"
   }
 }

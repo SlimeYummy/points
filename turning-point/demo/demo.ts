@@ -4,9 +4,12 @@ import {
     ActionMove,
     Attack1,
     Attack2,
+    Capsule,
     Character,
     LEVEL_ACTION,
     LEVEL_ATTACK,
+    NpcActionIdle,
+    NpcCharacter,
     Resource,
     Run,
     Style,
@@ -21,7 +24,11 @@ new Zone('Zone.Demo', {
     view_zone_file: '.unity',
 });
 
-const ONE = new Character('Character.Demo', {
+//
+// Player
+//
+
+const PLAYER = new Character('Character.Demo', {
     name: 'Character One',
     level: [1, 6],
     styles: ['Style.Demo^1'],
@@ -29,7 +36,6 @@ const ONE = new Character('Character.Demo', {
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'Girl.*',
     skeleton_toward: [0, 1],
-    body_file: 'Girl.body.json',
 });
 
 const fixed_attributes = {
@@ -44,7 +50,7 @@ const fixed_attributes = {
 
 new Style('Style.Demo^1', {
     name: 'Character Girl Type-1',
-    character: ONE.id,
+    character: PLAYER.id,
     attributes: {
         MaxHealth: [400, 550, 700, 850, 1000, 1200],
         MaxPosture: [100, 115, 130, 145, 160, 180],
@@ -75,8 +81,8 @@ new Style('Style.Demo^1', {
 });
 
 new ActionIdle('Action.Demo.Idle', {
-    character: ONE.id,
-    styles: ONE.styles,
+    character: PLAYER.id,
+    styles: PLAYER.styles,
     tags: ['Idle'],
     anim_idle: {
         files: 'Girl_Idle_Empty.*',
@@ -84,8 +90,8 @@ new ActionIdle('Action.Demo.Idle', {
 });
 
 new ActionMove('Action.Demo.Run', {
-    character: ONE.id,
-    styles: ONE.styles,
+    character: PLAYER.id,
+    styles: PLAYER.styles,
     tags: ['Run'],
     enter_key: Run,
     anim_move: {
@@ -165,8 +171,8 @@ new ActionMove('Action.Demo.Run', {
 });
 
 new ActionMove('Action.Demo.Walk', {
-    character: ONE.id,
-    styles: ONE.styles,
+    character: PLAYER.id,
+    styles: PLAYER.styles,
     tags: ['Walk'],
     enter_key: Walk,
     anim_move: {
@@ -265,9 +271,10 @@ new ActionGeneral('Action.Demo.Attack1', {
         duration: '168F',
         root_motion: true,
         weapon_motion: true,
+        hit_motion: true,
     },
-    character: ONE.id,
-    styles: ONE.styles,
+    character: PLAYER.id,
+    styles: PLAYER.styles,
     tags: ['Attack'],
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,
@@ -281,7 +288,7 @@ new ActionGeneral('Action.Demo.Attack1', {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        }
+        },
     },
     derive_levels: {
         '0-124F': LEVEL_ACTION,
@@ -293,8 +300,8 @@ new ActionGeneral('Action.Demo.Attack1', {
     ],
     custom_events: {
         '70F': 'SE_Slash',
-        '68F': 'VFX_Slash'
-    }
+        '68F': 'VFX_Slash',
+    },
 });
 
 new ActionGeneral('Action.Demo.Attack2', {
@@ -304,8 +311,8 @@ new ActionGeneral('Action.Demo.Attack2', {
         root_motion: true,
         weapon_motion: true,
     },
-    character: ONE.id,
-    styles: ONE.styles,
+    character: PLAYER.id,
+    styles: PLAYER.styles,
     tags: ['Attack'],
     enter_key: Attack2,
     enter_level: LEVEL_ATTACK,
@@ -319,11 +326,11 @@ new ActionGeneral('Action.Demo.Attack2', {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        }
+        },
     },
     derive_levels: {
         '0-124F': LEVEL_ACTION,
-        '130F-168F': LEVEL_ATTACK,
+        '124F-168F': LEVEL_ATTACK,
     },
     derives: [
         { key: Attack1, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack3' },
@@ -331,8 +338,8 @@ new ActionGeneral('Action.Demo.Attack2', {
     ],
     custom_events: {
         '70F': 'SE_Slash',
-        '68F': 'VFX_Slash'
-    }
+        '68F': 'VFX_Slash',
+    },
 });
 
 new ActionGeneral('Action.Demo.Attack3', {
@@ -342,19 +349,19 @@ new ActionGeneral('Action.Demo.Attack3', {
         root_motion: true,
         weapon_motion: true,
     },
-    character: ONE.id,
-    styles: ONE.styles,
+    character: PLAYER.id,
+    styles: PLAYER.styles,
     tags: ['Attack'],
     enter_level: LEVEL_ATTACK,
     input_movements: {
-        '0F': { duration: '12F', angle: 45 }
+        '0F': { duration: '12F', angle: 45 },
     },
     attributes: {
         '0-170F': {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        }
+        },
     },
     derive_levels: {
         '0-130F': LEVEL_ACTION,
@@ -366,8 +373,8 @@ new ActionGeneral('Action.Demo.Attack3', {
     ],
     custom_events: {
         '50F': 'SE_Slash',
-        '48F': 'VFX_Slash'
-    }
+        '48F': 'VFX_Slash',
+    },
 });
 
 new ActionGeneral('Action.Demo.Attack4', {
@@ -377,19 +384,19 @@ new ActionGeneral('Action.Demo.Attack4', {
         root_motion: true,
         weapon_motion: true,
     },
-    character: ONE.id,
-    styles: ONE.styles,
+    character: PLAYER.id,
+    styles: PLAYER.styles,
     tags: ['Attack'],
     enter_level: LEVEL_ATTACK,
     input_movements: {
-        '0F': { duration: '12F', angle: 45 }
+        '0F': { duration: '12F', angle: 45 },
     },
     attributes: {
         '0-170F': {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        }
+        },
     },
     derive_levels: {
         '0-124F': LEVEL_ACTION,
@@ -401,9 +408,42 @@ new ActionGeneral('Action.Demo.Attack4', {
     ],
     custom_events: {
         '50F': 'SE_Slash',
-        '48F': 'VFX_Slash'
-    }
+        '48F': 'VFX_Slash',
+    },
 });
+
+//
+// NPC
+//
+
+const NPC = new NpcCharacter('NpcCharacter.TrainingDummy', {
+    name: 'TrainingDummy',
+    tags: ['Npc'],
+    level: [1, 1],
+    attributes: {
+        MaxHealth: [1000 * 1000 * 1000],
+    },
+    fixed_attributes,
+    actions: ['NpcAction.TrainingDummy.Idle'],
+    bounding: new Capsule(0.5, 0.5),
+    skeleton_files: 'TrainingDummy.*',
+    skeleton_toward: [0, 1],
+    body_file: 'TrainingDummyBody.json',
+    view_model: 'TrainingDummy.prefab',
+});
+
+new NpcActionIdle('NpcAction.TrainingDummy.Idle', {
+    characters: [NPC.id],
+    tags: ['Idle'],
+    anim_idle: {
+        files: 'TrainingDummy_Idle.*',
+        duration: '3s',
+    },
+});
+
+//
+// ...
+//
 
 declare const __dirname: string;
 Resource.write(`${__dirname}/../../test-tmp/demo-template`);
