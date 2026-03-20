@@ -4,11 +4,13 @@ import {
     ActionMove,
     Attack1,
     Attack2,
+    Capsule,
     Character,
     Equipment,
-    Forward,
     LEVEL_ACTION,
     LEVEL_ATTACK,
+    NpcActionIdle,
+    NpcCharacter,
     Perk,
     Run,
     Slot1,
@@ -17,6 +19,10 @@ import {
     TaperedCapsule,
     Var,
 } from '../src';
+
+//
+// Player
+//
 
 Var.define({
     '#.Action.Instance.AttackDerive^1A': [2, ['Character.Instance^1']],
@@ -43,7 +49,6 @@ new Character('Character.Instance^1', {
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'Girl.*',
     skeleton_toward: [0, 1],
-    body_file: 'Girl.body.json',
 });
 
 new Style('Style.Instance^1A', {
@@ -264,12 +269,12 @@ new ActionGeneral('Action.Instance.Attack^1A', {
         {
             key: Attack1,
             level: LEVEL_ATTACK + 1,
-            action: 'Action.Instance.AttackDerive^1A'
+            action: 'Action.Instance.AttackDerive^1A',
         },
         {
             key: [Attack2, 'B60'],
             level: LEVEL_ATTACK + 1,
-            action: 'Action.Instance.AttackDerive^1A'
+            action: 'Action.Instance.AttackDerive^1A',
         },
     ],
     custom_events: {
@@ -313,5 +318,38 @@ new ActionGeneral('Action.Instance.AttackUnused^1A', {
     },
     derive_levels: {
         '0-5s': LEVEL_ATTACK,
+    },
+});
+
+//
+// NPC
+//
+
+new NpcCharacter('NpcCharacter.Instance^1', {
+    name: 'NpcCharacter 1',
+    tags: ['Npc'],
+    level: [1, 3],
+    attributes: {
+        MaxHealth: [400, 700, 1000],
+        MaxPosture: [100, 130, 160],
+        PhysicalAttack: [10, 20, 30],
+        PhysicalDefense: [15, 25, 35],
+    },
+    fixed_attributes,
+    actions: ['NpcAction.Instance.Idle^1A'],
+    bounding: new Capsule(0.5, 0.5),
+    skeleton_files: 'TrainingDummy.*',
+    skeleton_toward: [0, 1],
+    body_file: 'TrainingDummyBody.json',
+    view_model: 'TrainingDummy.prefab',
+});
+
+new NpcActionIdle('NpcAction.Instance.Idle^1A', {
+    characters: ['NpcCharacter.Instance^1'],
+    tags: ['Idle'],
+    anim_idle: {
+        files: 'TrainingDummy_Idle.*',
+        duration: '4s',
+        fade_in: 0.5,
     },
 });

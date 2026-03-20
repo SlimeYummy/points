@@ -1,4 +1,4 @@
-use critical_point_core::animation::{RootTrackName, RootMotion, WeaponMotion};
+use critical_point_core::animation::{HitMotion, RootMotion, RootTrackName, WeaponMotion};
 use glam::{Vec3, Vec3Swizzles};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
@@ -144,21 +144,55 @@ pub fn load_root_motion_meta(path: String) -> Result<RootMotionMeta> {
 }
 
 #[napi(object)]
-pub struct WeaponMotionTracksMeta {
+pub struct WeaponMotionMeta {
     pub version: u32,
     pub count: u32,
     pub names: Vec<String>,
 }
 
 #[napi]
-pub fn load_weapon_trajectory_meta(path: String) -> Result<WeaponMotionTracksMeta> {
+pub fn load_weapon_motion_meta(path: String) -> Result<WeaponMotionMeta> {
     let weapon_motion = match WeaponMotion::from_path(&path) {
         Ok(weapon_motion) => weapon_motion,
         Err(err) => return Err(cp_err_msg(err, &path)),
     };
-    Ok(WeaponMotionTracksMeta {
+    Ok(WeaponMotionMeta {
         version: Track::<Vec3>::version(),
         count: weapon_motion.len() as u32,
         names: weapon_motion.iter().map(|w| w.name().to_string()).collect(),
     })
+}
+
+#[napi(object)]
+pub struct HitMotionMeta {
+    pub track_groups: HashMap<String, i32>,
+}
+
+#[napi]
+pub fn load_hit_motion_meta(path: String) -> Result<HitMotionMeta> {
+    let hit_motion = match HitMotion::from_path(&path) {
+        Ok(cp_meta) => cp_meta,
+        Err(err) => return Err(cp_err_msg(err, &path)),
+    };
+    let mut track_groups = HashMap::<String, i32>::default();
+
+    for track in hit_motion.joint_tracks {
+        match track_groups.get_mut(track.group.as_str()) {
+            Some(count) => *count += 1,
+            None => {
+                track_groups.insert(track.group.to_string(), 1);
+            }
+        }
+    }
+
+    for track in hit_motion.weapon_tracks {
+        match track_groups.get_mut(track.group.as_str()) {
+            Some(count) => *count += 1,
+            None => {
+                track_groups.insert(track.group.to_string(), 1);
+            }
+        }
+    }
+
+    Ok(HitMotionMeta { track_groups })
 }

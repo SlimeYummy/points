@@ -7,15 +7,17 @@ import {
     Attack,
     Attack1,
     Attack2,
+    Capsule,
     Character,
     Defense,
     Entry,
     Equipment,
-    Forward,
     Jewel,
     LEVEL_ACTION,
     LEVEL_ATTACK,
     MAX_ENTRY_PLUS,
+    NpcActionIdle,
+    NpcCharacter,
     Perk,
     Rare1,
     Rare2,
@@ -61,7 +63,6 @@ const ONE = new Character('Character.One', {
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'Girl.*',
     skeleton_toward: [0, 1],
-    body_file: 'Girl.body.json',
 });
 
 new Style('Style.One^1', {
@@ -116,7 +117,6 @@ new Character('Character.Two', {
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'Girl.*',
     skeleton_toward: [0, 1],
-    body_file: 'body2.json',
 });
 
 new Style('Style.Two^1', {
@@ -318,12 +318,12 @@ new ActionGeneral('Action.One.Attack^1', {
         {
             key: Attack1,
             level: LEVEL_ATTACK + 1,
-            action: 'Action.One.Attack^2'
+            action: 'Action.One.Attack^2',
         },
         {
             key: [Attack2, 'F60'],
             level: LEVEL_ATTACK + 1,
-            action: 'Action.One.Attack^2'
+            action: 'Action.One.Attack^2',
         },
     ],
     custom_events: {
@@ -571,6 +571,35 @@ new Entry('Entry.Variable', {
     var_indexes: {
         '#.Entry.Variable^1': [1, 2, 3],
         '#.Entry.Variable^2': [0, 1, 2],
+    },
+});
+
+//
+// Npc
+//
+
+new NpcCharacter('NpcCharacter.Enemy', {
+    name: 'Enemy',
+    tags: ['Npc'],
+    level: [1, 3],
+    attributes: {
+        MaxHealth: [10000, 20000, 30000],
+    },
+    fixed_attributes,
+    actions: ['NpcAction.Enemy.Idle'],
+    bounding: new Capsule(0.5, 0.5),
+    skeleton_files: 'TrainingDummy.*',
+    skeleton_toward: [0, 1],
+    body_file: 'TrainingDummyBody.json',
+    view_model: 'TrainingDummy.prefab',
+});
+
+new NpcActionIdle('NpcAction.Enemy.Idle', {
+    characters: ['NpcCharacter.Enemy'],
+    tags: ['Idle'],
+    anim_idle: {
+        files: 'TrainingDummy_Idle.*',
+        duration: '4s',
     },
 });
 
