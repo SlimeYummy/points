@@ -1,6 +1,6 @@
 [
   {
-    "name": "Pos:axe",
+    "name": "Pos:Axe",
     "type": "float3",
     "duration": 1.5,
     "data": [
@@ -1447,7 +1447,7 @@
     ]
   },
   {
-    "name": "Rot:axe",
+    "name": "Rot:Axe",
     "type": "quaternion",
     "duration": 1.5,
     "data": [
