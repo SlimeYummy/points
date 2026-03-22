@@ -66,9 +66,9 @@ export const VIRTUAL_KEYS = [
     'Walk',
     'Run',
     'Dash',
-    'Break1',
-    'Break2',
-    'Break3',
+    'Hit1',
+    'Hit2',
+    'Hit3',
 ] as const;
 
 export type VirtualKey = (typeof VIRTUAL_KEYS)[number];
@@ -144,11 +144,11 @@ export const Idle = 'Idle' as const;
 export const Walk = 'Walk' as const;
 export const Run = 'Run' as const;
 export const Dash = 'Dash' as const;
-export const Break1 = 'Break1' as const;
-export const Break2 = 'Break2' as const;
-export const Break3 = 'Break3' as const;
+export const Hit1 = 'Hit1' as const;
+export const Hit2 = 'Hit2' as const;
+export const Hit3 = 'Hit3' as const;
 
-const EVENT_KEYS: ReadonlyArray<string> = [Idle, Walk, Run, Dash, Break1, Break2, Break3];
+const EVENT_KEYS: ReadonlyArray<string> = [Idle, Walk, Run, Dash, Hit1, Hit2, Hit3];
 
 export function isVirtualKey(raw: string): raw is VirtualKey {
     return VIRTUAL_KEYS.includes(raw as VirtualKey);

@@ -177,10 +177,13 @@ export type ActionArgs = {
     enabled?: boolean | int | VarValueArgs<boolean | int>;
 
     /** 所属角色ID Action关联的Style应当属于该Character */
-    character: ID;
+    character?: ID;
 
     /** 可以使用该动作的角色风格 */
-    styles: ReadonlyArray<ID>;
+    styles?: ReadonlyArray<ID>;
+    
+    /** 所属NPC角色ID NpcAction科关联多个角色 */
+    npc_characters?: ReadonlyArray<ID>;
 
     /** 标签 */
     tags?: ReadonlyArray<string>;
@@ -204,10 +207,13 @@ export abstract class Action extends Resource {
     public readonly enabled?: boolean | Var<boolean>;
 
     /** 所属角色ID Action关联的Style应当属于该Character */
-    public readonly character: ID;
+    public readonly character?: ID;
 
     /** 可以使用该动作的角色风格 */
-    public readonly styles: ReadonlyArray<ID>;
+    public readonly styles?: ReadonlyArray<ID>;
+    
+    /** 所属NPC角色ID NpcAction科关联多个角色 */
+    public readonly npc_characters?: ReadonlyArray<ID>;
 
     /** 标签 */
     public readonly tags: ReadonlyArray<string>;
@@ -215,8 +221,20 @@ export abstract class Action extends Resource {
     public constructor(id: ID, args: ActionArgs) {
         super(id);
         this.enabled = parseVarBool(args.enabled || true, this.w('enabled'));
-        this.character = parseID(args.character, 'Character', this.w('character'));
-        this.styles = parseIDArray(args.styles, 'Style', this.w('styles'));
+
+        if (args.character || args.styles) {
+            this.character = parseID(args.character!, 'Character', this.w('character'));
+            this.styles = parseIDArray(args.styles!, 'Style', this.w('styles'));
+        }
+        
+        if (args.npc_characters) {
+            this.npc_characters = parseIDArray(args.npc_characters, 'NpcCharacter', this.w('npc_characters'));
+        }
+
+        if ((!this.character || !this.styles?.length) && !this.npc_characters?.length) {
+            throw this.e('character/styles/npc_characters', 'character&styles or npc_characters must be set');
+        }
+
         this.tags = parseStringArray(args.tags || [], this.w('tags'), {
             // includes: ['Idle', 'Run', 'Walk', 'Attack', 'Skill'],
             deduplicate: true,
@@ -224,9 +242,16 @@ export abstract class Action extends Resource {
     }
 
     public override verify() {
-        verifyVarValue(this.enabled, { styles: this.styles }, this.w('enabled'));
+        if (this.styles?.length) {
+            verifyVarValue(this.enabled, { styles: this.styles }, this.w('enabled'));
+        }
+        if (this.npc_characters?.length) {
+            verifyVarValue(this.enabled, { npc_characters: this.npc_characters }, this.w('enabled'));
+        }
 
-        Character.find(this.character, this.w('character'));
+        if (this.character) {
+            Character.find(this.character, this.w('character'));
+        }
 
         if (this.styles) {
             for (const [idx, id] of this.styles.entries()) {
@@ -239,57 +264,66 @@ export abstract class Action extends Resource {
                 }
             }
         }
-    }
-}
 
-export type NpcActionArgs = {
-    /** 所属NPC角色ID NpcAction科关联多个角色 */
-    characters: ReadonlyArray<ID>;
-
-    /** 标签 */
-    tags?: ReadonlyArray<string>;
-};
-
-/**
- * 所有NPC角色动作的抽象基类
- */
-export abstract class NpcAction extends Resource {
-    public static override readonly prefix: IDPrefix = 'NpcAction';
-
-    public static override find(id: string, where: string): NpcAction {
-        const res = Resource.find(id, where);
-        if (!(res instanceof NpcAction)) {
-            throw new Error(`${where}: Resource type miss match`);
-        }
-        return res;
-    }
-
-    /** 所属NPC角色ID NpcAction科关联多个角色 */
-    public readonly characters: ReadonlyArray<ID>;
-
-    /** 标签 */
-    public readonly tags: ReadonlyArray<string>;
-
-    public constructor(id: ID, args: NpcActionArgs) {
-        super(id);
-        this.characters = parseIDArray(args.characters, 'NpcCharacter', this.w('characters'), {
-            min_len: 1,
-        });
-        this.tags = parseStringArray(args.tags || [], this.w('tags'), {
-            // includes: ['Idle', 'Run', 'Walk', 'Attack', 'Skill'],
-            deduplicate: true,
-        });
-    }
-
-    public override verify() {
-        for (const [idx, id] of this.characters.entries()) {
-            const character = NpcCharacter.find(id, this.w(`characters[${idx}]`));
-            if (!character.actions.includes(this.id)) {
-                throw this.e(`characters[${idx}]`, 'NpcCharacter and NpcAction mismatch');
+        if (this.npc_characters) {
+            for (const [idx, id] of this.npc_characters.entries()) {
+                const character = NpcCharacter.find(id, this.w(`npc_characters[${idx}]`));
+                if (!character.actions.includes(this.id)) {
+                    throw this.e(`npc_characters[${idx}]`, 'NpcCharacter and NpcAction mismatch');
+                }
             }
         }
     }
 }
+
+// export type NpcActionArgs = {
+//     /** 所属NPC角色ID NpcAction科关联多个角色 */
+//     characters: ReadonlyArray<ID>;
+
+//     /** 标签 */
+//     tags?: ReadonlyArray<string>;
+// };
+
+// /**
+//  * 所有NPC角色动作的抽象基类
+//  */
+// export abstract class NpcAction extends Resource {
+//     public static override readonly prefix: IDPrefix = 'NpcAction';
+
+//     public static override find(id: string, where: string): NpcAction {
+//         const res = Resource.find(id, where);
+//         if (!(res instanceof NpcAction)) {
+//             throw new Error(`${where}: Resource type miss match`);
+//         }
+//         return res;
+//     }
+
+//     /** 所属NPC角色ID NpcAction科关联多个角色 */
+//     public readonly characters: ReadonlyArray<ID>;
+
+//     /** 标签 */
+//     public readonly tags: ReadonlyArray<string>;
+
+//     public constructor(id: ID, args: NpcActionArgs) {
+//         super(id);
+//         this.characters = parseIDArray(args.characters, 'NpcCharacter', this.w('characters'), {
+//             min_len: 1,
+//         });
+//         this.tags = parseStringArray(args.tags || [], this.w('tags'), {
+//             // includes: ['Idle', 'Run', 'Walk', 'Attack', 'Skill'],
+//             deduplicate: true,
+//         });
+//     }
+
+//     public override verify() {
+//         for (const [idx, id] of this.characters.entries()) {
+//             const character = NpcCharacter.find(id, this.w(`characters[${idx}]`));
+//             if (!character.actions.includes(this.id)) {
+//                 throw this.e(`characters[${idx}]`, 'NpcCharacter and NpcAction mismatch');
+//             }
+//         }
+//     }
+// }
 
 export const DERIVE_CONTINUE = ['Dodge', 'PerfectDodge', 'Guard', 'PerfectGuard'] as const;
 
