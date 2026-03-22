@@ -12,7 +12,6 @@ export type IDPrefix =
     | 'Accessory'
     | 'Jewel'
     | 'Action'
-    | 'NpcAction'
     | 'Material'
     | 'Zone';
 
