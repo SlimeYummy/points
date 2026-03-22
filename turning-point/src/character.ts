@@ -18,7 +18,7 @@ import {
     TaperedCapsule,
 } from './common';
 import { Resource } from './resource';
-import { Action, NpcAction } from './action';
+import { Action } from './action';
 import {
     parseAttributeTable,
     PRIMARY_ATTRIBUTES,
@@ -28,8 +28,8 @@ import {
 } from './attribute';
 import { Equipment } from './equipment';
 import { parseJevelSlotsArray } from './jewel';
-import { Perk } from './perk';
 import * as native from './native';
+import { Perk } from './perk';
 
 export type CharacterArgs = {
     /** 角色名字 */
@@ -50,6 +50,7 @@ export type CharacterArgs = {
     /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
      * - xxx.vs-ozz 视图骨骼
+     * - xxx.cp-rkyv/xxx.cp-json 角色物理
      */
     skeleton_files: FilePath;
 
@@ -91,6 +92,7 @@ export class Character extends Resource {
     /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
      * - xxx.vs-ozz 视图骨骼
+     * - xxx.cp-rkyv/xxx.cp-json
      */
     public readonly skeleton_files: FilePath;
 
@@ -293,7 +295,7 @@ export class Style extends Resource {
 
         for (const [idx, entry_id] of this.actions.entries()) {
             const action = Action.find(entry_id, this.w(`actions[${idx}]`));
-            if (!action.styles.includes(this.id)) {
+            if (!action.styles?.includes(this.id)) {
                 throw this.e(`actions[${idx}]`, 'Style and Action mismatch');
             }
         }
@@ -327,14 +329,12 @@ export type NpcCharacterArgs = {
     /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
      * - xxx.vs-ozz 视图骨骼
+     * - xxx.cp-rkyv/xxx.cp-json 角色物理
      */
     skeleton_files: FilePath;
 
     /** 模型在XZ平面上的朝向（正面方向） */
     skeleton_toward: readonly [float, float];
-
-    /** 角色角色判定体（包围盒） xxx.rkyv (.json) */
-    body_file: FilePath;
 
     /** 角色模型（渲染） */
     view_model: FilePath;
@@ -380,14 +380,12 @@ export class NpcCharacter extends Resource {
     /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
      * - xxx.vs-ozz 视图骨骼
+     * - xxx.cp-rkyv/xxx.cp-json 角色物理
      */
     public readonly skeleton_files: FilePath;
 
     /** 模型在XZ平面上的朝向（正面方向） */
     public readonly skeleton_toward: readonly [float, float];
-
-    /** 角色角色判定体（包围盒） xxx.rkyv (.json) */
-    public readonly body_file: FilePath;
 
     /** 角色模型（渲染） */
     public readonly view_model: FilePath;
@@ -406,7 +404,7 @@ export class NpcCharacter extends Resource {
             args.fixed_attributes,
             this.w('fixed_attributes'),
         );
-        this.actions = parseIDArray(args.actions, 'NpcAction', this.w('actions'));
+        this.actions = parseIDArray(args.actions, 'Action', this.w('actions'));
         this.bounding = checkType(args.bounding, [Capsule, TaperedCapsule], this.w('bounding'));
         this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), {
             extension: '.*',
@@ -414,7 +412,6 @@ export class NpcCharacter extends Resource {
         this.skeleton_toward = parseVec2(args.skeleton_toward, this.w('skeleton_toward'), {
             normalized: true,
         });
-        this.body_file = parseFile(args.body_file, this.w('body_file'), { extension: '.json' });
         this.view_model = parseFile(args.view_model, this.w('view_model'), {
             extension: ['.vrm', '.prefab'],
         });
@@ -429,9 +426,9 @@ export class NpcCharacter extends Resource {
         }
 
         for (const [idx, entry_id] of this.actions.entries()) {
-            const action = NpcAction.find(entry_id, this.w(`actions[${idx}]`));
-            if (!action.characters.includes(this.id)) {
-                throw this.e(`actions[${idx}]`, 'NpcCharacter and NpcAction mismatch');
+            const action = Action.find(entry_id, this.w(`actions[${idx}]`));
+            if (!action.npc_characters?.includes(this.id)) {
+                throw this.e(`actions[${idx}]`, 'NpcCharacter and Action mismatch');
             }
         }
     }

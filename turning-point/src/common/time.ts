@@ -30,7 +30,7 @@ export function parseTime(
 
     if (ENABLE_TIME_WARNING && !opts.ignore_warning) {
         const x = res / LOGIC_SPF;
-        if (Math.abs(Math.round(x) - x) > 0.01) {
+        if (Math.abs(Math.round(x) - x) > 1e-3) {
             console.warn(`Warning: ${where}: unaccurate time (${raw})`);
         }
     }

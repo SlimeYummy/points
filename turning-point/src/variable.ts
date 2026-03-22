@@ -11,9 +11,11 @@ import {
     parseIDArray,
     parseInt,
     parseIntArray,
+    parseTime,
+    parseTimeArray,
 } from './common';
 import { Resource } from './resource';
-import { Character, Style } from './character';
+import { Character, NpcCharacter, Style } from './character';
 
 type VarMeta = {
     readonly id: ID;
@@ -21,6 +23,7 @@ type VarMeta = {
     readonly no_limit: boolean;
     readonly characters: ReadonlyArray<ID>;
     readonly styles: ReadonlyArray<ID>;
+    readonly npc_characters: ReadonlyArray<ID>;
 };
 
 export class Var<T> {
@@ -38,6 +41,7 @@ export class Var<T> {
                 no_limit: false,
                 characters: [] as string[],
                 styles: [] as string[],
+                npc_characters: [] as string[],
             };
 
             if (res_ids === '*') {
@@ -50,6 +54,10 @@ export class Var<T> {
                     );
                 } else if (res_id.startsWith('Style.')) {
                     meta.styles.push(parseID(res_id, 'Style', `Var.define(${var_id}: [1])`));
+                } else if (res_id.startsWith('NpcCharacter.')) {
+                    meta.npc_characters.push(
+                        parseID(res_id, 'NpcCharacter', `Var.define(${var_id}: [1])`),
+                    );
                 }
             } else if (Array.isArray(res_ids)) {
                 for (const [idx, res_id] of res_ids.entries()) {
@@ -60,6 +68,10 @@ export class Var<T> {
                     } else if (res_id.startsWith('Style.')) {
                         meta.styles.push(
                             parseID(res_id, 'Style', `Var.define(${var_id}: [1][${idx}])`),
+                        );
+                    } else if (res_id.startsWith('NpcCharacter.')) {
+                        meta.npc_characters.push(
+                            parseID(res_id, 'NpcCharacter', `Var.define(${var_id}: [1][${idx}])`),
                         );
                     } else {
                         throw new Error(
@@ -177,6 +189,21 @@ export function parseVarFloat(
     return parseVarValueArgs(raw, where, opts, parseFloat, parseFloatArray);
 }
 
+export function parseVarTime(
+    raw: float | string | VarValueArgs<float | string>,
+    where: string,
+    opts: {
+        must_var?: boolean;
+        len?: int;
+        min_len?: int;
+        max_len?: int;
+        min?: float;
+        max?: float;
+    } = {},
+): float | Var<float> {
+    return parseVarValueArgs(raw, where, opts, parseTime, parseTimeArray);
+}
+
 export function parseVarID(
     raw: ID | VarValueArgs<ID>,
     prefix: IDPrefix,
@@ -201,6 +228,7 @@ export function verifyVarValue<T>(
     consumers: {
         character?: ID;
         styles?: ReadonlyArray<ID>;
+        npc_characters?: ReadonlyArray<ID>;
     },
     where: string,
     callback?: (value: T, where: string) => void,
@@ -232,6 +260,16 @@ export function verifyVarValue<T>(
                     meta.styles.includes(style_id) || meta.characters.includes(style.character);
                 if (!ok) {
                     throw new Error(`${where}: ${style_id} not defined in ${va.id}`);
+                }
+            }
+        }
+        
+        if (consumers.npc_characters) {
+            for (const npc_character of consumers.npc_characters) {
+                NpcCharacter.find(npc_character, where);
+                const ok = meta.characters.includes(npc_character);
+                if (!ok) {
+                    throw new Error(`${where}: ${consumers.character} not defined in ${va.id}`);
                 }
             }
         }
