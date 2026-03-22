@@ -15,7 +15,7 @@ import { Animation, AnimationArgs } from './animation';
 import { Action, ActionArgs, LEVEL_MOVE, parseActionLevel } from './base';
 
 export type ActionMoveStartArgs = AnimationArgs & {
-    /** 进入该动画的角度（右手系XZ平面） */
+    /** 进入该动画的移动朝向角度（右手系XZ平面） */
     enter_angle: [float | string, float | string];
 
     /** 移动开始时原地转身的结束时间 */
@@ -25,8 +25,11 @@ export type ActionMoveStartArgs = AnimationArgs & {
     quick_stop_end?: float | string;
 };
 
-export class ActionMoveStart extends Animation {
-    /** 进入该动画的角度（右手系XZ平面） */
+export class ActionMoveStart {
+    /** Start动画 */
+    public readonly anim: Animation;
+
+    /** 进入该动画的移动朝向角度（右手系XZ平面） */
     public readonly enter_angle: readonly [float, float];
 
     /** 移动开始时原地转身的结束时间 */
@@ -36,7 +39,7 @@ export class ActionMoveStart extends Animation {
     public readonly quick_stop_end: float;
 
     public constructor(args: ActionMoveStartArgs, where: string) {
-        super(args, where, { root_motion: true });
+        this.anim = new Animation(args, where, { root_motion: true });
         this.enter_angle = parseAngleXzRange(args.enter_angle, `${where}.enter_angle`);
         this.turn_in_place_end = parseTime(
             args.turn_in_place_end || 0,
@@ -46,7 +49,7 @@ export class ActionMoveStart extends Animation {
             },
         );
         this.quick_stop_end = parseTime(
-            args.quick_stop_end || this.duration / 2,
+            args.quick_stop_end || this.anim.duration / 2,
             `${where}.quick_stop_end`,
             { min: 0 },
         );
@@ -54,19 +57,22 @@ export class ActionMoveStart extends Animation {
 }
 
 export type ActionMoveTurnArgs = AnimationArgs & {
-    /** 进入该动画的角度（右手系XZ平面） */
+    /** 进入该动画的转向角度（右手系XZ平面） */
     enter_angle: [float | string, float | string];
 
     /** 转身开始时原地转身的结束时间 */
     turn_in_place_end: float | string;
 };
 
-export class ActionMoveTurn extends Animation {
-    /** 进入该动画的角度（右手系XZ平面） */
+export class ActionMoveTurn {
+    /** Turn动画 */
+    public readonly anim: Animation;
+
+    /** 进入该动画的转向角度（右手系XZ平面） */
     public readonly enter_angle: readonly [float, float];
 
     public constructor(args: ActionMoveTurnArgs, where: string) {
-        super(args, where, { root_motion: true });
+        this.anim = new Animation(args, where, { root_motion: true });
         this.enter_angle = parseAngleXzRange(args.enter_angle, `${where}.enter_angle`);
     }
 }
@@ -98,7 +104,10 @@ export type ActionMoveStopArgs = AnimationArgs & {
     leave_phase_table?: Array<ActionMoveStopLeaveArgs>;
 };
 
-export class ActionMoveStop extends Animation {
+export class ActionMoveStop {
+    /** Stop动画 */
+    public readonly anim: Animation;
+
     /** 进入该动画的相位表 */
     public readonly enter_phase_table: ReadonlyArray<{
         /** 进入该动画的相位 [开始, 结束] */
@@ -116,15 +125,15 @@ export class ActionMoveStop extends Animation {
     }>;
 
     public constructor(args: ActionMoveStopArgs, where: string) {
-        super(args, where, { root_motion: true });
+        this.anim = new Animation(args, where, { root_motion: true });
         this.enter_phase_table = this.parseEnterPhaseTable(
             args.enter_phase_table,
-            this.duration,
+            this.anim.duration,
             `${where}.enter_phase_table`,
         );
         this.leave_phase_table = this.parseLeavePhaseTable(
             args.leave_phase_table,
-            this.duration,
+            this.anim.duration,
             `${where}.leave_phase_table`,
         );
     }
@@ -215,19 +224,19 @@ export type ActionMoveArgs = ActionArgs & {
     move_speed: float;
 
     /** 移动开始动画 */
-    starts?: ReadonlyArray<ActionMoveStartArgs>;
+    anim_starts?: ReadonlyArray<ActionMoveStartArgs>;
 
     /** 移动开始时间 仅在未匹配到starts时生效 */
     start_time?: float | string;
 
     /** 转身动画 */
-    turns?: ReadonlyArray<ActionMoveTurnArgs>;
+    anim_turns?: ReadonlyArray<ActionMoveTurnArgs>;
 
     /** 转身180°所需时间 仅在未匹配到turns时生效 */
     turn_time: float | string;
 
     /** 移动停止动画 */
-    stops?: ReadonlyArray<ActionMoveStopArgs>;
+    anim_stops?: ReadonlyArray<ActionMoveStopArgs>;
 
     /** 移动停止时间 仅在未匹配到stops时生效 */
     stop_time?: float | string;
@@ -252,7 +261,7 @@ export type ActionMoveArgs = ActionArgs & {
 
 export class ActionMove extends Action {
     /** 进入按键 */
-    public readonly enter_key?: 'Run' | 'Walk' | 'Dash';
+    public readonly enter_key: 'Run' | 'Walk' | 'Dash';
 
     /** 进入等级 */
     public readonly enter_level: int;
@@ -330,16 +339,16 @@ export class ActionMove extends Action {
             root_motion: true,
         });
         this.move_speed = parseFloat(args.move_speed, this.w('move_speed'), { min: 0, max: 1000 });
-        this.starts = (args.starts || []).map(
-            (args, idx) => new ActionMoveStart(args, this.w(`starts[${idx}]`)),
+        this.starts = (args.anim_starts || []).map(
+            (args, idx) => new ActionMoveStart(args, this.w(`anim_starts[${idx}]`)),
         );
         this.start_time = parseTime(args.start_time || '4F', this.w('start_time'), { min: 0 });
-        this.turns = (args.turns || []).map(
-            (args, idx) => new ActionMoveTurn(args, this.w(`turns[${idx}]`)),
+        this.turns = (args.anim_turns || []).map(
+            (args, idx) => new ActionMoveTurn(args, this.w(`anim_turns[${idx}]`)),
         );
         this.turn_time = parseTime(args.turn_time || '10F', this.w('turn_time'), { min: 0 });
-        this.stops = (args.stops || []).map(
-            (args, idx) => new ActionMoveStop(args, this.w(`stops[${idx}]`)),
+        this.stops = (args.anim_stops || []).map(
+            (args, idx) => new ActionMoveStop(args, this.w(`anim_stops[${idx}]`)),
         );
         this.stop_time = parseTime(args.stop_time || '6F', this.w('stop_time'), { min: 0 });
         this.quick_stop_time = parseTime(args.quick_stop_time || 0, this.w('quick_stop_time'), {
@@ -361,7 +370,12 @@ export class ActionMove extends Action {
             { min: 0 },
         );
 
-        Animation.generateLocalID([this.anim_move, ...this.starts, ...this.turns, ...this.stops]);
+        Animation.generateLocalID([
+            this.anim_move,
+            ...this.starts.map((s) => s.anim),
+            ...this.turns.map((s) => s.anim),
+            ...this.stops.map((s) => s.anim),
+        ]);
     }
 
     public override verify() {

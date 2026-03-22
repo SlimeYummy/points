@@ -8,6 +8,7 @@ export type AnimationArgs = {
      * - xxx.va-ozz 视图动画
      * - xxx.rm-ozz 根运动RootMotion
      * - xxx.wm-ozz 武器轨迹
+     * - xxx.hm-rkyv/xxx.hm-json 攻击判定盒
      */
     files: FilePath;
 
@@ -34,6 +35,7 @@ export class Animation {
      * - xxx.va-ozz 视图动画
      * - xxx.rm-ozz 根运动RootMotion
      * - xxx.wm-ozz 武器轨迹
+     * - xxx.hm-rkyv/xxx.hm-json 攻击判定盒
      */
     public readonly files: FilePath;
 
@@ -69,22 +71,18 @@ export class Animation {
     ) {
         this.files = parseFile(args.files, `${where}.files`, { extension: '.*' });
         // 确保动画存在
-        const anim = native.loadAnimationMeta(this.files, `${where}.files: file not found (${this.files})`);
-
-        this.duration = parseTime(
-            args.duration == null ? anim.duration : args.duration,
-            `${where}.duration`,
-            { min: 0 },
+        const anim = native.loadAnimationMeta(
+            this.files,
+            `${where}.files: file not found (${this.files})`,
         );
+
+        this.duration = this.parseDuration(anim, args.duration, `${where}.duration`);
         this.fade_in =
-            args.fade_in == null
-                ? 0.1
-                : parseTime(args.fade_in, `${where}.fade_in`, { min: 0 });
+            args.fade_in == null ? 0.1 : parseTime(args.fade_in, `${where}.fade_in`, { min: 0 });
+        this.fade_in = Math.min(this.fade_in, this.duration);
 
         this.root_motion =
-            args.root_motion == null
-                ? false
-                : parseBool(args.root_motion, `${where}.root_motion`);
+            args.root_motion == null ? false : parseBool(args.root_motion, `${where}.root_motion`);
         if (opts.root_motion !== undefined && this.root_motion !== opts.root_motion) {
             throw new Error(`${where}.root_motion: must be ${!!opts.root_motion}`);
         }
@@ -102,14 +100,30 @@ export class Animation {
         }
 
         this.hit_motion =
-            args.hit_motion == null
-                ? false
-                : parseBool(args.hit_motion, `${where}.hit_motion`);
+            args.hit_motion == null ? false : parseBool(args.hit_motion, `${where}.hit_motion`);
         if (opts.hit_motion !== undefined && this.hit_motion !== opts.hit_motion) {
             throw new Error(`${where}.hit_motion: must be ${!!opts.hit_motion}`);
         }
 
         this.local_id = 65535;
+    }
+
+    private parseDuration(
+        anim: native.AnimationMeta,
+        duration: undefined | float | string,
+        where: string,
+    ): float {
+        if (duration == null) {
+            return anim.duration;
+        } else if (typeof duration === 'string' && duration.endsWith('!')) {
+            return parseTime(duration.slice(0, -1), `${where}.duration`, { min: 0 });
+        } else {
+            const dura = parseTime(duration, `${where}.duration`, { min: 0 });
+            if (Math.abs(dura - anim.duration) > 1e-4) {
+                console.warn(`Warning: ${where}: duration mismatch (${duration} != ${anim.duration}s)`);
+            }
+            return dura;
+        }
     }
 
     public static parseArray(
