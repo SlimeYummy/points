@@ -13,7 +13,7 @@ import {
     TimelineRangeArgs,
 } from '../common';
 import { Resource } from '../resource';
-import { parseVarFloat, parseVarInt, Var, VarValueArgs } from '../variable';
+import { parseVarInt, parseVarTime, Var, VarValueArgs } from '../variable';
 import { Animation, AnimationArgs } from './animation';
 import {
     Action,
@@ -26,6 +26,7 @@ import {
     parseActionLevel,
     parseVarDeriveContinueSet,
 } from './base';
+import { Hit, HitArgs } from './hit_attr';
 import {
     DeriveRule,
     DeriveRuleArgs,
@@ -134,7 +135,7 @@ export type ActionGeneralArgs = ActionArgs & {
     enter_level?: int;
 
     /** 冷却时间 每一轮冷却所需的时间 */
-    cool_down_time?: float | VarValueArgs<float>;
+    cool_down_time?: float | VarValueArgs<float | string>;
 
     /** 冷却轮数 冷却后可储存的释放次数 */
     cool_down_round?: int | VarValueArgs<int>;
@@ -157,8 +158,8 @@ export type ActionGeneralArgs = ActionArgs & {
     /** 可以继续当前动作派生的行为 */
     derive_continues?: ReadonlyArray<DeriveContinue> | VarValueArgs<ReadonlyArray<DeriveContinue>>;
 
-    /** 攻击判定数值 */
-    // hits: string | TimelineGeneralArgs;
+    /** 攻击判定表 */
+    hits?: ReadonlyArray<HitArgs>;
 
     /** 动作过程中触发的事件 */
     custom_events?: TimelinePointArgs<string | VarValueArgs<string>>;
@@ -211,18 +212,24 @@ export class ActionGeneral extends Action {
         | ReadonlyArray<DeriveContinue>
         | Var<ReadonlyArray<DeriveContinue>>;
 
+    /** 攻击判定表 */
+    public hits?: ReadonlyArray<Hit>;
+
     /** 动作过程中触发的事件 */
     public readonly custom_events?: TimelinePoint<string | Var<string>>;
 
     public constructor(id: ID, args: ActionGeneralArgs) {
         super(id, args);
-        this.anim_main = new Animation(args.anim_main, this.w('anim_main'), { root_motion: true });
+        this.anim_main = new Animation(args.anim_main, this.w('anim_main'), {
+            root_motion: true,
+            hit_motion: args.hits != null,
+        });
         this.enter_key =
             args.enter_key == null
                 ? undefined
                 : new VirtualKeyDir(args.enter_key, this.w('enter_key'));
         this.enter_level = parseActionLevel(args.enter_level || LEVEL_IDLE, this.w('enter_level'));
-        this.cool_down_time = parseVarFloat(args.cool_down_time || 0, this.w('cool_down_time'));
+        this.cool_down_time = parseVarTime(args.cool_down_time || 0, this.w('cool_down_time'));
         this.cool_down_round = parseVarInt(args.cool_down_round || 1, this.w('cool_down_round'));
         this.cool_down_init_round = parseVarInt(
             args.cool_down_init_round || args.cool_down_round || 1,
@@ -257,6 +264,10 @@ export class ActionGeneral extends Action {
         this.derive_continues = !args.derive_continues
             ? undefined
             : parseVarDeriveContinueSet(args.derive_continues, this.w('derive_continues'));
+        this.hits =
+            args.hits == null
+                ? undefined
+                : Hit.parseArray(args.hits, this.w('hits'), { files: args.anim_main.files });
         this.custom_events = !args.custom_events
             ? undefined
             : new TimelinePoint(
@@ -311,6 +322,9 @@ export class ActionGeneral extends Action {
 
         if (this.derives) {
             verifyDeriveRuleArray(this.derives, { styles: this.styles }, this.w('derives'));
+        }
+        if (this.hits) {
+            Hit.verifyArray(this.hits, { styles: this.styles }, this.w('hits'));
         }
     }
 }
