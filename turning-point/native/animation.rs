@@ -165,7 +165,13 @@ pub fn load_weapon_motion_meta(path: String) -> Result<WeaponMotionMeta> {
 
 #[napi(object)]
 pub struct HitMotionMeta {
-    pub track_groups: HashMap<String, i32>,
+    pub groups: Vec<HitMotionGroupMeta>,
+}
+
+#[napi(object)]
+pub struct HitMotionGroupMeta {
+    pub group: String,
+    pub tracks: i32,
 }
 
 #[napi]
@@ -174,25 +180,32 @@ pub fn load_hit_motion_meta(path: String) -> Result<HitMotionMeta> {
         Ok(cp_meta) => cp_meta,
         Err(err) => return Err(cp_err_msg(err, &path)),
     };
-    let mut track_groups = HashMap::<String, i32>::default();
 
-    for track in hit_motion.joint_tracks {
-        match track_groups.get_mut(track.group.as_str()) {
-            Some(count) => *count += 1,
+    let mut groups = Vec::<HitMotionGroupMeta>::default();
+
+    for bx in hit_motion.joint_boxes() {
+        match groups.iter_mut().find(|g| g.group == bx.group) {
+            Some(item) => item.tracks += 1,
             None => {
-                track_groups.insert(track.group.to_string(), 1);
+                groups.push(HitMotionGroupMeta {
+                    group: bx.group.to_string(),
+                    tracks: 1,
+                });
             }
         }
     }
 
-    for track in hit_motion.weapon_tracks {
-        match track_groups.get_mut(track.group.as_str()) {
-            Some(count) => *count += 1,
+    for bx in hit_motion.weapon_boxes() {
+        match groups.iter_mut().find(|g| g.group == bx.group) {
+            Some(item) => item.tracks += 1,
             None => {
-                track_groups.insert(track.group.to_string(), 1);
+                groups.push(HitMotionGroupMeta {
+                    group: bx.group.to_string(),
+                    tracks: 1,
+                });
             }
         }
     }
 
-    Ok(HitMotionMeta { track_groups })
+    Ok(HitMotionMeta { groups })
 }

@@ -1,5 +1,5 @@
-import { memoize } from '@formatjs/fast-memoize';
 import fs from 'node:fs';
+import { memoize } from '@formatjs/fast-memoize';
 import { OUTPUT_ASSET } from '../common';
 import native from './native';
 
@@ -7,7 +7,11 @@ export * from './native';
 
 const loadSkeletonMetaMemoize = memoize(native.loadSkeletonMeta);
 
-export function loadSkeletonMeta(path: string, withJoints: boolean = false, err?: string) {
+export function loadSkeletonMeta(
+    path: string,
+    withJoints: boolean = false,
+    err?: string,
+): native.SkeletonMeta {
     try {
         const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.ls-ozz')}`;
         return loadSkeletonMetaMemoize(realPath, withJoints);
@@ -22,7 +26,7 @@ export function loadSkeletonMeta(path: string, withJoints: boolean = false, err?
 
 const loadAnimationMetaMemoize = memoize(native.loadAnimationMeta);
 
-export function loadAnimationMeta(path: string, err?: string) {
+export function loadAnimationMeta(path: string, err?: string): native.AnimationMeta {
     try {
         const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.la-ozz')}`;
         return loadAnimationMetaMemoize(realPath);
@@ -37,7 +41,7 @@ export function loadAnimationMeta(path: string, err?: string) {
 
 const loadRootMotionMetaMemoize = memoize(native.loadRootMotionMeta);
 
-export function loadRootMotionMeta(path: string, err?: string) {
+export function loadRootMotionMeta(path: string, err?: string): native.RootMotionMeta {
     try {
         const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.rm-ozz')}`;
         return loadRootMotionMetaMemoize(realPath);
@@ -52,7 +56,7 @@ export function loadRootMotionMeta(path: string, err?: string) {
 
 const loadWeaponMotionMetaMemoize = memoize(native.loadWeaponMotionMeta);
 
-export function loadWeaponMotionMeta(path: string, err?: string) {
+export function loadWeaponMotionMeta(path: string, err?: string): native.WeaponMotionMeta {
     try {
         const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.wm-ozz')}`;
         return loadWeaponMotionMetaMemoize(realPath);
@@ -67,10 +71,10 @@ export function loadWeaponMotionMeta(path: string, err?: string) {
 
 const loadHitMotionMetaMemoize = memoize(native.loadHitMotionMeta);
 
-export function loadHitMotionMeta(path: string, err?: string) {
+export function loadHitMotionMeta(path: string, err?: string): native.HitMotionMeta {
     try {
         let realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.hm-rkyv')}`;
-        if (fs.existsSync(realPath)) {
+        if (!fs.existsSync(realPath)) {
             realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.hm-json')}`;
         }
         return loadHitMotionMetaMemoize(realPath);
