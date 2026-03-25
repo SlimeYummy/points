@@ -1,14 +1,15 @@
 import {
     ActionGeneral,
+    ActionHit,
     ActionIdle,
     ActionMove,
     Attack1,
     Attack2,
     Capsule,
     Character,
+    Hit1,
     LEVEL_ACTION,
     LEVEL_ATTACK,
-    NpcActionIdle,
     NpcCharacter,
     Resource,
     Run,
@@ -100,7 +101,7 @@ new ActionMove('Action.Demo.Run', {
         root_motion: true,
     },
     move_speed: 6,
-    starts: [
+    anim_starts: [
         {
             enter_angle: ['L30', 'R30'],
             files: 'Girl_RunStart_Empty.*',
@@ -143,7 +144,7 @@ new ActionMove('Action.Demo.Run', {
         },
     ],
     turn_time: '12F',
-    stops: [
+    anim_stops: [
         {
             enter_phase_table: [{ phase: [0.75, 0.25], offset: '2F' }],
             files: 'Girl_RunStop_l_Empty.*',
@@ -181,7 +182,7 @@ new ActionMove('Action.Demo.Walk', {
         root_motion: true,
     },
     move_speed: 3,
-    starts: [
+    anim_starts: [
         {
             enter_angle: ['L30', 'R30'],
             files: 'Girl_WalkStart_Empty.*',
@@ -224,7 +225,7 @@ new ActionMove('Action.Demo.Walk', {
         },
     ],
     turn_time: '16F',
-    stops: [
+    anim_stops: [
         {
             enter_phase_table: [
                 { phase: [0.83, 0.02], offset: '0F' },
@@ -268,7 +269,7 @@ new ActionMove('Action.Demo.Walk', {
 new ActionGeneral('Action.Demo.Attack1', {
     anim_main: {
         files: 'Girl_Attack_01A.*',
-        duration: '168F',
+        duration: '160F',
         root_motion: true,
         weapon_motion: true,
         hit_motion: true,
@@ -280,36 +281,43 @@ new ActionGeneral('Action.Demo.Attack1', {
     enter_level: LEVEL_ATTACK,
     input_movements: [
         { time: '0F', duration: '12F', angle: 45 },
-        { time: '48F', duration: '16F', angle: 45 },
-        { time: '48F', move_ex: true },
+        { time: '52F', duration: '16F', angle: 45 },
+        { time: '52F', move: true, move_ex: true },
     ],
     attributes: {
-        '0-168F': {
+        '0-160F': {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        },
+        }
     },
     derive_levels: {
         '0-124F': LEVEL_ACTION,
-        '124F-168F': LEVEL_ATTACK,
+        '124F-160F': LEVEL_ATTACK,
     },
     derives: [
         { key: Attack1, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack3' },
         { key: Attack2, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack4' },
     ],
+    hits: [
+        {
+            group: "Axe",
+            box_max_times: 1,
+        }
+    ],
     custom_events: {
-        '70F': 'SE_Slash',
-        '68F': 'VFX_Slash',
-    },
+        '56F': 'SE_Slash',
+        '64F': 'VFX_Slash'
+    }
 });
 
 new ActionGeneral('Action.Demo.Attack2', {
     anim_main: {
         files: 'Girl_Attack_02A.*',
-        duration: '168F',
+        duration: '160F',
         root_motion: true,
         weapon_motion: true,
+        hit_motion: true,
     },
     character: PLAYER.id,
     styles: PLAYER.styles,
@@ -318,98 +326,122 @@ new ActionGeneral('Action.Demo.Attack2', {
     enter_level: LEVEL_ATTACK,
     input_movements: [
         { time: '0F', duration: '12F', angle: 45 },
-        { time: '48F', duration: '16F', angle: 45 },
-        { time: '48F', move_ex: true },
+        { time: '52F', duration: '16F', angle: 45 },
+        { time: '52F', move: true, move_ex: true },
     ],
     attributes: {
-        '0-168F': {
+        '0-160F': {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        },
+        }
     },
     derive_levels: {
         '0-124F': LEVEL_ACTION,
-        '124F-168F': LEVEL_ATTACK,
+        '124F-160F': LEVEL_ATTACK,
     },
     derives: [
         { key: Attack1, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack3' },
         { key: Attack2, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack4' },
     ],
+    hits: [
+        {
+            group: "Axe",
+            box_max_times: 1,
+        }
+    ],
     custom_events: {
-        '70F': 'SE_Slash',
-        '68F': 'VFX_Slash',
-    },
+        '58F': 'SE_Slash',
+        '66F': 'VFX_Slash'
+    }
 });
 
 new ActionGeneral('Action.Demo.Attack3', {
     anim_main: {
         files: 'Girl_Attack_03A.*',
-        duration: '170F',
+        duration: '166F',
         root_motion: true,
         weapon_motion: true,
+        hit_motion: true,
     },
     character: PLAYER.id,
     styles: PLAYER.styles,
     tags: ['Attack'],
     enter_level: LEVEL_ATTACK,
-    input_movements: {
-        '0F': { duration: '12F', angle: 45 },
-    },
+    input_movements: [
+        { time: '0F', duration: '12F', angle: 45 },
+        { time: '48F', duration: '16F', angle: 45 },
+        { time: '48F', move: true, move_ex: true },
+    ],
     attributes: {
-        '0-170F': {
+        '0-166F': {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        },
+        }
     },
     derive_levels: {
         '0-130F': LEVEL_ACTION,
-        '130F-170F': LEVEL_ATTACK,
+        '130F-166F': LEVEL_ATTACK,
     },
     derives: [
         { key: Attack1, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack1' },
         { key: Attack2, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack2' },
     ],
+    hits: [
+        {
+            group: "Axe",
+            box_max_times: 1,
+        }
+    ],
     custom_events: {
-        '50F': 'SE_Slash',
-        '48F': 'VFX_Slash',
-    },
+        '48F': 'SE_Slash',
+        '46F': 'VFX_Slash'
+    }
 });
 
 new ActionGeneral('Action.Demo.Attack4', {
     anim_main: {
         files: 'Girl_Attack_04A.*',
-        duration: '170F',
+        duration: '166F',
         root_motion: true,
         weapon_motion: true,
+        hit_motion: true,
     },
     character: PLAYER.id,
     styles: PLAYER.styles,
     tags: ['Attack'],
     enter_level: LEVEL_ATTACK,
-    input_movements: {
-        '0F': { duration: '12F', angle: 45 },
-    },
+    input_movements: [
+        { time: '0F', duration: '12F', angle: 45 },
+        { time: '48F', duration: '16F', angle: 45 },
+        { time: '48F', move: true, move_ex: true },
+    ],
     attributes: {
-        '0-170F': {
+        '0-166F': {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        },
+        }
     },
     derive_levels: {
-        '0-124F': LEVEL_ACTION,
-        '124F-170F': LEVEL_ATTACK,
+        '0-130F': LEVEL_ACTION,
+        '130F-166F': LEVEL_ATTACK,
     },
+    hits: [
+        {
+            group: "Axe",
+            box_max_times: 1,
+        }
+    ],
     derives: [
         { key: Attack1, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack1' },
         { key: Attack2, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack2' },
     ],
     custom_events: {
-        '50F': 'SE_Slash',
-        '48F': 'VFX_Slash',
-    },
+        '48F': 'SE_Slash',
+        '46F': 'VFX_Slash'
+    }
 });
 
 //
@@ -424,21 +456,55 @@ const NPC = new NpcCharacter('NpcCharacter.TrainingDummy', {
         MaxHealth: [1000 * 1000 * 1000],
     },
     fixed_attributes,
-    actions: ['NpcAction.TrainingDummy.Idle'],
+    actions: [
+        'Action.TrainingDummy.Idle',
+        'Action.TrainingDummy.Hit1',
+    ],
     bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'TrainingDummy.*',
     skeleton_toward: [0, 1],
-    body_file: 'TrainingDummyBody.json',
     view_model: 'TrainingDummy.prefab',
 });
 
-new NpcActionIdle('NpcAction.TrainingDummy.Idle', {
-    characters: [NPC.id],
+new ActionIdle('Action.TrainingDummy.Idle', {
+    npc_characters: [NPC.id],
     tags: ['Idle'],
     anim_idle: {
         files: 'TrainingDummy_Idle.*',
         duration: '3s',
     },
+});
+
+new ActionHit('Action.TrainingDummy.Hit1', {
+    npc_characters: [NPC.id],
+    tags: ['Hit'],
+    enter_key: Hit1,
+    anim_be_hits: [
+        {
+            enter_angle: -90,
+            files: 'TrainingDummy_Hit1_L.*',
+            fade_in: '6F',
+            root_motion: true,
+        },
+        {
+            enter_angle: 0,
+            files: 'TrainingDummy_Hit1_B.*',
+            fade_in: '6F',
+            root_motion: true,
+        },
+        {
+            enter_angle: 90,
+            files: 'TrainingDummy_Hit1_R.*',
+            fade_in: '6F',
+            root_motion: true,
+        },
+        {
+            enter_angle: 180,
+            files: 'TrainingDummy_Hit1_F.*',
+            fade_in: '6F',
+            root_motion: true,
+        },
+    ],
 });
 
 //
