@@ -4,7 +4,7 @@ if (!FORCE_GEN) {
     // Asset.enableIncrement();
 }
 
-const files = ['GirlBody.json', 'TrainingDummyBody.json', 'TestZone.json', 'Demo1Zone.json'];
+const files = ['TestZone.json', 'Demo1Zone.json'];
 Asset.copyFiles('../test-asset/', (_dir, file) => {
     if (files.includes(file)) {
         return file;
