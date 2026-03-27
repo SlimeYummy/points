@@ -153,6 +153,5 @@ new NpcCharacter('NpcCharacter.Verify^1', {
     bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'TrainingDummy.*',
     skeleton_toward: [0, 1],
-    body_file: 'TrainingDummyBody.json',
     view_model: 'TrainingDummy.prefab',
 });

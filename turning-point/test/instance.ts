@@ -1,5 +1,6 @@
 import {
     ActionGeneral,
+    ActionHit,
     ActionIdle,
     ActionMove,
     Attack1,
@@ -7,9 +8,9 @@ import {
     Capsule,
     Character,
     Equipment,
+    Hit1,
     LEVEL_ACTION,
     LEVEL_ATTACK,
-    NpcActionIdle,
     NpcCharacter,
     Perk,
     Run,
@@ -166,12 +167,12 @@ new ActionIdle('Action.Instance.Idle^1A', {
     tags: ['Idle'],
     anim_idle: {
         files: 'Girl_Idle_Empty.*',
-        duration: '2.5s',
+        duration: '2.5s!',
         fade_in: 0.2,
     },
     anim_ready: {
         files: 'Girl_Idle_Axe.*',
-        duration: 2,
+        duration: '2s!',
         fade_in: 0.4,
     },
 });
@@ -187,7 +188,7 @@ new ActionMove('Action.Instance.Run^1A', {
         root_motion: true,
     },
     move_speed: 3,
-    starts: [
+    anim_starts: [
         {
             enter_angle: ['L15', 'R15'],
             files: 'Girl_RunStart_Empty.*',
@@ -214,7 +215,7 @@ new ActionMove('Action.Instance.Run^1A', {
         },
     ],
     turn_time: '10F',
-    stops: [
+    anim_stops: [
         {
             enter_phase_table: [{ phase: [0.75, 0.25], offset: '2F' }],
             files: 'Girl_RunStop_L_Empty.*',
@@ -244,9 +245,10 @@ new ActionGeneral('Action.Instance.Attack^1A', {
     styles: ['Style.Instance^1A'],
     tags: ['Attack'],
     anim_main: {
-        files: 'Girl_Attack_01A.*',
-        duration: 4,
+        files: 'Girl_Attack_Test.*',
+        duration: '4s!',
         root_motion: true,
+        hit_motion: true,
     },
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,
@@ -277,6 +279,18 @@ new ActionGeneral('Action.Instance.Attack^1A', {
             action: 'Action.Instance.AttackDerive^1A',
         },
     ],
+    hits: [
+        {
+            group: 'Health',
+            box_max_times: 2,
+            box_min_interval: '1F',
+            group_max_times: 4,
+        },
+        {
+            group: 'Counter',
+            box_max_times: 1,
+        },
+    ],
     custom_events: {
         '2s': 'Event2s',
         '1s': 'Event1s',
@@ -290,7 +304,7 @@ new ActionGeneral('Action.Instance.AttackDerive^1A', {
     styles: ['Style.Instance^1A'],
     anim_main: {
         files: 'Girl_Attack_03A.*',
-        duration: '5s',
+        duration: '5s!',
         root_motion: true,
     },
     enter_level: LEVEL_ATTACK,
@@ -309,7 +323,7 @@ new ActionGeneral('Action.Instance.AttackUnused^1A', {
     styles: ['Style.Instance^1A'],
     anim_main: {
         files: 'Girl_attack_04A.*',
-        duration: '5s',
+        duration: '5s!',
         root_motion: true,
     },
     enter_level: LEVEL_ATTACK,
@@ -325,7 +339,7 @@ new ActionGeneral('Action.Instance.AttackUnused^1A', {
 // NPC
 //
 
-new NpcCharacter('NpcCharacter.Instance^1', {
+new NpcCharacter('NpcCharacter.NpcInstance^1', {
     name: 'NpcCharacter 1',
     tags: ['Npc'],
     level: [1, 3],
@@ -336,20 +350,36 @@ new NpcCharacter('NpcCharacter.Instance^1', {
         PhysicalDefense: [15, 25, 35],
     },
     fixed_attributes,
-    actions: ['NpcAction.Instance.Idle^1A'],
+    actions: [
+        'Action.NpcInstance.Idle^1A',
+        'Action.NpcInstance.Hit1^1A',
+    ],
     bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'TrainingDummy.*',
     skeleton_toward: [0, 1],
-    body_file: 'TrainingDummyBody.json',
     view_model: 'TrainingDummy.prefab',
 });
 
-new NpcActionIdle('NpcAction.Instance.Idle^1A', {
-    characters: ['NpcCharacter.Instance^1'],
+new ActionIdle('Action.NpcInstance.Idle^1A', {
+    npc_characters: ['NpcCharacter.NpcInstance^1'],
     tags: ['Idle'],
     anim_idle: {
         files: 'TrainingDummy_Idle.*',
-        duration: '4s',
+        duration: '4s!',
         fade_in: 0.5,
     },
+});
+
+new ActionHit('Action.NpcInstance.Hit1^1A', {
+    npc_characters: ['NpcCharacter.NpcInstance^1'],
+    tags: ['Hit'],
+    enter_key: Hit1,
+    anim_be_hits: [
+        {
+            enter_angle: 15,
+            files: 'TrainingDummy_Hit1_F.*',
+            duration: '30F!',
+            root_motion: true,
+        }
+    ],
 });
