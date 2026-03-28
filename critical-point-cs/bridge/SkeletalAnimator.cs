@@ -35,20 +35,20 @@ namespace CriticalPoint {
             uint skel_len,
             Symbol* anims,
             uint anim_len,
-            Symbol* wts,
-            uint wt_len
+            Symbol* wms,
+            uint wm_len
         );
 
-        public static void Load(Symbol[] skels, Symbol[] anims, Symbol[] wts) {
+        public static void Load(Symbol[] skels, Symbol[] anims, Symbol[] wms) {
             unsafe {
-                fixed (Symbol* skels_ptr = skels, anims_ptr = anims, wts_ptr = wts) {
+                fixed (Symbol* skels_ptr = skels, anims_ptr = anims, wms_ptr = wms) {
                     skeletal_resource_load(
                         skels_ptr,
                         (uint)skels.Length,
                         anims_ptr,
                         (uint)anims.Length,
-                        wts_ptr,
-                        (uint)wts.Length
+                        wms_ptr,
+                        (uint)wms.Length
                     ).Unwrap();
                 }
             }
@@ -130,10 +130,10 @@ namespace CriticalPoint {
         }
 
         [DllImport("critical_point_csbridge.dll")]
-        private static extern unsafe Return0 skeletal_animator_animate(IntPtr animator, float ratio);
+        private static extern unsafe Return0 skeletal_animator_animate(IntPtr animator, float lerpFrame);
 
-        public void Animate(float ratio) {
-            skeletal_animator_animate(_animator, ratio).Unwrap();
+        public void Animate(float lerpFrame) {
+            skeletal_animator_animate(_animator, lerpFrame).Unwrap();
         }
 
         [DllImport("critical_point_csbridge.dll")]

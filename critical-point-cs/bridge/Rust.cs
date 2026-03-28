@@ -120,18 +120,16 @@ namespace CriticalPoint {
     // Rust Symbol wrapper
     //
 
-    [StructLayout(LayoutKind.Sequential)]
-    internal unsafe struct SymbolNode {
-        private SymbolNode* _next;
-        private uint _hash;
-        internal ushort length;
-        internal fixed byte chars[1];
-    };
+    // [StructLayout(LayoutKind.Sequential)]
+    // internal unsafe struct SymbolNode {
+    //     private SymbolNode* _next;
+    //     private uint _hash;
+    //     internal ushort length;
+    //     internal fixed byte chars[1];
+    // };
 
     public struct Symbol {
         private nint _ptr;
-
-        public bool IsNull { get => _ptr == 0; }
 
         public static bool operator ==(Symbol lhs, Symbol rhs) => lhs._ptr == rhs._ptr;
         public static bool operator !=(Symbol lhs, Symbol rhs) => lhs._ptr != rhs._ptr;
@@ -144,14 +142,12 @@ namespace CriticalPoint {
 
         public override string ToString() => _ptr.ToString();
 
+        public bool IsEmpty() {
+            unsafe { return *(byte*)_ptr == 0; }
+        }
+
         public string TryRead() {
-            if (_ptr == 0) {
-                return "";
-            }
-            unsafe {
-                var inner = (SymbolNode*)_ptr;
-                return Marshal.PtrToStringUTF8((IntPtr)inner->chars, inner->length) ?? "";
-            }
+            return Marshal.PtrToStringUTF8(_ptr) ?? "";
         }
 
         [DllImport("critical_point_csbridge.dll")]
@@ -522,14 +518,14 @@ namespace CriticalPoint {
         public int Length { get => (int)_vec.len; }
         public bool IsEmpty { get => _vec.len == UIntPtr.Zero; }
 
-        public readonly T this[int index] {
+        public readonly ref T this[int index] {
             get {
                 if ((uint)index >= (uint)_vec.len) {
                     string msg = string.Format("index:{0} len:{1}", index, _vec.len);
                     throw new IndexOutOfRangeException(msg);
                 }
                 unsafe {
-                    return Unsafe.Add(ref *_vec.ptr, (nint)(uint)index);
+                    return ref Unsafe.Add(ref *_vec.ptr, (nint)(uint)index);
                 }
             }
         }
@@ -549,7 +545,7 @@ namespace CriticalPoint {
                 _index = -1;
             }
 
-            public T Current { get => _vec[_index]; }
+            public ref T Current { get => ref _vec[_index]; }
 
             public bool MoveNext() => ++_index < _vec.Length;
         }
