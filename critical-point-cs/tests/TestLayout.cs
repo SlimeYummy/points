@@ -1,7 +1,5 @@
 ﻿using CriticalPoint;
 using MessagePack;
-using System.Diagnostics;
-using System.Drawing;
 using System.Runtime.InteropServices;
 
 namespace CriticalPointTests {
@@ -47,6 +45,7 @@ namespace CriticalPointTests {
             layouts["AnimationMeta"] = MakeLayout<RsAnimationMeta>(RsAnimationMeta.SIZE, RsAnimationMeta.ALIGN);
             layouts["CustomEvent"] = MakeLayout<CustomEvent>(CustomEvent.SIZE, CustomEvent.ALIGN);
             layouts["DeriveKeeping"] = MakeLayout<DeriveKeeping>(DeriveKeeping.SIZE, DeriveKeeping.ALIGN);
+            layouts["HitCharacterEvent"] = MakeLayout<HitCharacterEvent>(HitCharacterEvent.SIZE, HitCharacterEvent.ALIGN);
             layouts["HitMotionMeta"] = MakeLayout<RsHitMotionMeta>(RsHitMotionMeta.SIZE, RsHitMotionMeta.ALIGN);
             layouts["HitTrackGroupMeta"] = MakeLayout<RsHitTrackGroupMeta>(RsHitTrackGroupMeta.SIZE, RsHitTrackGroupMeta.ALIGN);
             layouts["LogicEngineStatus"] = MakeLayout<LogicEngineStatus>(LogicEngineStatus.SIZE, LogicEngineStatus.ALIGN);
@@ -61,15 +60,16 @@ namespace CriticalPointTests {
             layouts["StateActionIdle"] = MakeLayout<RsStateActionIdle>(RsStateActionIdle.SIZE, RsStateActionIdle.ALIGN);
             layouts["StateActionMove"] = MakeLayout<RsStateActionMove>(RsStateActionMove.SIZE, RsStateActionMove.ALIGN);
             layouts["StateBase"] = MakeLayout<RsStateBase>(RsStateBase.SIZE, RsStateBase.ALIGN);
+            layouts["StateCharaAction"] = MakeLayout<StateCharaAction>(StateCharaAction.SIZE, StateCharaAction.ALIGN);
+            layouts["StateCharaHit"] = MakeLayout<StateCharaHit>(StateCharaHit.SIZE, StateCharaHit.ALIGN);
             layouts["StateCharaPhysics"] = MakeLayout<StateCharaPhysics>(StateCharaPhysics.SIZE, StateCharaPhysics.ALIGN);
+            layouts["StateCharaValue"] = MakeLayout<StateCharaValue>(StateCharaValue.SIZE, StateCharaValue.ALIGN);
             layouts["StateGameInit"] = MakeLayout<RsStateGameInit>(RsStateGameInit.SIZE, RsStateGameInit.ALIGN);
             layouts["StateGameUpdate"] = MakeLayout<RsStateGameUpdate>(RsStateGameUpdate.SIZE, RsStateGameUpdate.ALIGN);
             layouts["StateGeneration"] = MakeLayout<StateGeneration>(StateGeneration.SIZE, StateGeneration.ALIGN);
             layouts["StateMultiRootMotion"] = MakeLayout<StateMultiRootMotion>(StateMultiRootMotion.SIZE, StateMultiRootMotion.ALIGN);
-            layouts["StateNpcInit"] = MakeLayout<RsStateNpcInit>(RsStateNpcInit.SIZE, RsStateNpcInit.ALIGN);
-            layouts["StateNpcUpdate"] = MakeLayout<RsStateNpcUpdate>(RsStateNpcUpdate.SIZE, RsStateNpcUpdate.ALIGN);
-            layouts["StatePlayerInit"] = MakeLayout<RsStatePlayerInit>(RsStatePlayerInit.SIZE, RsStatePlayerInit.ALIGN);
-            layouts["StatePlayerUpdate"] = MakeLayout<RsStatePlayerUpdate>(RsStatePlayerUpdate.SIZE, RsStatePlayerUpdate.ALIGN);
+            layouts["StateCharacterInit"] = MakeLayout<RsStateCharacterInit>(RsStateCharacterInit.SIZE, RsStateCharacterInit.ALIGN);
+            layouts["StateCharacterUpdate"] = MakeLayout<RsStateCharacterUpdate>(RsStateCharacterUpdate.SIZE, RsStateCharacterUpdate.ALIGN);
             layouts["StateRootMotion"] = MakeLayout<StateRootMotion>(StateRootMotion.SIZE, StateRootMotion.ALIGN);
             layouts["StateSet"] = MakeLayout<RsStateSet>(RsStateSet.SIZE, RsStateSet.ALIGN);
             layouts["StateZoneInit"] = MakeLayout<RsStateZoneInit>(RsStateZoneInit.SIZE, RsStateZoneInit.ALIGN);

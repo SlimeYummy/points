@@ -50,7 +50,7 @@ namespace CriticalPointTests {
 
         [TestMethod]
         public void TestHitMotionMeta() {
-            var meta = SkeletalResource.LoadHitMotionMeta(ASSET_PATH + "TestDemo.hm-json", true);
+            var meta = SkeletalResource.LoadHitMotionMeta(ASSET_PATH + "Girl_Attack_Test.hm-json", true);
             Assert.AreEqual(3, meta.track_groups.Length);
             Assert.AreEqual("Health", meta.track_groups[0].group.ToString());
             Assert.AreEqual(1u, meta.track_groups[0].count);
