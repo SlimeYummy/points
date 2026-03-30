@@ -60,7 +60,6 @@ impl<I: Iterator<Item = u32>> Iterator for FrameTicker<I> {
     type Item = FrameTick;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let a = 0..3;
         if let Some(frame) = self.frame {
             let mut tick = FrameTick {
                 idx: self.idx,

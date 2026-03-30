@@ -57,9 +57,9 @@ pub enum VirtualKey {
     Walk,
     Run,
     Dash,
-    Break1,
-    Break2,
-    Break3,
+    Hit1,
+    Hit2,
+    Hit3,
 }
 
 rkyv_self!(VirtualKey);

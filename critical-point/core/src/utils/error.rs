@@ -147,6 +147,7 @@ pub enum XError {
     BadOperation(MixedError<()>),
     Overflow(MixedError<()>),
 
+    // TODO: remove symbol errors
     SymbolTooLong(MixedError<()>),
     SymbolNotFound(MixedError<()>),
     SymbolNotPreloaded(MixedError<()>),

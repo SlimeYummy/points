@@ -51,6 +51,7 @@ pub enum ActionType {
     Dodge,
     Guard,
     Aim,
+    Hit,
 }
 
 rkyv_self!(ActionType);
