@@ -2,24 +2,13 @@ use std::fmt;
 use std::ops::{Add, Sub};
 
 use crate::consts::MAX_PLAYER;
+use crate::utils::rkyv_self;
 
 #[repr(transparent)]
-#[derive(
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-)]
-#[rkyv(derive(Debug, Clone, Copy, PartialEq, Eq, Hash))]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub struct NumID(pub u32);
+
+rkyv_self!(NumID);
 
 impl NumID {
     pub const INVALID: NumID = NumID(u32::MAX);
@@ -32,10 +21,6 @@ impl NumID {
     #[inline]
     pub const fn new(id: u32) -> NumID {
         NumID(id)
-    }
-
-    pub fn from_rkyv(value: ArchivedNumID) -> NumID {
-        NumID(value.0.to_native())
     }
 
     #[inline]

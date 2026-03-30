@@ -1,7 +1,3 @@
-//
-// Rust derive
-//
-
 #[macro_export]
 macro_rules! ifelse {
     ($c:expr, $a:expr, $b:expr) => {
@@ -14,6 +10,39 @@ macro_rules! ifelse {
     };
 }
 pub use ifelse;
+
+#[macro_export]
+macro_rules! ok_or {
+    ($opt:expr; return) => {
+        match $opt {
+            Some(x) => x,
+            None => return,
+        }
+    };
+    ($opt:expr; return $ret:expr) => {
+        match $opt {
+            Some(x) => x,
+            None => return $ret,
+        }
+    };
+    ($opt:expr; continue) => {
+        match $opt {
+            Some(x) => x,
+            None => continue,
+        }
+    };
+    ($opt:expr; break) => {
+        match $opt {
+            Some(x) => x,
+            None => break,
+        }
+    };
+}
+pub use ok_or;
+
+//
+// Rust derive
+//
 
 macro_rules! impl_for {
     ($t1:ty, $t2:ty, { $($body:tt)* }) => {
@@ -143,7 +172,6 @@ pub(crate) use serde_by;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::utils::Castable;
     use std::any::Any;
 

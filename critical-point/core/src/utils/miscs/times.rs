@@ -17,9 +17,16 @@ rkyv_self!(TimeRange);
 serde_by!(TimeRange, (f32, f32), TimeRange::from, TimeRange::to_tuple);
 
 impl TimeRange {
+    pub const EMPTY: TimeRange = TimeRange { begin: 0.0, end: 0.0 };
+
     #[inline]
     pub fn new(begin: f32, end: f32) -> TimeRange {
         TimeRange { begin, end }
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.begin >= self.end
     }
 
     #[inline]
@@ -46,19 +53,22 @@ impl TimeRange {
         }
     }
 
+    /// time in open range (begin, end)
     #[inline]
     pub fn contains(&self, time: f32) -> bool {
-        self.begin <= time && time <= self.end
+        self.begin < time && time < self.end
     }
 
+    /// Time in left close range [begin, end)
     #[inline]
-    pub fn contains_no_left(&self, time: f32) -> bool {
-        self.begin < time && time <= self.end
-    }
-
-    #[inline]
-    pub fn contains_no_right(&self, time: f32) -> bool {
+    pub fn contains_lc(&self, time: f32) -> bool {
         self.begin <= time && time < self.end
+    }
+
+    /// Time in right close range (begin, end]
+    #[inline]
+    pub fn contains_rc(&self, time: f32) -> bool {
+        self.begin < time && time <= self.end
     }
 }
 
