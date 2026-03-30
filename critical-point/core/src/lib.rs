@@ -1,3 +1,4 @@
+#![feature(thread_id_value)]
 #![feature(ptr_metadata)]
 #![feature(allocator_api)]
 #![feature(likely_unlikely)]
