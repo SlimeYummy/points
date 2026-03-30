@@ -1,39 +1,34 @@
-mod base;
-mod cache;
-
 use std::borrow::Borrow;
-use std::cmp::Ordering;
 use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
+use ustr_fxhash::Ustr;
 
 use crate::utils::{XError, XResult};
 
-#[cfg(not(feature = "server-side"))]
-pub use cache::*;
-
-#[macro_export]
-macro_rules! sb {
-    ($string:expr) => {
-        $crate::utils::Symbol::try_from($string).unwrap()
-    };
-    ($($arg:tt)*) => {{
-        let res = std::fmt::format(format_args!($($arg)*));
-        $crate::utils::Symbol::new(&res).unwrap()
-    }}
-}
-use rustc_hash::{FxHashMap, FxHashSet};
-pub use sb;
+#[repr(transparent)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Symbol(Ustr);
 
 impl Symbol {
     #[inline]
+    pub fn new(string: &str) -> Symbol {
+        return Symbol(Ustr::from(string));
+    }
+
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        return self.0.as_str();
+    }
+
+    #[inline]
     pub fn len(&self) -> usize {
-        return self.as_str().len();
+        return self.0.len();
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        return self.as_str().is_empty();
+        return self.len() == 0;
     }
 
     #[inline]
@@ -41,8 +36,6 @@ impl Symbol {
         return self.as_str().to_owned();
     }
 }
-
-impl Eq for Symbol {}
 
 impl PartialEq<&str> for Symbol {
     #[inline]
@@ -72,20 +65,6 @@ impl PartialEq<Symbol> for String {
     }
 }
 
-impl PartialOrd for Symbol {
-    #[inline]
-    fn partial_cmp(&self, other: &Symbol) -> Option<Ordering> {
-        return self.as_str().partial_cmp(other.as_str());
-    }
-}
-
-impl Ord for Symbol {
-    #[inline]
-    fn cmp(&self, other: &Symbol) -> Ordering {
-        return self.as_str().cmp(other.as_str());
-    }
-}
-
 impl AsRef<str> for Symbol {
     #[inline]
     fn as_ref(&self) -> &str {
@@ -98,34 +77,28 @@ impl FromStr for Symbol {
 
     #[inline]
     fn from_str(s: &str) -> XResult<Symbol> {
-        <Symbol>::new(s)
+        Ok(Symbol::new(s))
     }
 }
 
-impl TryFrom<&str> for Symbol {
-    type Error = XError;
-
+impl From<&str> for Symbol {
     #[inline]
-    fn try_from(s: &str) -> XResult<Symbol> {
-        <Symbol>::new(s)
+    fn from(s: &str) -> Symbol {
+        Symbol::new(s)
     }
 }
 
-impl TryFrom<&String> for Symbol {
-    type Error = XError;
-
+impl From<&String> for Symbol {
     #[inline]
-    fn try_from(s: &String) -> XResult<Symbol> {
-        <Symbol>::new(s)
+    fn from(s: &String) -> Symbol {
+        Symbol::new(s)
     }
 }
 
-impl TryFrom<String> for Symbol {
-    type Error = XError;
-
+impl From<String> for Symbol {
     #[inline]
-    fn try_from(s: String) -> XResult<Symbol> {
-        <Symbol>::new(&s)
+    fn from(s: String) -> Symbol {
+        Symbol::new(&s)
     }
 }
 
@@ -136,21 +109,24 @@ impl From<Symbol> for String {
     }
 }
 
-impl TryFrom<&rkyv::string::ArchivedString> for Symbol {
-    type Error = XError;
-
-    #[inline]
-    fn try_from(s: &rkyv::string::ArchivedString) -> XResult<Symbol> {
-        <Symbol>::new(s.as_str())
-    }
-}
-
 impl Deref for Symbol {
     type Target = str;
 
     #[inline]
     fn deref(&self) -> &str {
         return self.as_str();
+    }
+}
+
+impl fmt::Debug for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "s{:?}", self.as_str())
+    }
+}
+
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -187,11 +163,7 @@ const _: () = {
         }
 
         fn visit_str<E: Error>(self, s: &str) -> Result<Self::Value, E> {
-            match <Symbol>::new(s) {
-                Ok(symbol) => Ok(symbol),
-                Err(XError::SymbolTooLong(_)) => Err(E::custom("symbol is too long")),
-                Err(_) => Err(E::custom("invalid symbol")),
-            }
+            Ok(Symbol::new(s))
         }
     }
 };
@@ -238,9 +210,23 @@ impl fmt::Display for ArchivedSymbol {
     }
 }
 
+impl From<&rkyv::string::ArchivedString> for Symbol {
+    #[inline]
+    fn from(s: &rkyv::string::ArchivedString) -> Symbol {
+        Symbol::new(s.as_str())
+    }
+}
+
+impl From<&ArchivedSymbol> for Symbol {
+    #[inline]
+    fn from(s: &ArchivedSymbol) -> Symbol {
+        Symbol::new(s.inner.as_str())
+    }
+}
+
 const _: () = {
     use rkyv::munge::munge;
-    use rkyv::rancor::{fail, Fallible, Source};
+    use rkyv::rancor::{Fallible, Source};
     use rkyv::ser::Writer;
     use rkyv::string::{ArchivedString, StringResolver};
     use rkyv::{Archive, Deserialize, Place, Serialize};
@@ -272,40 +258,19 @@ const _: () = {
         D::Error: Source,
     {
         fn deserialize(&self, _: &mut D) -> Result<Symbol, D::Error> {
-            match Symbol::new(self.as_str()) {
-                Ok(symbol) => Ok(symbol),
-                Err(err) => fail!(err),
-            }
+            Ok(Symbol::new(self.as_str()))
         }
     }
 };
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rkyv::Archived;
-
-    #[test]
-    fn test_symbol_serde() {
-        use serde_json;
-
-        let s1 = Symbol::new("hello").unwrap();
-        let json = serde_json::to_string(&s1).unwrap();
-        assert_eq!(json, "\"hello\"");
-        let s2: Symbol = serde_json::from_str(&json).unwrap();
-        assert_eq!(s1, s2);
-    }
-
-    #[test]
-    fn test_symbol_rkyv() {
-        use rkyv::rancor::Error;
-
-        let s1 = Symbol::new("hello").unwrap();
-        let bytes = rkyv::to_bytes::<Error>(&s1).unwrap();
-        let archived = unsafe { rkyv::access_unchecked::<Archived<Symbol>>(&bytes) };
-        assert_eq!(s1.as_str(), archived.as_str());
-
-        let s2 = rkyv::deserialize::<_, Error>(archived).unwrap();
-        assert_eq!(s1, s2);
-    }
+#[macro_export]
+macro_rules! sb {
+    ($string:expr) => {
+        $crate::utils::Symbol::new($string)
+    };
+    ($($arg:tt)*) => {{
+        let res = std::fmt::format(format_args!($($arg)*));
+        $crate::utils::Symbol::new(&res)
+    }}
 }
+pub use sb;
