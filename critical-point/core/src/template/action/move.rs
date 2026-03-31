@@ -8,8 +8,12 @@ use crate::utils::{TmplID, VirtualKey};
 pub struct TmplActionMove {
     pub id: TmplID,
     pub enabled: TmplVar<bool>,
+    #[serde(default)]
     pub character: TmplID,
+    #[serde(default)]
     pub styles: Vec<TmplID>,
+    #[serde(default)]
+    pub npc_characters: Vec<TmplID>,
     pub tags: Vec<String>,
     pub enter_key: VirtualKey,
     pub enter_level: u16,
@@ -34,7 +38,6 @@ impl_tmpl!(TmplActionMove, ActionMove, "ActionMove");
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
 pub struct TmplActionMoveStart {
-    #[serde(flatten)]
     pub anim: TmplAnimation,
     pub enter_angle: [f32; 2],
     pub turn_in_place_end: f32,
@@ -44,7 +47,6 @@ pub struct TmplActionMoveStart {
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
 pub struct TmplActionMoveTurn {
-    #[serde(flatten)]
     pub anim: TmplAnimation,
     pub enter_angle: [f32; 2],
     pub turn_in_place_end: f32,
@@ -53,7 +55,6 @@ pub struct TmplActionMoveTurn {
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
 pub struct TmplActionMoveStop {
-    #[serde(flatten)]
     pub anim: TmplAnimation,
     pub enter_phase_table: Vec<TmplActionMoveStopEnter>,
     pub leave_phase_table: Vec<TmplActionMoveStopLeave>,
@@ -129,7 +130,9 @@ mod tests {
         assert_eq!(act.id, id!("Action.One.Run"));
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character, id!("Character.One"));
+        assert!(act.npc_characters.is_empty());
         assert_eq!(act.styles.as_slice(), &[id!("Style.One^1"), id!("Style.One^2")]);
+        assert!(act.npc_characters.is_empty());
         assert_eq!(act.tags.as_slice(), &["Run"]);
         assert_eq!(act.enter_key, VirtualKey::Run);
         assert_eq!(act.enter_level, LEVEL_MOVE);
@@ -140,6 +143,8 @@ mod tests {
         assert_eq!(act.anim_move.duration, 0.93333334);
         assert_eq!(act.anim_move.fade_in, cf2s(4));
         assert_eq!(act.anim_move.root_motion, true);
+        assert_eq!(act.anim_move.weapon_motion, false);
+        assert_eq!(act.anim_move.hit_motion, false);
         assert_eq!(act.move_speed, 3.0);
 
         assert_eq!(act.starts.len(), 3);
@@ -147,6 +152,8 @@ mod tests {
         assert_eq!(act.starts[0].anim.files, "Girl_RunStart_Empty.*");
         assert_eq!(act.starts[0].anim.fade_in, 0.0);
         assert_eq!(act.starts[0].anim.root_motion, true);
+        assert_eq!(act.starts[0].anim.weapon_motion, false);
+        assert_eq!(act.starts[0].anim.hit_motion, false);
         assert_eq!(act.starts[0].anim.weapon_motion, false);
         assert_eq!(act.starts[0].enter_angle, [15f32.to_radians(), -15f32.to_radians()]);
         assert_eq!(act.starts[0].turn_in_place_end, cf2s(2));
@@ -170,6 +177,7 @@ mod tests {
         assert_eq!(act.stops[0].anim.fade_in, cf2s(4));
         assert_eq!(act.stops[0].anim.root_motion, true);
         assert_eq!(act.stops[0].anim.weapon_motion, false);
+        assert_eq!(act.stops[0].anim.hit_motion, false);
         assert_eq!(act.stops[0].enter_phase_table.len(), 1);
         assert_eq!(
             TmplActionMoveStopEnter::from_rkyv(&act.stops[0].enter_phase_table[0]),

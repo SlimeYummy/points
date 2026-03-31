@@ -1,7 +1,7 @@
 use crate::template::action::base::{TmplActionAttributes, TmplAnimation, TmplDeriveRule, TmplTimelineRange};
 use crate::template::base::impl_tmpl;
 use crate::template::variable::TmplVar;
-use crate::template::TmplTimelinePoint;
+use crate::template::{TmplHit, TmplTimelinePoint};
 use crate::utils::{Bitsetable, DeriveContinue, EnumBitset, TmplID, VirtualKeyDir, XResult};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -9,8 +9,12 @@ use crate::utils::{Bitsetable, DeriveContinue, EnumBitset, TmplID, VirtualKeyDir
 pub struct TmplActionGeneral {
     pub id: TmplID,
     pub enabled: TmplVar<bool>,
+    #[serde(default)]
     pub character: TmplID,
+    #[serde(default)]
     pub styles: Vec<TmplID>,
+    #[serde(default)]
+    pub npc_characters: Vec<TmplID>,
     pub tags: Vec<String>,
     pub anim_main: TmplAnimation,
     pub enter_key: Option<VirtualKeyDir>,
@@ -28,6 +32,8 @@ pub struct TmplActionGeneral {
     pub derives: Vec<TmplDeriveRule>,
     #[serde(default)]
     pub derive_continues: EnumBitset<DeriveContinue, { DeriveContinue::LEN }>,
+    #[serde(default)]
+    pub hits: Vec<TmplHit>,
     #[serde(default)]
     pub custom_events: TmplTimelinePoint<String>,
 }
@@ -139,12 +145,18 @@ mod tests {
         assert_eq!(act.id, id!("Action.One.Attack^1"));
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character, id!("Character.One"));
+        assert!(act.npc_characters.is_empty());
         assert_eq!(act.styles.as_slice(), &[id!("Style.One^1"), id!("Style.One^2")]);
+        assert!(act.npc_characters.is_empty());
         assert_eq!(act.tags.as_slice(), &["Attack"]);
-        assert_eq!(act.anim_main.files, "Girl_Attack_01A.*");
+
+        assert_eq!(act.anim_main.files, "Girl_Attack_Test.*");
         assert_eq!(act.anim_main.duration, 4.0);
         assert_eq!(act.anim_main.fade_in, 0.1);
         assert_eq!(act.anim_main.root_motion, true);
+        assert_eq!(act.anim_main.weapon_motion, true);
+        assert_eq!(act.anim_main.hit_motion, true);
+
         assert_eq!(act.enter_key, Some(VirtualKeyDir::new(VirtualKey::Attack1, None)));
         assert_eq!(act.enter_level, LEVEL_ATTACK);
         assert_eq!(act.cool_down_time.value().unwrap(), 0.0);
@@ -155,6 +167,7 @@ mod tests {
         //     normal: 0.5,
         //     extended: 1.0,
         // });
+
         assert_eq!(act.input_movements.pairs.len(), 2);
         assert_eq!(act.input_movements.pairs[0].0, 0.0);
         assert_eq!(
@@ -172,11 +185,13 @@ mod tests {
                 mov_ex: false,
             })
         );
+
         assert_eq!(act.attributes.fragments.len(), 1);
         assert_eq!(act.attributes.values.len(), 1);
         assert_eq!(act.attributes.values[0].damage_rdc.value().unwrap(), 0.2);
         assert_eq!(act.attributes.values[0].shield_dmg_rdc.value().unwrap(), 0.0);
         assert_eq!(act.attributes.values[0].poise_level.value().unwrap(), 1);
+
         assert_eq!(act.derive_levels.fragments.len(), 2);
         assert_eq!(act.derive_levels.values.len(), 2);
         assert_eq!(act.derive_levels.values[0].value().unwrap(), LEVEL_ACTION);
@@ -190,7 +205,23 @@ mod tests {
         assert_eq!(act.derives[1].key.dir.unwrap(), InputDir::Forward(0.5));
         assert_eq!(act.derives[1].level, LEVEL_ATTACK + 1);
         assert_eq!(act.derives[1].action.value().unwrap(), id!("Action.One.Attack^2"));
+
         assert!(act.derive_continues.is_empty());
+
+        assert_eq!(act.hits.len(), 3);
+        assert_eq!(act.hits[0].group, "Health");
+        assert_eq!(act.hits[0].box_max_times.value().unwrap(), 0);
+        assert_eq!(act.hits[0].box_min_interval.value().unwrap(), 1e10);
+        assert_eq!(act.hits[0].group_max_times.value().unwrap(), 0);
+        assert_eq!(act.hits[1].group, "Counter");
+        assert_eq!(act.hits[1].box_max_times.value().unwrap(), 1);
+        assert_eq!(act.hits[1].box_min_interval.value().unwrap(), 1e10);
+        assert_eq!(act.hits[1].group_max_times.value().unwrap(), 1);
+        assert_eq!(act.hits[2].group, "Axe");
+        assert_eq!(act.hits[2].box_max_times.value().unwrap(), 1);
+        assert_eq!(act.hits[2].box_min_interval.value().unwrap(), cf2s(2));
+        assert_eq!(act.hits[2].group_max_times.value().unwrap(), 2);
+
         assert_eq!(act.custom_events.pairs.len(), 1);
         assert_eq!(act.custom_events.pairs[0].0, 1.0);
         assert_eq!(act.custom_events.pairs[0].1, "CustomEvent");

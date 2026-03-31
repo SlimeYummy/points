@@ -26,13 +26,12 @@ pub enum TmplType {
     Zone,
 
     ActionIdle,
-    NpcActionIdle,
     ActionMove,
-    NpcActionMove,
     ActionGeneral,
     ActionDodge,
     ActionGuard,
     ActionAim,
+    ActionHit,
 }
 
 rkyv_self!(TmplType);
@@ -114,8 +113,8 @@ const _: () = {
 
     use super::accessory::{ArchivedTmplAccessory, ArchivedTmplAccessoryPool, TmplAccessory, TmplAccessoryPool};
     use super::action::{
-        ArchivedTmplActionGeneral, ArchivedTmplActionIdle, ArchivedTmplActionMove, ArchivedTmplNpcActionIdle,
-        TmplActionGeneral, TmplActionIdle, TmplActionMove, TmplNpcActionIdle,
+        ArchivedTmplActionGeneral, ArchivedTmplActionHit, ArchivedTmplActionIdle, ArchivedTmplActionMove,
+        TmplActionGeneral, TmplActionHit, TmplActionIdle, TmplActionMove,
     };
     use super::character::{
         ArchivedTmplCharacter, ArchivedTmplNpcCharacter, ArchivedTmplStyle, TmplCharacter, TmplNpcCharacter, TmplStyle,
@@ -166,9 +165,11 @@ const _: () = {
                     Jewel => mem::transmute_copy::<usize, &ArchivedTmplJewel>(&0),
                     Zone => mem::transmute_copy::<usize, &ArchivedTmplZone>(&0),
                     ActionIdle => mem::transmute_copy::<usize, &ArchivedTmplActionIdle>(&0),
-                    NpcActionIdle => mem::transmute_copy::<usize, &ArchivedTmplNpcActionIdle>(&0),
+                    // NpcActionIdle => mem::transmute_copy::<usize, &ArchivedTmplNpcActionIdle>(&0),
                     ActionMove => mem::transmute_copy::<usize, &ArchivedTmplActionMove>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &ArchivedTmplActionGeneral>(&0),
+                    ActionHit => mem::transmute_copy::<usize, &ArchivedTmplActionHit>(&0),
+                    // NpcActionHit => mem::transmute_copy::<usize, &ArchivedTmplNpcActionHit>(&0),
                     _ => unreachable!("pointer_metadata() Invalid TmplType"),
                 }
             };
@@ -216,9 +217,11 @@ const _: () = {
                 Jewel => serialize::<TmplJewel, _>(self, serializer),
                 Zone => serialize::<TmplZone, _>(self, serializer),
                 ActionIdle => serialize::<TmplActionIdle, _>(self, serializer),
-                NpcActionIdle => serialize::<TmplNpcActionIdle, _>(self, serializer),
+                // NpcActionIdle => serialize::<TmplNpcActionIdle, _>(self, serializer),
                 ActionMove => serialize::<TmplActionMove, _>(self, serializer),
                 ActionGeneral => serialize::<TmplActionGeneral, _>(self, serializer),
+                ActionHit => serialize::<TmplActionHit, _>(self, serializer),
+                // NpcActionHit => serialize::<TmplNpcActionHit, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid TmplType"),
             }
         }
@@ -260,9 +263,11 @@ const _: () = {
                 Jewel => deserialize::<TmplJewel, _>(self, deserializer, out),
                 Zone => deserialize::<TmplZone, _>(self, deserializer, out),
                 ActionIdle => deserialize::<TmplActionIdle, _>(self, deserializer, out),
-                NpcActionIdle => deserialize::<TmplNpcActionIdle, _>(self, deserializer, out),
+                // NpcActionIdle => deserialize::<TmplNpcActionIdle, _>(self, deserializer, out),
                 ActionMove => deserialize::<TmplActionMove, _>(self, deserializer, out),
                 ActionGeneral => deserialize::<TmplActionGeneral, _>(self, deserializer, out),
+                ActionHit => deserialize::<TmplActionHit, _>(self, deserializer, out),
+                // NpcActionHit => deserialize::<TmplNpcActionHit, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid TmplType"),
             }
         }
@@ -281,9 +286,11 @@ const _: () = {
                     Jewel => mem::transmute_copy::<usize, &TmplJewel>(&0),
                     Zone => mem::transmute_copy::<usize, &TmplZone>(&0),
                     ActionIdle => mem::transmute_copy::<usize, &TmplActionIdle>(&0),
-                    NpcActionIdle => mem::transmute_copy::<usize, &TmplNpcActionIdle>(&0),
+                    // NpcActionIdle => mem::transmute_copy::<usize, &TmplNpcActionIdle>(&0),
                     ActionMove => mem::transmute_copy::<usize, &TmplActionMove>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &TmplActionGeneral>(&0),
+                    ActionHit => mem::transmute_copy::<usize, &TmplActionHit>(&0),
+                    // NpcActionHit => mem::transmute_copy::<usize, &TmplNpcActionHit>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid TmplType"),
                 }
             };

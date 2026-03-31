@@ -34,6 +34,15 @@ pub struct TmplActionAttributes {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[rkyv(derive(Debug))]
+pub struct TmplHit {
+    pub group: String,
+    pub box_max_times: TmplVar<u16>,
+    pub box_min_interval: TmplVar<f32>,
+    pub group_max_times: TmplVar<u16>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct TmplTimelineRange<T> {
     pub fragments: Vec<TimeFragment>,
     pub values: Vec<T>,
