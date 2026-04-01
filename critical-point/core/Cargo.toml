@@ -33,10 +33,11 @@ rkyv = { version = "0.8", features = ["arrayvec-0_7", "thin-vec-0_2", "smallvec-
 rustc-hash = "2"
 serde = { version = "1", features = ["serde_derive"] }
 serde_json = "1"
-smallvec = "1"
+smallvec = { version = "1", features = ["serde"] }
 static_assertions = "1"
 thin-vec ={ version = "0.2", features = ["serde"] }
 typetag = "0.2"
+ustr-fxhash = "1"
 zip = { version = "6", default-features = false, features = [ "zstd" ] }
 
 [dev-dependencies]

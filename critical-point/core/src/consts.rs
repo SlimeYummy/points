@@ -39,6 +39,8 @@ pub const DEFAULT_TOWARD_DIR_2D: Vec2xz = Vec2xz::Z;
 /// default character toward direction
 pub const DEFAULT_TOWARD_DIR_3D: Vec3A = Vec3A::Z;
 
+pub const MAX_HIT_TIMES_PER_FRAME: u16 = 100;
+
 #[cfg(test)]
 pub const TEST_TMP_PATH: &str = "../../test-tmp";
 #[cfg(test)]
