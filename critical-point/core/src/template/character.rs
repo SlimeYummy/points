@@ -67,7 +67,6 @@ pub struct TmplNpcCharacter {
     pub actions: Vec<TmplID>,
     pub skeleton_files: String,
     pub skeleton_toward: Vec2xz,
-    pub body_file: String,
     pub view_model: String,
 }
 
@@ -213,11 +212,13 @@ mod tests {
         assert_eq!(npc.fixed_attributes.guard_deposture_ratio_1, 0.8);
         assert_eq!(npc.fixed_attributes.weak_damage_up, 0.25);
 
-        assert_eq!(npc.actions.as_slice(), &[id!("NpcAction.Enemy.Idle"),]);
+        assert_eq!(npc.actions.as_slice(), &[
+            id!("Action.Enemy.Idle"),
+            id!("Action.Enemy.Hit1")
+        ]);
 
         assert_eq!(npc.skeleton_files, "TrainingDummy.*");
         assert_eq!(npc.skeleton_toward, Vec2xz::Z);
-        assert_eq!(npc.body_file, "TrainingDummyBody.json");
         assert_eq!(npc.view_model, "TrainingDummy.prefab");
     }
 }
