@@ -3,11 +3,12 @@ use ozz_animation_rs::{Archive, OzzError, Track, TrackSamplingJobRef};
 use std::fmt::Debug;
 use std::hint::likely;
 use std::io::{ErrorKind, Read};
+use std::mem;
 use std::ops::Index;
 use std::path::Path;
 
 use crate::animation::utils::WeaponTransform;
-use crate::utils::{ifelse, strict_gt, xres, Symbol, XResult};
+use crate::utils::{ifelse, sb, strict_gt, xres, Symbol, XResult};
 
 #[derive(Debug)]
 pub struct WeaponMotion {
@@ -34,7 +35,7 @@ impl WeaponMotion {
             }
 
             tracks.push(WeaponTrack {
-                name: Symbol::new(pos_name)?,
+                name: sb!(pos_name),
                 position,
                 rotation,
             });
@@ -178,9 +179,8 @@ pub fn normalize_weapons_by_weight(transform: &mut Vec<WeaponTransform>) {
 
 #[cfg(test)]
 mod tests {
-    use crate::consts::TEST_ASSET_PATH;
-
     use super::*;
+    use crate::consts::TEST_ASSET_PATH;
 
     #[test]
     fn test_weapon_motion_track_set() {
@@ -212,7 +212,7 @@ mod tests {
     #[test]
     fn test_normalize_weapons_by_weight() {
         let mut transform = vec![WeaponTransform {
-            name: Symbol::new("Axe").unwrap(),
+            name: sb!("Axe"),
             position: Vec3A::new(1.0, 0.0, 1.0),
             rotation: Quat::IDENTITY,
             weight: 0.5,
@@ -223,7 +223,7 @@ mod tests {
         assert_eq!(transform[0].rotation, Quat::IDENTITY);
 
         let mut transform = vec![WeaponTransform {
-            name: Symbol::new("Axe").unwrap(),
+            name: sb!("Axe"),
             position: Vec3A::new(1.0, 0.0, 1.0),
             rotation: Quat::from_xyzw(1.0, 1.0, 1.0, 1.0),
             weight: 0.0,

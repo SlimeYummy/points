@@ -213,24 +213,24 @@ pub fn load_hit_motion_meta(path: String) -> XResult<HitMotionMeta> {
     let hit_motion = HitMotion::from_path(&path)?;
     let mut meta = HitMotionMeta::default();
 
-    for track in hit_motion.joint_tracks {
-        match meta.track_groups.iter_mut().find(|g| g.group == track.group) {
+    for bx in hit_motion.joint_boxes() {
+        match meta.track_groups.iter_mut().find(|g| g.group == bx.group) {
             Some(group) => group.count += 1,
             None => {
                 meta.track_groups.push(HitTrackGroupMeta {
-                    group: track.group.to_string(),
+                    group: bx.group.to_string(),
                     count: 1,
                 });
             }
         }
     }
 
-    for track in hit_motion.weapon_tracks {
-        match meta.track_groups.iter_mut().find(|g| g.group == track.group) {
+    for bx in hit_motion.weapon_boxes() {
+        match meta.track_groups.iter_mut().find(|g| g.group == bx.group) {
             Some(group) => group.count += 1,
             None => {
                 meta.track_groups.push(HitTrackGroupMeta {
-                    group: track.group.to_string(),
+                    group: bx.group.to_string(),
                     count: 1,
                 });
             }
@@ -263,7 +263,7 @@ mod tests {
     fn test_animation_meta() {
         let meta = load_animation_meta(format!("{}/Girl_Attack_01A.la-ozz", TEST_ASSET_PATH)).unwrap();
         assert_eq!(meta.version, Animation::version());
-        assert_eq!(meta.duration, 2.8);
+        assert_eq!(meta.duration, 2.6666667);
         assert_eq!(meta.num_tracks, 20);
         assert_eq!(meta.name, "Attack_01A");
     }
@@ -300,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_hit_motion_meta() {
-        let meta = load_hit_motion_meta(format!("{}/TestDemo.hm-json", TEST_ASSET_PATH)).unwrap();
+        let meta = load_hit_motion_meta(format!("{}/Girl_Attack_Test.hm-json", TEST_ASSET_PATH)).unwrap();
         assert_eq!(meta.track_groups, vec![
             HitTrackGroupMeta {
                 group: "Health".to_string(),

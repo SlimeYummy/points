@@ -6,12 +6,13 @@ use std::rc::Rc;
 use thin_vec::ThinVec;
 
 use crate::animation::hit_motion::{HitKeyPosition, HitKeyRotation, HitMotion};
-use crate::animation::{HitTrackJoint, HitTrackWeapon, WeaponTransform};
+use crate::animation::{HitBoxJoint, HitBoxWeapon, WeaponTransform};
 use crate::utils::{strict_gt, strict_lt, xerrf, XResult};
 
 #[derive(Debug)]
 pub(crate) struct HitMotionSampler {
     pub(crate) hit_motion: Rc<HitMotion>,
+    time: f32,
     joints: ThinVec<HitSamplerJoint>,
     weapons: ThinVec<HitSamplerWeapon>,
 }
@@ -20,32 +21,40 @@ impl HitMotionSampler {
     pub(crate) fn new(hit_motion: Rc<HitMotion>, skeleton: &Skeleton) -> XResult<HitMotionSampler> {
         let mut sampler = HitMotionSampler {
             hit_motion: hit_motion.clone(),
-            joints: ThinVec::with_capacity(hit_motion.joint_tracks.len()),
-            weapons: ThinVec::with_capacity(hit_motion.weapon_tracks.len()),
+            time: f32::NEG_INFINITY,
+            joints: ThinVec::with_capacity(hit_motion.joint_boxes().len()),
+            weapons: ThinVec::with_capacity(hit_motion.weapon_boxes().len()),
         };
 
-        for track in hit_motion.joint_tracks.iter() {
-            let data = HitSamplerJointData::new(&hit_motion, track, skeleton)?;
-            sampler.joints.push(HitSampler::new(track.hit_id, data));
+        for asset_box in hit_motion.joint_boxes() {
+            let data = HitSamplerJointData::new(&hit_motion, asset_box, skeleton)?;
+            sampler.joints.push(HitSampler::new(asset_box.box_index, data));
         }
 
-        for track in hit_motion.weapon_tracks.iter() {
+        for asset_box in hit_motion.weapon_boxes() {
             sampler
                 .weapons
-                .push(HitSampler::new(track.hit_id, HitSamplerWeaponData));
+                .push(HitSampler::new(asset_box.box_index, HitSamplerWeaponData));
         }
 
         Ok(sampler)
     }
 
     pub(crate) fn sample(&mut self, time: f32, model_transforms: &[Transform3A], weapon_transform: &[WeaponTransform]) {
-        for (idx, track) in self.hit_motion.joint_tracks.iter().enumerate() {
-            self.joints[idx].sample(track, time, model_transforms);
+        self.time = time;
+
+        for (idx, asset_box) in self.hit_motion.joint_boxes().iter().enumerate() {
+            self.joints[idx].sample(asset_box, time, model_transforms);
         }
 
-        for (idx, track) in self.hit_motion.weapon_tracks.iter().enumerate() {
-            self.weapons[idx].sample(track, time, weapon_transform);
+        for (idx, asset_box) in self.hit_motion.weapon_boxes().iter().enumerate() {
+            self.weapons[idx].sample(asset_box, time, weapon_transform);
         }
+    }
+
+    #[inline]
+    pub(crate) fn time(&self) -> f32 {
+        self.time
     }
 
     #[inline]
@@ -57,16 +66,11 @@ impl HitMotionSampler {
     pub(crate) fn weapons(&self) -> &[HitSamplerWeapon] {
         &self.weapons
     }
-
-    #[inline]
-    pub(crate) fn tracks_count(&self) -> usize {
-        self.hit_motion.joint_tracks.len() + self.hit_motion.weapon_tracks.len()
-    }
 }
 
 #[derive(Debug)]
 pub(crate) struct HitSampler<T> {
-    pub(crate) hit_id: u16,
+    pub(crate) box_index: u16,
     pub(crate) active: bool,
     pos_cursor: u32,
     rot_cursor: u32,
@@ -91,9 +95,9 @@ impl<T> DerefMut for HitSampler<T> {
 }
 
 impl<T> HitSampler<T> {
-    fn new(hit_id: u16, data: T) -> HitSampler<T> {
+    fn new(box_index: u16, data: T) -> HitSampler<T> {
         HitSampler {
-            hit_id,
+            box_index,
             active: false,
             pos_cursor: 0,
             rot_cursor: 0,
@@ -118,13 +122,13 @@ impl<T> HitSampler<T> {
         rotations_keys: &[HitKeyRotation],
         time: f32,
     ) {
-        if strict_lt!(time, start_time, 1e-2) {
+        if strict_lt!(time, start_time, 1e-3) {
             self.active = false;
             self.pos_cursor = 0;
             self.rot_cursor = 0;
             return;
         }
-        else if strict_gt!(time, finish_time, 1e-2) {
+        else if strict_gt!(time, finish_time, 1e-3) {
             self.active = false;
             self.pos_cursor = positions_keys.len() as u32 - 2;
             self.rot_cursor = rotations_keys.len() as u32 - 2;
@@ -206,18 +210,18 @@ pub(crate) struct HitSamplerJointData {
 
 impl HitSamplerJointData {
     #[inline]
-    fn new(hit_motion: &HitMotion, track: &HitTrackJoint, skeleton: &Skeleton) -> XResult<HitSamplerJointData> {
+    fn new(hit_motion: &HitMotion, asset_box: &HitBoxJoint, skeleton: &Skeleton) -> XResult<HitSamplerJointData> {
         let joint = skeleton
-            .joint_by_name(track.joint.as_str())
-            .ok_or_else(|| xerrf!(BadAsset; "hit_motion={}, joint={}", &hit_motion.name, &track.joint))?;
+            .joint_by_name(asset_box.joint.as_str())
+            .ok_or_else(|| xerrf!(BadAsset; "hit_motion={}, joint={}", &hit_motion.name(), &asset_box.joint))?;
 
-        let joint2 = if track.joint2.is_empty() {
+        let joint2 = if asset_box.joint2.is_empty() {
             -1
         }
         else {
             skeleton
-                .joint_by_name(track.joint2.as_str())
-                .ok_or_else(|| xerrf!(BadAsset; "hit_motion={}, joint2={}", &hit_motion.name, &track.joint2))?
+                .joint_by_name(asset_box.joint2.as_str())
+                .ok_or_else(|| xerrf!(BadAsset; "hit_motion={}, joint2={}", &hit_motion.name(), &asset_box.joint2))?
         };
 
         Ok(HitSamplerJointData { joint, joint2 })
@@ -225,12 +229,12 @@ impl HitSamplerJointData {
 }
 
 impl HitSampler<HitSamplerJointData> {
-    fn sample(&mut self, track: &HitTrackJoint, time: f32, model_transforms: &[Transform3A]) {
+    fn sample(&mut self, asset_box: &HitBoxJoint, time: f32, model_transforms: &[Transform3A]) {
         self.sample_inner(
-            track.start_time,
-            track.finish_time,
-            track.positions_keys(),
-            track.rotations_keys(),
+            asset_box.start_time,
+            asset_box.finish_time,
+            asset_box.positions_keys(),
+            asset_box.rotations_keys(),
             time,
         );
 
@@ -244,7 +248,7 @@ impl HitSampler<HitSamplerJointData> {
                 position = Vec3A::lerp(
                     transform.translation,
                     model_transforms[self.joint2 as usize].translation,
-                    track.ratio,
+                    asset_box.ratio,
                 )
             };
             position += transform.rotation * self.isometry.translation;
@@ -258,17 +262,17 @@ impl HitSampler<HitSamplerJointData> {
 pub(crate) struct HitSamplerWeaponData;
 
 impl HitSampler<HitSamplerWeaponData> {
-    fn sample(&mut self, track: &HitTrackWeapon, time: f32, weapon_transform: &[WeaponTransform]) {
+    fn sample(&mut self, asset_box: &HitBoxWeapon, time: f32, weapon_transform: &[WeaponTransform]) {
         self.sample_inner(
-            track.start_time,
-            track.finish_time,
-            track.positions_keys(),
-            track.rotations_keys(),
+            asset_box.start_time,
+            asset_box.finish_time,
+            asset_box.positions_keys(),
+            asset_box.rotations_keys(),
             time,
         );
 
         if self.active {
-            match weapon_transform.iter().find(|wt| wt.name == track.weapon) {
+            match weapon_transform.iter().find(|wt| wt.name == asset_box.weapon) {
                 Some(transform) => {
                     let rotation = transform.rotation * self.isometry.rotation;
                     let position = transform.position + transform.rotation * self.isometry.translation;
@@ -303,7 +307,7 @@ mod tests {
         let rotation_keys = vec![HitKeyRotation::new(1.0, R1), HitKeyRotation::new(4.0, R2)];
 
         let mut sampler = HitSampler::<HitSamplerWeaponData> {
-            hit_id: 0,
+            box_index: 0,
             active: false,
             pos_cursor: 0,
             rot_cursor: 0,
