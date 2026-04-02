@@ -1,11 +1,11 @@
 use crate::instance::action::base::{
-    ContextActionAssemble, InstActionAny, InstActionAttributes, InstActionBase, InstAnimation, InstDeriveRule,
+    ContextActionAssemble, InstActionAny, InstActionAttributes, InstActionBase, InstAnimation, InstDeriveRule, InstHit,
     InstTimelinePoint, InstTimelineRange,
 };
 use crate::template::{
     At, TmplActionGeneral, TmplActionGeneralMovement, TmplActionGeneralRootMotion, TmplActionGeneralRotation,
 };
-use crate::utils::{extend, sb, ActionType, Bitsetable, DeriveContinue, EnumBitset, Symbol, XResult};
+use crate::utils::{extend, sb, ActionType, Bitsetable, DeriveContinue, EnumBitset, Symbol, ThinVec, XResult};
 
 pub type InstActionGeneralMovement = TmplActionGeneralMovement;
 pub type InstActionGeneralRootMotion = TmplActionGeneralRootMotion;
@@ -19,7 +19,7 @@ pub struct InstActionGeneral {
     pub attributes: InstTimelineRange<InstActionAttributes>,
     pub input_movements: InstTimelinePoint<InstActionGeneralMovement>,
     pub derive_levels: InstTimelineRange<u16>,
-    pub derives: Vec<InstDeriveRule>,
+    pub derives: ThinVec<InstDeriveRule>,
     pub derive_continues: EnumBitset<DeriveContinue, { DeriveContinue::LEN }>,
     pub custom_events: InstTimelinePoint<Symbol>,
 }
@@ -52,7 +52,7 @@ impl InstActionGeneral {
             return Ok(None);
         }
 
-        let mut derives = Vec::with_capacity(tmpl.derives.len());
+        let mut derives = ThinVec::with_capacity(tmpl.derives.len());
         for rule in tmpl.derives.iter() {
             let rule = InstDeriveRule::from_rkyv(ctx, rule);
             if rule.action.is_valid() {
@@ -66,7 +66,13 @@ impl InstActionGeneral {
         let derive_levels = InstTimelineRange::from_rkyv(&tmpl.derive_levels, |level| Ok(ctx.solve_var(level).into()))?;
         let input_movements =
             InstTimelinePoint::from_rkyv(&tmpl.input_movements, |t| InstActionGeneralMovement::from_rkyv(t))?;
-        let custom_events = InstTimelinePoint::from_rkyv(&tmpl.custom_events, |s| Symbol::new(s))?;
+
+        let mut hits = ThinVec::with_capacity(tmpl.hits.len());
+        for hit in tmpl.hits.iter() {
+            hits.push(InstHit::from_rkyv(ctx, hit));
+        }
+
+        let custom_events = InstTimelinePoint::from_rkyv(&tmpl.custom_events, |s| Ok(sb!(s)))?;
 
         let inst = InstActionGeneral {
             _base: InstActionBase {
@@ -74,6 +80,7 @@ impl InstActionGeneral {
                 tags: tmpl.tags.iter().map(|t| sb!(t)).collect(),
                 enter_key: tmpl.enter_key.as_ref().cloned(),
                 enter_level: tmpl.enter_level.into(),
+                hits,
                 ..Default::default()
             },
             derives,
@@ -131,15 +138,14 @@ mod tests {
                 VirtualKeyDir::new(VirtualKey::Attack1, None)
             );
             assert_eq!(inst_act.enter_level, LEVEL_ATTACK);
-            assert_eq!(inst_act.anim_main.files, sb!("Girl_Attack_01A.*"));
+
+            assert_eq!(inst_act.anim_main.files, sb!("Girl_Attack_Test.*"));
             assert_eq!(inst_act.anim_main.duration, 4.0);
             assert_eq!(inst_act.anim_main.fade_in, 0.1);
-            assert_eq!(inst_act.attributes.len(), 1);
-            // assert_eq!(inst_act.input_root_motion, InstActionGeneralRootMotion {
-            //     in_place: 0.7,
-            //     normal: 0.7,
-            //     extended: 1.2,
-            // });
+            assert_eq!(inst_act.anim_main.root_motion, true);
+            assert_eq!(inst_act.anim_main.weapon_motion, false);
+            assert_eq!(inst_act.anim_main.hit_motion, true);
+
             assert_eq!(inst_act.input_movements.len(), 2);
             assert_eq!(inst_act.input_movements[0].time, 0.0);
             assert_eq!(
@@ -157,13 +163,17 @@ mod tests {
                     mov_ex: true,
                 })
             );
+
+            assert_eq!(inst_act.attributes.len(), 1);
             assert_eq!(inst_act.attributes[0].value.damage_rdc, 0.2);
             assert_eq!(inst_act.attributes[0].value.shield_dmg_rdc, 0.0);
             assert_eq!(inst_act.attributes[0].value.poise_level, 1);
+
             assert_eq!(inst_act.derive_levels[0].range, TimeRange::new(0.0, 2.5));
             assert_eq!(inst_act.derive_levels[0].value, LEVEL_ACTION);
             assert_eq!(inst_act.derive_levels[1].range, TimeRange::new(2.5, 4.5));
             assert_eq!(inst_act.derive_levels[1].value, LEVEL_ATTACK);
+
             assert_eq!(inst_act.derives.len(), 2);
             assert_eq!(inst_act.derives[0].key, VirtualKey::Attack1);
             assert!(inst_act.derives[0].dir.is_none());
@@ -173,7 +183,23 @@ mod tests {
             assert_eq!(inst_act.derives[1].dir.unwrap(), InputDir::Backward(0.5));
             assert_eq!(inst_act.derives[1].level, LEVEL_ATTACK + 1);
             assert_eq!(inst_act.derives[1].action, id!("Action.Instance.AttackDerive^1A"));
+
             assert!(inst_act.derive_continues.is_empty());
+
+            assert_eq!(inst_act.hits.len(), 3);
+            assert_eq!(inst_act.hits[0].group, "Health");
+            assert_eq!(inst_act.hits[0].box_max_times, 2);
+            assert_eq!(inst_act.hits[0].box_min_interval, cf2s(1));
+            assert_eq!(inst_act.hits[0].group_max_times, 4);
+            assert_eq!(inst_act.hits[1].group, "Counter");
+            assert_eq!(inst_act.hits[1].box_max_times, 1);
+            assert_eq!(inst_act.hits[1].box_min_interval, 1e10);
+            assert_eq!(inst_act.hits[1].group_max_times, 1);
+            assert_eq!(inst_act.hits[2].group, "Axe");
+            assert_eq!(inst_act.hits[2].box_max_times, 0);
+            assert_eq!(inst_act.hits[2].box_min_interval, 1e10);
+            assert_eq!(inst_act.hits[2].group_max_times, 0);
+
             assert_eq!(inst_act.custom_events.len(), 2);
             assert_eq!(inst_act.custom_events[0].time, 1.0);
             assert_eq!(inst_act.custom_events[0].value, "Event1s");

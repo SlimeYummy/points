@@ -4,6 +4,7 @@ mod base;
 mod empty;
 mod general;
 // mod guard;
+mod hit;
 mod idle;
 mod r#move;
 
@@ -13,6 +14,7 @@ pub use base::*;
 pub use empty::*;
 pub use general::*;
 // pub use guard::*;
+pub use hit::*;
 pub use idle::*;
 pub use r#move::*;
 
@@ -30,10 +32,10 @@ pub(crate) fn assemble_action(
             Some(act) => Rc::new(act),
             None => return Ok(None),
         },
-        TmplType::NpcActionIdle => match InstActionIdle::new_from_npc_action(unsafe { tmpl.cast_unchecked() }) {
-            Some(act) => Rc::new(act),
-            None => return Ok(None),
-        },
+        // TmplType::NpcActionIdle => match InstActionIdle::new_from_npc_action(unsafe { tmpl.cast_unchecked() }) {
+        //     Some(act) => Rc::new(act),
+        //     None => return Ok(None),
+        // },
         TmplType::ActionMove => match InstActionMove::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
             Some(act) => Rc::new(act),
             None => return Ok(None),
@@ -42,18 +44,22 @@ pub(crate) fn assemble_action(
             Some(act) => Rc::new(act),
             None => return Ok(None),
         },
-        // TmplType::ActionDodge => match InstActionDodge::new_from_action(ctx, unsafe { tmpl.cast_as_unchecked() }) {
+        // TmplType::ActionDodge => match InstActionDodge::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
         //     Some(act) => Rc::new(act),
         //     None => return Ok(None),
         // },
-        // TmplType::ActionGuard => match InstActionGuard::new_from_action(ctx, unsafe { tmpl.cast_as_unchecked() }) {
+        // TmplType::ActionGuard => match InstActionGuard::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
         //     Some(act) => Rc::new(act),
         //     None => return Ok(None),
         // },
-        // TmplType::ActionAim => match InstActionAim::new_from_action(ctx, unsafe { tmpl.cast_as_unchecked() }) {
+        // TmplType::ActionAim => match InstActionAim::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
         //     Some(act) => Rc::new(act),
         //     None => return Ok(None),
         // },
+        TmplType::ActionHit => match InstActionHit::new_from_action(ctx, unsafe { tmpl.cast_unchecked() })? {
+            Some(act) => Rc::new(act),
+            None => return Ok(None),
+        },
         _ => return xres!(BadType),
     };
 

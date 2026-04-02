@@ -3,7 +3,7 @@ use thin_vec::ThinVec;
 use crate::instance::action::base::{
     ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation, InstDeriveRule,
 };
-use crate::template::{At, TmplActionIdle, TmplNpcActionIdle};
+use crate::template::{At, TmplActionIdle};
 use crate::utils::{extend, sb, ActionType, VirtualKey, VirtualKeyDir};
 
 #[repr(C)]
@@ -59,27 +59,6 @@ impl InstActionIdle {
         })
     }
 
-    pub(crate) fn new_from_npc_action(tmpl: At<TmplNpcActionIdle>) -> Option<InstActionIdle> {
-        Some(InstActionIdle {
-            _base: InstActionBase {
-                tmpl_id: tmpl.id,
-                tags: tmpl.tags.iter().map(|t| sb!(t)).collect(),
-                enter_key: Some(VirtualKeyDir::new(VirtualKey::Idle, None)),
-                enter_level: 0,
-                ..Default::default()
-            },
-            anim_idle: InstAnimation::from_rkyv(&tmpl.anim_idle),
-            anim_ready: match tmpl.anim_ready.as_ref() {
-                Some(t) => Some(InstAnimation::from_rkyv(t)),
-                None => None,
-            },
-            anim_randoms: ThinVec::new(),
-            auto_idle_delay: tmpl.auto_idle_delay.into(),
-            derive_level: 0,
-            poise_level: tmpl.poise_level.into(),
-        })
-    }
-
     #[inline]
     pub fn animations(&self) -> impl Iterator<Item = &InstAnimation> {
         std::iter::from_coroutine(
@@ -104,15 +83,17 @@ mod tests {
     use crate::utils::{id, sb, DtHashMap};
 
     #[test]
-    fn test_new_from_action() {
-        let db = TmplDatabase::new(10240, 150).unwrap();
+    fn test_new() {
         let var_indexes = DtHashMap::default();
-
-        let tmpl_act = db.find_as::<TmplActionIdle>(id!("Action.Instance.Idle^1A")).unwrap();
         let ctx = ContextActionAssemble {
             var_indexes: &var_indexes,
         };
+
+        let db = TmplDatabase::new(10240, 150).unwrap();
+        let tmpl_act = db.find_as::<TmplActionIdle>(id!("Action.Instance.Idle^1A")).unwrap();
+
         let inst_act = InstActionIdle::new_from_action(&ctx, tmpl_act).unwrap();
+
         assert_eq!(inst_act.tmpl_id, id!("Action.Instance.Idle^1A"));
         assert_eq!(inst_act.tags, vec![sb!("Idle")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Idle, None));
@@ -131,14 +112,18 @@ mod tests {
     }
 
     #[test]
-    fn test_new_from_npc_action() {
-        let db = TmplDatabase::new(10240, 150).unwrap();
+    fn test_new_npc() {
+        let var_indexes = DtHashMap::default();
+        let ctx = ContextActionAssemble {
+            var_indexes: &var_indexes,
+        };
 
-        let tmpl_act = db
-            .find_as::<TmplNpcActionIdle>(id!("NpcAction.Instance.Idle^1A"))
-            .unwrap();
-        let inst_act = InstActionIdle::new_from_npc_action(tmpl_act).unwrap();
-        assert_eq!(inst_act.tmpl_id, id!("NpcAction.Instance.Idle^1A"));
+        let db = TmplDatabase::new(10240, 150).unwrap();
+        let tmpl_act = db.find_as::<TmplActionIdle>(id!("Action.NpcInstance.Idle^1A")).unwrap();
+
+        let inst_act = InstActionIdle::new_from_action(&ctx, tmpl_act).unwrap();
+
+        assert_eq!(inst_act.tmpl_id, id!("Action.NpcInstance.Idle^1A"));
         assert_eq!(inst_act.tags, vec![sb!("Idle")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Idle, None));
         assert_eq!(inst_act.enter_level, 0);
