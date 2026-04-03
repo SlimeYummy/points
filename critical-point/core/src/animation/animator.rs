@@ -12,8 +12,8 @@ use crate::animation::rest_poses_to_model_transforms;
 use crate::animation::utils::{matrices_to_transforms, WeaponTransform};
 use crate::animation::weapon_motion::{normalize_weapons_by_weight, sample_weapons_by_name_with_weight, WeaponMotion};
 use crate::asset::AssetLoader;
-use crate::logic::{LogicActionAnimationID, StateActionAnimation, StateActionAny};
-use crate::utils::{xfrom, xres, HistoryQueue, NumID, Symbol, TmplID, XResult};
+use crate::logic::{StateActionAnimation, StateActionAny, INVALID_ACTION_ID, INVALID_ANIMATION_ID};
+use crate::utils::{xfrom, xres, HistoryQueue, Symbol, TmplID, XResult};
 
 #[derive(Debug)]
 pub struct Animator {
@@ -187,11 +187,21 @@ impl Animator {
     }
 
     #[inline]
-    pub fn hit_motion_info(&self) -> Option<(LogicActionAnimationID, &HitMotionSampler)> {
-        if let Some(current_action) = self.action_queue.last() {
-            if let (animation_id, Some(sampler)) = current_action.hit_motion_info(&self.sampling_arena) {
-                let id = LogicActionAnimationID::new(current_action.id, animation_id);
-                return Some((id, sampler));
+    pub fn action_animation_id(&self) -> (u32, u16) {
+        match self.action_queue.last() {
+            Some(ad) => match ad.current_sampling_data(&self.sampling_arena) {
+                Some(sd) => (ad.id, sd.animation_id),
+                None => (ad.id, INVALID_ANIMATION_ID),
+            },
+            None => (INVALID_ACTION_ID, INVALID_ANIMATION_ID),
+        }
+    }
+
+    #[inline]
+    pub fn hit_motion_sampler(&self) -> Option<&HitMotionSampler> {
+        if let Some(ad) = self.action_queue.last() {
+            if let Some(sd) = ad.current_sampling_data(&self.sampling_arena) {
+                return sd.hit_motion_sampler.as_ref();
             }
         }
         None
@@ -215,7 +225,7 @@ macro_rules! animation_state {
 
 #[derive(Debug)]
 struct ActionData {
-    id: NumID,
+    id: u32,
     tmpl_id: TmplID,
     frame: u32,
     job_current: u32,
@@ -226,7 +236,7 @@ struct ActionData {
 impl Default for ActionData {
     fn default() -> ActionData {
         ActionData {
-            id: NumID::INVALID,
+            id: INVALID_ACTION_ID,
             tmpl_id: TmplID::default(),
             frame: 0,
             job_current: u32::MAX,
@@ -544,12 +554,14 @@ impl ActionData {
         Ok(())
     }
 
-    fn hit_motion_info<'a, 'b>(&'a self, arena: &'b SamplingArena) -> (u16, Option<&'b HitMotionSampler>) {
+    #[inline]
+    fn current_sampling_data<'a, 'b>(&'a self, arena: &'b SamplingArena) -> Option<&'b SamplingData> {
         if self.job_current == self.job_future {
-            return (u16::MAX, None);
+            None
         }
-        let sd: &SamplingData = arena.get_ref(self.job_current);
-        (sd.animation_id, sd.hit_motion_sampler.as_ref())
+        else {
+            Some(arena.get_ref(self.job_current))
+        }
     }
 }
 
@@ -569,7 +581,7 @@ impl Default for SamplingData {
     fn default() -> SamplingData {
         SamplingData {
             next: u32::MAX,
-            animation_id: 0,
+            animation_id: INVALID_ANIMATION_ID,
             frame: 0,
             weight: 0.0,
             animation_file: Symbol::default(),
@@ -809,7 +821,7 @@ mod tests {
 
         {
             let mut state: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
-            state.id = NumID(12345);
+            state.id = 12345;
             state.tmpl_id = id!("Action.Empty");
             state.fade_in_weight = 0.7;
             state.animations.push(StateActionAnimation::new_no_motion(
@@ -1066,7 +1078,7 @@ mod tests {
             Box::new(StateActionEmpty::default()),
             Box::new(StateActionEmpty::default()),
         ];
-        states[0].id = NumID(21);
+        states[0].id = 21;
         states[0].tmpl_id = id!("Action.Empty^1");
         states[0].animations.push(StateActionAnimation::new_no_motion(
             sb!("Girl_Idle_Empty.*"),
@@ -1074,7 +1086,7 @@ mod tests {
             0.0,
             0.0,
         ));
-        states[1].id = NumID(22);
+        states[1].id = 22;
         states[1].tmpl_id = id!("Action.Empty^2");
         states[1].animations.push(StateActionAnimation::new_no_motion(
             sb!("Girl_Idle_Empty.*"),
@@ -1101,7 +1113,7 @@ mod tests {
             Box::new(StateActionEmpty::default()),
             Box::new(StateActionEmpty::default()),
         ];
-        states[0].id = NumID(22);
+        states[0].id = 22;
         states[0].tmpl_id = id!("Action.Empty^2");
         states[0].animations.push(StateActionAnimation::new_no_motion(
             sb!("Girl_Idle_Empty.*"),
@@ -1109,7 +1121,7 @@ mod tests {
             0.0,
             0.0,
         ));
-        states[1].id = NumID(23);
+        states[1].id = 23;
         states[1].tmpl_id = id!("Action.Empty^3");
         states[1].animations.push(StateActionAnimation::new_no_motion(
             sb!("Girl_Attack_01A.*"),
@@ -1151,7 +1163,7 @@ mod tests {
                 Box::new(StateActionEmpty::default()),
                 Box::new(StateActionEmpty::default()),
             ];
-            states1[0].id = NumID(41);
+            states1[0].id = 41;
             states1[0].tmpl_id = id!("Action.Empty^1");
             states1[0].animations.push(StateActionAnimation::new_no_motion(
                 sb!("Girl_Idle_Empty.*"),
@@ -1159,7 +1171,7 @@ mod tests {
                 0.0,
                 0.0,
             ));
-            states1[1].id = NumID(42);
+            states1[1].id = 42;
             states1[1].tmpl_id = id!("Action.Empty^2");
             states1[1].animations.push(StateActionAnimation::new_no_motion(
                 sb!("Girl_Run_Empty.*"),
@@ -1174,7 +1186,7 @@ mod tests {
                 Box::new(StateActionEmpty::default()),
                 Box::new(StateActionEmpty::default()),
             ];
-            states2[0].id = NumID(42);
+            states2[0].id = 42;
             states2[0].tmpl_id = id!("Action.Empty^2");
             states2[0].animations.push(StateActionAnimation::new_no_motion(
                 sb!("Girl_Run_Empty.*"),
@@ -1182,7 +1194,7 @@ mod tests {
                 0.0,
                 0.0,
             ));
-            states2[1].id = NumID(43);
+            states2[1].id = 43;
             states2[1].tmpl_id = id!("Action.Empty^3");
             states2[1].animations.push(StateActionAnimation::new_no_motion(
                 sb!("Girl_Attack_01A.*"),
@@ -1190,7 +1202,7 @@ mod tests {
                 0.0,
                 0.0,
             ));
-            states2[2].id = NumID(44);
+            states2[2].id = 44;
             states2[2].tmpl_id = id!("Action.Empty^4");
             states2[2].animations.push(StateActionAnimation::new_no_motion(
                 sb!("Girl_Attack_02A.*"),
@@ -1246,7 +1258,7 @@ mod tests {
         {
             let (mut asset_loader, mut animator, states1, mut states2) = prepare();
             animator.restore(205, &states1).unwrap();
-            states2[1].id = NumID(45);
+            states2[1].id = 45;
             states2[1].tmpl_id = id!("Action.Empty^X");
             states2[1].animations[0].animation_id = 105;
             states2[1].animations[0].files = sb!("Girl_Walk_Empty.*");
@@ -1280,7 +1292,7 @@ mod tests {
             Box::new(StateActionEmpty::default()),
             Box::new(StateActionEmpty::default()),
         ];
-        states1[0].id = NumID(41);
+        states1[0].id = 41;
         states1[0].tmpl_id = id!("Action.Empty^1");
         states1[0].animations.push(StateActionAnimation::new_no_motion(
             sb!("Girl_Idle_Empty.*"),
@@ -1288,7 +1300,7 @@ mod tests {
             0.0,
             0.0,
         ));
-        states1[1].id = NumID(42);
+        states1[1].id = 42;
         states1[1].tmpl_id = id!("Action.Empty^2");
         states1[1].animations.push(StateActionAnimation::new_no_motion(
             sb!("Girl_Run_Empty.*"),
@@ -1302,7 +1314,7 @@ mod tests {
             Box::new(StateActionEmpty::default()),
             Box::new(StateActionEmpty::default()),
         ];
-        states2[0].id = NumID(42);
+        states2[0].id = 42;
         states2[0].tmpl_id = id!("Action.Empty^2");
         states2[0].animations.push(StateActionAnimation::new_no_motion(
             sb!("Girl_Attack_01A.*"),
@@ -1310,7 +1322,7 @@ mod tests {
             0.0,
             0.0,
         ));
-        states2[1].id = NumID(43);
+        states2[1].id = 43;
         states2[1].tmpl_id = id!("Action.Empty^4");
         states2[1].animations.push(StateActionAnimation::new_no_motion(
             sb!("Girl_Attack_02A.*"),

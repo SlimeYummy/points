@@ -8,7 +8,7 @@ use std::path::Path;
 use std::{fs, mem, slice};
 
 use crate::asset::{AssetIndxedCompoundShape, AssetShape};
-use crate::utils::{xerrf, xresf, HitType, Symbol, ThinVec, XResult, xfrom};
+use crate::utils::{loose_ge, loose_le, xerrf, xfrom, xresf, HitType, Symbol, XResult};
 
 //
 // Raw
@@ -18,19 +18,20 @@ use crate::utils::{xerrf, xresf, HitType, Symbol, ThinVec, XResult, xfrom};
 struct RawHitMotion {
     name: String,
     shapes: Vec<AssetShape>,
+    #[serde(default)]
     compound_shapes: Vec<AssetIndxedCompoundShape>,
-    tracks: Vec<RawHitTrack>,
+    boxes: Vec<RawHitBox>,
 }
 
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "T")]
-enum RawHitTrack {
-    Joint(RawHitTrackJoint),
-    Weapon(RawHitTrackWeapon),
+enum RawHitBox {
+    Joint(RawHitBoxJoint),
+    Weapon(RawHitBoxWeapon),
 }
 
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize)]
-struct RawHitTrackJoint {
+struct RawHitBoxJoint {
     shape_index: u32,
     typ: HitType,
     group: Symbol,
@@ -43,7 +44,7 @@ struct RawHitTrackJoint {
 }
 
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize)]
-struct RawHitTrackWeapon {
+struct RawHitBoxWeapon {
     shape_index: u32,
     typ: HitType,
     group: Symbol,
@@ -59,15 +60,14 @@ struct RawHitTrackWeapon {
 #[derive(Debug)]
 pub struct HitMotion {
     keyframes_buf: Vec<HitKeyInner>,
-    pub name: String,
-    pub groups: SmallVec<[Symbol; 4]>,
-    pub joint_tracks: ThinVec<HitTrackJoint>,
-    pub weapon_tracks: ThinVec<HitTrackWeapon>,
+    name: String,
+    groups: SmallVec<[HitGroup; 3]>,
+    joint_boxes: Vec<HitBoxJoint>,
+    joint_offset: u16,
+    weapon_boxes: Vec<HitBoxWeapon>,
+    weapon_offset: u16,
+    boxes_ptrs: Vec<*const HitBoxBase>,
 }
-
-const TRACK_TYPE_MASK: u16 = 0x8000;
-const TRACK_TYPE_JOINT: u16 = 0 << 15;
-const TRACK_TYPE_WEAPON: u16 = 1 << 15;
 
 impl HitMotion {
     pub fn from_path<P: AsRef<Path>>(path: P) -> XResult<HitMotion> {
@@ -94,10 +94,14 @@ impl HitMotion {
         let mut buf: Vec<SubShapeSettings> = Vec::with_capacity(8);
         for compound_shape in &raw.compound_shapes {
             for sub_shape in &compound_shape.sub_shapes {
-                let jolt_shape = jolt_shapes
-                    .get(sub_shape.shape_index as usize)
-                    .ok_or_else(|| xerrf!(BadAsset; "file={}, shape_index={}", path.unwrap_or(""), sub_shape.shape_index))?;
-                buf.push(SubShapeSettings::new(jolt_shape.clone(), sub_shape.position, sub_shape.rotation));
+                let jolt_shape = jolt_shapes.get(sub_shape.shape_index as usize).ok_or_else(
+                    || xerrf!(BadAsset; "file={}, shape_index={}", path.unwrap_or(""), sub_shape.shape_index),
+                )?;
+                buf.push(SubShapeSettings::new(
+                    jolt_shape.clone(),
+                    sub_shape.position,
+                    sub_shape.rotation,
+                ));
             }
             if !buf.is_empty() {
                 let settings = StaticCompoundShapeSettings::new(&buf);
@@ -110,13 +114,13 @@ impl HitMotion {
         let mut buf_count = 0;
         let mut joint_count = 0;
         let mut weapon_count = 0;
-        for track in &raw.tracks {
-            match track {
-                RawHitTrack::Joint(joint) => {
+        for bx in &raw.boxes {
+            match bx {
+                RawHitBox::Joint(joint) => {
                     joint_count += 1;
                     buf_count += joint.position_keys.len() + joint.rotation_keys.len()
                 }
-                RawHitTrack::Weapon(weapon) => {
+                RawHitBox::Weapon(weapon) => {
                     weapon_count += 1;
                     buf_count += weapon.position_keys.len() + weapon.rotation_keys.len()
                 }
@@ -127,17 +131,20 @@ impl HitMotion {
             name: raw.name,
             keyframes_buf: Vec::with_capacity(buf_count),
             groups: SmallVec::new(),
-            joint_tracks: ThinVec::with_capacity(joint_count),
-            weapon_tracks: ThinVec::with_capacity(weapon_count),
+            joint_boxes: Vec::with_capacity(joint_count),
+            joint_offset: 0,
+            weapon_boxes: Vec::with_capacity(weapon_count),
+            weapon_offset: joint_count as u16,
+            boxes_ptrs: Vec::with_capacity(joint_count + weapon_count),
         };
 
-        if raw.tracks.len() >= u16::MAX as usize {
-            return xresf!(BadAsset; "path={}, too many tracks", path.unwrap_or(""));
+        if raw.boxes.len() >= u16::MAX as usize {
+            return xresf!(BadAsset; "path={}, too many boxes", path.unwrap_or(""));
         }
 
-        for track in raw.tracks.into_iter() {
-            match track {
-                RawHitTrack::Joint(joint) => {
+        for bx in raw.boxes.into_iter() {
+            match bx {
+                RawHitBox::Joint(joint) => {
                     let shape = jolt_shapes.get(joint.shape_index as usize).ok_or_else(
                         || xerrf!(BadAsset; "path={}, shape_index={}", path.unwrap_or(""), joint.shape_index),
                     )?;
@@ -146,11 +153,11 @@ impl HitMotion {
                         &joint.position_keys,
                         &joint.rotation_keys,
                     );
-                    let hit_id = hit_motion.joint_tracks.len() as u16 | TRACK_TYPE_JOINT;
-                    let track = HitTrackJoint::from_raw(joint, hit_id, shape.clone(), pos_keys, rot_keys)?;
-                    hit_motion.joint_tracks.push(track);
+                    let box_index = hit_motion.joint_offset + hit_motion.joint_boxes.len() as u16;
+                    let bx = HitBoxJoint::from_raw(joint, box_index, shape.clone(), pos_keys, rot_keys)?;
+                    hit_motion.joint_boxes.push(bx);
                 }
-                RawHitTrack::Weapon(weapon) => {
+                RawHitBox::Weapon(weapon) => {
                     let shape = jolt_shapes.get(weapon.shape_index as usize).ok_or_else(
                         || xerrf!(BadAsset; "path={}, shape_index={}", path.unwrap_or(""), weapon.shape_index),
                     )?;
@@ -159,18 +166,19 @@ impl HitMotion {
                         &weapon.position_keys,
                         &weapon.rotation_keys,
                     );
-                    let hit_id = hit_motion.weapon_tracks.len() as u16 | TRACK_TYPE_WEAPON;
-                    let track = HitTrackWeapon::from_raw(weapon, hit_id, shape.clone(), pos_keys, rot_keys)?;
-                    hit_motion.weapon_tracks.push(track);
+                    let box_index = hit_motion.weapon_offset + hit_motion.weapon_boxes.len() as u16;
+                    let bx = HitBoxWeapon::from_raw(weapon, box_index, shape.clone(), pos_keys, rot_keys)?;
+                    hit_motion.weapon_boxes.push(bx);
                 }
             }
         }
 
         assert_eq!(hit_motion.keyframes_buf.len(), buf_count);
-        assert_eq!(hit_motion.joint_tracks.len(), joint_count);
-        assert_eq!(hit_motion.weapon_tracks.len(), weapon_count);
-        
+        assert_eq!(hit_motion.joint_boxes.len(), joint_count);
+        assert_eq!(hit_motion.weapon_boxes.len(), weapon_count);
+
         hit_motion.init_groups();
+        hit_motion.init_box_ptrs();
         Ok(hit_motion)
     }
 
@@ -205,15 +213,19 @@ impl HitMotion {
             };
             jolt_shapes.push(shape.create_physics()?);
         }
-        
+
         let mut buf: Vec<SubShapeSettings> = Vec::with_capacity(8);
         for compound_shape in raw.compound_shapes.iter() {
             for sub_shape in compound_shape.sub_shapes.iter() {
                 let shape_index: u32 = sub_shape.shape_index.into();
-                let jolt_shape = jolt_shapes
-                    .get(shape_index as usize)
-                    .ok_or_else(|| xerrf!(BadAsset; "file={}, shape_index={}", path.unwrap_or(""), sub_shape.shape_index))?;
-                buf.push(SubShapeSettings::new(jolt_shape.clone(), sub_shape.position, sub_shape.rotation));
+                let jolt_shape = jolt_shapes.get(shape_index as usize).ok_or_else(
+                    || xerrf!(BadAsset; "file={}, shape_index={}", path.unwrap_or(""), sub_shape.shape_index),
+                )?;
+                buf.push(SubShapeSettings::new(
+                    jolt_shape.clone(),
+                    sub_shape.position,
+                    sub_shape.rotation,
+                ));
             }
             if !buf.is_empty() {
                 let settings = StaticCompoundShapeSettings::new(&buf);
@@ -226,13 +238,13 @@ impl HitMotion {
         let mut buf_count = 0;
         let mut joint_count = 0;
         let mut weapon_count = 0;
-        for track in raw.tracks.iter() {
-            match track {
-                ArchivedRawHitTrack::Joint(joint) => {
+        for bx in raw.boxes.iter() {
+            match bx {
+                ArchivedRawHitBox::Joint(joint) => {
                     joint_count += 1;
                     buf_count += joint.position_keys.len() + joint.rotation_keys.len()
                 }
-                ArchivedRawHitTrack::Weapon(weapon) => {
+                ArchivedRawHitBox::Weapon(weapon) => {
                     weapon_count += 1;
                     buf_count += weapon.position_keys.len() + weapon.rotation_keys.len()
                 }
@@ -243,17 +255,20 @@ impl HitMotion {
             name: raw.name.to_string(),
             keyframes_buf: Vec::with_capacity(buf_count),
             groups: SmallVec::new(),
-            joint_tracks: ThinVec::with_capacity(joint_count),
-            weapon_tracks: ThinVec::with_capacity(weapon_count),
+            joint_boxes: Vec::with_capacity(joint_count),
+            joint_offset: 0,
+            weapon_boxes: Vec::with_capacity(weapon_count),
+            weapon_offset: joint_count as u16,
+            boxes_ptrs: Vec::with_capacity(joint_count + weapon_count),
         };
 
-        if raw.tracks.len() >= u16::MAX as usize {
-            return xresf!(BadAsset; "path={}, too many tracks", path.unwrap_or(""));
+        if raw.boxes.len() >= u16::MAX as usize {
+            return xresf!(BadAsset; "path={}, too many boxes", path.unwrap_or(""));
         }
 
-        for track in raw.tracks.into_iter() {
-            match track {
-                ArchivedRawHitTrack::Joint(joint) => {
+        for bx in raw.boxes.into_iter() {
+            match bx {
+                ArchivedRawHitBox::Joint(joint) => {
                     let shape_index: u32 = joint.shape_index.into();
                     let shape = jolt_shapes.get(shape_index as usize).ok_or_else(
                         || xerrf!(BadAsset; "path={}, shape_index={}", path.unwrap_or(""), joint.shape_index),
@@ -263,11 +278,11 @@ impl HitMotion {
                         &joint.position_keys,
                         &joint.rotation_keys,
                     );
-                    let hit_id = hit_motion.joint_tracks.len() as u16 | TRACK_TYPE_JOINT;
-                    let track = HitTrackJoint::from_archived(joint, hit_id, shape.clone(), pos_keys, rot_keys)?;
-                    hit_motion.joint_tracks.push(track);
+                    let box_index = hit_motion.joint_offset + hit_motion.joint_boxes.len() as u16;
+                    let bx = HitBoxJoint::from_archived(joint, box_index, shape.clone(), pos_keys, rot_keys)?;
+                    hit_motion.joint_boxes.push(bx);
                 }
-                ArchivedRawHitTrack::Weapon(weapon) => {
+                ArchivedRawHitBox::Weapon(weapon) => {
                     let shape_index: u32 = weapon.shape_index.into();
                     let shape = jolt_shapes.get(shape_index as usize).ok_or_else(
                         || xerrf!(BadAsset; "path={}, shape_index={}", path.unwrap_or(""), weapon.shape_index),
@@ -277,18 +292,19 @@ impl HitMotion {
                         &weapon.position_keys,
                         &weapon.rotation_keys,
                     );
-                    let hit_id = hit_motion.weapon_tracks.len() as u16 | TRACK_TYPE_WEAPON;
-                    let track = HitTrackWeapon::from_archived(weapon, hit_id, shape.clone(), pos_keys, rot_keys)?;
-                    hit_motion.weapon_tracks.push(track);
+                    let box_index = hit_motion.weapon_offset + hit_motion.weapon_boxes.len() as u16;
+                    let bx = HitBoxWeapon::from_archived(weapon, box_index, shape.clone(), pos_keys, rot_keys)?;
+                    hit_motion.weapon_boxes.push(bx);
                 }
             }
         }
 
         assert_eq!(hit_motion.keyframes_buf.len(), buf_count);
-        assert_eq!(hit_motion.joint_tracks.len(), joint_count);
-        assert_eq!(hit_motion.weapon_tracks.len(), weapon_count);
+        assert_eq!(hit_motion.joint_boxes.len(), joint_count);
+        assert_eq!(hit_motion.weapon_boxes.len(), weapon_count);
 
         hit_motion.init_groups();
+        hit_motion.init_box_ptrs();
         Ok(hit_motion)
     }
 
@@ -326,54 +342,152 @@ impl HitMotion {
     }
 
     fn init_groups(&mut self) {
-        for track in self.joint_tracks.iter_mut() {
-            let idx = self.groups.iter().position(|&g| g == track.group);
+        for bx in self.joint_boxes.iter_mut() {
+            let idx = self.groups.iter().position(|g| g.name == bx.group);
             if let Some(idx) = idx {
-                track.group_index = idx as u16;
-            } else {
-                track.group_index = self.groups.len() as u16;
-                self.groups.push(track.group.clone())
+                bx.group_index = idx as u16;
+                self.groups[idx].start_time = f32::min(self.groups[idx].start_time, bx.start_time);
+                self.groups[idx].finish_time = f32::max(self.groups[idx].finish_time, bx.finish_time);
+            }
+            else {
+                bx.group_index = self.groups.len() as u16;
+                self.groups.push(HitGroup::new(bx.group, bx.start_time, bx.finish_time));
             }
         }
 
-        for track in self.weapon_tracks.iter_mut() {
-            let idx = self.groups.iter().position(|&g| g == track.group);
+        for bx in self.weapon_boxes.iter_mut() {
+            let idx = self.groups.iter().position(|g| g.name == bx.group);
             if let Some(idx) = idx {
-                track.group_index = idx as u16;
-            } else {
-                track.group_index = self.groups.len() as u16;
-                self.groups.push(track.group.clone())
+                bx.group_index = idx as u16;
+                self.groups[idx].start_time = f32::min(self.groups[idx].start_time, bx.start_time);
+                self.groups[idx].finish_time = f32::max(self.groups[idx].finish_time, bx.finish_time);
+            }
+            else {
+                bx.group_index = self.groups.len() as u16;
+                self.groups
+                    .push(HitGroup::new(bx.group.clone(), bx.start_time, bx.finish_time));
             }
         }
     }
 
-    pub fn get_track(&self, hit_id: u16) -> Option<&HitTrackBase> {
-        let idx = (hit_id & !TRACK_TYPE_MASK) as usize;
-        if hit_id & TRACK_TYPE_MASK == TRACK_TYPE_JOINT {
-            self.joint_tracks.get(idx).map(|t| &t._base)
-        } else {
-            self.weapon_tracks.get(idx).map(|t| &t._base)
+    fn init_box_ptrs(&mut self) {
+        for bx in &self.joint_boxes {
+            debug_assert_eq!(bx.box_index as usize, self.boxes_ptrs.len());
+            self.boxes_ptrs.push(&bx._base as *const _);
+        }
+        for bx in &self.weapon_boxes {
+            debug_assert_eq!(bx.box_index as usize, self.boxes_ptrs.len());
+            self.boxes_ptrs.push(&bx._base as *const _);
         }
     }
 
-    pub fn get_joint_track(&self, hit_id: u16) -> Option<&HitTrackJoint> {
-        if hit_id & TRACK_TYPE_MASK != TRACK_TYPE_JOINT {
-            return None;
-        }
-        self.joint_tracks.get((hit_id & !TRACK_TYPE_MASK) as usize)
+    #[inline]
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
-    pub fn get_weapon_track(&self, hit_id: u16) -> Option<&HitTrackWeapon> {
-        if hit_id & TRACK_TYPE_MASK != TRACK_TYPE_WEAPON {
+    #[inline]
+    pub fn groups(&self) -> &[HitGroup] {
+        &self.groups
+    }
+
+    #[inline]
+    pub fn joint_boxes(&self) -> &[HitBoxJoint] {
+        &self.joint_boxes
+    }
+
+    #[inline]
+    pub fn weapon_boxes(&self) -> &[HitBoxWeapon] {
+        &self.weapon_boxes
+    }
+
+    #[inline]
+    pub fn to_joint_box_index(&self, box_index: u16) -> Option<u16> {
+        if box_index < self.joint_offset {
             return None;
         }
-        self.weapon_tracks.get((hit_id & !TRACK_TYPE_MASK) as usize)
+        let idx = box_index - self.joint_offset;
+        match (idx as usize) < self.joint_boxes.len() {
+            true => Some(idx),
+            false => None,
+        }
+    }
+
+    #[inline]
+    pub fn to_weapon_box_index(&self, box_index: u16) -> Option<u16> {
+        if box_index < self.weapon_offset {
+            return None;
+        }
+        let idx = box_index - self.weapon_offset;
+        match (idx as usize) < self.weapon_boxes.len() {
+            true => Some(idx),
+            false => None,
+        }
+    }
+
+    #[inline]
+    pub fn find_box_joint(&self, box_index: u16) -> Option<&HitBoxJoint> {
+        if box_index > self.joint_offset {
+            return None;
+        }
+        self.joint_boxes.get((box_index - self.joint_offset) as usize)
+    }
+
+    #[inline]
+    pub fn find_box_weapon(&self, box_index: u16) -> Option<&HitBoxWeapon> {
+        if box_index > self.weapon_offset {
+            return None;
+        }
+        self.weapon_boxes.get((box_index - self.weapon_offset) as usize)
+    }
+
+    #[inline]
+    pub fn find_box(&self, box_index: u16) -> Option<&HitBoxBase> {
+        // Safety: HitMotion is immutable, so it is safe to cache pointers.
+        match self.boxes_ptrs.get(box_index as usize).cloned() {
+            Some(ptr) => unsafe { Some(&*ptr) },
+            None => None,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn count_boxes(&self) -> usize {
+        self.boxes_ptrs.len()
+    }
+
+    #[inline]
+    pub(crate) fn iter_boxes(&self) -> impl Iterator<Item = &HitBoxBase> {
+        // Safety: HitMotion is immutable, so it is safe to cache pointers.
+        self.boxes_ptrs.iter().map(|&ptr| unsafe { &*ptr })
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct HitGroup {
+    pub name: Symbol,
+    pub start_time: f32,
+    pub finish_time: f32,
+}
+
+impl HitGroup {
+    #[inline]
+    fn new(name: Symbol, start_time: f32, finish_time: f32) -> HitGroup {
+        HitGroup {
+            name,
+            start_time,
+            finish_time,
+        }
+    }
+
+    #[inline]
+    pub fn in_time_loose(&self, time: f32) -> bool {
+        loose_ge!(time, self.start_time) && loose_le!(time, self.finish_time)
     }
 }
 
 #[derive(Debug)]
-pub struct HitTrackBase {
-    pub hit_id: u16,
+pub struct HitBoxBase {
+    pub box_index: u16,
     pub shape: JRef<Shape>,
     pub typ: HitType,
     pub group: Symbol,
@@ -386,15 +500,15 @@ pub struct HitTrackBase {
     rot_keys_len: u32,
 }
 
-impl HitTrackBase {
+impl HitBoxBase {
     fn new(
-        hit_id: u16,
+        box_index: u16,
         shape: JRef<Shape>,
         typ: HitType,
         group: Symbol,
         positions_keys: &[HitKeyPosition],
         rotations_keys: &[HitKeyRotation],
-    ) -> XResult<HitTrackBase> {
+    ) -> XResult<HitBoxBase> {
         if positions_keys.len() < 2 {
             return xresf!(BadAsset; "Positions keys size must >= 2");
         }
@@ -414,8 +528,8 @@ impl HitTrackBase {
             return xresf!(BadAsset; "Finish time mismatch");
         }
 
-        Ok(HitTrackBase {
-            hit_id,
+        Ok(HitBoxBase {
+            box_index,
             shape,
             typ,
             group,
@@ -441,44 +555,37 @@ impl HitTrackBase {
 }
 
 #[derive(Debug)]
-pub struct HitTrackJoint {
-    pub _base: HitTrackBase,
+pub struct HitBoxJoint {
+    pub _base: HitBoxBase,
     pub joint: Symbol,
     pub ratio: f32,
     pub joint2: Symbol,
 }
 
-impl Deref for HitTrackJoint {
-    type Target = HitTrackBase;
+impl Deref for HitBoxJoint {
+    type Target = HitBoxBase;
     fn deref(&self) -> &Self::Target {
         &self._base
     }
 }
 
-impl DerefMut for HitTrackJoint {
+impl DerefMut for HitBoxJoint {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self._base
     }
 }
 
-impl HitTrackJoint {
+impl HitBoxJoint {
     #[inline]
     fn from_raw(
-        raw: RawHitTrackJoint,
-        hit_id: u16,
+        raw: RawHitBoxJoint,
+        box_index: u16,
         shape: JRef<Shape>,
         pos_keys: &[HitKeyPosition],
         rot_keys: &[HitKeyRotation],
-    ) -> XResult<HitTrackJoint> {
-        Ok(HitTrackJoint {
-            _base: HitTrackBase::new(
-                hit_id,
-                shape,
-                raw.typ,
-                raw.group,
-                pos_keys,
-                rot_keys,
-            )?,
+    ) -> XResult<HitBoxJoint> {
+        Ok(HitBoxJoint {
+            _base: HitBoxBase::new(box_index, shape, raw.typ, raw.group, pos_keys, rot_keys)?,
             joint: raw.joint,
             ratio: raw.ratio,
             joint2: raw.joint2,
@@ -487,88 +594,66 @@ impl HitTrackJoint {
 
     #[inline]
     fn from_archived(
-        raw: &ArchivedRawHitTrackJoint,
-        hit_id: u16,
+        raw: &ArchivedRawHitBoxJoint,
+        box_index: u16,
         shape: JRef<Shape>,
         pos_keys: &[HitKeyPosition],
         rot_keys: &[HitKeyRotation],
-    ) -> XResult<HitTrackJoint> {
-        Ok(HitTrackJoint{
-            _base: HitTrackBase::new(
-                hit_id,
-                shape,
-                raw.typ,
-                Symbol::new(raw.group.as_str())?,
-                pos_keys,
-                rot_keys
-            )?,
-            joint: Symbol::new(raw.joint.as_str())?,
+    ) -> XResult<HitBoxJoint> {
+        Ok(HitBoxJoint {
+            _base: HitBoxBase::new(box_index, shape, raw.typ, Symbol::from(&raw.group), pos_keys, rot_keys)?,
+            joint: Symbol::from(&raw.joint),
             ratio: raw.ratio.into(),
-            joint2: Symbol::new(raw.joint2.as_str())?,
+            joint2: Symbol::from(&raw.joint2),
         })
     }
 }
 
 #[derive(Debug)]
-pub struct HitTrackWeapon {
-    pub _base: HitTrackBase,
+pub struct HitBoxWeapon {
+    pub _base: HitBoxBase,
     pub weapon: Symbol,
 }
 
-impl Deref for HitTrackWeapon {
-    type Target = HitTrackBase;
+impl Deref for HitBoxWeapon {
+    type Target = HitBoxBase;
     fn deref(&self) -> &Self::Target {
         &self._base
     }
 }
 
-impl DerefMut for HitTrackWeapon {
+impl DerefMut for HitBoxWeapon {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self._base
     }
 }
 
-impl HitTrackWeapon {
+impl HitBoxWeapon {
     #[inline]
     fn from_raw(
-        raw: RawHitTrackWeapon,
-        hit_id: u16,
+        raw: RawHitBoxWeapon,
+        hit_index: u16,
         shape: JRef<Shape>,
         pos_keys: &[HitKeyPosition],
         rot_keys: &[HitKeyRotation],
-    ) -> XResult<HitTrackWeapon> {
-        Ok(HitTrackWeapon {
-            _base: 
-            HitTrackBase::new(
-                hit_id,
-                shape,
-                raw.typ,
-                raw.group,
-                pos_keys,
-                rot_keys,
-            )?,
-            weapon: raw.weapon
+    ) -> XResult<HitBoxWeapon> {
+        Ok(HitBoxWeapon {
+            _base: HitBoxBase::new(hit_index, shape, raw.typ, raw.group, pos_keys, rot_keys)?,
+            weapon: raw.weapon,
         })
     }
 
     #[inline]
     fn from_archived(
-        raw: &ArchivedRawHitTrackWeapon,
-        hit_id: u16,
+        raw: &ArchivedRawHitBoxWeapon,
+        hit_index: u16,
         shape: JRef<Shape>,
         pos_keys: &[HitKeyPosition],
         rot_keys: &[HitKeyRotation],
-    ) -> XResult<HitTrackWeapon> {
-        Ok(HitTrackWeapon {
-            _base: HitTrackBase::new(
-                hit_id,
-                shape,
-                raw.typ,
-                Symbol::new(raw.group.as_str())?,
-                pos_keys,
-                rot_keys,
-            )?,
-            weapon: Symbol::new(raw.weapon.as_str())?,
+    ) -> XResult<HitBoxWeapon> {
+        Ok(HitBoxWeapon {
+            _base: HitBoxBase::new(hit_index, shape, raw.typ, Symbol::from(&raw.group), pos_keys, rot_keys)?,
+            weapon: Symbol::from(&raw.weapon),
         })
     }
 }
@@ -665,66 +750,76 @@ mod tests {
     fn check_hit_motion(hit_motion: &HitMotion) {
         assert_eq!(hit_motion.keyframes_buf.len(), 16);
 
-        assert_eq!(hit_motion.joint_tracks.len(), 2);
+        assert_eq!(hit_motion.groups.as_slice(), &[
+            HitGroup::new(sb!("Health"), 0.5, 0.8333333),
+            HitGroup::new(sb!("Counter"), 1.0, 1.13333333),
+            HitGroup::new(sb!("Axe"), 1.05, 1.36666667),
+        ]);
 
-        assert_eq!(hit_motion.joint_tracks[0].hit_id, 0);
-        assert!(hit_motion.joint_tracks[0].shape.count_ref() > 0);
-        assert_eq!(hit_motion.joint_tracks[0].typ, HitType::Health);
-        assert_eq!(hit_motion.joint_tracks[0].group, sb!("Health"));
-        assert_eq!(hit_motion.joint_tracks[0].joint, sb!("Spine"));
-        assert_eq!(hit_motion.joint_tracks[0].ratio, 0.5);
-        assert_eq!(hit_motion.joint_tracks[0].joint2, sb!(""));
-        assert_eq!(hit_motion.joint_tracks[0].positions_keys(), &[
+        assert_eq!(hit_motion.joint_boxes.len(), 2);
+
+        assert_eq!(hit_motion.joint_boxes[0].box_index, 0);
+        assert!(hit_motion.joint_boxes[0].shape.count_ref() > 0);
+        assert_eq!(hit_motion.joint_boxes[0].typ, HitType::Health);
+        assert_eq!(hit_motion.joint_boxes[0].group, sb!("Health"));
+        assert_eq!(hit_motion.joint_boxes[0].group_index, 0);
+        assert_eq!(hit_motion.joint_boxes[0].joint, sb!("Spine"));
+        assert_eq!(hit_motion.joint_boxes[0].ratio, 0.5);
+        assert_eq!(hit_motion.joint_boxes[0].joint2, sb!(""));
+        assert_eq!(hit_motion.joint_boxes[0].positions_keys(), &[
             HitKeyPosition::new(0.5, Vec3A::new(0.0, 0.0, 0.0)),
             HitKeyPosition::new(0.8333333, Vec3A::new(0.0, 0.0, 0.0)),
         ]);
-        assert_eq!(hit_motion.joint_tracks[0].rotations_keys(), &[
+        assert_eq!(hit_motion.joint_boxes[0].rotations_keys(), &[
             HitKeyRotation::new(0.5, Quat::from_xyzw(0.0, 0.0, 0.0, 1.0)),
             HitKeyRotation::new(0.8333333, Quat::from_xyzw(0.0, 0.0, 0.0, 1.0)),
         ]);
 
-        assert_eq!(hit_motion.joint_tracks[1].hit_id, 1);
-        assert!(hit_motion.joint_tracks[1].shape.count_ref() > 0);
-        assert_eq!(hit_motion.joint_tracks[1].typ, HitType::Counter);
-        assert_eq!(hit_motion.joint_tracks[1].group, sb!("Counter"));
-        assert_eq!(hit_motion.joint_tracks[1].joint, sb!("LeftHand"));
-        assert_eq!(hit_motion.joint_tracks[1].ratio, 0.2);
-        assert_eq!(hit_motion.joint_tracks[1].joint2, sb!("LeftLowerArm"));
-        assert_eq!(hit_motion.joint_tracks[1].positions_keys(), &[
+        assert_eq!(hit_motion.joint_boxes[1].box_index, 1);
+        assert!(hit_motion.joint_boxes[1].shape.count_ref() > 0);
+        assert_eq!(hit_motion.joint_boxes[1].typ, HitType::Counter);
+        assert_eq!(hit_motion.joint_boxes[1].group, sb!("Counter"));
+        assert_eq!(hit_motion.joint_boxes[1].group_index, 1);
+        assert_eq!(hit_motion.joint_boxes[1].joint, sb!("LeftHand"));
+        assert_eq!(hit_motion.joint_boxes[1].ratio, 0.2);
+        assert_eq!(hit_motion.joint_boxes[1].joint2, sb!("LeftLowerArm"));
+        assert_eq!(hit_motion.joint_boxes[1].positions_keys(), &[
             HitKeyPosition::new(1.0, Vec3A::new(0.1, 0.1, 0.0)),
             HitKeyPosition::new(1.13333333, Vec3A::new(0.1, 0.1, 0.0)),
         ]);
-        assert_eq!(hit_motion.joint_tracks[1].rotations_keys(), &[
+        assert_eq!(hit_motion.joint_boxes[1].rotations_keys(), &[
             HitKeyRotation::new(1.0, Quat::from_xyzw(1.0, 0.0, 0.0, 0.0)),
             HitKeyRotation::new(1.13333333, Quat::from_xyzw(1.0, 0.0, 0.0, 0.0)),
         ]);
 
-        assert_eq!(hit_motion.weapon_tracks.len(), 2);
+        assert_eq!(hit_motion.weapon_boxes.len(), 2);
 
-        assert_eq!(hit_motion.weapon_tracks[0].hit_id, 2);
-        assert!(hit_motion.weapon_tracks[0].shape.count_ref() > 0);
-        assert_eq!(hit_motion.weapon_tracks[0].typ, HitType::Attack);
-        assert_eq!(hit_motion.weapon_tracks[0].group, sb!("Axe"));
-        assert_eq!(hit_motion.weapon_tracks[0].weapon, sb!("Axe"));
-        assert_eq!(hit_motion.weapon_tracks[0].positions_keys(), &[
+        assert_eq!(hit_motion.weapon_boxes[0].box_index, 2);
+        assert!(hit_motion.weapon_boxes[0].shape.count_ref() > 0);
+        assert_eq!(hit_motion.weapon_boxes[0].typ, HitType::Attack);
+        assert_eq!(hit_motion.weapon_boxes[0].group, sb!("Axe"));
+        assert_eq!(hit_motion.weapon_boxes[0].group_index, 2);
+        assert_eq!(hit_motion.weapon_boxes[0].weapon, sb!("Axe"));
+        assert_eq!(hit_motion.weapon_boxes[0].positions_keys(), &[
             HitKeyPosition::new(1.05, Vec3A::new(0.0, -0.15, -0.7)),
             HitKeyPosition::new(1.2, Vec3A::new(0.0, -0.15, -0.7)),
         ]);
-        assert_eq!(hit_motion.weapon_tracks[0].rotations_keys(), &[
+        assert_eq!(hit_motion.weapon_boxes[0].rotations_keys(), &[
             HitKeyRotation::new(1.05, Quat::from_xyzw(0.7071068, 0.0, 0.0, 0.7071068)),
             HitKeyRotation::new(1.2, Quat::from_xyzw(0.7071068, 0.0, 0.0, 0.7071068)),
         ]);
 
-        assert_eq!(hit_motion.weapon_tracks[1].hit_id, 3);
-        assert!(hit_motion.weapon_tracks[1].shape.count_ref() > 0);
-        assert_eq!(hit_motion.weapon_tracks[1].typ, HitType::Attack);
-        assert_eq!(hit_motion.weapon_tracks[1].group, sb!("Axe"));
-        assert_eq!(hit_motion.weapon_tracks[1].weapon, sb!("Axe"));
-        assert_eq!(hit_motion.weapon_tracks[1].positions_keys(), &[
+        assert_eq!(hit_motion.weapon_boxes[1].box_index, 3);
+        assert!(hit_motion.weapon_boxes[1].shape.count_ref() > 0);
+        assert_eq!(hit_motion.weapon_boxes[1].typ, HitType::Attack);
+        assert_eq!(hit_motion.weapon_boxes[1].group, sb!("Axe"));
+        assert_eq!(hit_motion.weapon_boxes[1].group_index, 2);
+        assert_eq!(hit_motion.weapon_boxes[1].weapon, sb!("Axe"));
+        assert_eq!(hit_motion.weapon_boxes[1].positions_keys(), &[
             HitKeyPosition::new(1.2166667, Vec3A::new(0.0, -0.15, -0.7)),
             HitKeyPosition::new(1.36666667, Vec3A::new(0.0, -0.15, -0.7)),
         ]);
-        assert_eq!(hit_motion.weapon_tracks[1].rotations_keys(), &[
+        assert_eq!(hit_motion.weapon_boxes[1].rotations_keys(), &[
             HitKeyRotation::new(1.2166667, Quat::from_xyzw(0.7071068, 0.0, 0.0, 0.7071068)),
             HitKeyRotation::new(1.36666667, Quat::from_xyzw(0.7071068, 0.0, 0.0, 0.7071068)),
         ]);
@@ -732,7 +827,7 @@ mod tests {
 
     #[test]
     fn test_hit_motion_from_json_reader() {
-        let json_path = format!("{}/TestDemo.hm-json", TEST_ASSET_PATH);
+        let json_path = format!("{}/Girl_Attack_Test.hm-json", TEST_ASSET_PATH);
         let mut json_file = File::open(&json_path).unwrap();
         let mut json_buf = Vec::new();
         json_file.read_to_end(&mut json_buf).unwrap();
