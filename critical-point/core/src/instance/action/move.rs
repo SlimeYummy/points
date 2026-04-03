@@ -72,24 +72,24 @@ impl InstActionMove {
         }
 
         let mut starts = Vec::with_capacity(tmpl.starts.len());
-        for t in tmpl.starts.iter() {
-            let mut enter_angle = [t.enter_angle[0].into(), t.enter_angle[1].into()];
+        for a in tmpl.starts.iter() {
+            let mut enter_angle = [a.enter_angle[0].into(), a.enter_angle[1].into()];
             if enter_angle[0] > enter_angle[1] {
                 enter_angle.swap(0, 1);
             }
 
             starts.push(InstActionMoveStart {
-                anim: InstAnimation::from_rkyv(&t.anim),
+                anim: InstAnimation::from_rkyv(&a.anim),
                 enter_angle,
-                turn_in_place_end: t.turn_in_place_end.into(),
-                quick_stop_end: t.quick_stop_end.into(),
+                turn_in_place_end: a.turn_in_place_end.into(),
+                quick_stop_end: a.quick_stop_end.into(),
             });
         }
 
         let mut direct_turn_angle: [f32; 2] = [-std::f32::consts::PI, std::f32::consts::PI];
         let mut turns = Vec::with_capacity(tmpl.turns.len());
-        for t in tmpl.turns.iter() {
-            let mut enter_angle = [t.enter_angle[0].into(), t.enter_angle[1].into()];
+        for a in tmpl.turns.iter() {
+            let mut enter_angle = [a.enter_angle[0].into(), a.enter_angle[1].into()];
             if enter_angle[0] > enter_angle[1] {
                 enter_angle.swap(0, 1);
             }
@@ -105,22 +105,22 @@ impl InstActionMove {
             }
 
             turns.push(InstActionMoveTurn {
-                anim: InstAnimation::from_rkyv(&t.anim),
+                anim: InstAnimation::from_rkyv(&a.anim),
                 enter_angle,
-                turn_in_place_end: t.turn_in_place_end.into(),
+                turn_in_place_end: a.turn_in_place_end.into(),
             });
         }
 
         let mut stops = Vec::with_capacity(tmpl.stops.len());
-        for t in tmpl.stops.iter() {
+        for a in tmpl.stops.iter() {
             stops.push(InstActionMoveStop {
-                anim: InstAnimation::from_rkyv(&t.anim),
-                enter_phase_table: t
+                anim: InstAnimation::from_rkyv(&a.anim),
+                enter_phase_table: a
                     .enter_phase_table
                     .iter()
                     .map(InstActionMoveStopEnter::from_rkyv)
                     .collect(),
-                leave_phase_table: t
+                leave_phase_table: a
                     .leave_phase_table
                     .iter()
                     .map(InstActionMoveStopLeave::from_rkyv)
@@ -152,6 +152,30 @@ impl InstActionMove {
             smooth_move_froms: tmpl.smooth_move_froms.iter().map(|x| *x).collect(),
             smooth_move_duration: tmpl.smooth_move_duration.into(),
         })
+    }
+
+    #[inline]
+    pub fn animations(&self) -> impl Iterator<Item = &InstAnimation> {
+        std::iter::from_coroutine(
+            #[coroutine]
+            || {
+                yield &self.anim_move;
+                for start in &self.starts {
+                    yield &start.anim;
+                }
+                for turn in &self.turns {
+                    yield &turn.anim;
+                }
+                for stop in &self.stops {
+                    yield &stop.anim;
+                }
+            },
+        )
+    }
+
+    #[inline]
+    pub fn animations_count(&self) -> usize {
+        1 + self.starts.len() + self.turns.len() + self.stops.len()
     }
 
     pub fn find_start_by_angle(&self, angle: f32) -> Option<(usize, &InstActionMoveStart)> {
@@ -215,30 +239,6 @@ impl InstActionMove {
             lerp(a.phase, b.phase + 1.0, (time - a.time) / (b.time - a.time)) % 1.0
         };
         Some(phase)
-    }
-
-    #[inline]
-    pub fn animations(&self) -> impl Iterator<Item = &InstAnimation> {
-        std::iter::from_coroutine(
-            #[coroutine]
-            || {
-                yield &self.anim_move;
-                for start in &self.starts {
-                    yield &start.anim;
-                }
-                for turn in &self.turns {
-                    yield &turn.anim;
-                }
-                for stop in &self.stops {
-                    yield &stop.anim;
-                }
-            },
-        )
-    }
-
-    #[inline]
-    pub fn animations_count(&self) -> usize {
-        1 + self.starts.len() + self.turns.len() + self.stops.len()
     }
 }
 

@@ -6,8 +6,8 @@ use thin_vec::ThinVec;
 
 use crate::animation::AnimationFileMeta;
 use crate::template::{
-    ArchivedTmplActionAttributes, ArchivedTmplAnimation, ArchivedTmplDeriveRule, ArchivedTmplTimelinePoint,
-    ArchivedTmplTimelineRange, ArchivedTmplVar,
+    ArchivedTmplActionAttributes, ArchivedTmplAnimation, ArchivedTmplDeriveRule, ArchivedTmplHit,
+    ArchivedTmplTimelinePoint, ArchivedTmplTimelineRange, ArchivedTmplVar,
 };
 use crate::utils::{
     calc_fade_in, interface, ratio_saturating, ratio_warpping, sb, ActionType, DtHashMap, InputDir, Symbol, TimeRange,
@@ -31,6 +31,7 @@ pub struct InstActionBase {
     pub cool_down_time: f32,
     pub cool_down_count: u16,
     pub cool_down_init_count: u16,
+    pub hits: ThinVec<InstHit>,
 }
 
 interface!(InstActionAny, InstActionBase);
@@ -109,6 +110,26 @@ impl InstAnimation {
             files: self.files,
             root_motion: self.root_motion,
             weapon_motion: self.weapon_motion,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct InstHit {
+    pub group: Symbol,
+    pub box_max_times: u16,
+    pub box_min_interval: f32,
+    pub group_max_times: u16,
+}
+
+impl InstHit {
+    #[inline]
+    pub fn from_rkyv(ctx: &ContextActionAssemble<'_>, archived: &ArchivedTmplHit) -> InstHit {
+        InstHit {
+            group: sb!(&archived.group),
+            box_max_times: ctx.solve_var(&archived.box_max_times).to_native(),
+            box_min_interval: ctx.solve_var(&archived.box_min_interval).to_native(),
+            group_max_times: ctx.solve_var(&archived.group_max_times).to_native(),
         }
     }
 }
@@ -232,7 +253,7 @@ impl<T> InstTimelinePoint<T> {
     #[inline]
     pub fn find(&self, range: TimeRange) -> Option<&TimeWith<T>> {
         // TODO: Optimize performance
-        self.0.iter().find(|item| range.contains_no_left(item.time))
+        self.0.iter().find(|item| range.contains_rc(item.time))
     }
 
     #[inline]

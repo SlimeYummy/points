@@ -710,7 +710,7 @@ mod tests {
         let mut ctx = ContextAssemble::new(&db);
 
         let mut param = ParamNpc::default();
-        param.character = id!("NpcCharacter.Instance^1");
+        param.character = id!("NpcCharacter.NpcInstance^1");
         param.level = 3;
         let mut inst = InstCharacter::default();
         InstCharacter::collect_npc_character(&mut ctx, &param, &mut inst).unwrap();
@@ -732,17 +732,22 @@ mod tests {
         let mut ctx = ContextAssemble::new(&db);
 
         let mut param = ParamNpc::default();
-        param.character = id!("NpcCharacter.Instance^1");
+        param.character = id!("NpcCharacter.NpcInstance^1");
         let mut inst = InstCharacter::default();
         InstCharacter::collect_npc_actions(&mut ctx, &param, &mut inst).unwrap();
 
-        assert_eq!(inst.actions.len(), 1);
-        assert!(inst.actions.contains_key(&id!("NpcAction.Instance.Idle^1A")));
+        assert_eq!(inst.actions.len(), 2);
+        assert!(inst.actions.contains_key(&id!("Action.NpcInstance.Idle^1A")));
+        assert!(inst.actions.contains_key(&id!("Action.NpcInstance.Hit1^1A")));
 
-        assert_eq!(inst.primary_keys.len(), 1);
+        assert_eq!(inst.primary_keys.len(), 2);
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Idle).unwrap(),
-            &id!("NpcAction.Instance.Idle^1A")
+            &id!("Action.NpcInstance.Idle^1A")
+        );
+        assert_eq!(
+            inst.primary_keys.find_first(&VirtualKey::Hit1).unwrap(),
+            &id!("Action.NpcInstance.Hit1^1A")
         );
     }
 
@@ -752,13 +757,13 @@ mod tests {
         let mut ctx = ContextAssemble::new(&db);
 
         let param = ParamNpc {
-            character: id!("NpcCharacter.Instance^1"),
+            character: id!("NpcCharacter.NpcInstance^1"),
             level: 4,
             position: Vec3A::ZERO,
         };
         let inst = InstCharacter::new_npc(&mut ctx, &param).unwrap();
 
-        assert_eq!(inst.actions.len(), 1);
+        assert_eq!(inst.actions.len(), 2);
 
         assert_eq!(inst.primary.max_health, 1000.0);
         assert_eq!(inst.primary.max_posture, 160.0);
