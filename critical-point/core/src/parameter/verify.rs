@@ -4,7 +4,7 @@ use crate::template::{
     TmplAccessory, TmplAccessoryPattern, TmplAccessoryPool, TmplCharacter, TmplDatabase, TmplEquipment, TmplJewel,
     TmplJewelSlot, TmplNpcCharacter, TmplPerk, TmplStyle,
 };
-use crate::utils::{xresf, JewelSlots, TmplIDLevel, TmplIDPlus, XResult};
+use crate::utils::{xres, xresf, JewelSlots, TmplIDLevel, TmplIDPlus, XResult};
 
 pub struct ContextVerify<'t> {
     pub tmpl_db: &'t TmplDatabase,
@@ -17,6 +17,10 @@ impl<'t> ContextVerify<'t> {
 }
 
 pub fn verify_player(ctx: &mut ContextVerify<'_>, param: &ParamPlayer) -> XResult<()> {
+    if param.character.is_invalid() {
+        return xres!(BadParameter; "invalid character id");
+    }
+
     let mut slots = JewelSlots::default();
     slots.append(&verify_style(ctx, param)?);
     slots.append(&verify_equipments(ctx, param)?);
@@ -152,8 +156,11 @@ fn verify_jewels(ctx: &mut ContextVerify<'_>, param: &ParamPlayer, slots: JewelS
 }
 
 pub fn verify_npc(ctx: &mut ContextVerify<'_>, param: &ParamNpc) -> XResult<()> {
-    let character = ctx.tmpl_db.find_as::<TmplNpcCharacter>(param.character)?;
+    if param.character.is_invalid() {
+        return xres!(BadParameter; "invalid npc character id");
+    }
 
+    let character = ctx.tmpl_db.find_as::<TmplNpcCharacter>(param.character)?;
     if param.level < character.level.min || param.level > character.level.max {
         return xresf!(BadParameter; "character.id={}, param.level={}", character.id, param.level);
     }

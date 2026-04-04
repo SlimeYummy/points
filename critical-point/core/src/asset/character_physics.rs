@@ -3,7 +3,7 @@ use jolt_physics_rs::{JRef, Shape};
 
 use crate::asset::loader::AssetLoader;
 use crate::asset::shape::AssetShape;
-use crate::utils::{default_position, default_rotation, xerr, xerrf, Symbol, XResult};
+use crate::utils::{default_position, default_rotation, sb, xerr, xerrf, Symbol, XResult};
 
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize)]
 struct AssetCharacterPhysics {
@@ -94,7 +94,7 @@ fn from_archived_asset(path: &str, asset: &ArchivedAssetCharacterPhysics) -> XRe
 
     let mut parts = Vec::with_capacity(asset.parts.len());
     for part in asset.parts.iter() {
-        parts.push(Symbol::new(part.as_str())?)
+        parts.push(sb!(part.as_str()))
     }
 
     let mut loaded = LoadedCharacterPhysics {
@@ -118,10 +118,10 @@ fn from_archived_asset(path: &str, asset: &ArchivedAssetCharacterPhysics) -> XRe
             shape: jolt_shape.clone(),
             position: asset_box.position,
             rotation: asset_box.rotation,
-            part: Symbol::new(asset_box.part.as_str())?,
-            joint: Symbol::new(asset_box.joint.as_str())?,
+            part: sb!(asset_box.part.as_str()),
+            joint: sb!(asset_box.joint.as_str()),
             ratio: asset_box.ratio.into(),
-            joint2: Symbol::new(asset_box.joint2.as_str())?,
+            joint2: sb!(asset_box.joint2.as_str()),
         });
     }
     Ok(loaded)
