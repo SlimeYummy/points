@@ -3,13 +3,13 @@ use std::rc::Rc;
 
 use crate::consts::{DEFAULT_TOWARD_DIR_2D, TEST_ASSET_PATH};
 use crate::instance::{InstActionEmpty, InstCharacter};
-use crate::logic::action::base::{ContextAction, StateActionAny};
+use crate::logic::action::base::{ActionStartArgs, ContextAction, StateActionAny};
 use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::{ContextUpdate, LogicSystems};
 use crate::logic::{InputVariables, LogicActionEmpty};
 use crate::parameter::ParamPlayer;
 use crate::template::TmplDatabase;
-use crate::utils::{id, ActionType, NumID, XResult};
+use crate::utils::{id, ifelse, ActionType, NumID, VirtualKey, XResult};
 
 pub(super) fn test_state_action_rkyv(
     state: Box<dyn StateActionAny>,
@@ -75,12 +75,14 @@ impl TestEnv {
         ContextUpdate::new(&mut self.systems, Self::FRAME, 95)
     }
 
-    pub fn contexts(&mut self, has_prev: bool) -> (ContextUpdate<'_>, ContextAction<'_, '_>) {
+    pub fn contexts(
+        &mut self,
+        key: VirtualKey,
+        prev_action: bool,
+    ) -> (ContextUpdate<'_>, ContextAction<'_>, ActionStartArgs<'_>) {
         let ctx = ContextUpdate::new(&mut self.systems, 100, 95);
-        let mut ctxa = ContextAction::new(Self::PLAYER_ID, &self.chara_physics, InputVariables::default());
-        if has_prev {
-            ctxa.prev_action = Some(&self.logic_empty);
-        }
-        (ctx, ctxa)
+        let ctxa = ContextAction::new_normalized(Self::PLAYER_ID, &self.chara_physics, InputVariables::default(), 1.0);
+        let sargs = ActionStartArgs::new(ifelse!(prev_action, Some(&self.logic_empty), None), key, None);
+        (ctx, ctxa, sargs)
     }
 }

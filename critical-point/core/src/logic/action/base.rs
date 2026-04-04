@@ -1,5 +1,6 @@
+use approx::abs_diff_eq;
 use critical_point_csgen::{CsEnum, CsOut};
-use glam::Vec3A;
+use glam::{Quat, Vec3A};
 use glam_ext::Vec2xz;
 use std::alloc::Layout;
 use std::any::Any;
@@ -12,7 +13,12 @@ use crate::instance::{InstActionAny, InstAnimation};
 use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::ContextUpdate;
 use crate::logic::system::input::InputVariables;
-use crate::utils::{interface, rkyv_self, xres, ActionType, ArrayVec, CustomEvent, NumID, Symbol, TmplID, XResult};
+use crate::utils::{
+    interface, rkyv_self, xres, ActionType, ArrayVec, CustomEvent, NumID, Symbol, TmplID, VirtualKey, XResult,
+};
+
+pub const INVALID_ACTION_ID: u32 = u32::MAX;
+pub const INVALID_ANIMATION_ID: u16 = u16::MAX;
 
 //
 // StateActionAny & StateActionBase
@@ -23,7 +29,7 @@ pub unsafe trait StateActionAny
 where
     Self: Debug + Any + Send + Sync,
 {
-    fn id(&self) -> NumID;
+    fn id(&self) -> u32;
     fn typ(&self) -> ActionType;
     fn layout(&self) -> Layout;
 }
@@ -43,7 +49,7 @@ where
 #[rkyv(derive(Debug))]
 #[cs_attr(Ref)]
 pub struct StateActionBase {
-    pub id: NumID,
+    pub id: u32,
     pub tmpl_id: TmplID,
     pub typ: ActionType,
     pub status: LogicActionStatus,
@@ -67,7 +73,7 @@ impl Drop for StateActionBase {
 impl StateActionBase {
     pub fn new(typ: ActionType) -> StateActionBase {
         StateActionBase {
-            id: NumID::INVALID,
+            id: INVALID_ACTION_ID,
             tmpl_id: TmplID::default(),
             typ,
             status: LogicActionStatus::Starting,
@@ -82,7 +88,7 @@ impl StateActionBase {
 }
 
 pub trait ArchivedStateActionAny: Debug + Any {
-    fn id(&self) -> NumID;
+    fn id(&self) -> u32;
     fn typ(&self) -> ActionType;
 }
 
@@ -200,6 +206,7 @@ const _: () = {
 
     use crate::logic::action::empty::{ArchivedStateActionEmpty, StateActionEmpty};
     use crate::logic::action::general::{ArchivedStateActionGeneral, StateActionGeneral};
+    use crate::logic::action::hit::{ArchivedStateActionHit, StateActionHit};
     use crate::logic::action::idle::{ArchivedStateActionIdle, StateActionIdle};
     use crate::logic::action::r#move::{ArchivedStateActionMove, StateActionMove};
     use crate::utils::Castable;
@@ -219,6 +226,9 @@ const _: () = {
                 },
                 (General, General) => unsafe {
                     self.cast_unchecked::<StateActionGeneral>() == other.cast_unchecked::<StateActionGeneral>()
+                },
+                (Hit, Hit) => unsafe {
+                    self.cast_unchecked::<StateActionHit>() == other.cast_unchecked::<StateActionHit>()
                 },
                 _ => false,
             }
@@ -257,6 +267,7 @@ const _: () = {
                     Idle => mem::transmute_copy::<usize, &ArchivedStateActionIdle>(&0),
                     Move => mem::transmute_copy::<usize, &ArchivedStateActionMove>(&0),
                     General => mem::transmute_copy::<usize, &ArchivedStateActionGeneral>(&0),
+                    Hit => mem::transmute_copy::<usize, &ArchivedStateActionHit>(&0),
                     _ => unreachable!("pointer_metadata() Invalid ActionType"),
                 }
             };
@@ -300,6 +311,7 @@ const _: () = {
                 Idle => serialize::<StateActionIdle, _>(self, serializer),
                 Move => serialize::<StateActionMove, _>(self, serializer),
                 General => serialize::<StateActionGeneral, _>(self, serializer),
+                Hit => serialize::<StateActionHit, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid ActionType"),
             }
         }
@@ -338,6 +350,7 @@ const _: () = {
                 Idle => deserialize::<StateActionIdle, _>(self, deserializer, out),
                 Move => deserialize::<StateActionMove, _>(self, deserializer, out),
                 General => deserialize::<StateActionGeneral, _>(self, deserializer, out),
+                Hit => deserialize::<StateActionHit, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid ActionType"),
             }
         }
@@ -349,6 +362,7 @@ const _: () = {
                     Idle => mem::transmute_copy::<usize, &StateActionIdle>(&0),
                     Move => mem::transmute_copy::<usize, &StateActionMove>(&0),
                     General => mem::transmute_copy::<usize, &StateActionGeneral>(&0),
+                    Hit => mem::transmute_copy::<usize, &StateActionHit>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid ActionType"),
                 }
             };
@@ -363,7 +377,7 @@ macro_rules! impl_state_action {
             #[typetag::serde(name = $serde_tag)]
             unsafe impl $crate::logic::action::StateActionAny for $typ {
                 #[inline]
-                fn id(&self) -> $crate::utils::NumID {
+                fn id(&self) -> u32 {
                     self._base.id
                 }
 
@@ -384,8 +398,8 @@ macro_rules! impl_state_action {
 
             impl $crate::logic::action::ArchivedStateActionAny for [<Archived $typ>] {
                 #[inline]
-                fn id(&self) -> crate::utils::NumID {
-                    crate::utils::NumID::from_rkyv(self._base.id)
+                fn id(&self) -> u32 {
+                    self._base.id.to_native()
                 }
 
                 #[inline]
@@ -401,62 +415,6 @@ macro_rules! impl_state_action {
     };
 }
 pub(crate) use impl_state_action;
-
-#[repr(C)]
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsOut,
-)]
-#[rkyv(derive(Debug))]
-pub struct LogicActionAnimationID {
-    pub action_id: NumID,
-    pub animation_id: u16,
-}
-
-impl Default for LogicActionAnimationID {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            action_id: NumID::INVALID,
-            animation_id: u16::MAX,
-        }
-    }
-}
-
-impl LogicActionAnimationID {
-    pub const INVALID: LogicActionAnimationID = LogicActionAnimationID {
-        action_id: NumID::INVALID,
-        animation_id: u16::MAX,
-    };
-
-    #[inline]
-    pub fn new(action_id: NumID, animation_id: u16) -> LogicActionAnimationID {
-        LogicActionAnimationID {
-            action_id,
-            animation_id,
-        }
-    }
-
-    #[inline]
-    pub fn is_valid(&self) -> bool {
-        self.action_id != u32::MAX && self.animation_id != u16::MAX
-    }
-
-    #[inline]
-    pub fn is_invalid(&self) -> bool {
-        self.action_id == u32::MAX || self.animation_id == u16::MAX
-    }
-}
 
 //
 // LogicActionAny & LogicActionBase
@@ -479,10 +437,15 @@ pub unsafe trait LogicActionAny: Debug + Any {
     fn save(&self) -> Box<dyn StateActionAny>;
     fn restore(&mut self, state: &(dyn StateActionAny + 'static)) -> XResult<()>;
 
-    fn start(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionStartReturn> {
+    fn start(
+        &mut self,
+        ctx: &mut ContextUpdate,
+        ctxa: &mut ContextAction,
+        args: &ActionStartArgs,
+    ) -> XResult<ActionStartReturn> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
-        base.start(ctx, ctxa)?;
+        base.start(ctx, ctxa, args)?;
         Ok(ActionStartReturn::new())
     }
 
@@ -511,6 +474,24 @@ pub unsafe trait LogicActionAny: Debug + Any {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.finalize(ctx, ctxa)
+    }
+}
+
+#[derive(Debug)]
+pub struct ActionStartArgs<'t> {
+    pub prev_action: Option<&'t dyn LogicActionAny>,
+    pub key: VirtualKey,
+    pub dir: Option<Vec2xz>,
+}
+
+impl<'t> ActionStartArgs<'t> {
+    #[inline]
+    pub fn new(
+        prev_action: Option<&'t dyn LogicActionAny>,
+        key: VirtualKey,
+        dir: Option<Vec2xz>,
+    ) -> ActionStartArgs<'t> {
+        ActionStartArgs { prev_action, key, dir }
     }
 }
 
@@ -563,7 +544,7 @@ pub const LA_FLAG_DERIVE_SELF: u8 = 0x1;
 
 #[derive(Debug)]
 pub struct LogicActionBase {
-    pub id: NumID,
+    pub id: u32,
     pub inst: Rc<dyn InstActionAny>,
     pub status: LogicActionStatus,
     pub flags: u8,
@@ -577,7 +558,7 @@ pub struct LogicActionBase {
 interface!(LogicActionAny, LogicActionBase);
 
 impl LogicActionBase {
-    pub fn new(id: NumID, inst: Rc<dyn InstActionAny>) -> LogicActionBase {
+    pub fn new(id: u32, inst: Rc<dyn InstActionAny>) -> LogicActionBase {
         LogicActionBase {
             id,
             inst,
@@ -606,7 +587,7 @@ impl LogicActionBase {
         self.flags & LA_FLAG_DERIVE_SELF != 0
     }
 
-    pub fn reuse(&mut self, id: NumID) -> XResult<()> {
+    pub fn reuse(&mut self, id: u32) -> XResult<()> {
         *self = LogicActionBase::new(id, self.inst.clone());
         Ok(())
     }
@@ -635,14 +616,14 @@ impl LogicActionBase {
         self.poise_level = state.poise_level;
     }
 
-    pub fn start(&mut self, ctx: &ContextUpdate, ctxa: &mut ContextAction) -> XResult<()> {
+    pub fn start(&mut self, ctx: &ContextUpdate, _ctxa: &mut ContextAction, args: &ActionStartArgs) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Starting) {
             return xres!(Unexpected; "status != Starting");
         }
         log::info!("LogicActionAny::start() id={} tmpl_id={}", self.id, self.inst.tmpl_id);
         self.status = LogicActionStatus::Activing;
         self.first_frame = ctx.frame;
-        if ctxa.prev_action.is_none() {
+        if args.prev_action.is_none() {
             self.fade_in_weight = 1.0;
         }
         Ok(())
@@ -736,28 +717,41 @@ impl LogicActionBase {
 // ContextAction
 //
 
-pub struct ContextAction<'a, 'b> {
-    pub player_id: NumID,
-    pub chara_physics: &'a LogicCharaPhysics,
-    pub prev_action: Option<&'b dyn LogicActionAny>,
-    pub input_vars: InputVariables,
-    pub time_speed: f32,
-    pub time_step: f32,
+pub struct ContextAction<'a> {
+    pub(crate) chara_id: NumID,
+    pub(crate) chara_physics: &'a LogicCharaPhysics,
+    pub(crate) input_vars: InputVariables,
+    pub(crate) time_speed: f32,
+    pub(crate) time_step: f32,
+    pub(crate) frac_1_time_step: f32,
 }
 
-impl<'a, 'b> ContextAction<'a, 'b> {
-    pub(crate) fn new(
-        player_id: NumID,
+impl<'a> ContextAction<'a> {
+    pub(crate) fn new_normalized(
+        chara_id: NumID,
         chara_physics: &'a LogicCharaPhysics,
         input_vars: InputVariables,
-    ) -> ContextAction<'a, 'b> {
+        mut time_speed: f32,
+    ) -> ContextAction<'a> {
+        let time_step;
+        let frac_1_time_step;
+        if abs_diff_eq!(time_speed, 0.0, epsilon = 1e-4) {
+            time_speed = 0.0;
+            time_step = 0.0;
+            frac_1_time_step = 0.0;
+        }
+        else {
+            time_step = SPF * time_speed;
+            frac_1_time_step = 1.0 / time_step;
+        }
+
         ContextAction {
-            player_id,
+            chara_id,
             chara_physics,
-            prev_action: None,
-            time_speed: 1.0,
-            time_step: SPF,
             input_vars,
+            time_speed,
+            time_step,
+            frac_1_time_step,
         }
     }
 }
