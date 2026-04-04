@@ -8,7 +8,7 @@ use crate::logic::action::base::{
     StateActionBase,
 };
 use crate::logic::game::ContextUpdate;
-use crate::utils::{extend, ActionType, NumID, XResult};
+use crate::utils::{extend, ActionType, XResult};
 
 #[repr(C)]
 #[derive(
@@ -43,11 +43,11 @@ extend!(LogicActionEmpty, LogicActionBase);
 impl LogicActionEmpty {
     pub fn new(ctx: &mut ContextUpdate, inst: Rc<InstActionEmpty>) -> LogicActionEmpty {
         LogicActionEmpty {
-            _base: LogicActionBase::new(ctx.gene.gen_num_id(), inst),
+            _base: LogicActionBase::new(ctx.gene.gen_action_id(), inst),
         }
     }
 
-    pub fn new_with_id(id: NumID, inst: Rc<InstActionEmpty>) -> LogicActionEmpty {
+    pub fn new_with_id(id: u32, inst: Rc<InstActionEmpty>) -> LogicActionEmpty {
         LogicActionEmpty {
             _base: LogicActionBase::new(id, inst),
         }

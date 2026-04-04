@@ -11,12 +11,11 @@ use crate::animation::RootTrackName;
 use crate::consts::{CFG_SPF, MAX_ACTION_ANIMATION};
 use crate::instance::{InstActionMove, InstAnimation};
 use crate::logic::action::base::{
-    impl_state_action, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
-    StateActionAnimation, StateActionAny, StateActionBase,
+    impl_state_action, ActionStartArgs, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny,
+    LogicActionBase, StateActionAnimation, StateActionAny, StateActionBase,
 };
-use crate::logic::action::root_motion::LogicMultiRootMotion;
+use crate::logic::action::root_motion::{LogicMultiRootMotion, StateMultiRootMotion};
 use crate::logic::game::ContextUpdate;
-use crate::logic::StateMultiRootMotion;
 use crate::utils::{
     calc_fade_in, extend, ifelse, lerp, loose_ge, loose_le, ratio_warpping, s2ff_round, strict_gt, xres, xresf,
     ActionType, Castable, XResult,
@@ -125,7 +124,7 @@ impl LogicActionMove {
             _base: LogicActionBase {
                 derive_level: inst_act.derive_level,
                 poise_level: inst_act.poise_level,
-                ..LogicActionBase::new(ctx.gene.gen_num_id(), inst_act.clone())
+                ..LogicActionBase::new(ctx.gene.gen_action_id(), inst_act.clone())
             },
             inst: inst_act.clone(),
             speed_ratio,
@@ -210,11 +209,16 @@ unsafe impl LogicActionAny for LogicActionMove {
         state
     }
 
-    fn start(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionStartReturn> {
-        self._base.start(ctx, ctxa)?;
+    fn start(
+        &mut self,
+        ctx: &mut ContextUpdate,
+        ctxa: &mut ContextAction,
+        args: &ActionStartArgs,
+    ) -> XResult<ActionStartReturn> {
+        self._base.start(ctx, ctxa, args)?;
 
         let mut ret = ActionStartReturn::new();
-        if self.try_enter_smooth(ctxa)? {
+        if self.try_enter_smooth(ctxa, args)? {
             ret.prev_fade_update = true;
         }
         else {
@@ -373,7 +377,7 @@ impl LogicActionMove {
             self.fade_in_weight = start.anim.fade_in_weight(0.0, ctxa.time_step);
         }
         else {
-            log::warn!("Angle: {}", angle);
+            // log::warn!("Angle: {}", angle);
             self.mode = ActionMoveMode::StartNoAnim;
 
             self.current_time = 0.0;
@@ -405,7 +409,7 @@ impl LogicActionMove {
         self.handle_fade_in(&start.anim, ctxa.time_step);
 
         self.root_motion.update(start.anim.ratio_saturating(adjusted_time))?;
-        let speed = self.root_motion.position_delta().xz().length() / ctxa.time_step * self.speed_ratio;
+        let speed = self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.speed_ratio;
         res.set_dir_speed(chara_dir, speed); // Setup default values
 
         'X: {
@@ -509,7 +513,7 @@ impl LogicActionMove {
 
         self.root_motion
             .update(self.inst.anim_move.ratio_unsafe(adjusted_time))?;
-        let speed = self.root_motion.position_delta().xz().length() / ctxa.time_step * self.speed_ratio;
+        let speed = self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.speed_ratio;
         res.set_dir_speed(chara_dir, speed); // Setup default values
 
         'X: {
@@ -620,7 +624,7 @@ impl LogicActionMove {
         self.handle_fade_in(&stop.anim, ctxa.time_step);
 
         self.root_motion.update(stop.anim.ratio_saturating(adjusted_time))?;
-        let speed: f32 = self.root_motion.position_delta().xz().length() / ctxa.time_step * self.speed_ratio;
+        let speed: f32 = self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.speed_ratio;
         res.set_dir_speed(chara_dir, speed);
 
         if loose_ge!(adjusted_time, stop.anim.duration) {
@@ -653,8 +657,8 @@ impl LogicActionMove {
         }
     }
 
-    fn try_enter_smooth(&mut self, ctxa: &mut ContextAction) -> XResult<bool> {
-        let Some(prev_act) = ctxa.prev_action
+    fn try_enter_smooth(&mut self, ctxa: &mut ContextAction, args: &ActionStartArgs) -> XResult<bool> {
+        let Some(prev_act) = args.prev_action
         else {
             return Ok(false);
         };
@@ -671,7 +675,8 @@ impl LogicActionMove {
                 self.anim_offset_time = self.inst.anim_move.duration * prev_ratio;
                 self.local_fade_in_weight = 1.0;
 
-                self.smooth_move_start_speed = prev_mov.root_motion.position_delta().xz().length() / ctxa.time_step;
+                self.smooth_move_start_speed =
+                    prev_mov.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step;
                 self.root_motion
                     .set_local_id(self.inst.anim_move.local_id, prev_ratio)?;
 
@@ -697,7 +702,8 @@ impl LogicActionMove {
                         start.turn_in_place_end + prev_x_ratio * (start.anim.duration - prev_start.turn_in_place_end);
                     self.local_fade_in_weight = 1.0;
 
-                    self.smooth_move_start_speed = prev_mov.root_motion.position_delta().xz().length() / ctxa.time_step;
+                    self.smooth_move_start_speed =
+                        prev_mov.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step;
                     self.root_motion.set_local_id(
                         self.inst.anim_move.local_id,
                         start.anim.ratio_warpping(self.anim_offset_time),
@@ -719,10 +725,10 @@ impl LogicActionMove {
                     prev_adjusted_time,
                     prev_ratio
                 );
-                println!(
-                    "{:?}",
-                    prev_mov.inst.stops[prev_mov.stop_anim_idx as usize].leave_phase_table
-                );
+                // println!(
+                //     "{:?}",
+                //     prev_mov.inst.stops[prev_mov.stop_anim_idx as usize].leave_phase_table
+                // );
                 let Some(prev_ratio) = prev_ratio
                 else {
                     return Ok(false);
@@ -735,7 +741,8 @@ impl LogicActionMove {
                 self.anim_offset_time = self.inst.anim_move.duration * prev_ratio;
                 self.local_fade_in_weight = 1.0;
 
-                self.smooth_move_start_speed = prev_mov.root_motion.position_delta().xz().length() / ctxa.time_step;
+                self.smooth_move_start_speed =
+                    prev_mov.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step;
                 self.root_motion
                     .set_local_id(self.inst.anim_move.local_id, prev_ratio)?;
 
