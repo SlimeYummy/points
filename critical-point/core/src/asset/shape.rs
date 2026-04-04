@@ -286,6 +286,8 @@ pub struct AssetShapeConvexHull {
     pub max_error_convex_radius: f32,
     pub hull_tolerance: f32,
     pub convex_radius: f32,
+    #[serde(default = "default_scale")]
+    pub scale: Vec3A,
     #[serde(default = "default_position")]
     pub position: Vec3A,
     #[serde(default = "default_rotation")]
@@ -302,7 +304,7 @@ impl AssetShapeConvexHull {
             settings.max_error_convex_radius = self.max_error_convex_radius;
         }
         let jolt_shape = jolt::create_convex_hull_shape(&settings).map_err(xfrom!())?;
-        AssetShape::apply_shape_transform(jolt_shape, &Vec3A::ONE, &self.position, &self.rotation)
+        AssetShape::apply_shape_transform(jolt_shape, &self.scale, &self.position, &self.rotation)
     }
 }
 
@@ -312,6 +314,8 @@ impl AssetShapeConvexHull {
 pub struct AssetShapeTriangle {
     pub vertices: [Vec3; 3],
     pub convex_radius: f32,
+    #[serde(default = "default_scale")]
+    pub scale: Vec3A,
     #[serde(default = "default_position")]
     pub position: Vec3A,
     #[serde(default = "default_rotation")]
@@ -320,12 +324,16 @@ pub struct AssetShapeTriangle {
 
 impl AssetShapeTriangle {
     pub fn create_physics(&self) -> XResult<JRef<Shape>> {
-        let mut settings = TriangleShapeSettings::new(self.vertices[0].into(), self.vertices[1].into(), self.vertices[2].into());
+        let mut settings = TriangleShapeSettings::new(
+            self.vertices[0].into(),
+            self.vertices[1].into(),
+            self.vertices[2].into(),
+        );
         if self.convex_radius >= 0.0 {
             settings.convex_radius = self.convex_radius;
         }
         let jolt_shape = jolt::create_triangle_shape(&settings).map_err(xfrom!())?;
-        AssetShape::apply_shape_transform(jolt_shape, &Vec3A::ONE, &self.position, &self.rotation)
+        AssetShape::apply_shape_transform(jolt_shape, &self.scale, &self.position, &self.rotation)
     }
 }
 
@@ -360,6 +368,8 @@ impl AssetShapePlane {
 pub struct AssetShapeMesh {
     pub triangle_vertices: Vec<Vec3>,
     pub indexed_triangles: Vec<IndexedTriangle>,
+    #[serde(default = "default_scale")]
+    pub scale: Vec3A,
     #[serde(default = "default_position")]
     pub position: Vec3A,
     #[serde(default = "default_rotation")]
@@ -370,7 +380,7 @@ impl AssetShapeMesh {
     pub fn create_physics(&self) -> XResult<JRef<Shape>> {
         let settings = MeshShapeSettings::new(&self.triangle_vertices, &self.indexed_triangles);
         let jolt_shape = jolt::create_mesh_shape(&settings).map_err(xfrom!())?;
-        AssetShape::apply_shape_transform(jolt_shape, &Vec3A::ONE, &self.position, &self.rotation)
+        AssetShape::apply_shape_transform(jolt_shape, &self.scale, &self.position, &self.rotation)
     }
 }
 
@@ -379,6 +389,8 @@ impl AssetShapeMesh {
 )]
 pub struct AssetShapeMeshFile {
     pub file: Symbol,
+    #[serde(default = "default_scale")]
+    pub scale: Vec3A,
     #[serde(default = "default_position")]
     pub position: Vec3A,
     #[serde(default = "default_rotation")]
@@ -399,6 +411,8 @@ pub struct AssetShapeHeightField {
     pub min_height: f32,
     pub max_height: f32,
     pub heights: Vec<f32>,
+    #[serde(default = "default_scale")]
+    pub scale: Vec3A,
     #[serde(default = "default_position")]
     pub position: Vec3A,
     #[serde(default = "default_rotation")]
@@ -411,7 +425,7 @@ impl AssetShapeHeightField {
         settings.min_height_value = self.min_height;
         settings.max_height_value = self.max_height;
         let jolt_shape = jolt::create_height_field_shape(&settings).map_err(xfrom!())?;
-        AssetShape::apply_shape_transform(jolt_shape, &Vec3A::ONE, &self.position, &self.rotation)
+        AssetShape::apply_shape_transform(jolt_shape, &self.scale, &self.position, &self.rotation)
     }
 }
 
@@ -423,6 +437,8 @@ pub struct AssetShapeHeightFieldFile {
     pub sample_count: u32,
     pub min_height: f32,
     pub max_height: f32,
+    #[serde(default = "default_scale")]
+    pub scale: Vec3A,
     #[serde(default = "default_position")]
     pub position: Vec3A,
     #[serde(default = "default_rotation")]

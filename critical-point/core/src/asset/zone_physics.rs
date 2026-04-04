@@ -1,14 +1,15 @@
 use glam::{Quat, Vec3A};
 use jolt_physics_rs::{self as jolt, JRef, Shape, StaticCompoundShapeSettings, SubShapeSettings};
 
-use crate::asset::AssetIndxedCompoundShape;
 use crate::asset::loader::AssetLoader;
 use crate::asset::shape::AssetShape;
-use crate::utils::{default_position, default_rotation, xerrf, XResult, xfrom};
+use crate::asset::AssetIndxedCompoundShape;
+use crate::utils::{default_position, default_rotation, xerrf, xfrom, XResult};
 
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize)]
 pub struct AssetZonePhysics {
     shapes: Vec<AssetShape>,
+    #[serde(default)]
     compound_shapes: Vec<AssetIndxedCompoundShape>,
     bodies: Vec<AssetZoneBody>,
 }
@@ -49,7 +50,11 @@ impl AssetLoader {
                 let jolt_shape = jolt_shapes
                     .get(sub_shape.shape_index as usize)
                     .ok_or_else(|| xerrf!(BadAsset; "file={}, shape_index={}", file, sub_shape.shape_index))?;
-                buf.push(SubShapeSettings::new(jolt_shape.clone(), sub_shape.position, sub_shape.rotation));
+                buf.push(SubShapeSettings::new(
+                    jolt_shape.clone(),
+                    sub_shape.position,
+                    sub_shape.rotation,
+                ));
             }
             if !buf.is_empty() {
                 let settings = StaticCompoundShapeSettings::new(&buf);
