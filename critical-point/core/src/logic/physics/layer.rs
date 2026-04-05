@@ -26,6 +26,9 @@ impl BroadPhaseLayerInterface for PhyBroadPhaseLayerInterface {
     }
 }
 
+/**
+ * **Important**: team indicates which team the layer interacts with, **Not** which team the layer belongs to.
+ */
 #[macro_export]
 macro_rules! phy_layer {
     ($typ:ident, $team:ident) => {
@@ -36,7 +39,7 @@ macro_rules! phy_layer {
             (crate::logic::PhyLayerType::$typ as u32) | (crate::logic::PhyLayerTeam::$team1 as u32) << 8
         }
         else {
-            (crate::logic::PhyLayerType::$typ as u32) | (crate::logic::PhyLayerTeam::$team1 as u32) << 8
+            (crate::logic::PhyLayerType::$typ as u32) | (crate::logic::PhyLayerTeam::$team2 as u32) << 8
         }
     };
 }
@@ -53,6 +56,9 @@ pub fn extract_layer_team(layer: ObjectLayer) -> u32 {
     (layer >> PHY_LAYER_TEAM_OFFSET) as u32
 }
 
+/**
+ * **Important**: PhyLayerTeam indicates which PhyLayerTeam the layer interacts with, **Not** which PhyLayerTeam the layer belongs to.
+ */
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PhyLayerTeam {
     Player = 0x1,
@@ -97,7 +103,7 @@ impl PhyLayerType {
             // DynamicTrigger
             BOUNDING,
             // Bounding
-            STATIC_SCENERY | DYNAMIC_SCENERY | BREAKABLE_SCENERY | STATIC_TRIGGER | DYNAMIC_TRIGGER,
+            STATIC_SCENERY | DYNAMIC_SCENERY | BREAKABLE_SCENERY | STATIC_TRIGGER | DYNAMIC_TRIGGER | BOUNDING,
             // Target
             HIT | HIT_EX,
             // Hit
@@ -232,5 +238,6 @@ mod tests {
         assert_eq!(itf.should_collide(phy_layer!(Bounding, Enemy), phy_layer!(Hit, Enemy)), false);
         assert_eq!(itf.should_collide(phy_layer!(Bounding, Enemy), phy_layer!(HitEx, Enemy)), false);
         assert_eq!(itf.should_collide(phy_layer!(Bounding, Enemy), phy_layer!(Target, Enemy)), false);
+        assert_eq!(itf.should_collide(phy_layer!(Bounding, All), phy_layer!(Bounding, All)), true);
     }
 }
