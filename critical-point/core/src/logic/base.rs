@@ -397,7 +397,7 @@ macro_rules! impl_state {
             impl $crate::logic::ArchivedStateAny for [<Archived $typ>] {
                 #[inline]
                 fn id(&self) -> crate::utils::NumID {
-                    crate::utils::NumID::from_rkyv(self._base.id)
+                    self._base.id
                 }
 
                 #[inline]
@@ -422,14 +422,19 @@ mod tests {
     use super::*;
     use crate::animation::AnimationFileMeta;
     use crate::logic::action::DeriveKeeping;
-    use crate::logic::character::{StateCharaAction, StateCharaPhysics, StateCharacterInit, StateCharacterUpdate};
+    use crate::logic::character::{
+        StateCharaAction, StateCharaHit, StateCharaHitBoxPair, StateCharaHitGroupPair, StateCharaPhysics,
+        StateCharaValue, StateCharacterInit, StateCharacterUpdate,
+    };
     use crate::logic::game::{StateGameInit, StateGameUpdate};
     use crate::logic::system::generation::StateGeneration;
     use crate::logic::zone::{StateZoneInit, StateZoneUpdate};
-    use crate::utils::{sb, Castable};
+    use crate::logic::HitCharacterEvent;
+    use crate::utils::{sb, smallvec, Castable};
     use anyhow::Result;
     use glam::Vec3A;
     use glam_ext::Vec2xz;
+    use jolt_physics_rs::BodyID;
 
     fn test_rkyv(state: Box<dyn StateAny>, typ: StateType, logic_typ: LogicType) -> Result<Box<dyn StateAny>> {
         use rkyv::rancor::Failure;
@@ -466,9 +471,16 @@ mod tests {
                 _base: StateBase::new(NumID(456), StateType::GameUpdate, LogicType::Game),
                 frame: 90,
                 gene: StateGeneration {
-                    player: NumID::MAX_PLAYER,
-                    auto_gen: NumID::MIN_AUTO_GEN,
+                    player_id: NumID::MAX_PLAYER,
+                    auto_gen_id: NumID::MIN_AUTO_GEN,
+                    action_id: 0,
                 },
+                hit_events: vec![HitCharacterEvent {
+                    src_chara_id: NumID(100),
+                    dst_chara_id: NumID(101),
+                    group: sb!("group-name"),
+                    ..Default::default()
+                }],
             }),
             StateType::GameUpdate,
             LogicType::Game,
@@ -476,12 +488,22 @@ mod tests {
         .unwrap();
         assert_eq!(state_game_update.id(), 456);
         let state_game_update = state_game_update.cast::<StateGameUpdate>().unwrap();
-        assert_eq!(state_game_update.id, 456);
-        assert_eq!(state_game_update.frame, 90);
-        assert_eq!(state_game_update.gene.player, NumID::MAX_PLAYER);
-        assert_eq!(state_game_update.gene.auto_gen, NumID::MIN_AUTO_GEN);
         assert_eq!(state_game_update.typ, StateType::GameUpdate);
         assert_eq!(state_game_update.logic_typ, LogicType::Game);
+        assert_eq!(state_game_update.id, 456);
+        assert_eq!(state_game_update.frame, 90);
+
+        assert_eq!(state_game_update.gene.player_id, NumID::MAX_PLAYER);
+        assert_eq!(state_game_update.gene.auto_gen_id, NumID::MIN_AUTO_GEN);
+        assert_eq!(state_game_update.gene.action_id, 0);
+
+        assert_eq!(state_game_update.hit_events.len(), 1);
+        assert_eq!(state_game_update.hit_events[0], HitCharacterEvent {
+            src_chara_id: NumID(100),
+            dst_chara_id: NumID(101),
+            group: sb!("group-name"),
+            ..Default::default()
+        });
     }
 
     #[test]
@@ -518,11 +540,12 @@ mod tests {
     }
 
     #[test]
-    fn test_rkyv_state_player() {
+    fn test_rkyv_state_character() {
         let state_player_new = test_rkyv(
             Box::new(StateCharacterInit {
                 _base: StateBase::new(NumID(1110), StateType::CharacterInit, LogicType::Character),
-                skeleton_file: sb!("skeleton_file.ozz"),
+                is_player: true,
+                skeleton_files: sb!("skeleton_file.ozz"),
                 animation_metas: vec![
                     AnimationFileMeta::new(sb!("animation_file_1.ozz"), false, false),
                     AnimationFileMeta::new(sb!("animation_file_2.ozz"), true, true),
@@ -540,7 +563,8 @@ mod tests {
         assert_eq!(state_player_new.id, 1110);
         assert_eq!(state_player_new.typ, StateType::CharacterInit);
         assert_eq!(state_player_new.logic_typ, LogicType::Character);
-        assert_eq!(state_player_new.skeleton_file, "skeleton_file.ozz");
+        assert_eq!(state_player_new.is_player, true);
+        assert_eq!(state_player_new.skeleton_files, "skeleton_file.ozz");
         assert_eq!(state_player_new.animation_metas, vec![
             AnimationFileMeta::new(sb!("animation_file_1.ozz"), false, false),
             AnimationFileMeta::new(sb!("animation_file_2.ozz"), true, true),
@@ -558,7 +582,24 @@ mod tests {
                 action: StateCharaAction {
                     event_cursor_id: 100,
                     derive_keeping: DeriveKeeping::default(),
+                    action_changed: false,
+                    animation_changed: true,
                 },
+                hit: StateCharaHit {
+                    body_ids: smallvec![BodyID(22)],
+                    box_pairs: smallvec![StateCharaHitBoxPair {
+                        box_index: 10,
+                        dst_chara_id: NumID(101),
+                        last_hit_time: 1.5,
+                        hit_times: 2,
+                    }],
+                    group_pairs: smallvec![StateCharaHitGroupPair {
+                        group: sb!("hit_group_1"),
+                        dst_chara_id: NumID(101),
+                        hit_times: 3,
+                    }],
+                },
+                value: StateCharaValue::default(),
                 actions: Vec::new(),
                 custom_events: Vec::new(),
             }),
@@ -566,6 +607,7 @@ mod tests {
             LogicType::Character,
         )
         .unwrap();
+
         assert_eq!(state_player_update.id(), 2220);
         let state_player_update = state_player_update.cast::<StateCharacterUpdate>().unwrap();
         assert_eq!(state_player_update.id, 2220);
@@ -574,6 +616,27 @@ mod tests {
         assert_eq!(state_player_update.physics.velocity, Vec3A::ONE);
         assert_eq!(state_player_update.physics.position, Vec3A::new(1.0, 2.0, 3.0));
         assert_eq!(state_player_update.physics.direction, Vec2xz::X);
+        assert_eq!(state_player_update.action, StateCharaAction {
+            event_cursor_id: 100,
+            derive_keeping: DeriveKeeping::default(),
+            action_changed: false,
+            animation_changed: true,
+        });
+        assert_eq!(state_player_update.hit.body_ids.as_slice(), &[BodyID(22)]);
+        assert_eq!(state_player_update.hit.box_pairs.as_slice(), &[StateCharaHitBoxPair {
+            box_index: 10,
+            dst_chara_id: NumID(101),
+            last_hit_time: 1.5,
+            hit_times: 2,
+        }]);
+        assert_eq!(state_player_update.hit.group_pairs.as_slice(), &[
+            StateCharaHitGroupPair {
+                group: sb!("hit_group_1"),
+                dst_chara_id: NumID(101),
+                hit_times: 3,
+            }
+        ]);
+        assert_eq!(state_player_update.value, StateCharaValue::default());
         assert_eq!(state_player_update.actions.len(), 0);
     }
 }
