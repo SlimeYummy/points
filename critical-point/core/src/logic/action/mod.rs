@@ -1,6 +1,7 @@
 mod base;
 mod empty;
 mod general;
+mod hit;
 mod idle;
 mod r#move;
 mod root_motion;
@@ -10,6 +11,7 @@ mod test_utils;
 pub use base::*;
 pub use empty::*;
 pub use general::*;
+pub use hit::*;
 pub use idle::*;
 pub use r#move::*;
 pub use root_motion::*;
@@ -42,6 +44,10 @@ pub(crate) fn new_logic_action(
         General => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
             Box::new(LogicActionGeneral::new(ctx, inst_act)?)
+        }
+        Hit => {
+            let inst_act = unsafe { inst_act.cast_unchecked() };
+            Box::new(LogicActionHit::new(ctx, inst_act)?)
         }
         _ => return xres!(BadType),
     };
@@ -81,6 +87,13 @@ pub(crate) fn try_reuse_logic_action(
             if let Ok(logic_act) = logic_act.cast::<LogicActionGeneral>() {
                 let inst_act = unsafe { inst_act.cast_unchecked() };
                 *logic_act = LogicActionGeneral::new(ctx, inst_act)?;
+                return Ok(true);
+            }
+        }
+        Hit => {
+            if let Ok(logic_act) = logic_act.cast::<LogicActionHit>() {
+                let inst_act = unsafe { inst_act.cast_unchecked() };
+                *logic_act = LogicActionHit::new(ctx, inst_act)?;
                 return Ok(true);
             }
         }
