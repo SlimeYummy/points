@@ -9,9 +9,12 @@ use crate::consts::DEFAULT_TOWARD_DIR_2D;
 use crate::instance::InstCharacter;
 use crate::logic::action::StateActionAny;
 use crate::logic::base::{impl_state, LogicAny, LogicType, StateBase, StateType};
-use crate::logic::character::{LogicCharaAction, LogicCharaPhysics, StateCharaPhysics};
-use crate::logic::game::{ContextRestore, ContextUpdate};
-use crate::logic::StateCharaAction;
+use crate::logic::character::{
+    LogicCharaAction, LogicCharaHit, LogicCharaPhysics, LogicCharaValue, StateCharaAction, StateCharaHit,
+    StateCharaPhysics, StateCharaValue,
+};
+use crate::logic::game::{ContextHitGenerate, ContextRestore, ContextUpdate, HitCharacterEvent};
+use crate::logic::physics::PhyHitCharacterEvent;
 use crate::parameter::{ParamNpc, ParamPlayer};
 use crate::template::{TmplNpcCharacter, TmplStyle};
 use crate::utils::{extend, CustomEvent, NumID, Symbol, XResult};
@@ -24,7 +27,8 @@ use crate::utils::{extend, CustomEvent, NumID, Symbol, XResult};
 #[cs_attr(Ref)]
 pub struct StateCharacterInit {
     pub _base: StateBase,
-    pub skeleton_file: Symbol,
+    pub is_player: bool,
+    pub skeleton_files: Symbol,
     pub animation_metas: Vec<AnimationFileMeta>,
     pub view_model: String,
     pub init_position: Vec3A,
@@ -45,6 +49,8 @@ pub struct StateCharacterUpdate {
     pub _base: StateBase,
     pub physics: StateCharaPhysics,
     pub action: StateCharaAction,
+    pub hit: StateCharaHit,
+    pub value: StateCharaValue,
     pub actions: Vec<Box<dyn StateActionAny>>,
     pub custom_events: Vec<CustomEvent>,
 }
@@ -61,6 +67,8 @@ pub struct LogicCharacter {
     inst: Rc<InstCharacter>,
     chara_physics: LogicCharaPhysics,
     chara_action: LogicCharaAction,
+    chara_hit: LogicCharaHit,
+    chara_value: LogicCharaValue,
 }
 
 impl LogicAny for LogicCharacter {
@@ -90,11 +98,11 @@ impl LogicCharacter {
         ctx: &mut ContextUpdate,
         param_player: &ParamPlayer,
     ) -> XResult<(Box<LogicCharacter>, Arc<StateCharacterInit>)> {
-        let inst_player = Rc::new(InstCharacter::new_player(&mut ctx.context_assemble(), param_player)?);
+        let inst_chara = Rc::new(InstCharacter::new_player(&mut ctx.context_assemble(), param_player)?);
         let tmpl_style = ctx.tmpl_db.find_as::<TmplStyle>(param_player.style)?;
         Self::new_impl(
             ctx,
-            inst_player,
+            inst_chara,
             &tmpl_style.view_model,
             param_player.position,
             DEFAULT_TOWARD_DIR_2D,
@@ -123,31 +131,39 @@ impl LogicCharacter {
         init_position: Vec3A,
         init_direction: Vec2xz,
     ) -> XResult<(Box<LogicCharacter>, Arc<StateCharacterInit>)> {
-        let player_id = ctx.gene.gen_player_id()?;
-        let mut player = Box::new(LogicCharacter {
-            id: player_id,
+        let id = if inst_chara.is_player {
+            ctx.gene.gen_player_id()?
+        }
+        else {
+            ctx.gene.gen_num_id()
+        };
+        let mut chara = Box::new(LogicCharacter {
+            id: id,
             spawn_frame: ctx.frame,
             death_frame: u32::MAX,
             inst: inst_chara.clone(),
-            chara_physics: LogicCharaPhysics::new(ctx, player_id, inst_chara.clone(), init_position, init_direction)?,
-            chara_action: LogicCharaAction::new(ctx, player_id, inst_chara.clone())?,
+            chara_physics: LogicCharaPhysics::new(ctx, id, inst_chara.clone(), init_position, init_direction)?,
+            chara_action: LogicCharaAction::new(ctx, id, inst_chara.clone())?,
+            chara_hit: LogicCharaHit::new(ctx, id, inst_chara.clone())?,
+            chara_value: LogicCharaValue::new(ctx, id, inst_chara.clone()),
         });
 
-        let animation_metas = player.chara_action.preload_assets(ctx)?;
+        let animation_metas = chara.chara_action.preload_assets(ctx)?;
         let state_init = Arc::new(StateCharacterInit {
-            _base: StateBase::new(player.id, StateType::CharacterInit, LogicType::Character),
-            skeleton_file: inst_chara.skeleton_files.clone(),
+            _base: StateBase::new(chara.id, StateType::CharacterInit, LogicType::Character),
+            is_player: inst_chara.is_player,
+            skeleton_files: inst_chara.skeleton_files.clone(),
             animation_metas,
             view_model: view_model.to_string(),
             init_position,
             init_direction,
         });
 
-        player
-            .chara_action
-            .update(ctx, &player.chara_physics, inst_chara.clone(), true)?;
-        player.chara_physics.update(ctx, &player.chara_action)?;
-        Ok((player, state_init))
+        chara.chara_action.init(ctx, &chara.chara_physics, &chara.chara_value)?;
+        chara.chara_physics.init(ctx, &chara.chara_action)?;
+        chara.chara_hit.init(ctx)?;
+        chara.chara_value.init(ctx)?;
+        Ok((chara, state_init))
     }
 
     pub fn state(&mut self) -> XResult<Box<StateCharacterUpdate>> {
@@ -156,6 +172,8 @@ impl LogicCharacter {
             _base: StateBase::new(self.id, StateType::CharacterUpdate, LogicType::Character),
             physics: self.chara_physics.state(),
             action,
+            hit: self.chara_hit.state(),
+            value: self.chara_value.state(),
             actions,
             custom_events,
         }))
@@ -165,15 +183,70 @@ impl LogicCharacter {
         let state = ctx.find_as::<StateCharacterUpdate>(self.id)?;
         self.chara_action.restore(ctx, &state.action, &state.actions)?;
         self.chara_physics.restore(ctx, &state.physics)?;
+        self.chara_hit.restore(ctx, &state.hit)?;
+        self.chara_value.restore(ctx, &state.value)?;
         Ok(())
     }
 
-    pub fn update(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
+    #[inline]
+    pub fn update_action(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
         self.chara_action
-            .update(ctx, &self.chara_physics, self.inst.clone(), false)?;
-        self.chara_physics.update(ctx, &self.chara_action)?;
+            .update(ctx, &self.chara_physics, &self.chara_value, &self.chara_hit)
+    }
+
+    #[inline]
+    pub fn update_physics(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
+        self.chara_physics.update(ctx, &self.chara_action)
+    }
+
+    #[inline]
+    pub fn update_hit(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
+        self.chara_hit.update(ctx, &self.chara_action, &self.chara_physics)
+    }
+
+    #[inline]
+    pub fn update_value(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
+        self.chara_value.update(ctx)
+    }
+
+    #[inline]
+    pub fn update_clean_up(&mut self) {
+        self.chara_hit.clear_events();
+    }
+
+    pub(crate) fn before_hit(
+        &mut self,
+        dst_chara: &mut LogicCharacter,
+        ctx: &mut ContextHitGenerate<HitCharacterEvent>,
+        phy_event: &PhyHitCharacterEvent,
+    ) -> XResult<()> {
+        let event_count = self.chara_hit.detect_hits(
+            &mut dst_chara.chara_hit,
+            ctx,
+            &self.chara_action,
+            &self.chara_physics,
+            &dst_chara.chara_physics,
+            phy_event,
+        )?;
+        if event_count == 0 {
+            return Ok(());
+        }
+
+        for count in (1..=event_count).rev() {
+            let idx = ctx.events.len() - count;
+
+            debug_assert_eq!(ctx.events[idx].src_chara_id, phy_event.src_chara_id);
+            debug_assert_eq!(ctx.events[idx].dst_chara_id, phy_event.dst_chara_id);
+
+            self.chara_value
+                .before_hit(&mut dst_chara.chara_value, &mut ctx.context_update(idx), phy_event)?;
+        }
         Ok(())
     }
+
+    pub fn on_hit(&self) {}
+
+    pub fn after_hit(&self) {}
 }
 
 #[cfg(test)]
@@ -205,7 +278,7 @@ mod tests {
         assert_eq!(logic_player.inst.tmpl_style, id!("Style.Instance^1A"));
 
         assert_eq!(state_init.id, 100);
-        assert_eq!(state_init.skeleton_file, "Girl.*");
+        assert_eq!(state_init.skeleton_files, "Girl.*");
         assert_eq!(state_init.animation_metas.len(), 4);
         let excepted_files = [
             sb!("Girl_Idle_Empty"),
@@ -228,7 +301,11 @@ mod tests {
     fn test_logic_player_update() {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_player, _) = prepare_player(&mut tenv);
-        logic_player.update(&mut tenv.context_update()).unwrap();
+        logic_player.update_hit(&mut tenv.context_update()).unwrap();
+        logic_player.update_value(&mut tenv.context_update()).unwrap();
+        logic_player.update_action(&mut tenv.context_update()).unwrap();
+        logic_player.update_physics(&mut tenv.context_update()).unwrap();
+        logic_player.update_clean_up();
         let state_update = logic_player.state().unwrap();
         assert_eq!(state_update.id, 100);
         assert_eq!(state_update.actions.len(), 1);
