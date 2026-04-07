@@ -1,6 +1,5 @@
 use critical_point_csgen::CsOut;
 use jolt_physics_rs::{self, PhysicsSystem};
-use log::info;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -35,7 +34,7 @@ impl Drop for LogicEngine {
 
 impl LogicEngine {
     pub fn initialize<TP: AsRef<Path>, AP: AsRef<Path>>(tmpl_path: TP, asset_path: AP) -> XResult<()> {
-        info!(
+        log::info!(
             "LogicEngine::initialize() tmpl_path={:?} asset_path={:?}",
             tmpl_path.as_ref(),
             asset_path.as_ref()
@@ -52,12 +51,12 @@ impl LogicEngine {
 
         jolt_physics_rs::global_initialize();
 
-        info!("LogicEngine::initialize() OK");
+        log::info!("LogicEngine::initialize() OK");
         Ok(())
     }
 
     pub fn new() -> XResult<LogicEngine> {
-        info!("LogicEngine::new()");
+        log::info!("LogicEngine::new()");
 
         let engine = LogicEngine {
             tmpl_database: TmplDatabase::new(1024 * 1024, 60)?,
@@ -65,7 +64,7 @@ impl LogicEngine {
             logic_loop: None,
         };
 
-        info!("LogicEngine::new() OK");
+        log::info!("LogicEngine::new() OK");
         Ok(engine)
     }
 
@@ -120,10 +119,17 @@ impl LogicEngine {
     }
 
     pub fn start_game(&mut self, param: ParamGame, save_path: Option<PathBuf>) -> XResult<Arc<StateSet>> {
-        info!("LogicEngine::new() param={:?} save_path={:?}", &param, &save_path);
+        log::info!("LogicEngine::new() param={:?} save_path={:?}", &param, &save_path);
 
         if self.logic_loop.is_some() {
             return xres!(Unexpected; "game already running");
+        }
+
+        for p in &param.players {
+            self.verify_player(p)?;
+        }
+        for n in &param.npcs {
+            self.verify_npc(n)?;
         }
 
         let (logic_loop, state_set) = LogicLoop::new(
@@ -137,12 +143,12 @@ impl LogicEngine {
         )?;
         self.logic_loop = Some(logic_loop);
 
-        info!("LogicEngine::start_game() OK");
+        log::info!("LogicEngine::start_game() OK");
         Ok(state_set)
     }
 
     pub fn update_game(&mut self, player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
-        // info!("player_events {:?}", player_events);
+        // log::info!("player_events {:?}", player_events);
         let logic_loop = self
             .logic_loop
             .as_mut()
@@ -151,7 +157,7 @@ impl LogicEngine {
     }
 
     pub fn stop_game(&mut self) -> XResult<()> {
-        info!("LogicEngine::stop_game()");
+        log::info!("LogicEngine::stop_game()");
 
         let logic_loop = self
             .logic_loop
@@ -160,7 +166,7 @@ impl LogicEngine {
         logic_loop.stop()?;
         self.logic_loop = None;
 
-        info!("LogicEngine::stop_game() OK");
+        log::info!("LogicEngine::stop_game() OK");
         Ok(())
     }
 }
