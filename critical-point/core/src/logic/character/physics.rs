@@ -2,26 +2,27 @@ use approx::{abs_diff_eq, abs_diff_ne, assert_abs_diff_eq};
 use core::f32;
 use critical_point_csgen::CsOut;
 use educe::Educe;
-use glam::{Quat, Vec3A, Vec3Swizzles};
+use glam::{Quat, Vec3, Vec3A, Vec3Swizzles};
 use glam_ext::{Isometry3A, Transform3A, Vec2xz};
 use jolt_physics_rs::{
-    self as jolt, vdata, Body, BodyCreationSettings, BodyID, BodyInterface, CharacterContactListener,
-    CharacterContactListenerVTable, CharacterContactSettings, CharacterVirtual, CharacterVirtualSettings,
-    ExtendedUpdateSettings, GroundState, JMut, JRef, JVec3, MotionType, MutableCompoundShape,
-    MutableCompoundShapeSettings, PhysicsMaterial, SubShapeID, SubShapeSettings,
+    self as jolt, vdata, Body, BodyCreationSettings, BodyID, BodyInterface, Character, CharacterContactListener,
+    CharacterContactListenerVTable, CharacterContactSettings, CharacterSettings, CharacterVirtual,
+    CharacterVirtualSettings, ExtendedUpdateSettings, GroundState, JMut, JRef, JVec3, MotionType, MutableCompoundShape,
+    MutableCompoundShapeSettings, PhysicsMaterial, Plane, SubShapeID, SubShapeSettings,
 };
 use ozz_animation_rs::SKELETON_NO_PARENT;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use crate::animation::{rest_poses_to_model_transforms, HitSampler, HitTrackBase};
+use crate::animation::rest_poses_to_model_transforms;
 use crate::consts::SPF;
 use crate::instance::InstCharacter;
 use crate::logic::character::LogicCharaAction;
 use crate::logic::game::{ContextRestore, ContextUpdate};
-use crate::logic::physics::phy_layer;
-use crate::logic::{LogicActionAnimationID, PhyBodyUserData};
+use crate::logic::physics::{phy_layer, PhyBodyUserData};
 use crate::utils::{quat_from_dir_xz, xerrf, xfrom, NumID, Symbol, XResult};
+
+const CHARACTER_RADIUS_STANDING: f32 = -0.3;
 
 #[repr(C)]
 #[derive(
@@ -36,6 +37,7 @@ use crate::utils::{quat_from_dir_xz, xerrf, xfrom, NumID, Symbol, XResult};
     CsOut,
 )]
 #[rkyv(derive(Debug))]
+#[cs_attr(Value)]
 pub struct StateCharaPhysics {
     pub velocity: Vec3A,
     pub position: Vec3A,
@@ -54,16 +56,25 @@ pub(crate) struct LogicCharaPhysics {
     idle: Cell<bool>,
 
     #[educe(Debug(ignore))]
-    character: JMut<CharacterVirtual<CharacterContactListenerImpl>>,
+    character: CharacterHandle,
     target_body: BodyID,
     #[educe(Debug(ignore))]
     target_shape: JMut<MutableCompoundShape>,
     joint_bindings: Vec<JointBinding>,
 
-    hit_current_id: LogicActionAnimationID,
-    hit_bodies: Vec<BodyID>,
-
     cache_isometries: Vec<Isometry3A>,
+}
+
+enum CharacterHandle {
+    Npc(JMut<Character>),
+    Player(JMut<CharacterVirtual<CharacterContactListenerImpl>>),
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct CharacterLocation {
+    pub position: Vec3A,
+    pub rotation: Quat,
+    pub velocity: Vec3A,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -104,11 +115,19 @@ impl LogicCharaPhysics {
             target_shape,
             joint_bindings,
 
-            hit_current_id: LogicActionAnimationID::INVALID,
-            hit_bodies: Vec::with_capacity(16),
-
             cache_isometries: Vec::with_capacity(target_bindings_len),
         })
+    }
+
+    pub(crate) fn init(&mut self, ctx: &mut ContextUpdate, action: &LogicCharaAction) -> XResult<()> {
+        self.update(ctx, action)
+    }
+
+    pub(crate) fn update(&mut self, ctx: &mut ContextUpdate, action: &LogicCharaAction) -> XResult<()> {
+        self.cache_isometries.clear();
+        self.update_bounding(ctx, action)?;
+        self.update_bodies(ctx, action)?;
+        Ok(())
     }
 
     pub(crate) fn state(&self) -> StateCharaPhysics {
@@ -132,22 +151,133 @@ impl LogicCharaPhysics {
         inst_chara: &InstCharacter,
         position: Vec3A,
         rotation: Quat,
-    ) -> XResult<JMut<CharacterVirtual<CharacterContactListenerImpl>>> {
+    ) -> XResult<CharacterHandle> {
         let charc_phy = ctx.asset.load_character_physics(inst_chara.skeleton_files)?;
 
-        let mut character = CharacterVirtual::new(
-            &mut ctx.physics,
-            &CharacterVirtualSettings::new(charc_phy.bounding),
-            position.into(),
-            rotation,
+        if inst_chara.is_player {
+            // Use VirtualCharacter for player
+
+            let mut settings = CharacterVirtualSettings::new(charc_phy.bounding);
+            settings.max_slope_angle = 45f32.to_radians();
+            settings.supporting_volume = Plane::new(Vec3::Y, CHARACTER_RADIUS_STANDING);
+
+            let mut character = CharacterVirtual::new(
+                &mut ctx.physics,
+                &settings,
+                position,
+                rotation,
+            );
+            character.set_listener(Some(CharacterContactListenerImpl::new_vbox(
+                CharacterContactListenerImpl {
+                    allow_sliding: false,
+                    body_itf: unsafe { ctx.physics.steal_body_itf() },
+                },
+            )));
+            Ok(CharacterHandle::Player(character))
+        }
+        else {
+            // Use Character for NPC
+
+            let mut settings = CharacterSettings::new(charc_phy.bounding, phy_layer!(Bounding, All));
+            settings.max_slope_angle = 45f32.to_radians();
+            settings.friction = 0.5;
+            settings.supporting_volume = Plane::new(Vec3::Y, CHARACTER_RADIUS_STANDING);
+
+            let character = Character::new_add(&mut ctx.physics, &settings, position, rotation, 0, true, false);
+            Ok(CharacterHandle::Npc(character))
+        }
+    }
+
+    fn update_bounding(&mut self, ctx: &mut ContextUpdate, action: &LogicCharaAction) -> XResult<()> {
+        let location = match &mut self.character {
+            CharacterHandle::Player(character) => Self::update_player_character(character, ctx, action)?,
+            CharacterHandle::Npc(character) => Self::update_npc_character(character, ctx, action)?,
+        };
+        
+        ctx.physics
+            .body_itf()
+            .set_position(self.target_body, location.position, true);
+
+        self.velocity = location.velocity;
+
+        self.position = location.position;
+        assert_abs_diff_eq!(location.rotation.x, 0.0, epsilon = 0.01);
+        assert_abs_diff_eq!(location.rotation.z, 0.0, epsilon = 0.01);
+
+        self.direction = action.new_direction();
+        self.rotation = quat_from_dir_xz(self.direction);
+        self.idle.set(true);
+        Ok(())
+    }
+
+    fn update_player_character(
+        character: &mut JMut<CharacterVirtual<CharacterContactListenerImpl>>,
+        ctx: &mut ContextUpdate,
+        action: &LogicCharaAction,
+    ) -> XResult<CharacterLocation> {
+        let new_rotation = quat_from_dir_xz(action.new_direction());
+        if new_rotation != character.get_rotation() {
+            character.set_rotation(new_rotation);
+        }
+        character.get_listener_mut().unwrap().allow_sliding = abs_diff_ne!(action.new_velocity(), Vec3A::ZERO);
+
+        character.update_ground_velocity();
+
+        let gravity: Vec3A = ctx.physics.get_gravity();
+        let linear_velocity: Vec3A = character.get_linear_velocity();
+        let ground_velocity: Vec3A = character.get_ground_velocity();
+        let moving_towards_ground = (linear_velocity.y - ground_velocity.y) < 0.1;
+
+        if abs_diff_eq!(action.new_velocity().y, 0.0) {
+            let mut new_velocity;
+            if character.get_ground_state() == GroundState::OnGround && moving_towards_ground {
+                new_velocity = ground_velocity;
+            }
+            else {
+                new_velocity = Vec3A::new(0.0, linear_velocity.y, 0.0);
+            }
+
+            new_velocity += gravity * SPF; // Gravity
+
+            if character.is_supported() {
+                new_velocity += action.new_velocity();
+            }
+            else {
+                let horizontal_velocity = linear_velocity - Vec3A::new(0.0, linear_velocity.y, 0.0);
+                new_velocity += horizontal_velocity;
+            }
+            character.set_linear_velocity(new_velocity);
+        }
+        else {
+            character.set_linear_velocity(action.new_velocity());
+        }
+
+        character.extended_update(
+            phy_layer!(Bounding, Player),
+            SPF,
+            gravity.into(),
+            &ExtendedUpdateSettings::default(),
         );
-        character.set_listener(Some(CharacterContactListenerImpl::new_vbox(
-            CharacterContactListenerImpl {
-                allow_sliding: false,
-                body_itf: unsafe { ctx.physics.steal_body_itf() },
-            },
-        )));
-        Ok(character)
+
+        Ok(CharacterLocation {
+            position: character.get_position(),
+            rotation: character.get_rotation(),
+            velocity: character.get_linear_velocity(),
+        })
+    }
+
+    fn update_npc_character(
+        character: &mut JMut<Character>,
+        ctx: &mut ContextUpdate,
+        action: &LogicCharaAction,
+    ) -> XResult<CharacterLocation> {
+        character.set_linear_velocity(action.new_velocity(), false);
+
+        Ok(CharacterLocation {
+            position: character.get_position(false),
+            rotation: character.get_rotation(false),
+            velocity: character.get_linear_velocity(false),
+        })
     }
 
     fn init_bodies(
@@ -223,74 +353,6 @@ impl LogicCharaPhysics {
         Ok((target_body, target_shape, joint_bindings))
     }
 
-    pub(crate) fn update(&mut self, ctx: &mut ContextUpdate, action: &LogicCharaAction) -> XResult<()> {
-        self.cache_isometries.clear();
-        self.update_bounding(ctx, action)?;
-        self.update_bodies(ctx, action)?;
-        self.update_hits(ctx, action)?;
-        Ok(())
-    }
-
-    fn update_bounding(&mut self, ctx: &mut ContextUpdate, action: &LogicCharaAction) -> XResult<()> {
-        let new_rotation = quat_from_dir_xz(action.new_direction());
-        if new_rotation != self.character.get_rotation() {
-            self.character.set_rotation(new_rotation);
-        }
-        self.character.get_listener_mut().unwrap().allow_sliding = abs_diff_ne!(action.new_velocity(), Vec3A::ZERO);
-
-        self.character.update_ground_velocity();
-
-        let gravity: Vec3A = ctx.physics.get_gravity();
-        let linear_velocity: Vec3A = self.character.get_linear_velocity();
-        let ground_velocity: Vec3A = self.character.get_ground_velocity();
-        let moving_towards_ground = (linear_velocity.y - ground_velocity.y) < 0.1;
-
-        if abs_diff_eq!(action.new_velocity().y, 0.0) {
-            let mut new_velocity;
-            if self.character.get_ground_state() == GroundState::OnGround && moving_towards_ground {
-                new_velocity = ground_velocity;
-            }
-            else {
-                new_velocity = Vec3A::new(0.0, linear_velocity.y, 0.0);
-            }
-
-            new_velocity += gravity * SPF; // Gravity
-
-            if self.character.is_supported() {
-                new_velocity += action.new_velocity();
-            }
-            else {
-                let horizontal_velocity = linear_velocity - Vec3A::new(0.0, linear_velocity.y, 0.0);
-                new_velocity += horizontal_velocity;
-            }
-            self.character.set_linear_velocity(new_velocity);
-        }
-        else {
-            self.character.set_linear_velocity(action.new_velocity());
-        }
-
-        self.character.extended_update(
-            phy_layer!(Bounding, self.inst_chara.is_player => Player | Enemy),
-            SPF,
-            gravity.into(),
-            &ExtendedUpdateSettings::default(),
-        );
-
-        ctx.physics
-            .body_itf()
-            .set_position(self.target_body, self.character.get_position(), true);
-
-        self.velocity = self.character.get_linear_velocity();
-        self.position = self.character.get_position();
-
-        assert_abs_diff_eq!(self.character.get_rotation().x, 0.0, epsilon = 0.01);
-        assert_abs_diff_eq!(self.character.get_rotation().z, 0.0, epsilon = 0.01);
-        self.direction = action.new_direction();
-        self.rotation = quat_from_dir_xz(self.direction);
-        self.idle.set(true);
-        Ok(())
-    }
-
     fn update_bodies(&mut self, ctx: &mut ContextUpdate, action: &LogicCharaAction) -> XResult<()> {
         let model_transforms = action.model_transforms();
         for binding in &self.joint_bindings {
@@ -321,91 +383,6 @@ impl LogicCharaPhysics {
             self.rotation * self.inst_chara.skeleton_rotation,
             true,
         );
-        Ok(())
-    }
-
-    fn update_hits(&mut self, ctx: &mut ContextUpdate, action: &LogicCharaAction) -> XResult<()> {
-        let (current_id, sampler) = match action.hit_motion_info() {
-            Some(info) => (info.0, Some(info.1)),
-            None => (LogicActionAnimationID::INVALID, None),
-        };
-
-        let body_itf = ctx.physics.body_itf();
-        if current_id != self.hit_current_id {
-            for body_id in self.hit_bodies.drain(..) {
-                if body_id.is_valid() {
-                    body_itf.remove_body(body_id);
-                    body_itf.destroy_body(body_id);
-                }
-            }
-            self.hit_current_id = current_id;
-
-            if let Some(sampler) = sampler {
-                self.hit_bodies.resize(sampler.tracks_count(), BodyID::INVALID);
-            }
-        }
-
-        if let Some(sampler) = sampler {
-            let mut body_idx = 0;
-            for (track_idx, joint) in sampler.joints().iter().enumerate() {
-                let track = &sampler.hit_motion.joint_tracks[track_idx];
-                debug_assert_eq!(track.hit_id, joint.hit_id);
-                self.update_hit_body(ctx, body_idx, track, joint)?;
-                body_idx += 1;
-            }
-
-            for (track_idx, weapon) in sampler.weapons().iter().enumerate() {
-                let track = &sampler.hit_motion.weapon_tracks[track_idx];
-                debug_assert_eq!(track.hit_id, weapon.hit_id);
-                self.update_hit_body(ctx, body_idx, track, weapon)?;
-                body_idx += 1;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn update_hit_body<S>(
-        &mut self,
-        ctx: &mut ContextUpdate,
-        body_idx: usize,
-        track: &HitTrackBase,
-        sampler: &HitSampler<S>,
-    ) -> XResult<()> {
-        let body_itf = ctx.physics.body_itf();
-
-        if let Some(isometry) = sampler.isometry() {
-            let hit_isometry =
-                Isometry3A::new_3a(self.position, self.rotation * self.inst_chara.skeleton_rotation) * *isometry;
-
-            if self.hit_bodies[body_idx] == BodyID::INVALID {
-                let mut settings = BodyCreationSettings::new_sensor(
-                    track.shape.clone(),
-                    phy_layer!(Hit, self.inst_chara.is_player => Enemy | Player),
-                    MotionType::Static,
-                    hit_isometry.translation,
-                    hit_isometry.rotation,
-                );
-                settings.user_data = PhyBodyUserData::new_hit(self.chara_id, track.hit_id).into();
-                self.hit_bodies[body_idx] = body_itf.create_add_body(&settings, true).map_err(xfrom!())?;
-            }
-            else {
-                body_itf.set_position_rotation(
-                    self.hit_bodies[body_idx],
-                    hit_isometry.translation,
-                    hit_isometry.rotation,
-                    true,
-                );
-            }
-        }
-        else {
-            if self.hit_bodies[body_idx] != BodyID::INVALID {
-                body_itf.remove_body(self.hit_bodies[body_idx]);
-                body_itf.destroy_body(self.hit_bodies[body_idx]);
-                self.hit_bodies[body_idx] = BodyID::INVALID;
-            }
-        }
-
         Ok(())
     }
 }
@@ -439,11 +416,6 @@ impl LogicCharaPhysics {
     #[inline]
     pub fn direction_3d(&self) -> Vec3A {
         self.direction.as_vec3a()
-    }
-
-    #[inline]
-    pub fn direction_xz(&self) -> Vec3A {
-        self.direction_3d()
     }
 
     #[cfg(test)]
