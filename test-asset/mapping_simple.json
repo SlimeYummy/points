@@ -1,0 +1,13 @@
+{
+  "name": "Armature",
+  "skip": true,
+  "optional": true,
+  "next": {
+    "name": "Root",
+    "skip": true,
+    "optional": true,
+    "next": {
+      "name": "Body"
+    }
+  }
+}

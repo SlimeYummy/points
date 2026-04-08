@@ -4,13 +4,13 @@ use chrono::Local;
 use critical_point_core::consts::{DEFAULT_VIEW_DIR_3D, FPS};
 use critical_point_core::engine::LogicEngine;
 use critical_point_core::logic::{InputPlayerInputs, StateCharacterUpdate, StateSet};
-use critical_point_core::parameter::{ParamGame};
+use critical_point_core::parameter::ParamGame;
 use critical_point_core::utils::{Castable, NumID};
 use glam::{Vec2, Vec3A};
 use input::{CharacterType, InputHandler};
 use jolt_physics_rs::debug::{run_debug_application, CameraState, DebugApp, DebugKeyboard, DebugMouse};
 use std::fs;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use structopt::StructOpt;
 
@@ -150,7 +150,6 @@ fn main() {
     }
     LogicEngine::initialize(&opt.template, &opt.asset).unwrap();
 
-    
     let buf = fs::read_to_string(&opt.param).unwrap();
     let param = serde_json::from_str(&buf).unwrap();
 
