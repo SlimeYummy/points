@@ -1,7 +1,9 @@
 use critical_point_csgen::CsOut;
+use glam::Vec3A;
 use jolt_physics_rs::PhysicsSystem;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
+use std::slice;
 use std::sync::Arc;
 
 use crate::asset::AssetLoader;
@@ -10,8 +12,8 @@ use crate::instance::ContextAssemble;
 use crate::logic::base::{impl_state, LogicAny, LogicType, StateAny, StateBase, StateType};
 use crate::logic::character::LogicCharacter;
 use crate::logic::physics::{
-    PhyBroadPhaseLayerInterface, PhyContactCollector, PhyObjectLayerPairFilter, PhyObjectVsBroadPhaseLayerFilter,
-    PhyHitCharacterEvent
+    PhyBroadPhaseLayerInterface, PhyContactCollector, PhyHitCharacterEvent, PhyObjectLayerPairFilter,
+    PhyObjectVsBroadPhaseLayerFilter,
 };
 use crate::logic::system::generation::{StateGeneration, SystemGeneration};
 use crate::logic::system::input::{InputFrameInputs, InputPlayerInputs, SystemInput};
@@ -19,10 +21,9 @@ use crate::logic::system::save::SystemSave;
 use crate::logic::system::state::{StateSet, SystemState};
 use crate::logic::zone::LogicZone;
 use crate::parameter::ParamGame;
-use crate::logic::physics::PhyBodyUserData;
 // use crate::script::ScriptExecutor;
 use crate::template::TmplDatabase;
-use crate::utils::{Castable, DtHashMap, HistoryVec, NumID, XResult, bubble_sort_by, extend, xres};
+use crate::utils::{bubble_sort_by, extend, force_mut, xres, Castable, HistoryVec, NumID, Symbol, XResult};
 
 //
 // LogicLoop
@@ -110,7 +111,9 @@ impl LogicLoop {
         assert_eq!(synced_frame, self.frame);
 
         let mut cl = PhyContactCollector::new_vpair(PhyContactCollector::new(game));
-        systems.physics.update_with_listeners::<_, ()>(SPF, 1, Some(&mut cl), None)?;
+        systems
+            .physics
+            .update_with_listeners::<_, ()>(SPF, 1, Some(&mut cl), None)?;
 
         let mut ctx = ContextUpdate::new(systems, game.frame + 1, synced_frame);
         let state_set = game.update(&mut ctx)?;
@@ -260,12 +263,17 @@ impl LogicSystems {
     }
 }
 
+//
+// Contexts
+//
+
 pub struct ContextUpdate<'t> {
     pub(crate) systems: &'t mut LogicSystems,
     pub(crate) frame: u32,
     pub(crate) synced_frame: u32,
     pub(crate) time: f32,
     pub(crate) synced_time: f32,
+    pub(crate) hit_events: &'t [HitCharacterEvent],
 }
 
 impl Deref for ContextUpdate<'_> {
@@ -291,6 +299,7 @@ impl<'t> ContextUpdate<'t> {
             synced_frame,
             time: frame as f32 / FPS, // TODO: The error between time and accumulation time
             synced_time: synced_frame as f32 / FPS,
+            hit_events: &[],
         }
     }
 
@@ -338,6 +347,45 @@ impl ContextRestore {
     }
 }
 
+pub struct ContextHitGenerate<'t, E> {
+    pub(crate) frame: u32,
+    pub(crate) time: f32,
+    pub(crate) events: &'t mut Vec<E>,
+}
+
+impl<'t, E> ContextHitGenerate<'t, E> {
+    #[inline]
+    pub(crate) fn new(frame: u32, events: &'t mut Vec<E>) -> ContextHitGenerate<'t, E> {
+        ContextHitGenerate {
+            frame,
+            time: frame as f32 / FPS,
+            events,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn context_update(&mut self, idx: usize) -> ContextHitUpdate<'_, E> {
+        ContextHitUpdate::new(self.frame, &mut self.events[idx])
+    }
+}
+
+pub struct ContextHitUpdate<'t, E> {
+    pub(crate) frame: u32,
+    pub(crate) time: f32,
+    pub(crate) event: &'t mut E,
+}
+
+impl<'t, E> ContextHitUpdate<'t, E> {
+    #[inline]
+    pub(crate) fn new(frame: u32, event: &'t mut E) -> ContextHitUpdate<'t, E> {
+        ContextHitUpdate {
+            frame,
+            time: frame as f32 / FPS,
+            event,
+        }
+    }
+}
+
 //
 // LogicGame
 //
@@ -366,6 +414,7 @@ pub struct StateGameUpdate {
     pub _base: StateBase,
     pub frame: u32,
     pub gene: StateGeneration,
+    pub hit_events: Vec<HitCharacterEvent>,
 }
 
 extend!(StateGameUpdate, StateBase);
@@ -375,9 +424,10 @@ impl_state!(StateGameUpdate, Game, GameUpdate, "GameUpdate");
 #[derive(Debug)]
 pub struct LogicGame {
     id: NumID,
-    frame: u32, // Internal logical restorable frame
+    frame: u32, // Internal logical restorable frame, always equal to ctx.frame
     zone: Box<LogicZone>,
     characters: HistoryVec<Box<LogicCharacter>>,
+    hit_events: Vec<HitCharacterEvent>,
 }
 
 impl LogicAny for LogicGame {
@@ -435,6 +485,7 @@ impl LogicGame {
             frame: 0,
             zone,
             characters: logic_characters,
+            hit_events: Vec::with_capacity(32),
         });
 
         state_set.updates = game.collect_states_updates(ctx)?;
@@ -458,31 +509,46 @@ impl LogicGame {
                 return Ok(0);
             }
         })?;
-        // self.npcs.restore(self.frame, |npc| {
-        //     return npc.restore(ctx);
-        // })?;
         Ok(())
     }
 
     fn update(&mut self, ctx: &mut ContextUpdate) -> XResult<Arc<StateSet>> {
         self.frame = ctx.frame;
 
-        // TODO: Detect hits
+        let ptr = self.hit_events.as_ptr();
+        let len = self.hit_events.len();
+        // Safety: steal a reference, we will reset ctx.hit_events after use.
+        ctx.hit_events = unsafe { slice::from_raw_parts(ptr, len) };
 
-        // TODO: Update values
+        // Update character hit & value
+        for chara in self.characters.iter_mut_by(|p| p.is_alive()) {
+            chara.update_hit(ctx)?;
+            chara.update_value(ctx)?;
+        }
 
+        // TODO: Create new objects
         // TODO: Clear dead objects
 
-        // Update player
+        // Update character action & physics
         for chara in self.characters.iter_mut_by(|p| p.is_alive()) {
-            chara.update(ctx)?;
+            chara.update_action(ctx)?;
+            chara.update_physics(ctx)?;
         }
 
         self.zone.update(ctx)?;
 
+        ctx.hit_events = &[];
+
         // Collect states
         let mut state_set = StateSet::new(self.frame, 0, 0);
         state_set.updates = self.collect_states_updates(ctx)?;
+
+        // Clean up hit events
+        self.hit_events.clear();
+        for chara in self.characters.iter_mut_by(|p| p.is_alive()) {
+            chara.update_clean_up();
+        }
+
         Ok(Arc::new(state_set))
     }
 
@@ -492,6 +558,7 @@ impl LogicGame {
             _base: StateBase::new(self.id, StateType::GameUpdate, LogicType::Game),
             frame: self.frame,
             gene: ctx.gene.state(),
+            hit_events: self.hit_events.drain(..).collect(),
         }));
 
         updates.push(self.zone.state());
@@ -502,17 +569,60 @@ impl LogicGame {
         Ok(updates)
     }
 
-    // fn character_mut(&mut self, id: NumID) -> Option<&mut LogicCharacter> {
-    //     let chara = self.characters.get_mut(*idx)?;
-    //     Some(chara.as_mut())
-    // }
+    pub(crate) fn on_hit_character<'t>(&mut self, phy_event: &PhyHitCharacterEvent<'t>) -> XResult<()> {
+        let Some(src) = self.characters.iter().position(|c| c.id() == phy_event.src_chara_id)
+        else {
+            log::warn!("Src Character not found ({})", phy_event.src_chara_id);
+            return Ok(());
+        };
+        let Some(dst) = self.characters.iter().position(|c| c.id() == phy_event.dst_chara_id)
+        else {
+            log::warn!("Dst Character not found ({})", phy_event.dst_chara_id);
+            return Ok(());
+        };
 
-    pub(crate) fn on_hit_character<'t>(&mut self, event: &PhyHitCharacterEvent<'t>) -> Option<()> {
-        let src = self.characters.iter().position(|c| c.id() == event.src_chara_id)?;
-        let dst = self.characters.iter().position(|c| c.id() == event.dst_chara_id)?;
-        
-        Some(())
+        let mut ctx = ContextHitGenerate::new(self.frame, &mut self.hit_events);
+        let src_chara = unsafe { force_mut(&self.characters[src]) };
+        let dst_chara = unsafe { force_mut(&self.characters[dst]) };
+        src_chara.before_hit(dst_chara, &mut ctx, phy_event)?;
+
+        Ok(())
     }
+}
+
+//
+// Hit Event
+//
+
+#[repr(C)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    CsOut,
+)]
+#[rkyv(derive(Debug))]
+#[cs_attr(Value)]
+pub struct HitCharacterEvent {
+    pub src_chara_id: NumID,
+    pub dst_chara_id: NumID,
+    pub group: Symbol,
+    pub box_index: u16,
+    pub group_index: u16,
+    pub box_hit_times: u16,
+    pub group_hit_times: u16,
+    // Normal for this collision, direction along which to move dst_chara out of collision along the shortest path.
+    pub collision_normal: Vec3A,
+    // The average position of all collision points
+    pub collision_point_average: Vec3A,
+    // The vector pointing from the src_chara position to the dst_chara position.
+    pub character_vector: Vec3A,
 }
 
 #[cfg(test)]
@@ -539,7 +649,7 @@ mod tests {
                 ..Default::default()
             }],
             npcs: vec![ParamNpc {
-                character: id!("NpcCharacter.Instance^1"),
+                character: id!("NpcCharacter.NpcInstance^1"),
                 level: 2,
                 ..Default::default()
             }],
