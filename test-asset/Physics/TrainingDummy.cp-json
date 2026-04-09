@@ -1,0 +1,1 @@
+{"bounding":{"T":"Capsule","index":0,"half_height":0.6,"radius":0.75,"position":[0.0,1.35,0.0]},"parts":["Body"],"shapes":[{"T":"Capsule","index":0,"half_height":0.5,"radius":0.7}],"bodies":[{"shape_index":0,"position":[0.0,0.9,0.0],"part":"Body","joint":"Body","ratio":1.0}]}
