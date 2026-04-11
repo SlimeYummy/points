@@ -34,6 +34,8 @@ import {
     Variant2,
     Variant3,
     Zone,
+    AiBrain,
+    AiTaskIdle,
 } from '../src';
 
 Var.define({
@@ -62,7 +64,7 @@ const ONE = new Character('Character.One', {
     styles: ['Style.One^1', 'Style.One^2'],
     equipments: ['Equipment.No1', 'Equipment.No2', 'Equipment.No3'],
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
-    skeleton_files: 'Girl.*',
+    skeleton_files: 'Girl/Girl.*',
     skeleton_toward: [0, 1],
 });
 
@@ -116,7 +118,7 @@ new Character('Character.Two', {
     styles: ['Style.Two^1'],
     equipments: ['Equipment.No4'],
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
-    skeleton_files: 'Girl.*',
+    skeleton_files: 'Girl/Girl.*',
     skeleton_toward: [0, 1],
 });
 
@@ -206,11 +208,11 @@ new ActionIdle('Action.One.Idle', {
     styles: ONE.styles,
     tags: ['Idle'],
     anim_idle: {
-        files: 'Girl_Idle_Empty.*',
+        files: 'Girl/Idle_Empty.*',
         duration: '2.5s!',
     },
     anim_ready: {
-        files: 'Girl_Idle_Axe.*',
+        files: 'Girl/Idle_Axe.*',
         duration: 2,
     },
 });
@@ -220,7 +222,7 @@ new ActionIdle('Action.One.IdleX', {
     styles: ['Style.One^1'],
     tags: ['Idle'],
     anim_idle: {
-        files: 'Girl_Idle_Empty.*',
+        files: 'Girl/Idle_Empty.*',
         duration: '2.5s!',
     },
 });
@@ -231,7 +233,7 @@ new ActionMove('Action.One.Run', {
     tags: ['Run'],
     enter_key: Run,
     anim_move: {
-        files: 'Girl_Run_Empty.*',
+        files: 'Girl/Run_Empty.*',
         fade_in: '4F',
         root_motion: true,
     },
@@ -239,7 +241,7 @@ new ActionMove('Action.One.Run', {
     anim_starts: [
         {
             enter_angle: ['L15', 'R15'],
-            files: 'Girl_RunStart_Empty.*',
+            files: 'Girl/RunStart_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '2F',
@@ -247,7 +249,7 @@ new ActionMove('Action.One.Run', {
         },
         {
             enter_angle: ['L15', 'L180'],
-            files: 'Girl_RunStart_L180_Empty.*',
+            files: 'Girl/RunStart_L180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -255,7 +257,7 @@ new ActionMove('Action.One.Run', {
         },
         {
             enter_angle: ['R15', 'R180'],
-            files: 'Girl_RunStart_R180_Empty.*',
+            files: 'Girl/RunStart_R180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -266,7 +268,7 @@ new ActionMove('Action.One.Run', {
     anim_stops: [
         {
             enter_phase_table: [{ phase: [0.75, 0.25], offset: '2F' }],
-            files: 'Girl_RunStop_L_Empty.*',
+            files: 'Girl/RunStop_L_Empty.*',
             fade_in: '4F',
             root_motion: true,
             leave_phase_table: [
@@ -276,7 +278,7 @@ new ActionMove('Action.One.Run', {
         },
         {
             enter_phase_table: [{ phase: [0.25, 0.75], offset: '2F' }],
-            files: 'Girl_RunStop_R_Empty.*',
+            files: 'Girl/RunStop_R_Empty.*',
             fade_in: '4F',
             root_motion: true,
             leave_phase_table: [
@@ -291,7 +293,7 @@ new ActionMove('Action.One.Run', {
 
 new ActionGeneral('Action.One.Attack^1', {
     anim_main: {
-        files: 'Girl_Attack_Test.*',
+        files: 'Girl/Attack_Test.*',
         duration: '4s!',
         root_motion: true,
         weapon_motion: true,
@@ -348,7 +350,7 @@ new ActionGeneral('Action.One.Attack^1', {
 
 new ActionGeneral('Action.One.Attack^2', {
     anim_main: {
-        files: 'Girl_attack_02A.*',
+        files: 'Girl/attack_02A.*',
         duration: '5s!',
         root_motion: true,
     },
@@ -605,8 +607,11 @@ new NpcCharacter('NpcCharacter.Enemy', {
         'Action.Enemy.Idle',
         'Action.Enemy.Hit1',
     ],
+    ai_executors: [
+        'AiBrain.Enemy',
+    ],
     bounding: new Capsule(0.5, 0.5),
-    skeleton_files: 'TrainingDummy.*',
+    skeleton_files: 'TrainingDummy/TrainingDummy.*',
     skeleton_toward: [0, 1],
     view_model: 'TrainingDummy.prefab',
 });
@@ -615,7 +620,7 @@ new ActionIdle('Action.Enemy.Idle', {
     npc_characters: ['NpcCharacter.Enemy'],
     tags: ['Idle'],
     anim_idle: {
-        files: 'TrainingDummy_Idle.*',
+        files: 'TrainingDummy/Idle.*',
         duration: '4s',
     },
 });
@@ -627,11 +632,32 @@ new ActionHit('Action.Enemy.Hit1', {
     anim_be_hits: [
         {
             enter_angle: 10,
-            files: 'TrainingDummy_Hit1_F.*',
+            files: 'TrainingDummy/Hit1_F.*',
             duration: '20F!',
             root_motion: true,
         }
     ],
+});
+
+//
+// Ai
+//
+
+new AiBrain('AiBrain.Enemy', {
+    character: 'NpcCharacter.Enemy',
+    alert_sphere: { radius: 5 },
+    alert_cone: { radius: 10, half_angle: 45 },
+    attack_exit_delay: '30s',
+    idle_nodes: [
+        AiBrain.task('AiTask.Enemy.Idle', 1)
+    ],
+});
+
+new AiTaskIdle('AiTask.Enemy.Idle', {
+    character: 'NpcCharacter.Enemy',
+    max_repeat: 1,
+    action_idle: 'Action.Enemy.Idle',
+    duration: '4s-6s',
 });
 
 //
@@ -640,6 +666,6 @@ new ActionHit('Action.Enemy.Hit1', {
 
 new Zone('Zone.Demo', {
     name: 'Demo',
-    zone_file: 'TestZone.json',
-    view_zone_file: 'stage-demo.tscn',
+    files: 'Zones/TestZone.*',
+    view_file: 'stage-demo.tscn',
 });

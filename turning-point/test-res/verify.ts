@@ -1,4 +1,5 @@
 import {
+    AiBrain,
     Capsule,
     Character,
     Equipment,
@@ -30,7 +31,7 @@ new Character('Character.Verify^1', {
     styles: ['Style.Verify^1A', 'Style.Verify^1B'],
     equipments: ['Equipment.Verify^1A', 'Equipment.Verify^1B', 'Equipment.Verify^1C'],
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
-    skeleton_files: 'Girl.*',
+    skeleton_files: 'Girl/Girl.*',
     skeleton_toward: [0, 1],
 });
 
@@ -63,7 +64,7 @@ new Character('Character.Verify^2', {
     styles: ['Style.Verify^2'],
     equipments: ['Equipment.Verify^2A'],
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
-    skeleton_files: 'Girl.*',
+    skeleton_files: 'Girl/Girl.*',
     skeleton_toward: [0, 1],
 });
 
@@ -150,8 +151,17 @@ new NpcCharacter('NpcCharacter.Verify^1', {
     },
     fixed_attributes,
     actions: [],
+    ai_executors: ['AiBrain.Verify^1'],
     bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'TrainingDummy.*',
     skeleton_toward: [0, 1],
     view_model: 'TrainingDummy.prefab',
+});
+
+new AiBrain('AiBrain.Verify^1', {
+    character: 'NpcCharacter.Verify^1',
+    alert_sphere: { radius: 5 },
+    alert_cone: { radius: 10, half_angle: 45 },
+    attack_exit_delay: '30s',
+    idle_nodes: [],
 });

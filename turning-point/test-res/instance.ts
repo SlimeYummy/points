@@ -3,6 +3,9 @@ import {
     ActionHit,
     ActionIdle,
     ActionMove,
+    AiBrain,
+    AiTaskIdle,
+    AiTaskPatrol,
     Attack1,
     Attack2,
     Capsule,
@@ -48,7 +51,7 @@ new Character('Character.Instance^1', {
     styles: ['Style.Instance^1A'],
     equipments: ['Equipment.Instance^1A', 'Equipment.Instance^1B'],
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
-    skeleton_files: 'Girl.*',
+    skeleton_files: 'Girl/Girl.*',
     skeleton_toward: [0, 1],
 });
 
@@ -166,12 +169,12 @@ new ActionIdle('Action.Instance.Idle^1A', {
     styles: ['Style.Instance^1A'],
     tags: ['Idle'],
     anim_idle: {
-        files: 'Girl_Idle_Empty.*',
+        files: 'Girl/Idle_Empty.*',
         duration: '2.5s!',
         fade_in: 0.2,
     },
     anim_ready: {
-        files: 'Girl_Idle_Axe.*',
+        files: 'Girl/Idle_Axe.*',
         duration: '2s!',
         fade_in: 0.4,
     },
@@ -183,7 +186,7 @@ new ActionMove('Action.Instance.Run^1A', {
     tags: ['Run'],
     enter_key: Run,
     anim_move: {
-        files: 'Girl_Run_Empty.*',
+        files: 'Girl/Run_Empty.*',
         fade_in: '4F',
         root_motion: true,
     },
@@ -191,7 +194,7 @@ new ActionMove('Action.Instance.Run^1A', {
     anim_starts: [
         {
             enter_angle: ['L15', 'R15'],
-            files: 'Girl_RunStart_Empty.*',
+            files: 'Girl/RunStart_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '2F',
@@ -199,7 +202,7 @@ new ActionMove('Action.Instance.Run^1A', {
         },
         {
             enter_angle: ['L15', 'L180'],
-            files: 'Girl_RunStart_L180_Empty.*',
+            files: 'Girl/RunStart_L180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -207,7 +210,7 @@ new ActionMove('Action.Instance.Run^1A', {
         },
         {
             enter_angle: ['R15', 'R180'],
-            files: 'Girl_RunStart_R180_Empty.*',
+            files: 'Girl/RunStart_R180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -218,7 +221,7 @@ new ActionMove('Action.Instance.Run^1A', {
     anim_stops: [
         {
             enter_phase_table: [{ phase: [0.75, 0.25], offset: '2F' }],
-            files: 'Girl_RunStop_L_Empty.*',
+            files: 'Girl/RunStop_L_Empty.*',
             fade_in: '4F',
             root_motion: true,
             leave_phase_table: [
@@ -228,7 +231,7 @@ new ActionMove('Action.Instance.Run^1A', {
         },
         {
             enter_phase_table: [{ phase: [0.25, 0.75], offset: '2F' }],
-            files: 'Girl_RunStop_R_Empty.*',
+            files: 'Girl/RunStop_R_Empty.*',
             fade_in: '4F',
             root_motion: true,
             leave_phase_table: [
@@ -245,7 +248,7 @@ new ActionGeneral('Action.Instance.Attack^1A', {
     styles: ['Style.Instance^1A'],
     tags: ['Attack'],
     anim_main: {
-        files: 'Girl_Attack_Test.*',
+        files: 'Girl/Attack_Test.*',
         duration: '4s!',
         root_motion: true,
         hit_motion: true,
@@ -303,7 +306,7 @@ new ActionGeneral('Action.Instance.AttackDerive^1A', {
     tags: ['Attack'],
     styles: ['Style.Instance^1A'],
     anim_main: {
-        files: 'Girl_Attack_03A.*',
+        files: 'Girl/Attack_03A.*',
         duration: '5s!',
         root_motion: true,
     },
@@ -322,7 +325,7 @@ new ActionGeneral('Action.Instance.AttackUnused^1A', {
     tags: ['Attack'],
     styles: ['Style.Instance^1A'],
     anim_main: {
-        files: 'Girl_attack_04A.*',
+        files: 'Girl/attack_04A.*',
         duration: '5s!',
         root_motion: true,
     },
@@ -354,8 +357,9 @@ new NpcCharacter('NpcCharacter.NpcInstance^1', {
         'Action.NpcInstance.Idle^1A',
         'Action.NpcInstance.Hit1^1A',
     ],
+    ai_executors: ['AiBrain.NpcInstance^1'],
     bounding: new Capsule(0.5, 0.5),
-    skeleton_files: 'TrainingDummy.*',
+    skeleton_files: 'TrainingDummy/TrainingDummy.*',
     skeleton_toward: [0, 1],
     view_model: 'TrainingDummy.prefab',
 });
@@ -364,7 +368,7 @@ new ActionIdle('Action.NpcInstance.Idle^1A', {
     npc_characters: ['NpcCharacter.NpcInstance^1'],
     tags: ['Idle'],
     anim_idle: {
-        files: 'TrainingDummy_Idle.*',
+        files: 'TrainingDummy/Idle.*',
         duration: '4s!',
         fade_in: 0.5,
     },
@@ -377,9 +381,38 @@ new ActionHit('Action.NpcInstance.Hit1^1A', {
     anim_be_hits: [
         {
             enter_angle: 15,
-            files: 'TrainingDummy_Hit1_F.*',
+            files: 'TrainingDummy/Hit1_F.*',
             duration: '30F!',
             root_motion: true,
         }
     ],
+});
+
+new AiBrain('AiBrain.NpcInstance^1', {
+    character: 'NpcCharacter.NpcInstance^1',
+    alert_sphere: { radius: 5 },
+    alert_cone: { radius: 10, half_angle: 45 },
+    attack_exit_delay: '30s',
+    idle_nodes: [
+        AiBrain.task('AiTask.NpcInstance.Idle^1', 1),
+        AiBrain.task('AiTask.NpcInstance.Patrol^1', 1),
+    ],
+});
+
+new AiTaskIdle('AiTask.NpcInstance.Idle^1', {
+    character: 'NpcCharacter.NpcInstance^1',
+    max_repeat: 1,
+    action_idle: 'Action.NpcInstance.Idle^1A',
+    duration: '3s-5s',
+});
+
+new AiTaskPatrol('AiTask.NpcInstance.Patrol^1', {
+    character: 'NpcCharacter.NpcInstance^1',
+    action_idle: 'Action.NpcInstance.Idle^1A',
+    action_move: 'Action.NpcInstance.Idle^1A',
+    route: [
+        ['Move', [-3, 0, 0]],
+        ['Idle', '2.5s'],
+        ['Move', [0, 0, 3]],
+    ]
 });
