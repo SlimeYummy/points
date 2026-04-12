@@ -12,6 +12,9 @@ export type IDPrefix =
     | 'Accessory'
     | 'Jewel'
     | 'Action'
+    | 'AiBrain'
+    | 'AiTask'
+    | 'AiPlan'
     | 'Material'
     | 'Zone';
 
@@ -20,14 +23,26 @@ export const RE_TMPL_ID_EXTRA =
 
 export type ID = string;
 
-export function parseID(raw: string, prefix: IDPrefix, where: string): string {
+export function parseID(raw: string, prefix: IDPrefix | IDPrefix[], where: string): string {
     if (typeof raw !== 'string') {
         throw new Error(`${where}: must be a ID`);
     }
-    if (!raw.startsWith(prefix)) {
-        throw new Error(`${where}: must start with "${prefix}"`);
+
+    let prefixLength = 0;
+    if (!Array.isArray(prefix)) {
+        prefixLength = prefix.length;
+        if (!raw.startsWith(prefix)) {
+            throw new Error(`${where}: must start with "${prefix}"`);
+        }
+    } else {
+        const pfx = prefix.find((p) => raw.startsWith(p));
+        if (!pfx) {
+            throw new Error(`${where}: must start with "${prefix.join('" or "')}"`);
+        }
+        prefixLength = pfx.length;
     }
-    if (!RE_TMPL_ID_EXTRA.test(raw.slice(prefix.length))) {
+
+    if (!RE_TMPL_ID_EXTRA.test(raw.slice(prefixLength))) {
         throw new Error(`${where}: must match ID pattern`);
     }
     return raw;
@@ -35,7 +50,7 @@ export function parseID(raw: string, prefix: IDPrefix, where: string): string {
 
 export function parseIDArray(
     raw: ReadonlyArray<string>,
-    prefix: IDPrefix,
+    prefix: IDPrefix | IDPrefix[],
     where: string,
     opts: {
         len?: number;
