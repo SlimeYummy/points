@@ -342,15 +342,15 @@ export class ActionMove extends Action {
         this.starts = (args.anim_starts || []).map(
             (args, idx) => new ActionMoveStart(args, this.w(`anim_starts[${idx}]`)),
         );
-        this.start_time = parseTime(args.start_time || '4F', this.w('start_time'), { min: 0 });
+        this.start_time = parseTime(args.start_time || '8F', this.w('start_time'), { min: 0 });
         this.turns = (args.anim_turns || []).map(
             (args, idx) => new ActionMoveTurn(args, this.w(`anim_turns[${idx}]`)),
         );
-        this.turn_time = parseTime(args.turn_time || '10F', this.w('turn_time'), { min: 0 });
+        this.turn_time = parseTime(args.turn_time || '12F', this.w('turn_time'), { min: 0 });
         this.stops = (args.anim_stops || []).map(
             (args, idx) => new ActionMoveStop(args, this.w(`anim_stops[${idx}]`)),
         );
-        this.stop_time = parseTime(args.stop_time || '6F', this.w('stop_time'), { min: 0 });
+        this.stop_time = parseTime(args.stop_time || '8F', this.w('stop_time'), { min: 0 });
         this.quick_stop_time = parseTime(args.quick_stop_time || 0, this.w('quick_stop_time'), {
             min: 0,
         });

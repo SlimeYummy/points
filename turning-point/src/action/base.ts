@@ -181,7 +181,7 @@ export type ActionArgs = {
 
     /** 可以使用该动作的角色风格 */
     styles?: ReadonlyArray<ID>;
-    
+
     /** 所属NPC角色ID NpcAction科关联多个角色 */
     npc_characters?: ReadonlyArray<ID>;
 
@@ -211,7 +211,7 @@ export abstract class Action extends Resource {
 
     /** 可以使用该动作的角色风格 */
     public readonly styles?: ReadonlyArray<ID>;
-    
+
     /** 所属NPC角色ID NpcAction科关联多个角色 */
     public readonly npc_characters?: ReadonlyArray<ID>;
 
@@ -226,7 +226,7 @@ export abstract class Action extends Resource {
             this.character = parseID(args.character!, 'Character', this.w('character'));
             this.styles = parseIDArray(args.styles!, 'Style', this.w('styles'));
         }
-        
+
         if (args.npc_characters) {
             this.npc_characters = parseIDArray(args.npc_characters, 'NpcCharacter', this.w('npc_characters'));
         }
@@ -259,18 +259,12 @@ export abstract class Action extends Resource {
                 if (this.character !== style.character) {
                     throw this.e(`styles[${idx}]`, 'character mismatch with styles');
                 }
-                if (!style.actions.includes(this.id)) {
-                    throw this.e(`styles[${idx}]`, 'Style and Action mismatch');
-                }
             }
         }
 
         if (this.npc_characters) {
             for (const [idx, id] of this.npc_characters.entries()) {
-                const character = NpcCharacter.find(id, this.w(`npc_characters[${idx}]`));
-                if (!character.actions.includes(this.id)) {
-                    throw this.e(`npc_characters[${idx}]`, 'NpcCharacter and NpcAction mismatch');
-                }
+                NpcCharacter.find(id, this.w(`npc_characters[${idx}]`));
             }
         }
     }
