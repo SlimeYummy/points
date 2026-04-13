@@ -67,7 +67,7 @@ export class ActionHit extends Action {
 
     /** 受击硬直结束时间 */
     public readonly hit_stun_end: float;
-    
+
     /** 进入等级 */
     public readonly enter_level: int;
 

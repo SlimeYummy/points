@@ -30,6 +30,7 @@ import { Equipment } from './equipment';
 import { parseJevelSlotsArray } from './jewel';
 import * as native from './native';
 import { Perk } from './perk';
+import { AiBrain } from './ai';
 
 export type CharacterArgs = {
     /** 角色名字 */
@@ -47,7 +48,7 @@ export type CharacterArgs = {
     /** 用于移动的包围胶囊体 */
     bounding: Capsule | TaperedCapsule;
 
-    /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
+    /** 骨骼动画模型文件 一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
      * - xxx.vs-ozz 视图骨骼
      * - xxx.cp-rkyv/xxx.cp-json 角色物理
@@ -66,7 +67,7 @@ export type CharacterArgs = {
 export class Character extends Resource {
     public static override readonly prefix: IDPrefix = 'Character';
 
-    public static override find(id: string, where: string): Character {
+    public static override find(id: ID, where: string): Character {
         const res = Resource.find(id, where);
         if (!(res instanceof Character)) {
             throw new Error(`${where}: Resource type miss match`);
@@ -247,7 +248,7 @@ export class Style extends Resource {
         this.usable_perks = this.parseUsablePerks(args.usable_perks, args.perks);
         this.actions = parseIDArray(args.actions, 'Action', this.w('actions'));
         this.view_model = parseFile(args.view_model, this.w('view_model'), {
-            extension: ['.vrm', '.prefab'],
+            extension: ['.vrm', '.prefab', '.unity'],
         });
     }
 
@@ -323,6 +324,9 @@ export type NpcCharacterArgs = {
     /** 可用的动作列表 */
     actions: ReadonlyArray<ID>;
 
+    /** AI执行器列表 */
+    ai_executors: ReadonlyArray<ID>;
+
     /** 用于移动的包围胶囊体 */
     bounding: Capsule | TaperedCapsule;
 
@@ -374,6 +378,9 @@ export class NpcCharacter extends Resource {
     /** 可用的动作列表 */
     public readonly actions: ReadonlyArray<ID>;
 
+    /** AI执行器列表 */
+    public readonly ai_executors: ReadonlyArray<ID>;
+
     /** 用于移动的包围胶囊体 */
     public readonly bounding: Capsule | TaperedCapsule;
 
@@ -405,6 +412,7 @@ export class NpcCharacter extends Resource {
             this.w('fixed_attributes'),
         );
         this.actions = parseIDArray(args.actions, 'Action', this.w('actions'));
+        this.ai_executors = parseIDArray(args.ai_executors, 'AiBrain', this.w('ai_executors'));
         this.bounding = checkType(args.bounding, [Capsule, TaperedCapsule], this.w('bounding'));
         this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), {
             extension: '.*',
@@ -413,7 +421,7 @@ export class NpcCharacter extends Resource {
             normalized: true,
         });
         this.view_model = parseFile(args.view_model, this.w('view_model'), {
-            extension: ['.vrm', '.prefab'],
+            extension: ['.vrm', '.prefab', '.unity'],
         });
     }
 
@@ -429,6 +437,13 @@ export class NpcCharacter extends Resource {
             const action = Action.find(entry_id, this.w(`actions[${idx}]`));
             if (!action.npc_characters?.includes(this.id)) {
                 throw this.e(`actions[${idx}]`, 'NpcCharacter and Action mismatch');
+            }
+        }
+
+        for (const [idx, entry_id] of this.ai_executors.entries()) {
+            const ai_executor = AiBrain.find(entry_id, this.w(`ai_executors[${idx}]`));
+            if (ai_executor.character !== this.id) {
+                throw this.e(`ai_executors[${idx}]`, 'NpcCharacter and AiBrain mismatch');
             }
         }
     }

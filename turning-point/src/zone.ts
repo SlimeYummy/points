@@ -6,10 +6,10 @@ export type ZoneArgs = {
     name: string;
 
     /** Zone文件路径（逻辑） */
-    zone_file: FilePath;
+    files: FilePath;
 
     /** Zone文件路径（渲染） */
-    view_zone_file: FilePath;
+    view_file: FilePath;
 };
 
 /**
@@ -29,17 +29,20 @@ export class Zone extends Resource {
     /** Zone名字 */
     public readonly name: string;
 
-    /** Zone文件路径（逻辑） */
-    public readonly zone_file: FilePath;
+    /** Zone文件路径 一个通配的路径前缀 以xxx为例对应如下文件
+     * - xxx.zp-rkyv/xxx.zp-json 区域物理(碰撞体)
+     * - xxx.nm-bin 寻路数据(NavMesh)
+     */
+    public readonly files: FilePath;
 
     /** Zone文件路径（渲染） */
-    public readonly view_zone_file: FilePath;
+    public readonly view_file: FilePath;
 
     public constructor(id: ID, args: ZoneArgs) {
         super(id);
         this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
-        this.zone_file = parseFile(args.zone_file, this.w('zone_file'), { extension: '.json' });
-        this.view_zone_file = parseFile(args.view_zone_file, this.w('view_zone_file'));
+        this.files = parseFile(args.files, this.w('files'), { extension: '.*' });
+        this.view_file = parseFile(args.view_file, this.w('view_file'));
     }
 
     public override verify() {}
