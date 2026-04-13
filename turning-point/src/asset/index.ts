@@ -180,35 +180,24 @@ export class Asset {
         travelDir('/');
     }
 
-    /**
-     * @param files [
-     *    glb_file: string,
-     *    config_file: string,
-     *    mapping: MappingPair,
-     *    json_track_pattern: string | null,
-     *    output_pattern: string
-     * ]
-     */
     public static gltf2ozz(
-        srcDir: string,
+        gltfFile: string,
+        jsonTrackDir: string | null,
+        configFiles: animation.ConfigFiles,
+        skeletonName: string,
         dstDir: string,
-        files: [string, string, animation.MappingPair, string | null, string][],
     ) {
         fs.mkdirSync(path.join(OUTPUT_ASSET, dstDir), { recursive: true });
-        for (const [gltf, config, mapping, jsonTrack, pattern] of files) {
-            const gltfFile = path.join(INPUT_ASSET, srcDir, gltf);
-            const configFile = path.join(INPUT_ASSET, srcDir, config);
-            const mappingPair = {
-                logicFile: path.join(INPUT_ASSET, srcDir, mapping.logicFile),
-                viewFile: path.join(INPUT_ASSET, srcDir, mapping.viewFile),
-            };
-            const dstPattern = path.join(OUTPUT_ASSET, dstDir, pattern);
-            // Asset.incrementUpdate(
-            //     `gltf: ${dstPattern}`,
-            //     [gltfFile, configFile, mappingPair.logicFile, mappingPair.viewFile],
-            //     () => animation.gltf2ozz(gltfFile, configFile, mappingPair, jsonTrack, dstPattern),
-            // );
-            animation.gltf2ozz(gltfFile, configFile, mappingPair, jsonTrack, dstPattern);
-        }
+        animation.gltf2ozz(
+            path.join(INPUT_ASSET, gltfFile),
+            jsonTrackDir && path.join(INPUT_ASSET, jsonTrackDir),
+            {
+                configFile: path.join(INPUT_ASSET, configFiles.configFile),
+                logicFile: path.join(INPUT_ASSET, configFiles.logicFile),
+                viewFile: path.join(INPUT_ASSET, configFiles.viewFile),
+            },
+            skeletonName,
+            path.join(OUTPUT_ASSET, dstDir),
+        );
     }
 }

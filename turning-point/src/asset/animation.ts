@@ -1,6 +1,7 @@
 import artTemplate from 'art-template';
 import cp from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 import process from 'node:process';
 import tmp from 'tmp';
 
@@ -18,17 +19,18 @@ function makePrebuiltPath(binary: string) {
 
 export const GLTF_2_OZZ = makePrebuiltPath('gltf2ozz');
 
-export type MappingPair = {
+export type ConfigFiles = {
+    configFile: string;
     logicFile: string;
     viewFile: string;
 };
 
 export function gltf2ozz(
     gltfFile: string,
-    configFile: string,
-    MappingPair: MappingPair,
-    jsonTrackFolder: string | null,
-    dstPattern: string,
+    jsonTrackDir: string | null,
+    configFiles: ConfigFiles,
+    skeletonName: string,
+    dstDir: string,
 ) {
     const tmpName = tmp
         .tmpNameSync({
@@ -37,55 +39,47 @@ export function gltf2ozz(
         })
         .replace(/\\/g, '/');
 
-    let config = fs.readFileSync(configFile, 'utf-8');
-    config = config.replace(/\{\{(?:CLIPPED_FILE|PREFIX)\}\}/g, (match) => {
-        if (match === '{{CLIPPED_FILE}}') {
-            // return '../test-tmp/test-asset/girl_clipped.logic-skel.ozz';
-            return tmpName;
-        } else if (match === '{{PREFIX}}') {
-            return dstPattern;
-        } else {
-            return match;
-        }
-    });
-
     const jsonTracks: { json: string; filename: string }[] = [];
-    const jsonTrackPath = gltfFile + `/../${jsonTrackFolder}`;
-    if (jsonTrackFolder && fs.existsSync(jsonTrackPath)) {
-        for (const json of fs.readdirSync(jsonTrackPath)) {
+    if (jsonTrackDir) {
+        if (!fs.existsSync(jsonTrackDir)) {
+            throw new Error(`JSON track (${jsonTrackDir}) not found`);
+        }
+        for (const json of fs.readdirSync(jsonTrackDir)) {
             if (json.endsWith('.wm-json')) {
                 jsonTracks.push({
-                    json: `${jsonTrackFolder}/${json}`,
-                    filename: `${dstPattern}_${json.replace('.wm-json', '.wm-ozz')}`,
+                    json,
+                    filename: path.posix.join(dstDir, json.replace('.wm-json', '.wm-ozz')),
                 });
             } else if (json.endsWith('.rm-json')) {
                 jsonTracks.push({
-                    json: `${jsonTrackFolder}/${json}`,
-                    filename: `${dstPattern}_${json.replace('.rm-json', '.rm-ozz')}`,
+                    json,
+                    filename: path.posix.join(dstDir, json.replace('.rm-json', '.rm-ozz')),
                 });
             }
         }
     }
 
-    const logicCfg = loadConfig(configFile, {
+    const logicCfg = loadConfig(configFiles.configFile, {
         skeleton_suffix: 'ls',
         animation_suffix: 'la',
-        prefix: dstPattern,
         clipped_file: tmpName,
         root_motion: true,
         json_tracks: jsonTracks,
+        skeleton_name: skeletonName,
+        out_dir: dstDir,
     });
-    execute(gltfFile, logicCfg, MappingPair.logicFile, true);
+    execute(gltfFile, logicCfg, configFiles.logicFile, true);
 
-    const viewCfg = loadConfig(configFile, {
+    const viewCfg = loadConfig(configFiles.configFile, {
         skeleton_suffix: 'vs',
         animation_suffix: 'va',
-        prefix: dstPattern,
         clipped_file: tmpName,
         root_motion: false,
         json_tracks: [],
+        skeleton_name: skeletonName,
+        out_dir: dstDir,
     });
-    execute(gltfFile, viewCfg, MappingPair.viewFile, false);
+    execute(gltfFile, viewCfg, configFiles.viewFile, false);
 }
 
 const compiledTmpls: Record<string, (data: any) => string> = {};
