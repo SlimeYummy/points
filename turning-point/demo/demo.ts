@@ -3,6 +3,9 @@ import {
     ActionHit,
     ActionIdle,
     ActionMove,
+    AiBrain,
+    AiTask,
+    AiTaskPatrol,
     Attack1,
     Attack2,
     Capsule,
@@ -21,8 +24,8 @@ import {
 
 new Zone('Zone.Demo', {
     name: 'Demo',
-    zone_file: 'TestZone.json',
-    view_zone_file: '.unity',
+    files: 'Zones/TestZone.*',
+    view_file: 'TestZone.unity',
 });
 
 //
@@ -35,7 +38,7 @@ const PLAYER = new Character('Character.Demo', {
     styles: ['Style.Demo^1'],
     equipments: [],
     bounding: new TaperedCapsule(0.6, 0.3, 0.1),
-    skeleton_files: 'Girl.*',
+    skeleton_files: 'Girl/Girl.*',
     skeleton_toward: [0, 1],
 });
 
@@ -86,7 +89,7 @@ new ActionIdle('Action.Demo.Idle', {
     styles: PLAYER.styles,
     tags: ['Idle'],
     anim_idle: {
-        files: 'Girl_Idle_Empty.*',
+        files: 'Girl/Idle_Empty.*',
     },
 });
 
@@ -96,7 +99,7 @@ new ActionMove('Action.Demo.Run', {
     tags: ['Run'],
     enter_key: Run,
     anim_move: {
-        files: 'Girl_Run_Empty.*',
+        files: 'Girl/Run_Empty.*',
         fade_in: '4F',
         root_motion: true,
     },
@@ -104,7 +107,7 @@ new ActionMove('Action.Demo.Run', {
     anim_starts: [
         {
             enter_angle: ['L30', 'R30'],
-            files: 'Girl_RunStart_Empty.*',
+            files: 'Girl/RunStart_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '4F',
@@ -112,7 +115,7 @@ new ActionMove('Action.Demo.Run', {
         },
         {
             enter_angle: ['L30', 'L105'],
-            files: 'Girl_RunStart_L90_Empty.*',
+            files: 'Girl/RunStart_L90_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '6F',
@@ -120,7 +123,7 @@ new ActionMove('Action.Demo.Run', {
         },
         {
             enter_angle: ['R30', 'R105'],
-            files: 'Girl_RunStart_R90_Empty.*',
+            files: 'Girl/RunStart_R90_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '6F',
@@ -128,7 +131,7 @@ new ActionMove('Action.Demo.Run', {
         },
         {
             enter_angle: ['L105', 'L180'],
-            files: 'Girl_RunStart_L180_Empty.*',
+            files: 'Girl/RunStart_L180_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '8F',
@@ -136,7 +139,7 @@ new ActionMove('Action.Demo.Run', {
         },
         {
             enter_angle: ['R105', 'R180'],
-            files: 'Girl_RunStart_R180_Empty.*',
+            files: 'Girl/RunStart_R180_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '8F',
@@ -147,7 +150,7 @@ new ActionMove('Action.Demo.Run', {
     anim_stops: [
         {
             enter_phase_table: [{ phase: [0.75, 0.25], offset: '2F' }],
-            files: 'Girl_RunStop_l_Empty.*',
+            files: 'Girl/RunStop_l_Empty.*',
             fade_in: '4F',
             root_motion: true,
             leave_phase_table: [
@@ -158,7 +161,7 @@ new ActionMove('Action.Demo.Run', {
         },
         {
             enter_phase_table: [{ phase: [0.25, 0.75], offset: '2F' }],
-            files: 'Girl_RunStop_r_Empty.*',
+            files: 'Girl/RunStop_r_Empty.*',
             fade_in: '4F',
             root_motion: true,
             leave_phase_table: [
@@ -177,7 +180,7 @@ new ActionMove('Action.Demo.Walk', {
     tags: ['Walk'],
     enter_key: Walk,
     anim_move: {
-        files: 'Girl_Walk_Empty.*',
+        files: 'Girl/Walk_Empty.*',
         fade_in: '4F',
         root_motion: true,
     },
@@ -185,7 +188,7 @@ new ActionMove('Action.Demo.Walk', {
     anim_starts: [
         {
             enter_angle: ['L30', 'R30'],
-            files: 'Girl_WalkStart_Empty.*',
+            files: 'Girl/WalkStart_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '6F',
@@ -193,7 +196,7 @@ new ActionMove('Action.Demo.Walk', {
         },
         {
             enter_angle: ['L30', 'L105'],
-            files: 'Girl_WalkStart_L90_Empty.*',
+            files: 'Girl/WalkStart_L90_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '8F',
@@ -201,7 +204,7 @@ new ActionMove('Action.Demo.Walk', {
         },
         {
             enter_angle: ['R30', 'R105'],
-            files: 'Girl_WalkStart_R90_Empty.*',
+            files: 'Girl/WalkStart_R90_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '8F',
@@ -209,7 +212,7 @@ new ActionMove('Action.Demo.Walk', {
         },
         {
             enter_angle: ['L105', 'L180'],
-            files: 'Girl_WalkStart_L180_Empty.*',
+            files: 'Girl/WalkStart_L180_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '10F',
@@ -217,7 +220,7 @@ new ActionMove('Action.Demo.Walk', {
         },
         {
             enter_angle: ['R105', 'R180'],
-            files: 'Girl_WalkStart_R180_Empty.*',
+            files: 'Girl/WalkStart_R180_Empty.*',
             fade_in: '2F',
             root_motion: true,
             turn_in_place_end: '10F',
@@ -231,7 +234,7 @@ new ActionMove('Action.Demo.Walk', {
                 { phase: [0.83, 0.02], offset: '0F' },
                 { phase: [0.02, 0.08], offset: '2F' },
             ],
-            files: 'Girl_WalkStop_1_Empty.*',
+            files: 'Girl/WalkStop_1_Empty.*',
             fade_in: '6F',
             root_motion: true,
         },
@@ -240,7 +243,7 @@ new ActionMove('Action.Demo.Walk', {
                 { phase: [0.08, 0.27], offset: '0F' },
                 { phase: [0.27, 0.33], offset: '2F' },
             ],
-            files: 'Girl_WalkStop_2_Empty.*',
+            files: 'Girl/WalkStop_2_Empty.*',
             fade_in: '6F',
             root_motion: true,
         },
@@ -249,7 +252,7 @@ new ActionMove('Action.Demo.Walk', {
                 { phase: [0.33, 0.52], offset: '0F' },
                 { phase: [0.52, 0.58], offset: '2F' },
             ],
-            files: 'Girl_WalkStop_3_Empty.*',
+            files: 'Girl/WalkStop_3_Empty.*',
             fade_in: '6F',
             root_motion: true,
         },
@@ -258,7 +261,7 @@ new ActionMove('Action.Demo.Walk', {
                 { phase: [0.58, 0.77], offset: '0F' },
                 { phase: [0.77, 0.83], offset: '2F' },
             ],
-            files: 'Girl_WalkStop_4_Empty.*',
+            files: 'Girl/WalkStop_4_Empty.*',
             fade_in: '6F',
             root_motion: true,
         },
@@ -268,7 +271,7 @@ new ActionMove('Action.Demo.Walk', {
 
 new ActionGeneral('Action.Demo.Attack1', {
     anim_main: {
-        files: 'Girl_Attack_01A.*',
+        files: 'Girl/Attack_01A.*',
         duration: '160F',
         root_motion: true,
         weapon_motion: true,
@@ -313,7 +316,7 @@ new ActionGeneral('Action.Demo.Attack1', {
 
 new ActionGeneral('Action.Demo.Attack2', {
     anim_main: {
-        files: 'Girl_Attack_02A.*',
+        files: 'Girl/Attack_02A.*',
         duration: '160F',
         root_motion: true,
         weapon_motion: true,
@@ -358,7 +361,7 @@ new ActionGeneral('Action.Demo.Attack2', {
 
 new ActionGeneral('Action.Demo.Attack3', {
     anim_main: {
-        files: 'Girl_Attack_03A.*',
+        files: 'Girl/Attack_03A.*',
         duration: '166F',
         root_motion: true,
         weapon_motion: true,
@@ -402,7 +405,7 @@ new ActionGeneral('Action.Demo.Attack3', {
 
 new ActionGeneral('Action.Demo.Attack4', {
     anim_main: {
-        files: 'Girl_Attack_04A.*',
+        files: 'Girl/Attack_04A.*',
         duration: '166F',
         root_motion: true,
         weapon_motion: true,
@@ -460,8 +463,9 @@ const NPC = new NpcCharacter('NpcCharacter.TrainingDummy', {
         'Action.TrainingDummy.Idle',
         'Action.TrainingDummy.Hit1',
     ],
+    ai_executors: ['AiBrain.TrainingDummy'],
     bounding: new Capsule(0.5, 0.5),
-    skeleton_files: 'TrainingDummy.*',
+    skeleton_files: 'TrainingDummy/TrainingDummy.*',
     skeleton_toward: [0, 1],
     view_model: 'TrainingDummy.prefab',
 });
@@ -470,8 +474,8 @@ new ActionIdle('Action.TrainingDummy.Idle', {
     npc_characters: [NPC.id],
     tags: ['Idle'],
     anim_idle: {
-        files: 'TrainingDummy_Idle.*',
-        duration: '3s',
+        files: 'TrainingDummy/Idle.*',
+        duration: '4s',
     },
 });
 
@@ -482,28 +486,113 @@ new ActionHit('Action.TrainingDummy.Hit1', {
     anim_be_hits: [
         {
             enter_angle: -90,
-            files: 'TrainingDummy_Hit1_L.*',
+            files: 'TrainingDummy/Hit1_L.*',
             fade_in: '6F',
             root_motion: true,
         },
         {
             enter_angle: 0,
-            files: 'TrainingDummy_Hit1_B.*',
+            files: 'TrainingDummy/Hit1_B.*',
             fade_in: '6F',
             root_motion: true,
         },
         {
             enter_angle: 90,
-            files: 'TrainingDummy_Hit1_R.*',
+            files: 'TrainingDummy/Hit1_R.*',
             fade_in: '6F',
             root_motion: true,
         },
         {
             enter_angle: 180,
-            files: 'TrainingDummy_Hit1_F.*',
+            files: 'TrainingDummy/Hit1_F.*',
             fade_in: '6F',
             root_motion: true,
         },
+    ],
+});
+
+new AiBrain('AiBrain.TrainingDummy', {
+    character: 'NpcCharacter.TrainingDummy',
+    alert_sphere: { radius: 5 },
+    alert_cone: { radius: 10, half_angle: 45 },
+    attack_exit_delay: '30s',
+    idle_nodes: [],
+});
+
+// new AiTaskIdle('AiTask.SlimeBlue.Idle', {
+//     character: 'NpcCharacter.TrainingDummy',
+//     max_repeat: 1,
+//     action_idle: 'Action.TrainingDummy.Idle',
+//     duration: '4s-6s',
+// });
+
+const SLIME = new NpcCharacter('NpcCharacter.Slime', {
+    name: 'Slime',
+    tags: ['Npc', 'Enemy'],
+    level: [1, 1],
+    attributes: {
+        MaxHealth: [100],
+        MaxPosture: [50],
+        PostureRecovery: [5],
+        PhysicalAttack: [5],
+        PhysicalDefense: [3],
+    },
+    fixed_attributes,
+    actions: [
+        'Action.Slime.Idle',
+        'Action.Slime.Move',
+    ],
+    ai_executors: ['AiBrain.Slime'],
+    bounding: new Capsule(0.5, 0.5),
+    skeleton_files: 'Slime/Slime.*',
+    skeleton_toward: [0, 1],
+    view_model: 'Slime.prefab',
+});
+
+new ActionIdle('Action.Slime.Idle', {
+    npc_characters: [SLIME.id],
+    tags: ['Idle'],
+    anim_idle: { files: 'Slime/Idle.*' },
+});
+
+new ActionMove('Action.Slime.Move', {
+    npc_characters: [SLIME.id],
+    tags: ['Move'],
+    enter_key: Run,
+    anim_move: {
+        files: 'Slime/Move.*',
+        fade_in: '4F',
+        root_motion: true,
+    },
+    move_speed: 2,
+    start_time: '8F',
+    stop_time: '8F',
+    turn_time: '12F',
+    quick_stop_time: 0,
+});
+
+new AiBrain('AiBrain.Slime', {
+    character: 'NpcCharacter.Slime',
+    alert_sphere: { radius: 3 },
+    alert_cone: { radius: 5, half_angle: 60 },
+    attack_exit_delay: '10s',
+    idle_nodes: [AiBrain.task('AiTask.Slime.Patrol')],
+});
+
+new AiTaskPatrol('AiTask.Slime.Patrol', {
+    character: 'NpcCharacter.Slime',
+    action_idle: 'Action.Slime.Idle',
+    action_move: 'Action.Slime.Move',
+    route: [
+        ['Move', [-4, 0, 4]],
+        ['Idle', '2s'],
+        ['Move', [-4, 0, -4]],
+        ['Idle', '2s'],
+        ['Move', [5, 0, -4]],
+        ['Idle', '2s'],
+        ['Move', [8, 0, 0]],
+        ['Move', [4, 0, 4]],
+        ['Idle', '2s'],
     ],
 });
 
