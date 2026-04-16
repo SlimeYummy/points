@@ -36,10 +36,10 @@ impl<K, V> From<TableKv<K, V>> for (K, V) {
 }
 
 const _: () = {
+    use serde::Deserialize;
     use serde::de::value::{MapAccessDeserializer, SeqAccessDeserializer};
     use serde::de::{Deserializer, MapAccess, SeqAccess, Visitor};
     use serde::ser::{Serialize, SerializeTuple, Serializer};
-    use serde::Deserialize;
 
     impl<'de, K, V> Deserialize<'de> for TableKv<K, V>
     where

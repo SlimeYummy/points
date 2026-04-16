@@ -99,3 +99,18 @@ impl ShapeTaperedCylinder {
         }
     }
 }
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ShapeSphericalCone {
+    pub radius: f32,
+    pub half_angle: f32,
+}
+
+rkyv_self!(ShapeSphericalCone);
+
+impl ShapeSphericalCone {
+    #[inline]
+    pub fn new(radius: f32, half_angle: f32) -> ShapeSphericalCone {
+        ShapeSphericalCone { radius, half_angle }
+    }
+}

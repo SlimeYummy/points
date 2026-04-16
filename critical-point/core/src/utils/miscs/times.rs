@@ -25,6 +25,16 @@ impl TimeRange {
     }
 
     #[inline]
+    pub fn min(&self) -> f32 {
+        self.begin
+    }
+
+    #[inline]
+    pub fn max(&self) -> f32 {
+        self.end
+    }
+
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.begin >= self.end
     }
@@ -140,6 +150,11 @@ impl TimeFragment {
     #[inline]
     pub fn new(begin: f32, end: f32, index: u32) -> TimeFragment {
         TimeFragment { begin, end, index }
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.begin >= self.end
     }
 
     #[inline]

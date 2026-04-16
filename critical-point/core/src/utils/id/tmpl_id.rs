@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{alloc, fmt, fs, mem, ptr, slice, str, u64};
 
-use crate::utils::{rkyv_self, xerr, xfromf, xres, xresf, XError, XResult};
+use crate::utils::{XError, XResult, rkyv_self, xerr, xfromf, xres, xresf};
 
 const MAX_SYMBOL_LEN: usize = 64;
 const MAX_SYMBOL_COUNT: usize = (u16::MAX - 1) as usize;
@@ -91,8 +91,8 @@ impl Drop for TmplSymbolCache {
 
 impl TmplSymbolCache {
     pub(crate) fn from_file<P: AsRef<Path>>(path: P) -> XResult<TmplSymbolCache> {
-        use rkyv::rancor::Failure;
         use rkyv::Archived;
+        use rkyv::rancor::Failure;
 
         let path = PathBuf::from(path.as_ref());
         let rkyv_path = path.join("symbol.rkyv");
@@ -270,6 +270,8 @@ pub enum TmplPrefix {
     Jewel,
     Action,
     NpcAction,
+    AiBrain,
+    AiTask,
     Zone,
     Invalid = 0x3F,
 }
@@ -293,6 +295,8 @@ impl FromStr for TmplPrefix {
             "Jewel" => TmplPrefix::Jewel,
             "Action" => TmplPrefix::Action,
             "NpcAction" => TmplPrefix::NpcAction,
+            "AiBrain" => TmplPrefix::AiBrain,
+            "AiTask" => TmplPrefix::AiTask,
             "Zone" => TmplPrefix::Zone,
             _ => return xres!(NotFound; "TmplPrefix string"),
         };
@@ -317,7 +321,9 @@ impl TryFrom<u8> for TmplPrefix {
             9 => TmplPrefix::Jewel,
             10 => TmplPrefix::Action,
             11 => TmplPrefix::NpcAction,
-            12 => TmplPrefix::Zone,
+            12 => TmplPrefix::AiBrain,
+            14 => TmplPrefix::AiTask,
+            15 => TmplPrefix::Zone,
             _ => return xres!(NotFound; "TmplPrefix u8"),
         };
         Ok(prefix)
@@ -339,6 +345,8 @@ impl AsRef<str> for TmplPrefix {
             TmplPrefix::Jewel => "Jewel",
             TmplPrefix::Action => "Action",
             TmplPrefix::NpcAction => "NpcAction",
+            TmplPrefix::AiBrain => "AiBrain",
+            TmplPrefix::AiTask => "AiTask",
             TmplPrefix::Zone => "Zone",
             TmplPrefix::Invalid => "?",
         }
@@ -546,12 +554,7 @@ impl TmplID {
 
     fn encode_suffix<'t>(buf: &'t mut [u8; 2], n: u16, def: &'t str) -> &'t str {
         fn encode_char(c: u16) -> u8 {
-            if c < 10 {
-                b'0' + c as u8
-            }
-            else {
-                b'A' + (c - 10) as u8
-            }
+            if c < 10 { b'0' + c as u8 } else { b'A' + (c - 10) as u8 }
         }
 
         fn encode_digit(c: u16) -> u8 {

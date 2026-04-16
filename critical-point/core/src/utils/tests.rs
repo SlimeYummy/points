@@ -23,12 +23,12 @@ pub(crate) fn write_json<T: ?Sized + serde::Serialize>(path: &PathBuf, data: &T)
 pub(crate) fn write_rkyv<T>(path: &PathBuf, data: &T)
 where
     T: for<'a> rkyv::Serialize<
-        rkyv::api::high::HighSerializer<
-            rkyv::util::AlignedVec,
-            rkyv::ser::allocator::ArenaHandle<'a>,
-            rkyv::rancor::Error,
+            rkyv::api::high::HighSerializer<
+                rkyv::util::AlignedVec,
+                rkyv::ser::allocator::ArenaHandle<'a>,
+                rkyv::rancor::Error,
+            >,
         >,
-    >,
 {
     let buf = rkyv::to_bytes(data).unwrap();
     fs::write(&path, buf).unwrap();

@@ -116,12 +116,7 @@ pub use strict_gt;
 #[inline]
 pub fn ratio_saturating(a: f32, b: f32) -> f32 {
     let bb = b.abs();
-    if likely(a > 0.0) {
-        (a / bb).min(1.0)
-    }
-    else {
-        0.0
-    }
+    if likely(a > 0.0) { (a / bb).min(1.0) } else { 0.0 }
 }
 
 /// Require b > 0

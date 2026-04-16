@@ -3,8 +3,8 @@ use std::mem;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::utils::error::xres;
 use crate::utils::XResult;
+use crate::utils::error::xres;
 
 #[inline]
 pub fn const_ptr<T, U>(val: &T) -> *const U {

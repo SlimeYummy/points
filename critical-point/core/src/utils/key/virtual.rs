@@ -8,8 +8,11 @@ use crate::utils::macros::rkyv_self;
 use crate::utils::serde_by;
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
 pub enum VirtualKey {
+    #[default]
+    None,
+
     Move,
     View,
     Dodge,
