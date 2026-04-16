@@ -7,7 +7,7 @@ use thin_vec::ThinVec;
 
 use crate::animation::hit_motion::{HitKeyPosition, HitKeyRotation, HitMotion};
 use crate::animation::{HitBoxJoint, HitBoxWeapon, WeaponTransform};
-use crate::utils::{strict_gt, strict_lt, xerrf, XResult};
+use crate::utils::{XResult, strict_gt, strict_lt, xerrf};
 
 #[derive(Debug)]
 pub(crate) struct HitMotionSampler {
