@@ -3,7 +3,7 @@ use glam::{Quat, Vec3A};
 use glam_ext::{Mat4, Transform3A};
 use ozz_animation_rs::{LocalToModelJob, LocalToModelJobRef, Skeleton, SoaTransform};
 
-use crate::utils::{xfrom, xres, Symbol, XResult};
+use crate::utils::{Symbol, XResult, xfrom, xres};
 
 #[repr(C)]
 #[derive(

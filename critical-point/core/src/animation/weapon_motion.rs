@@ -8,7 +8,7 @@ use std::ops::Index;
 use std::path::Path;
 
 use crate::animation::utils::WeaponTransform;
-use crate::utils::{ifelse, sb, strict_gt, xres, Symbol, XResult};
+use crate::utils::{Symbol, XResult, ifelse, sb, strict_gt, xres};
 
 #[derive(Debug)]
 pub struct WeaponMotion {
@@ -184,12 +184,12 @@ mod tests {
 
     #[test]
     fn test_weapon_motion_track_set() {
-        WeaponMotion::from_path(format!("{}/Girl_Attack_01A.wm-ozz", TEST_ASSET_PATH)).unwrap();
+        WeaponMotion::from_path(format!("{}/Girl/Attack_01A.wm-ozz", TEST_ASSET_PATH)).unwrap();
     }
 
     #[test]
     fn test_sample_weapons_by_name_with_weight() {
-        let tracks = WeaponMotion::from_path(format!("{}/Girl_Attack_01A.wm-ozz", TEST_ASSET_PATH)).unwrap();
+        let tracks = WeaponMotion::from_path(format!("{}/Girl/Attack_01A.wm-ozz", TEST_ASSET_PATH)).unwrap();
         let mut transform = Vec::new();
 
         sample_weapons_by_name_with_weight(&tracks, 0.3, 0.5, &mut transform).unwrap();

@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn test_skeleton_meta() {
-        let meta = load_skeleton_meta(format!("{}/Girl.ls-ozz", TEST_ASSET_PATH), true).unwrap();
+        let meta = load_skeleton_meta(format!("{}/Girl/Girl.ls-ozz", TEST_ASSET_PATH), true).unwrap();
         assert_eq!(meta.version, Skeleton::version());
         assert_eq!(meta.num_joints, 20);
         assert_eq!(meta.num_soa_joints, 5);
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_animation_meta() {
-        let meta = load_animation_meta(format!("{}/Girl_Attack_01A.la-ozz", TEST_ASSET_PATH)).unwrap();
+        let meta = load_animation_meta(format!("{}/Girl/Attack_01A.la-ozz", TEST_ASSET_PATH)).unwrap();
         assert_eq!(meta.version, Animation::version());
         assert_eq!(meta.duration, 2.6666667);
         assert_eq!(meta.num_tracks, 20);
@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_root_motion_meta() {
-        let meta = load_root_motion_meta(format!("{}/Girl_Attack_01A.rm-ozz", TEST_ASSET_PATH)).unwrap();
+        let meta = load_root_motion_meta(format!("{}/Girl/Attack_01A.rm-ozz", TEST_ASSET_PATH)).unwrap();
         assert_eq!(meta.version, Track::<Vec3>::version());
         assert_eq!(meta.position_default.enabled, true);
         assert_eq!(
@@ -292,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_weapon_motion_meta() {
-        let meta = load_weapon_motion_meta(format!("{}/Girl_Attack_01A.wm-ozz", TEST_ASSET_PATH), true).unwrap();
+        let meta = load_weapon_motion_meta(format!("{}/Girl/Attack_01A.wm-ozz", TEST_ASSET_PATH), true).unwrap();
         assert_eq!(meta.version, Track::<Vec3>::version());
         assert_eq!(meta.count, 1);
         assert_eq!(meta.names, vec!["Axe".to_string()]);
@@ -300,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_hit_motion_meta() {
-        let meta = load_hit_motion_meta(format!("{}/Girl_Attack_Test.hm-json", TEST_ASSET_PATH)).unwrap();
+        let meta = load_hit_motion_meta(format!("{}/Girl/Attack_Test.hm-json", TEST_ASSET_PATH)).unwrap();
         assert_eq!(meta.track_groups, vec![
             HitTrackGroupMeta {
                 group: "Health".to_string(),

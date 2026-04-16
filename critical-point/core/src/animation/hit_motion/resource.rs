@@ -8,7 +8,7 @@ use std::path::Path;
 use std::{fs, mem, slice};
 
 use crate::asset::{AssetIndxedCompoundShape, AssetShape};
-use crate::utils::{loose_ge, loose_le, xerrf, xfrom, xresf, HitType, Symbol, XResult};
+use crate::utils::{HitType, Symbol, XResult, loose_ge, loose_le, xerrf, xfrom, xresf};
 
 //
 // Raw
@@ -827,7 +827,7 @@ mod tests {
 
     #[test]
     fn test_hit_motion_from_json_reader() {
-        let json_path = format!("{}/Girl_Attack_Test.hm-json", TEST_ASSET_PATH);
+        let json_path = format!("{}/Girl/Attack_Test.hm-json", TEST_ASSET_PATH);
         let mut json_file = File::open(&json_path).unwrap();
         let mut json_buf = Vec::new();
         json_file.read_to_end(&mut json_buf).unwrap();

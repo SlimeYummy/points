@@ -4,7 +4,7 @@ use ozz_animation_rs::{Archive, OzzError, Track};
 use std::io::{ErrorKind, Read};
 use std::path::Path;
 
-use crate::utils::{rkyv_self, xres, xresf, XResult};
+use crate::utils::{XResult, rkyv_self, xres, xresf};
 
 #[repr(u8)]
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
