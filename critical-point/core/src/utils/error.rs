@@ -1,5 +1,6 @@
 use jolt_physics_rs::JoltError;
 use ozz_animation_rs::OzzError;
+use recastnavigation_rs::RNError;
 use std::error::Error;
 use std::fmt;
 
@@ -136,6 +137,7 @@ err_to_string!(std::str::Utf8Error, "str::Utf8Error");
 err_to_string!(serde_json::Error, "serde_json::Error");
 err_to_string!(JoltError, "JoltError");
 err_to_string!(OzzError, "OzzError");
+err_to_string!(RNError, "RNError");
 
 #[derive(Debug)]
 pub enum XError {
@@ -165,6 +167,8 @@ pub enum XError {
 
     TmplNotFound(MixedError<TmplID>),
 
+    InstNotFound(MixedError<TmplID>),
+
     LogicNotFound(MixedError<NumID>),
     LogicBadState(MixedError<()>),
     LogicIDMismatch(MixedError<()>),
@@ -175,6 +179,7 @@ pub enum XError {
     Zip(MixedError<std::io::Error>),
     Jolt(MixedError<JoltError>),
     Ozz(MixedError<OzzError>),
+    RcNav(MixedError<RNError>),
     Rkyv(MixedError<()>), // no source here
 
     Custom(MixedError<()>),
@@ -189,6 +194,7 @@ impl Error for XError {
             XError::Zip(e) => Some(e.src()),
             XError::Jolt(e) => Some(e.src()),
             XError::Ozz(e) => Some(e.src()),
+            XError::RcNav(e) => Some(e.src()),
             _ => None,
         }
     }
@@ -216,6 +222,7 @@ macro_rules! switch_call {
             XError::ScriptBadCommand(e) => $func(e),
             XError::ScriptStackOverflow(e) => $func(e),
             XError::TmplNotFound(e) => $func(e),
+            XError::InstNotFound(e) => $func(e),
             XError::LogicNotFound(e) => $func(e),
             XError::LogicBadState(e) => $func(e),
             XError::LogicIDMismatch(e) => $func(e),
@@ -225,6 +232,7 @@ macro_rules! switch_call {
             XError::Zip(e) => $func(e),
             XError::Jolt(e) => $func(e),
             XError::Ozz(e) => $func(e),
+            XError::RcNav(e) => $func(e),
             XError::Rkyv(e) => $func(e),
             XError::Custom(e) => $func(e),
         }
@@ -253,6 +261,7 @@ macro_rules! switch_new {
             XError::ScriptBadCommand(e) => XError::ScriptBadCommand($func(e)),
             XError::ScriptStackOverflow(e) => XError::ScriptStackOverflow($func(e)),
             XError::TmplNotFound(e) => XError::TmplNotFound($func(e)),
+            XError::InstNotFound(e) => XError::InstNotFound($func(e)),
             XError::LogicNotFound(e) => XError::LogicNotFound($func(e)),
             XError::LogicBadState(e) => XError::LogicBadState($func(e)),
             XError::LogicIDMismatch(e) => XError::LogicIDMismatch($func(e)),
@@ -262,6 +271,7 @@ macro_rules! switch_new {
             XError::Zip(e) => XError::Zip($func(e)),
             XError::Jolt(e) => XError::Jolt($func(e)),
             XError::Ozz(e) => XError::Ozz($func(e)),
+            XError::RcNav(e) => XError::RcNav($func(e)),
             XError::Rkyv(e) => XError::Rkyv($func(e)),
             XError::Custom(e) => XError::Custom($func(e)),
         }
@@ -308,6 +318,7 @@ impl fmt::Display for XError {
             XError::ScriptBadCommand(e) => e.to_string(f, "ScriptBadCommand"),
             XError::ScriptStackOverflow(e) => e.to_string(f, "ScriptStackOverflow"),
             XError::TmplNotFound(e) => e.to_string(f, "TmplNotFound"),
+            XError::InstNotFound(e) => e.to_string(f, "InstNotFound"),
             XError::LogicNotFound(e) => e.to_string(f, "LogicNotFound"),
             XError::LogicBadState(e) => e.to_string(f, "LogicBadState"),
             XError::LogicIDMismatch(e) => e.to_string(f, "LogicIDMismatch"),
@@ -317,6 +328,7 @@ impl fmt::Display for XError {
             XError::Zip(e) => e.to_string(f, "Zip"),
             XError::Jolt(e) => e.to_string(f, "Jolt"),
             XError::Ozz(e) => e.to_string(f, "Ozz"),
+            XError::RcNav(e) => e.to_string(f, "RcNav"),
             XError::Rkyv(e) => e.to_string(f, "Rkyv"),
             XError::Custom(e) => e.to_string(f, "Custom"),
         }
@@ -357,6 +369,12 @@ impl From<JoltError> for XError {
 impl From<OzzError> for XError {
     fn from(e: OzzError) -> Self {
         XError::Ozz(MixedError::from_static(e, &EMPTY_STR))
+    }
+}
+
+impl From<RNError> for XError {
+    fn from(e: RNError) -> Self {
+        XError::RcNav(MixedError::from_static(e, &EMPTY_STR))
     }
 }
 

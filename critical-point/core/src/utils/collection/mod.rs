@@ -17,8 +17,8 @@ pub use table::*;
 pub use arrayvec::{
     ArrayString, ArrayVec, CapacityError as ArrayVecCapacityError, Drain as ArrayVecDrain, IntoIter as ArrayVecIntoIter,
 };
-pub use smallvec::{smallvec, Drain as SmallVecDrain, IntoIter as SmallVecIntoIter, SmallVec, ToSmallVec};
-pub use thin_vec::{thin_vec, Drain as ThinVecDrain, IntoIter as ThinVecIntoIter, Splice as ThinVecSplice, ThinVec};
+pub use smallvec::{Drain as SmallVecDrain, IntoIter as SmallVecIntoIter, SmallVec, ToSmallVec, smallvec};
+pub use thin_vec::{Drain as ThinVecDrain, IntoIter as ThinVecIntoIter, Splice as ThinVecSplice, ThinVec, thin_vec};
 
 /// A deterministic hash map.
 pub type DtHashMap<K, V> = rustc_hash::FxHashMap<K, V>;

@@ -1,9 +1,9 @@
 use critical_point_csgen::CsEnum;
-use enum_iterator::{cardinality, Sequence};
+use enum_iterator::{Sequence, cardinality};
 use std::mem;
 
 use crate::utils::collection::Bitsetable;
-use crate::utils::error::{xres, XError, XResult};
+use crate::utils::error::{XError, XResult, xres};
 use crate::utils::macros::rkyv_self;
 
 pub const LEVEL_IDLE: u16 = 0;
@@ -40,6 +40,10 @@ unsafe impl Bitsetable for DeriveContinue {
         *self as usize
     }
 }
+
+//
+// ActionType
+//
 
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize, CsEnum)]
@@ -93,6 +97,61 @@ impl TryFrom<rkyv::primitive::ArchivedU16> for ActionType {
         Ok(unsafe { mem::transmute::<u16, ActionType>(val.to_native()) })
     }
 }
+
+//
+// AiTaskType
+//
+
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize, CsEnum)]
+pub enum AiTaskType {
+    Idle,
+    Patrol,
+}
+
+rkyv_self!(AiTaskType);
+
+impl From<AiTaskType> for u16 {
+    #[inline]
+    fn from(val: AiTaskType) -> Self {
+        unsafe { mem::transmute::<AiTaskType, u16>(val) }
+    }
+}
+
+impl TryFrom<u16> for AiTaskType {
+    type Error = XError;
+
+    #[inline]
+    fn try_from(value: u16) -> XResult<Self> {
+        if value as usize >= cardinality::<AiTaskType>() {
+            return xres!(Overflow);
+        }
+        Ok(unsafe { mem::transmute::<u16, AiTaskType>(value) })
+    }
+}
+
+impl From<AiTaskType> for rkyv::primitive::ArchivedU16 {
+    #[inline]
+    fn from(val: AiTaskType) -> Self {
+        unsafe { mem::transmute::<AiTaskType, u16>(val) }.into()
+    }
+}
+
+impl TryFrom<rkyv::primitive::ArchivedU16> for AiTaskType {
+    type Error = XError;
+
+    #[inline]
+    fn try_from(val: rkyv::primitive::ArchivedU16) -> XResult<Self> {
+        if val.to_native() as usize >= cardinality::<AiTaskType>() {
+            return xres!(Overflow);
+        }
+        Ok(unsafe { mem::transmute::<u16, AiTaskType>(val.to_native()) })
+    }
+}
+
+//
+// HitType
+//
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize)]

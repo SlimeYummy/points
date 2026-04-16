@@ -1,12 +1,7 @@
 #[macro_export]
 macro_rules! ifelse {
     ($c:expr, $a:expr, $b:expr) => {
-        if $c {
-            $a
-        }
-        else {
-            $b
-        }
+        if $c { $a } else { $b }
     };
 }
 pub use ifelse;
@@ -109,6 +104,7 @@ pub(crate) use interface;
 macro_rules! rkyv_self {
     ($type:ty) => {
         const _: () = {
+            use bytecheck::CheckBytes;
             use rkyv::rancor::Fallible;
             use rkyv::traits::NoUndef;
             use rkyv::{Archive, Deserialize, Place, Portable, Serialize};
@@ -137,6 +133,12 @@ macro_rules! rkyv_self {
                 #[inline]
                 fn deserialize(&self, _: &mut D) -> Result<$type, D::Error> {
                     Ok(*self)
+                }
+            }
+
+            unsafe impl<C: Fallible + ?Sized> CheckBytes<C> for $type {
+                unsafe fn check_bytes(_v: *const Self, _c: &mut C) -> Result<(), C::Error> {
+                    Ok(())
                 }
             }
         };

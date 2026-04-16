@@ -1,8 +1,8 @@
-use std::collections::{vec_deque, VecDeque};
+use std::collections::{VecDeque, vec_deque};
 use std::fmt;
 use std::ops::{Bound, Index, IndexMut, RangeBounds};
 
-use crate::utils::{xres, XResult};
+use crate::utils::{XResult, xres};
 
 pub struct HistoryQueue<T> {
     queue: VecDeque<T>,

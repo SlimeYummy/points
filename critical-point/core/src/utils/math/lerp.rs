@@ -115,22 +115,12 @@ pub fn ease_in_out_quint(x: f32) -> f32 {
 
 #[inline]
 pub fn ease_in_expo(x: f32) -> f32 {
-    if x == 0.0 {
-        0.0
-    }
-    else {
-        2.0f32.powf(10.0 * x - 10.0)
-    }
+    if x == 0.0 { 0.0 } else { 2.0f32.powf(10.0 * x - 10.0) }
 }
 
 #[inline]
 pub fn ease_out_expo(x: f32) -> f32 {
-    if x == 1.0 {
-        1.0
-    }
-    else {
-        1.0 - 2.0f32.powf(-10.0 * x)
-    }
+    if x == 1.0 { 1.0 } else { 1.0 - 2.0f32.powf(-10.0 * x) }
 }
 
 #[inline]

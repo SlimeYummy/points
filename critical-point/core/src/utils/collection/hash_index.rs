@@ -326,7 +326,7 @@ mod tests {
     use std::hash::Hasher;
 
     use super::*;
-    use crate::utils::id::{id, TmplID};
+    use crate::utils::id::{TmplID, id};
 
     #[test]
     fn test_insert_find() {
