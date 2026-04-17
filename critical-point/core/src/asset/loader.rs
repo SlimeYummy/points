@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use crate::animation::{HitMotion, RootMotion, WeaponMotion};
-use crate::utils::{xfromf, xresf, DtHashMap, Symbol, XResult};
+use crate::utils::{DtHashMap, Symbol, XResult, xfromf, xresf};
 
 pub struct AssetLoader {
     asset_path: PathBuf,
@@ -45,6 +45,11 @@ impl AssetLoader {
             weapon_motion_cache: DtHashMap::with_capacity_and_hasher(384, FxBuildHasher),
             hit_motion_cache: DtHashMap::with_capacity_and_hasher(384, FxBuildHasher),
         });
+    }
+
+    #[inline]
+    pub(super) fn make_full_path(&self, path: &str) -> PathBuf {
+        self.asset_path.join(path)
     }
 
     pub(super) fn load_buffer<P: AsRef<Path>>(&mut self, path: P) -> XResult<Vec<u8>> {

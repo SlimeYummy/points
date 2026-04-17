@@ -3,7 +3,7 @@ use jolt_physics_rs::{JRef, Shape};
 
 use crate::asset::loader::AssetLoader;
 use crate::asset::shape::AssetShape;
-use crate::utils::{default_position, default_rotation, sb, xerr, xerrf, Symbol, XResult};
+use crate::utils::{Symbol, XResult, default_position, default_rotation, sb, xerr, xerrf};
 
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize)]
 struct AssetCharacterPhysics {
@@ -136,7 +136,7 @@ mod tests {
     #[test]
     fn test_load_character_physics() {
         let mut loader = AssetLoader::new(TEST_ASSET_PATH).unwrap();
-        let chara_phy = loader.load_character_physics(sb!("Girl.*")).unwrap();
+        let chara_phy = loader.load_character_physics(sb!("Girl/Girl.*")).unwrap();
         assert!(chara_phy.parts.len() > 0);
         assert!(chara_phy.bodies.len() > 0);
     }

@@ -8,8 +8,8 @@ use jolt_physics_rs::{
 
 use crate::asset::loader::AssetLoader;
 use crate::utils::{
-    default_axis_y, default_position, default_rotation, default_scale, xfrom, ShapeBox, ShapeCapsule, ShapeCylinder,
-    ShapeSphere, ShapeTaperedCapsule, ShapeTaperedCylinder, Symbol, XResult,
+    ShapeBox, ShapeCapsule, ShapeCylinder, ShapeSphere, ShapeTaperedCapsule, ShapeTaperedCylinder, Symbol, XResult,
+    default_axis_y, default_position, default_rotation, default_scale, xfrom,
 };
 
 impl AssetLoader {

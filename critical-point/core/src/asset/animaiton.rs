@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::animation::{HitMotion, RootMotion, WeaponMotion};
 use crate::asset::loader::AssetLoader;
-use crate::utils::{xfromf, Symbol, XResult};
+use crate::utils::{Symbol, XResult, xfromf};
 
 impl AssetLoader {
     pub fn load_skeleton(&mut self, path_pattern: Symbol) -> XResult<Rc<Skeleton>> {
