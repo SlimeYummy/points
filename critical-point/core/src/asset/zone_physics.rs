@@ -1,10 +1,10 @@
 use glam::{Quat, Vec3A};
 use jolt_physics_rs::{self as jolt, JRef, Shape, StaticCompoundShapeSettings, SubShapeSettings};
 
+use crate::asset::AssetIndxedCompoundShape;
 use crate::asset::loader::AssetLoader;
 use crate::asset::shape::AssetShape;
-use crate::asset::AssetIndxedCompoundShape;
-use crate::utils::{default_position, default_rotation, xerrf, xfrom, XResult};
+use crate::utils::{Symbol, XResult, default_position, default_rotation, xerr, xerrf, xfrom};
 
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize)]
 pub struct AssetZonePhysics {
@@ -36,109 +36,115 @@ pub struct LoadedZoneBody {
 }
 
 impl AssetLoader {
-    pub fn load_zone_physics(&mut self, file: &str) -> XResult<LoadedZonePhysics> {
-        let asset_zone = self.load_json::<AssetZonePhysics, _>(file)?;
-
-        let mut jolt_shapes = Vec::with_capacity(asset_zone.shapes.len() + asset_zone.compound_shapes.len());
-        for shape in &asset_zone.shapes {
-            jolt_shapes.push(shape.create_physics()?);
+    pub fn load_zone_physics(&mut self, path_pattern: Symbol) -> XResult<LoadedZonePhysics> {
+        let rkyv_path = format!("{}.zp-rkyv", &path_pattern[0..path_pattern.len() - 2]);
+        if let Ok(buf) = self.load_buffer(&rkyv_path) {
+            let asset = unsafe { rkyv::access_unchecked::<ArchivedAssetZonePhysics>(&buf) };
+            from_archived_asset(&rkyv_path, asset)
         }
-
-        let mut buf: Vec<SubShapeSettings> = Vec::with_capacity(8);
-        for compound_shape in &asset_zone.compound_shapes {
-            for sub_shape in &compound_shape.sub_shapes {
-                let jolt_shape = jolt_shapes
-                    .get(sub_shape.shape_index as usize)
-                    .ok_or_else(|| xerrf!(BadAsset; "file={}, shape_index={}", file, sub_shape.shape_index))?;
-                buf.push(SubShapeSettings::new(
-                    jolt_shape.clone(),
-                    sub_shape.position,
-                    sub_shape.rotation,
-                ));
-            }
-            if !buf.is_empty() {
-                let settings = StaticCompoundShapeSettings::new(&buf);
-                let jolt_shape = jolt::create_static_compound_shape(&settings).map_err(xfrom!())?;
-                jolt_shapes.push(jolt_shape.into());
-                buf.clear();
-            }
+        else {
+            let json_path = format!("{}.zp-json", &path_pattern[0..path_pattern.len() - 2]);
+            let asset = self.load_json::<AssetZonePhysics, _>(&json_path)?;
+            from_asset(&json_path, asset)
         }
-
-        let mut bodies = Vec::with_capacity(asset_zone.bodies.len());
-        for asset_box in &asset_zone.bodies {
-            let jolt_shape = jolt_shapes
-                .get(asset_box.shape_index as usize)
-                .ok_or_else(|| xerrf!(BadAsset; "file={}, shape_index={}", file, asset_box.shape_index))?;
-            bodies.push(LoadedZoneBody {
-                shape: jolt_shape.clone(),
-                position: asset_box.position,
-                rotation: asset_box.rotation,
-            });
-        }
-
-        Ok(LoadedZonePhysics { bodies })
     }
 }
 
-// pub fn from_asset(body_itf: &mut BodyInterface, path: &str, asset: AssetZonePhysics) -> XResult<LoadedZonePhysics> {
-//     let mut jolt_shapes = Vec::with_capacity(asset.shapes.len());
-//     for shape in &asset.shapes {
-//         jolt_shapes.push(shape.create_physics()?);
-//     }
+pub fn from_asset(path: &str, asset: AssetZonePhysics) -> XResult<LoadedZonePhysics> {
+    let mut jolt_shapes = Vec::with_capacity(asset.shapes.len() + asset.compound_shapes.len());
+    for shape in &asset.shapes {
+        jolt_shapes.push(shape.create_physics()?);
+    }
 
-//     let mut bodies = Vec::with_capacity(asset.bodies.len());
-//     for asset_box in &asset.bodies {
-//         let jolt_shape: &jolt_physics_rs::JRef<jolt_physics_rs::Shape> = jolt_shapes
-//             .get(asset_box.shape_index as usize)
-//             .ok_or_else(|| xerrf!(BadAsset; "file={}, shape_index={}", path, asset_box.shape_index))?;
-//         let settings = BodyCreationSettings::new_static(
-//             jolt_shape.clone(),
-//             phy_layer!(StaticScenery, All),
-//             asset_box.position,
-//             asset_box.rotation,
-//         );
-//         let body = body_itf.create_body(&settings).map_err(xfrom!())?;
-//         bodies.push(body);
-//     }
+    let mut buf: Vec<SubShapeSettings> = Vec::with_capacity(8);
+    for compound_shape in &asset.compound_shapes {
+        for sub_shape in &compound_shape.sub_shapes {
+            let jolt_shape = jolt_shapes
+                .get(sub_shape.shape_index as usize)
+                .ok_or_else(|| xerrf!(BadAsset; "file={}, shape_index={}", path, sub_shape.shape_index))?;
+            buf.push(SubShapeSettings::new(
+                jolt_shape.clone(),
+                sub_shape.position,
+                sub_shape.rotation,
+            ));
+        }
+        if !buf.is_empty() {
+            let settings = StaticCompoundShapeSettings::new(&buf);
+            let jolt_shape = jolt::create_static_compound_shape(&settings).map_err(xfrom!())?;
+            jolt_shapes.push(jolt_shape.into());
+            buf.clear();
+        }
+    }
 
-//     Ok(LoadedZonePhysics { bodies })
-// }
+    let mut bodies = Vec::with_capacity(asset.bodies.len());
+    for asset_box in &asset.bodies {
+        let jolt_shape = jolt_shapes
+            .get(asset_box.shape_index as usize)
+            .ok_or_else(|| xerrf!(BadAsset; "file={}, shape_index={}", path, asset_box.shape_index))?;
+        bodies.push(LoadedZoneBody {
+            shape: jolt_shape.clone(),
+            position: asset_box.position,
+            rotation: asset_box.rotation,
+        });
+    }
 
-// pub fn from_archived_asset(body_itf: &mut BodyInterface, path: &str, asset: &ArchivedAssetZonePhysics) -> XResult<LoadedZonePhysics> {
-//     let mut jolt_shapes = Vec::with_capacity(asset.shapes.len());
-//     for shape in asset.shapes.iter() {
-//         let shape = rkyv::deserialize::<AssetShape, rkyv::rancor::Error>(shape).map_err(|_| xerr!(Rkyv))?;
-//         jolt_shapes.push(shape.create_physics()?);
-//     }
+    Ok(LoadedZonePhysics { bodies })
+}
 
-//     let mut bodies = Vec::with_capacity(asset.bodies.len());
-//     for asset_box in asset.bodies.iter() {
-//         let shape_index: u32 = asset_box.shape_index.into();
-//         let jolt_shape: &jolt_physics_rs::JRef<jolt_physics_rs::Shape> = jolt_shapes
-//             .get(shape_index as usize)
-//             .ok_or_else(|| xerrf!(BadAsset; "file={}, shape_index={}", path, asset_box.shape_index))?;
-//         let settings = BodyCreationSettings::new_static(
-//             jolt_shape.clone(),
-//             phy_layer!(StaticScenery, All),
-//             asset_box.position,
-//             asset_box.rotation,
-//         );
-//         let body = body_itf.create_body(&settings).map_err(xfrom!())?;
-//         bodies.push(body);
-//     }
+pub fn from_archived_asset(path: &str, asset: &ArchivedAssetZonePhysics) -> XResult<LoadedZonePhysics> {
+    let mut jolt_shapes = Vec::with_capacity(asset.shapes.len() + asset.compound_shapes.len());
+    for shape in asset.shapes.iter() {
+        let shape = rkyv::deserialize::<AssetShape, rkyv::rancor::Error>(shape).map_err(|_| xerr!(Rkyv))?;
+        jolt_shapes.push(shape.create_physics()?);
+    }
 
-//     Ok(LoadedZonePhysics { bodies })
-// }
+    let mut buf: Vec<SubShapeSettings> = Vec::with_capacity(8);
+    for compound_shape in asset.compound_shapes.iter() {
+        for sub_shape in compound_shape.sub_shapes.iter() {
+            let shape_index = sub_shape.shape_index.to_native();
+            let jolt_shape = jolt_shapes
+                .get(shape_index as usize)
+                .ok_or_else(|| xerrf!(BadAsset; "file={}, shape_index={}", path, shape_index))?;
+            buf.push(SubShapeSettings::new(
+                jolt_shape.clone(),
+                sub_shape.position,
+                sub_shape.rotation,
+            ));
+        }
+        if !buf.is_empty() {
+            let settings = StaticCompoundShapeSettings::new(&buf);
+            let jolt_shape = jolt::create_static_compound_shape(&settings).map_err(xfrom!())?;
+            jolt_shapes.push(jolt_shape.into());
+            buf.clear();
+        }
+    }
+
+    let mut bodies = Vec::with_capacity(asset.bodies.len());
+    for asset_box in asset.bodies.iter() {
+        let shape_index = asset_box.shape_index.to_native();
+        let jolt_shape = jolt_shapes
+            .get(shape_index as usize)
+            .ok_or_else(|| xerrf!(BadAsset; "file={}, shape_index={}", path, shape_index))?;
+        bodies.push(LoadedZoneBody {
+            shape: jolt_shape.clone(),
+            position: asset_box.position,
+            rotation: asset_box.rotation,
+        });
+    }
+
+    Ok(LoadedZonePhysics { bodies })
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::consts::TEST_ASSET_PATH;
+    use crate::utils::sb;
 
     #[test]
     fn test_load_zone_physics() {
         let mut loader = AssetLoader::new(TEST_ASSET_PATH).unwrap();
-        let zone_phy = loader.load_zone_physics("TestZone.json").unwrap();
+        let zone_phy = loader.load_zone_physics(sb!("Zones/TestZone.*")).unwrap();
         assert!(zone_phy.bodies.len() > 0);
     }
 }
