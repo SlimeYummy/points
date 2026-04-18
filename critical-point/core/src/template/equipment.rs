@@ -1,6 +1,6 @@
 use crate::template::attribute::TmplAttribute;
 use crate::template::base::impl_tmpl;
-use crate::utils::{impl_for, rkyv_self, JewelSlots, LevelRange, PiecePlus, Table, TmplID};
+use crate::utils::{JewelSlots, LevelRange, PiecePlus, Table, TmplID, impl_for, rkyv_self};
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

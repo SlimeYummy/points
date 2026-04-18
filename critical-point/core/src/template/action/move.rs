@@ -120,7 +120,7 @@ impl TmplActionMoveStopLeave {
 mod tests {
     use super::*;
     use crate::template::database::TmplDatabase;
-    use crate::utils::{cf2s, id, LEVEL_MOVE};
+    use crate::utils::{LEVEL_MOVE, cf2s, id};
 
     #[test]
     fn test_load_action_move() {
@@ -139,7 +139,7 @@ mod tests {
         assert_eq!(act.derive_level, LEVEL_MOVE - 10);
         assert_eq!(act.special_derive_level, LEVEL_MOVE + 10);
 
-        assert_eq!(act.anim_move.files, "Girl_Run_Empty.*");
+        assert_eq!(act.anim_move.files, "Girl/Run_Empty.*");
         assert_eq!(act.anim_move.duration, 0.93333334);
         assert_eq!(act.anim_move.fade_in, cf2s(4));
         assert_eq!(act.anim_move.root_motion, true);
@@ -149,7 +149,7 @@ mod tests {
 
         assert_eq!(act.starts.len(), 3);
         assert_eq!(act.start_time, cf2s(4));
-        assert_eq!(act.starts[0].anim.files, "Girl_RunStart_Empty.*");
+        assert_eq!(act.starts[0].anim.files, "Girl/RunStart_Empty.*");
         assert_eq!(act.starts[0].anim.fade_in, 0.0);
         assert_eq!(act.starts[0].anim.root_motion, true);
         assert_eq!(act.starts[0].anim.weapon_motion, false);
@@ -158,11 +158,11 @@ mod tests {
         assert_eq!(act.starts[0].enter_angle, [15f32.to_radians(), -15f32.to_radians()]);
         assert_eq!(act.starts[0].turn_in_place_end, cf2s(2));
         assert_eq!(act.starts[0].quick_stop_end, cf2s(20));
-        assert_eq!(act.starts[1].anim.files, "Girl_RunStart_L180_Empty.*");
+        assert_eq!(act.starts[1].anim.files, "Girl/RunStart_L180_Empty.*");
         assert_eq!(act.starts[1].enter_angle, [15f32.to_radians(), 180f32.to_radians()]);
         assert_eq!(act.starts[1].turn_in_place_end, cf2s(8));
         assert_eq!(act.starts[1].quick_stop_end, cf2s(26));
-        assert_eq!(act.starts[2].anim.files, "Girl_RunStart_R180_Empty.*");
+        assert_eq!(act.starts[2].anim.files, "Girl/RunStart_R180_Empty.*");
         assert_eq!(act.starts[2].enter_angle, [-15f32.to_radians(), -180f32.to_radians()]);
         assert_eq!(act.starts[2].turn_in_place_end, cf2s(8));
         assert_eq!(act.starts[2].quick_stop_end, cf2s(26));
@@ -173,7 +173,7 @@ mod tests {
         assert_eq!(act.stops.len(), 2);
         assert_eq!(act.stop_time, cf2s(6));
         assert_eq!(act.quick_stop_time, cf2s(0));
-        assert_eq!(act.stops[0].anim.files, "Girl_RunStop_L_Empty.*");
+        assert_eq!(act.stops[0].anim.files, "Girl/RunStop_L_Empty.*");
         assert_eq!(act.stops[0].anim.fade_in, cf2s(4));
         assert_eq!(act.stops[0].anim.root_motion, true);
         assert_eq!(act.stops[0].anim.weapon_motion, false);
@@ -199,7 +199,7 @@ mod tests {
             }
         );
 
-        assert_eq!(act.stops[1].anim.files, "Girl_RunStop_R_Empty.*");
+        assert_eq!(act.stops[1].anim.files, "Girl/RunStop_R_Empty.*");
         assert_eq!(act.stops[0].enter_phase_table.len(), 1);
         assert_eq!(
             TmplActionMoveStopEnter::from_rkyv(&act.stops[1].enter_phase_table[0]),

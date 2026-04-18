@@ -2,7 +2,7 @@ use rkyv::option::ArchivedOption;
 
 use crate::consts::MAX_ENTRY_PLUS;
 use crate::template::base::impl_tmpl;
-use crate::utils::{rkyv_self, PiecePlus, RareLevel, TmplID};
+use crate::utils::{PiecePlus, RareLevel, TmplID, rkyv_self};
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

@@ -2,7 +2,7 @@ use crate::consts::MAX_ENTRY_PLUS;
 use crate::template::attribute::TmplAttribute;
 use crate::template::base::impl_tmpl;
 // use crate::template2::script::TmplScript;
-use crate::utils::{impl_for, PiecePlus, Table, TmplID};
+use crate::utils::{PiecePlus, Table, TmplID, impl_for};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]

@@ -1,10 +1,10 @@
 use critical_point_csgen::CsEnum;
-use enum_iterator::{cardinality, Sequence};
+use enum_iterator::{Sequence, cardinality};
 use std::alloc::Layout;
 use std::any::Any;
 use std::{fmt, mem};
 
-use crate::utils::{rkyv_self, xres, Castable, TmplID, XError, XResult};
+use crate::utils::{Castable, TmplID, XError, XResult, rkyv_self, xres};
 
 //
 // TmplType & TmplAny
@@ -32,6 +32,11 @@ pub enum TmplType {
     ActionGuard,
     ActionAim,
     ActionHit,
+
+    AiBrain,
+    AiTaskAttack,
+    AiTaskIdle,
+    AiTaskPatrol,
 }
 
 rkyv_self!(TmplType);
@@ -116,6 +121,11 @@ const _: () = {
         ArchivedTmplActionGeneral, ArchivedTmplActionHit, ArchivedTmplActionIdle, ArchivedTmplActionMove,
         TmplActionGeneral, TmplActionHit, TmplActionIdle, TmplActionMove,
     };
+    use super::ai_brain::{ArchivedTmplAiBrain, TmplAiBrain};
+    use super::ai_task::{
+        ArchivedTmplAiTaskAttack, ArchivedTmplAiTaskIdle, ArchivedTmplAiTaskPatrol, TmplAiTaskAttack, TmplAiTaskIdle,
+        TmplAiTaskPatrol,
+    };
     use super::character::{
         ArchivedTmplCharacter, ArchivedTmplNpcCharacter, ArchivedTmplStyle, TmplCharacter, TmplNpcCharacter, TmplStyle,
     };
@@ -170,6 +180,10 @@ const _: () = {
                     ActionGeneral => mem::transmute_copy::<usize, &ArchivedTmplActionGeneral>(&0),
                     ActionHit => mem::transmute_copy::<usize, &ArchivedTmplActionHit>(&0),
                     // NpcActionHit => mem::transmute_copy::<usize, &ArchivedTmplNpcActionHit>(&0),
+                    AiBrain => mem::transmute_copy::<usize, &ArchivedTmplAiBrain>(&0),
+                    AiTaskAttack => mem::transmute_copy::<usize, &ArchivedTmplAiTaskAttack>(&0),
+                    AiTaskIdle => mem::transmute_copy::<usize, &ArchivedTmplAiTaskIdle>(&0),
+                    AiTaskPatrol => mem::transmute_copy::<usize, &ArchivedTmplAiTaskPatrol>(&0),
                     _ => unreachable!("pointer_metadata() Invalid TmplType"),
                 }
             };
@@ -222,6 +236,10 @@ const _: () = {
                 ActionGeneral => serialize::<TmplActionGeneral, _>(self, serializer),
                 ActionHit => serialize::<TmplActionHit, _>(self, serializer),
                 // NpcActionHit => serialize::<TmplNpcActionHit, _>(self, serializer),
+                AiBrain => serialize::<TmplAiBrain, _>(self, serializer),
+                AiTaskAttack => serialize::<TmplAiTaskAttack, _>(self, serializer),
+                AiTaskIdle => serialize::<TmplAiTaskIdle, _>(self, serializer),
+                AiTaskPatrol => serialize::<TmplAiTaskPatrol, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid TmplType"),
             }
         }
@@ -268,6 +286,10 @@ const _: () = {
                 ActionGeneral => deserialize::<TmplActionGeneral, _>(self, deserializer, out),
                 ActionHit => deserialize::<TmplActionHit, _>(self, deserializer, out),
                 // NpcActionHit => deserialize::<TmplNpcActionHit, _>(self, deserializer, out),
+                AiBrain => deserialize::<TmplAiBrain, _>(self, deserializer, out),
+                AiTaskAttack => deserialize::<TmplAiTaskAttack, _>(self, deserializer, out),
+                AiTaskIdle => deserialize::<TmplAiTaskIdle, _>(self, deserializer, out),
+                AiTaskPatrol => deserialize::<TmplAiTaskPatrol, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid TmplType"),
             }
         }
@@ -291,6 +313,10 @@ const _: () = {
                     ActionGeneral => mem::transmute_copy::<usize, &TmplActionGeneral>(&0),
                     ActionHit => mem::transmute_copy::<usize, &TmplActionHit>(&0),
                     // NpcActionHit => mem::transmute_copy::<usize, &TmplNpcActionHit>(&0),
+                    AiBrain => mem::transmute_copy::<usize, &TmplAiBrain>(&0),
+                    AiTaskAttack => mem::transmute_copy::<usize, &TmplAiTaskAttack>(&0),
+                    AiTaskIdle => mem::transmute_copy::<usize, &TmplAiTaskIdle>(&0),
+                    AiTaskPatrol => mem::transmute_copy::<usize, &TmplAiTaskPatrol>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid TmplType"),
                 }
             };

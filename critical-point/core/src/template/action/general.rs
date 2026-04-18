@@ -135,7 +135,7 @@ impl TmplActionGeneralRotation {
 mod tests {
     use super::*;
     use crate::template::database::TmplDatabase;
-    use crate::utils::{cf2s, id, InputDir, VirtualKey, LEVEL_ACTION, LEVEL_ATTACK};
+    use crate::utils::{InputDir, LEVEL_ACTION, LEVEL_ATTACK, VirtualKey, cf2s, id};
 
     #[test]
     fn test_load_action_general() {
@@ -150,7 +150,7 @@ mod tests {
         assert!(act.npc_characters.is_empty());
         assert_eq!(act.tags.as_slice(), &["Attack"]);
 
-        assert_eq!(act.anim_main.files, "Girl_Attack_Test.*");
+        assert_eq!(act.anim_main.files, "Girl/Attack_Test.*");
         assert_eq!(act.anim_main.duration, 4.0);
         assert_eq!(act.anim_main.fade_in, 0.1);
         assert_eq!(act.anim_main.root_motion, true);

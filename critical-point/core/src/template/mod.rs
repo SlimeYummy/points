@@ -1,5 +1,7 @@
 mod accessory;
 mod action;
+mod ai_brain;
+mod ai_task;
 mod attribute;
 mod base;
 mod character;
@@ -13,6 +15,8 @@ mod zone;
 
 pub use accessory::*;
 pub use action::*;
+pub use ai_brain::*;
+pub use ai_task::*;
 pub use attribute::*;
 pub use base::*;
 pub use character::*;

@@ -70,7 +70,7 @@ mod tests {
 
         assert_eq!(act.be_hits.len(), 1);
         assert_eq!(act.be_hits[0].enter_angle, 10f32.to_radians());
-        assert_eq!(act.be_hits[0].anim.files, "TrainingDummy_Hit1_F.*");
+        assert_eq!(act.be_hits[0].anim.files, "TrainingDummy/Hit1_F.*");
         assert_eq!(act.be_hits[0].anim.duration, cf2s(20));
         assert_eq!(act.be_hits[0].anim.fade_in, 0.1);
         assert_eq!(act.be_hits[0].anim.root_motion, true);

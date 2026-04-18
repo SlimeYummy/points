@@ -6,8 +6,8 @@ use crate::utils::TmplID;
 pub struct TmplZone {
     pub id: TmplID,
     pub name: String,
-    pub zone_file: String,
-    pub view_zone_file: String,
+    pub files: String,
+    pub view_file: String,
 }
 
 impl_tmpl!(TmplZone, Zone, "Zone");
@@ -24,7 +24,7 @@ mod tests {
         let zone = db.find_as::<TmplZone>(id!("Zone.Demo")).unwrap();
         assert_eq!(zone.id, id!("Zone.Demo"));
         assert_eq!(zone.name, "Demo");
-        assert_eq!(zone.zone_file, "TestZone.json");
-        assert_eq!(zone.view_zone_file, "stage-demo.tscn");
+        assert_eq!(zone.files, "Zones/TestZone.*");
+        assert_eq!(zone.view_file, "stage-demo.tscn");
     }
 }

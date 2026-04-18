@@ -1,6 +1,6 @@
 use crate::consts::MAX_ENTRY_PLUS;
 use crate::template::base::impl_tmpl;
-use crate::utils::{impl_for, rkyv_self, DtHashMap, RareLevel, TmplID};
+use crate::utils::{DtHashMap, RareLevel, TmplID, impl_for, rkyv_self};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum TmplAccessoryPattern {
