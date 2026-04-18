@@ -48,7 +48,7 @@ impl_tmpl!(TmplActionIdle, ActionIdle, "ActionIdle");
 mod tests {
     use super::*;
     use crate::template::database::TmplDatabase;
-    use crate::utils::{id, LEVEL_IDLE};
+    use crate::utils::{LEVEL_IDLE, id};
 
     #[test]
     fn test_load_action_idle() {
@@ -62,7 +62,7 @@ mod tests {
         assert!(act.npc_characters.is_empty());
         assert_eq!(act.tags.as_slice(), &["Idle"]);
 
-        assert_eq!(act.anim_idle.files, "Girl_Idle_Empty.*");
+        assert_eq!(act.anim_idle.files, "Girl/Idle_Empty.*");
         assert_eq!(act.anim_idle.duration, 2.5);
         assert_eq!(act.anim_idle.fade_in, 0.1);
         assert_eq!(act.anim_idle.root_motion, false);
@@ -70,7 +70,7 @@ mod tests {
         assert_eq!(act.anim_idle.hit_motion, false);
 
         let anim_ready = act.anim_ready.as_ref().unwrap();
-        assert_eq!(anim_ready.files, "Girl_Idle_Axe.*");
+        assert_eq!(anim_ready.files, "Girl/Idle_Axe.*");
         assert_eq!(anim_ready.duration, 2.0);
         assert_eq!(anim_ready.fade_in, 0.1);
         assert_eq!(anim_ready.root_motion, false);
@@ -87,7 +87,7 @@ mod tests {
 
         let act2 = db.find_as::<TmplActionIdle>(id!("Action.One.IdleX")).unwrap();
         assert_eq!(act2.id, id!("Action.One.IdleX"));
-        assert_eq!(act2.anim_idle.files, "Girl_Idle_Empty.*");
+        assert_eq!(act2.anim_idle.files, "Girl/Idle_Empty.*");
         assert!(act2.anim_ready.is_none());
     }
 
@@ -102,7 +102,7 @@ mod tests {
         assert_eq!(act.npc_characters.as_slice(), &[id!("NpcCharacter.Enemy")]);
         assert_eq!(act.tags.as_slice(), &["Idle"]);
 
-        assert_eq!(act.anim_idle.files, "TrainingDummy_Idle.*");
+        assert_eq!(act.anim_idle.files, "TrainingDummy/Idle.*");
         assert_eq!(act.anim_idle.duration, 4.0);
         assert_eq!(act.anim_idle.fade_in, 0.1);
         assert_eq!(act.anim_idle.root_motion, false);

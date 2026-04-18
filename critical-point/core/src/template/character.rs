@@ -3,7 +3,7 @@ use glam_ext::Vec2xz;
 
 use crate::template::attribute::TmplAttribute;
 use crate::template::base::impl_tmpl;
-use crate::utils::{impl_for, rkyv_self, JewelSlots, LevelRange, Table, TmplID};
+use crate::utils::{JewelSlots, LevelRange, Table, TmplID, impl_for, rkyv_self};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
 #[repr(u8)]
@@ -65,6 +65,7 @@ pub struct TmplNpcCharacter {
     pub attributes: Table<TmplAttribute, Vec<f32>>,
     pub fixed_attributes: TmplFixedAttributes,
     pub actions: Vec<TmplID>,
+    pub ai_executors: Vec<TmplID>,
     pub skeleton_files: String,
     pub skeleton_toward: Vec2xz,
     pub view_model: String,
@@ -113,7 +114,7 @@ mod tests {
             id!("Equipment.No2"),
             id!("Equipment.No3")
         ]);
-        assert_eq!(character.skeleton_files, "Girl.*");
+        assert_eq!(character.skeleton_files, "Girl/Girl.*");
         assert_eq!(character.skeleton_toward, Vec2xz::Z);
     }
 
@@ -217,7 +218,9 @@ mod tests {
             id!("Action.Enemy.Hit1")
         ]);
 
-        assert_eq!(npc.skeleton_files, "TrainingDummy.*");
+        assert_eq!(npc.ai_executors.as_slice(), &[id!("AiBrain.Enemy")]);
+
+        assert_eq!(npc.skeleton_files, "TrainingDummy/TrainingDummy.*");
         assert_eq!(npc.skeleton_toward, Vec2xz::Z);
         assert_eq!(npc.view_model, "TrainingDummy.prefab");
     }
