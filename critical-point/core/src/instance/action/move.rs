@@ -2,7 +2,7 @@ use crate::instance::action::base::{
     ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation, InstDeriveRule,
 };
 use crate::template::{At, TmplActionMove, TmplActionMoveStopEnter, TmplActionMoveStopLeave};
-use crate::utils::{extend, lerp, loose_ge, loose_le, sb, ActionType, SmallVec, TmplID, VirtualKeyDir};
+use crate::utils::{ActionType, SmallVec, TmplID, VirtualKeyDir, extend, lerp, loose_ge, loose_le, sb};
 
 pub type InstActionMoveStopEnter = TmplActionMoveStopEnter;
 pub type InstActionMoveStopLeave = TmplActionMoveStopLeave;
@@ -246,7 +246,7 @@ impl InstActionMove {
 mod tests {
     use super::*;
     use crate::template::TmplDatabase;
-    use crate::utils::{cf2s, id, DtHashMap, VirtualKey, LEVEL_MOVE};
+    use crate::utils::{DtHashMap, LEVEL_MOVE, VirtualKey, cf2s, id};
 
     #[test]
     fn test_new() {
@@ -265,7 +265,7 @@ mod tests {
         assert_eq!(inst_act.derive_level, LEVEL_MOVE - 10);
         assert_eq!(inst_act.special_derive_level, LEVEL_MOVE + 10);
 
-        assert_eq!(inst_act.anim_move.files, "Girl_Run_Empty.*");
+        assert_eq!(inst_act.anim_move.files, "Girl/Run_Empty.*");
         assert_eq!(inst_act.anim_move.duration, 0.93333334);
         assert_eq!(inst_act.anim_move.fade_in, cf2s(4));
         assert_eq!(inst_act.anim_move.root_motion, true);
@@ -273,7 +273,7 @@ mod tests {
 
         assert_eq!(inst_act.starts.len(), 3);
         assert_eq!(inst_act.start_time, cf2s(4));
-        assert_eq!(inst_act.starts[0].anim.files, "Girl_RunStart_Empty.*");
+        assert_eq!(inst_act.starts[0].anim.files, "Girl/RunStart_Empty.*");
         assert_eq!(inst_act.starts[0].anim.fade_in, 0.0);
         assert_eq!(inst_act.starts[0].anim.root_motion, true);
         assert_eq!(inst_act.starts[0].enter_angle, [
@@ -282,14 +282,14 @@ mod tests {
         ]);
         assert_eq!(inst_act.starts[0].turn_in_place_end, cf2s(2));
         assert_eq!(inst_act.starts[0].quick_stop_end, cf2s(20));
-        assert_eq!(inst_act.starts[1].anim.files, "Girl_RunStart_L180_Empty.*");
+        assert_eq!(inst_act.starts[1].anim.files, "Girl/RunStart_L180_Empty.*");
         assert_eq!(inst_act.starts[1].enter_angle, [
             15f32.to_radians(),
             180f32.to_radians()
         ]);
         assert_eq!(inst_act.starts[1].turn_in_place_end, cf2s(8));
         assert_eq!(inst_act.starts[1].quick_stop_end, cf2s(26));
-        assert_eq!(inst_act.starts[2].anim.files, "Girl_RunStart_R180_Empty.*");
+        assert_eq!(inst_act.starts[2].anim.files, "Girl/RunStart_R180_Empty.*");
         assert_eq!(inst_act.starts[2].enter_angle, [
             -180f32.to_radians(),
             -15f32.to_radians()
@@ -304,7 +304,7 @@ mod tests {
         assert_eq!(inst_act.stops.len(), 2);
         assert_eq!(inst_act.stop_time, cf2s(6));
         assert_eq!(inst_act.quick_stop_time, cf2s(0));
-        assert_eq!(inst_act.stops[0].anim.files, "Girl_RunStop_L_Empty.*");
+        assert_eq!(inst_act.stops[0].anim.files, "Girl/RunStop_L_Empty.*");
         assert_eq!(inst_act.stops[0].anim.fade_in, cf2s(4));
         assert_eq!(inst_act.stops[0].anim.root_motion, true);
         assert_eq!(inst_act.stops[0].enter_phase_table.as_slice(), &[
@@ -320,7 +320,7 @@ mod tests {
                 phase: 0.5
             }
         ]);
-        assert_eq!(inst_act.stops[1].anim.files, "Girl_RunStop_R_Empty.*");
+        assert_eq!(inst_act.stops[1].anim.files, "Girl/RunStop_R_Empty.*");
         assert_eq!(inst_act.stops[1].enter_phase_table.as_slice(), &[
             InstActionMoveStopEnter {
                 phase: [0.25, 0.75],

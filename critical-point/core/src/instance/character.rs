@@ -4,29 +4,21 @@ use std::collections::hash_map::Entry;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
-use crate::instance::action::{assemble_action, collect_action_keys, ContextActionAssemble, InstActionAny};
+use crate::instance::action::{
+    ContextActionAssemble, InstActionAny, InstDeriveRule, assemble_action, collect_action_keys,
+};
 use crate::instance::base::ContextAssemble;
 use crate::instance::values::{PanelValues, PrimaryValues, SecondaryValues};
-use crate::instance::InstDeriveRule;
+use crate::instance::{InstAiBrain, InstAiNode};
 use crate::parameter::{ParamNpc, ParamPlayer};
 use crate::template::{
-    TmplAccessory, TmplAccessoryPool, TmplCharacter, TmplEntry, TmplEquipment, TmplJewel, TmplNpcCharacter, TmplPerk,
-    TmplStyle,
+    TmplAccessory, TmplAccessoryPool, TmplAiBrain, TmplCharacter, TmplEntry, TmplEquipment, TmplJewel,
+    TmplNpcCharacter, TmplPerk, TmplStyle,
 };
 use crate::utils::{
-    force_mut, quat_from_dir_xz, sb, Castable, DtHashIndex, DtHashMap, JewelSlots, PiecePlus, Symbol, TmplID,
-    VirtualKey, XResult,
+    Castable, DtHashIndex, DtHashMap, JewelSlots, PiecePlus, Symbol, TmplID, VirtualKey, XResult, force_mut,
+    quat_from_dir_xz, sb,
 };
-
-#[inline]
-pub fn assemble_player(ctx: &mut ContextAssemble, param: &ParamPlayer) -> XResult<InstCharacter> {
-    InstCharacter::new_player(ctx, param)
-}
-
-#[inline]
-pub fn assemble_npc(ctx: &mut ContextAssemble, param: &ParamNpc) -> XResult<InstCharacter> {
-    InstCharacter::new_npc(ctx, param)
-}
 
 #[derive(Debug, Default)]
 pub struct InstCharacter {
@@ -50,6 +42,8 @@ pub struct InstCharacter {
     pub actions: DtHashMap<TmplID, Rc<dyn InstActionAny>>,
     pub primary_keys: DtHashIndex<VirtualKey, TmplID>,
     pub derive_keys: DtHashIndex<(TmplID, VirtualKey), InstDeriveRule>,
+
+    pub ai_brain: Option<Rc<InstAiBrain>>,
 }
 
 #[derive(Debug, Default)]
@@ -74,7 +68,7 @@ impl DerefMut for InstCharacter {
 }
 
 impl InstCharacter {
-    pub fn new_player(ctx: &mut ContextAssemble<'_>, param: &ParamPlayer) -> XResult<InstCharacter> {
+    pub fn new_player(ctx: &mut ContextAssemble<'_>, param: &ParamPlayer) -> XResult<Rc<InstCharacter>> {
         let mut inst = InstCharacter {
             is_player: true,
             tmpl_character: param.character.clone(),
@@ -91,7 +85,7 @@ impl InstCharacter {
         Self::collect_player_actions(ctx, param, &mut inst)?;
         Self::handle_player_entries(ctx, &mut inst)?;
 
-        Ok(inst)
+        Ok(Rc::new(inst))
     }
 
     fn collect_player_character_style(
@@ -266,7 +260,7 @@ impl InstCharacter {
 }
 
 impl InstCharacter {
-    pub fn new_npc(ctx: &mut ContextAssemble<'_>, param: &ParamNpc) -> XResult<InstCharacter> {
+    pub fn new_npc(ctx: &mut ContextAssemble<'_>, param: &ParamNpc) -> XResult<Rc<InstCharacter>> {
         let mut inst = InstCharacter {
             is_player: false,
             tmpl_character: param.character.clone(),
@@ -276,8 +270,9 @@ impl InstCharacter {
 
         Self::collect_npc_character(ctx, param, &mut inst)?;
         Self::collect_npc_actions(ctx, param, &mut inst)?;
+        Self::collect_npc_ai_brain(ctx, param, &mut inst)?;
 
-        Ok(inst)
+        Ok(Rc::new(inst))
     }
 
     fn collect_npc_character(ctx: &mut ContextAssemble<'_>, param: &ParamNpc, inst: &mut InstCharacter) -> XResult<()> {
@@ -297,9 +292,8 @@ impl InstCharacter {
     }
 
     fn collect_npc_actions(ctx: &mut ContextAssemble<'_>, param: &ParamNpc, inst: &mut InstCharacter) -> XResult<()> {
-        let empty_var_indexes = DtHashMap::default();
         let ctxa = ContextActionAssemble {
-            var_indexes: &empty_var_indexes,
+            var_indexes: &inst.var_indexes,
         };
 
         let chara = ctx.tmpl_db.find_as::<TmplNpcCharacter>(param.character)?;
@@ -312,6 +306,34 @@ impl InstCharacter {
 
         let (primary_keys, _) = collect_action_keys(&inst.actions, false)?;
         inst.primary_keys = primary_keys;
+        Ok(())
+    }
+
+    fn collect_npc_ai_brain(ctx: &mut ContextAssemble<'_>, param: &ParamNpc, inst: &mut InstCharacter) -> XResult<()> {
+        let tmpl_ai_brain = ctx.tmpl_db.find_as::<TmplAiBrain>(param.ai_brain)?;
+        let ai_brain = InstAiBrain::new(ctx.tmpl_db, tmpl_ai_brain)?;
+        inst.ai_brain = Some(ai_brain.clone());
+
+        let mut actions = Vec::new();
+        ai_brain.travel_idle(|node| {
+            if let InstAiNode::Task(_, task) = node {
+                task.actions(&mut actions);
+            }
+            Ok(())
+        })?;
+
+        let ctxa = ContextActionAssemble {
+            var_indexes: &inst.var_indexes,
+        };
+
+        for id in actions {
+            if let Entry::Vacant(v) = inst.actions.entry(id) {
+                let action = ctx.tmpl_db.find(id)?;
+                if let Some(action) = assemble_action(&ctxa, action)? {
+                    v.insert(action);
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -398,7 +420,7 @@ mod tests {
     use crate::instance::InstDeriveRule;
     use crate::parameter::ParamAccessory;
     use crate::template::TmplDatabase;
-    use crate::utils::{id, InputDir, JewelSlots, TmplIDLevel, TmplIDPlus, VirtualKey, LEVEL_ATTACK};
+    use crate::utils::{InputDir, JewelSlots, LEVEL_ATTACK, TmplIDLevel, TmplIDPlus, VirtualKey, id};
 
     #[test]
     fn test_collect_player_character_style() {
@@ -413,7 +435,7 @@ mod tests {
         InstCharacter::collect_player_character_style(&mut ctx, &param, &mut inst).unwrap();
 
         assert_eq!(inst.tags.as_slice(), &[sb!("Player")]);
-        assert_eq!(inst.skeleton_files, sb!("Girl.*"));
+        assert_eq!(inst.skeleton_files, sb!("Girl/Girl.*"));
         assert_eq!(inst.skeleton_toward, Vec2xz::new(0.0, 1.0));
         assert_eq!(inst.skeleton_rotation, quat_from_dir_xz(Vec2xz::new(0.0, 1.0)));
 
@@ -716,7 +738,7 @@ mod tests {
         InstCharacter::collect_npc_character(&mut ctx, &param, &mut inst).unwrap();
 
         assert_eq!(inst.tags.as_slice(), &[sb!("Npc")]);
-        assert_eq!(inst.skeleton_files, sb!("TrainingDummy.*"));
+        assert_eq!(inst.skeleton_files, sb!("TrainingDummy/TrainingDummy.*"));
         assert_eq!(inst.skeleton_toward, Vec2xz::new(0.0, 1.0));
         assert_eq!(inst.skeleton_rotation, quat_from_dir_xz(Vec2xz::new(0.0, 1.0)));
 
@@ -759,6 +781,7 @@ mod tests {
         let param = ParamNpc {
             character: id!("NpcCharacter.NpcInstance^1"),
             level: 4,
+            ai_brain: id!("AiBrain.NpcInstance^1"),
             position: Vec3A::ZERO,
         };
         let inst = InstCharacter::new_npc(&mut ctx, &param).unwrap();

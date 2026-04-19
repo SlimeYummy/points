@@ -5,7 +5,7 @@ use crate::instance::action::base::{
 use crate::template::{
     At, TmplActionGeneral, TmplActionGeneralMovement, TmplActionGeneralRootMotion, TmplActionGeneralRotation,
 };
-use crate::utils::{extend, sb, ActionType, Bitsetable, DeriveContinue, EnumBitset, Symbol, ThinVec, XResult};
+use crate::utils::{ActionType, Bitsetable, DeriveContinue, EnumBitset, Symbol, ThinVec, XResult, extend, sb};
 
 pub type InstActionGeneralMovement = TmplActionGeneralMovement;
 pub type InstActionGeneralRootMotion = TmplActionGeneralRootMotion;
@@ -105,11 +105,11 @@ mod tests {
     use super::*;
     use crate::template::TmplDatabase;
     use crate::utils::{
-        cf2s, id, sb, DtHashMap, InputDir, TimeRange, VirtualKey, VirtualKeyDir, LEVEL_ACTION, LEVEL_ATTACK,
+        DtHashMap, InputDir, LEVEL_ACTION, LEVEL_ATTACK, TimeRange, VirtualKey, VirtualKeyDir, cf2s, id, sb,
     };
 
     #[test]
-    fn test_new_() {
+    fn test_new_general() {
         let db = TmplDatabase::new(10240, 150).unwrap();
         let mut var_indexes = DtHashMap::default();
 
@@ -139,7 +139,7 @@ mod tests {
             );
             assert_eq!(inst_act.enter_level, LEVEL_ATTACK);
 
-            assert_eq!(inst_act.anim_main.files, sb!("Girl_Attack_Test.*"));
+            assert_eq!(inst_act.anim_main.files, sb!("Girl/Attack_Test.*"));
             assert_eq!(inst_act.anim_main.duration, 4.0);
             assert_eq!(inst_act.anim_main.fade_in, 0.1);
             assert_eq!(inst_act.anim_main.root_motion, true);

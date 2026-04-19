@@ -6,7 +6,7 @@ use crate::instance::action::base::{
     ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation, InstDeriveRule,
 };
 use crate::template::{At, TmplActionHit, TmplActionHitBeHit};
-use crate::utils::{extend, ifelse, ratio_saturating, sb, xresf, ActionType, TmplID, VirtualKeyDir, XResult};
+use crate::utils::{ActionType, TmplID, VirtualKeyDir, XResult, extend, ifelse, ratio_saturating, sb, xresf};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -176,7 +176,7 @@ impl Default for FindBeHit {
 mod tests {
     use super::*;
     use crate::template::TmplDatabase;
-    use crate::utils::{id, sb, DtHashMap, VirtualKey};
+    use crate::utils::{DtHashMap, VirtualKey, id, sb};
 
     // #[test]
     // fn test_new() {
@@ -224,7 +224,7 @@ mod tests {
 
         assert_eq!(inst_act.be_hits.len(), 1);
         assert_eq!(inst_act.be_hits[0].enter_angle, 15f32.to_radians());
-        assert_eq!(inst_act.be_hits[0].anim.files, sb!("TrainingDummy_Hit1_F.*"));
+        assert_eq!(inst_act.be_hits[0].anim.files, sb!("TrainingDummy/Hit1_F.*"));
         assert_eq!(inst_act.be_hits[0].anim.duration, 0.5);
         assert_eq!(inst_act.be_hits[0].anim.fade_in, 0.1);
 

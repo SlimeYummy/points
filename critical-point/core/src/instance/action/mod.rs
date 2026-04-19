@@ -21,7 +21,7 @@ pub use r#move::*;
 use std::rc::Rc;
 
 use crate::template::{At, TmplAny, TmplType};
-use crate::utils::{xres, DtHashIndex, DtHashMap, TmplID, VirtualKey, XResult};
+use crate::utils::{DtHashIndex, DtHashMap, TmplID, VirtualKey, XResult, xres};
 
 pub(crate) fn assemble_action(
     ctx: &ContextActionAssemble<'_>,
