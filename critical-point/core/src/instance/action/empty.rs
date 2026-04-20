@@ -1,5 +1,5 @@
 use crate::instance::action::base::{InstActionAny, InstActionBase, InstAnimation, InstDeriveRule};
-use crate::utils::{extend, ActionType};
+use crate::utils::{ActionType, extend};
 
 #[repr(C)]
 #[derive(Debug)]

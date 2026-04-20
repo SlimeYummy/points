@@ -2,7 +2,7 @@ use educe::Educe;
 
 // use crate::script::{script_in, script_out, sin, sout, ScriptInputMap, ScriptOutType, ScriptOutputMap};
 use crate::template::TmplAttribute;
-use crate::utils::{xresf, ArchivedTable, XResult};
+use crate::utils::{ArchivedTable, XResult, xresf};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PrimaryValues {

@@ -4,7 +4,7 @@ use crate::instance::action::base::{
     ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation, InstDeriveRule,
 };
 use crate::template::{At, TmplActionIdle};
-use crate::utils::{extend, sb, ActionType, VirtualKey, VirtualKeyDir};
+use crate::utils::{ActionType, VirtualKey, VirtualKeyDir, extend, sb};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -80,7 +80,7 @@ impl InstActionIdle {
 mod tests {
     use super::*;
     use crate::template::TmplDatabase;
-    use crate::utils::{id, sb, DtHashMap};
+    use crate::utils::{DtHashMap, id, sb};
 
     #[test]
     fn test_new() {
@@ -98,11 +98,11 @@ mod tests {
         assert_eq!(inst_act.tags, vec![sb!("Idle")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Idle, None));
         assert_eq!(inst_act.enter_level, 0);
-        assert_eq!(inst_act.anim_idle.files, sb!("Girl_Idle_Empty.*"));
+        assert_eq!(inst_act.anim_idle.files, sb!("Girl/Idle_Empty.*"));
         assert_eq!(inst_act.anim_idle.duration, 2.5);
         assert_eq!(inst_act.anim_idle.fade_in, 0.2);
         let anim_ready = inst_act.anim_ready.as_ref().unwrap();
-        assert_eq!(anim_ready.files, sb!("Girl_Idle_Axe.*"));
+        assert_eq!(anim_ready.files, sb!("Girl/Idle_Axe.*"));
         assert_eq!(anim_ready.duration, 2.0);
         assert_eq!(anim_ready.fade_in, 0.4);
         assert_eq!(inst_act.anim_randoms.len(), 0);
@@ -127,7 +127,7 @@ mod tests {
         assert_eq!(inst_act.tags, vec![sb!("Idle")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Idle, None));
         assert_eq!(inst_act.enter_level, 0);
-        assert_eq!(inst_act.anim_idle.files, sb!("TrainingDummy_Idle.*"));
+        assert_eq!(inst_act.anim_idle.files, sb!("TrainingDummy/Idle.*"));
         assert_eq!(inst_act.anim_idle.duration, 4.0);
         assert_eq!(inst_act.anim_idle.fade_in, 0.5);
         assert!(inst_act.anim_ready.is_none());
