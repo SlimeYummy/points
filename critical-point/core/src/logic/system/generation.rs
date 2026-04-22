@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use critical_point_csgen::CsOut;
 
 use crate::consts::FPS_USIZE;
-use crate::utils::{xres, NumID, XResult};
+use crate::utils::{NumID, XResult, xres};
 
 #[repr(C)]
 #[derive(
@@ -26,6 +26,7 @@ pub struct StateGeneration {
     pub player_id: NumID,
     pub auto_gen_id: NumID,
     pub action_id: u32,
+    pub ai_task_id: u32,
 }
 
 #[derive(Debug)]
@@ -34,6 +35,7 @@ pub(crate) struct SystemGeneration {
     player_id: NumID,
     auto_gen_id: NumID,
     action_id: u32,
+    ai_task_id: u32,
 }
 
 impl SystemGeneration {
@@ -43,6 +45,7 @@ impl SystemGeneration {
             player_id: NumID::MIN_PLAYER,
             auto_gen_id: NumID::MIN_AUTO_GEN,
             action_id: 0,
+            ai_task_id: 0,
         }
     }
 
@@ -70,11 +73,19 @@ impl SystemGeneration {
         id
     }
 
+    #[inline]
+    pub(crate) fn gen_ai_task_id(&mut self) -> u32 {
+        let id = self.ai_task_id;
+        self.ai_task_id = self.ai_task_id + 1;
+        id
+    }
+
     pub(crate) fn update(&mut self, frame: u32) {
         self.history.push_back((frame, StateGeneration {
             player_id: self.player_id,
             auto_gen_id: self.auto_gen_id,
             action_id: self.action_id,
+            ai_task_id: self.ai_task_id,
         }));
     }
 
@@ -87,6 +98,7 @@ impl SystemGeneration {
                 self.player_id = state.player_id;
                 self.auto_gen_id = state.auto_gen_id;
                 self.action_id = state.action_id;
+                self.ai_task_id = state.ai_task_id;
                 break;
             }
         }
@@ -109,6 +121,7 @@ impl SystemGeneration {
             player_id: self.player_id,
             auto_gen_id: self.auto_gen_id,
             action_id: self.action_id,
+            ai_task_id: self.ai_task_id,
         }
     }
 }

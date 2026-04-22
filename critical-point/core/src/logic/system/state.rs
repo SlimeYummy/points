@@ -1,11 +1,11 @@
 use critical_point_csgen::CsOut;
-use std::collections::{vec_deque, VecDeque};
+use std::collections::{VecDeque, vec_deque};
 use std::ops::{Index, RangeBounds};
 use std::sync::Arc;
 
 use super::super::base::StateAny;
 use crate::consts::FPS_USIZE;
-use crate::utils::{xres, xresf, XResult};
+use crate::utils::{XResult, xres, xresf};
 
 #[repr(C)]
 #[derive(Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
