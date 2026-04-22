@@ -1,7 +1,7 @@
 use glam::Vec3A;
 use jolt_physics_rs::{
-    vdata, Body, CollideShapeResult, ContactListener, ContactListenerVTable, ContactManifold, ContactSettings, JVec3,
-    SubShapeID, SubShapeIDPair, ValidateResult,
+    Body, CollideShapeResult, ContactListener, ContactListenerVTable, ContactManifold, ContactSettings, JVec3,
+    SubShapeID, SubShapeIDPair, ValidateResult, vdata,
 };
 use static_assertions::const_assert_eq;
 use std::mem;
@@ -90,8 +90,6 @@ impl<'t> PhyContactCollector<'t> {
 
         let ud1 = PhyBodyUserData::from(body1.get_user_data());
         let ud2 = PhyBodyUserData::from(body2.get_user_data());
-
-        // println!(">>>>>>>>>>>>>>>>>>contact: ud1={:?}, ud2={:?}", ud1, ud2);
 
         let res = match (ud1, ud2) {
             (

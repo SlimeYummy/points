@@ -55,6 +55,7 @@ pub struct ParamNpc {
     pub character: TmplID,
     #[serde(default)]
     pub level: u32,
+    pub ai_brain: TmplID,
     #[serde(default)]
     pub position: Vec3A,
 }

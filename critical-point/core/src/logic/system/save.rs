@@ -1,11 +1,11 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
 use std::io::prelude::*;
 use std::io::{self, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use std::{mem, ptr, u32};
 use zip::write::{SimpleFileOptions, ZipWriter};
@@ -13,7 +13,7 @@ use zip::write::{SimpleFileOptions, ZipWriter};
 use crate::logic::base::StateAny;
 use crate::logic::system::input::InputFrameInputs;
 use crate::logic::system::state::StateSet;
-use crate::utils::{xerr, xerrf, xfromf, xres, xresf, XResult};
+use crate::utils::{XResult, xerr, xerrf, xfromf, xres, xresf};
 
 pub(crate) const SAVE_META: &str = "meta.json";
 pub(crate) const INPUT_INDEX: &str = "input_index.json";

@@ -3,12 +3,12 @@ use critical_point_csgen::CsIn;
 use glam::{Vec2, Vec2Swizzles, Vec3A};
 use glam_ext::Vec2xz;
 use std::cell::RefCell;
-use std::collections::{vec_deque, VecDeque};
+use std::collections::{VecDeque, vec_deque};
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::rc::Rc;
 
 use crate::consts::{DEFAULT_VIEW_DIR_2D, DEFAULT_VIEW_DIR_3D, FPS_USIZE, MAX_PLAYER};
-use crate::utils::{xerrf, xres, xresf, NumID, RawInput, RawKey, VirtualInput, VirtualKey, XResult};
+use crate::utils::{NumID, RawInput, RawKey, VirtualInput, VirtualKey, XResult, xerrf, xres, xresf};
 
 const FIRST_EVENT_ID: u64 = 1;
 
@@ -206,6 +206,7 @@ impl SystemInput {
     serde::Serialize,
     serde::Deserialize,
 )]
+#[rkyv(derive(Debug))]
 pub enum InputMoveSpeed {
     #[default]
     Normal,
@@ -249,6 +250,7 @@ impl InputMoveSpeed {
     serde::Serialize,
     serde::Deserialize,
 )]
+#[rkyv(derive(Debug))]
 pub struct InputMoveState {
     pub moving: bool,
     pub speed: InputMoveSpeed,
@@ -301,6 +303,24 @@ pub struct WorldMoveState {
 
 impl WorldMoveState {
     #[inline]
+    pub fn new_move(speed: InputMoveSpeed, direction: Vec2xz) -> WorldMoveState {
+        WorldMoveState {
+            moving: true,
+            speed,
+            direction,
+        }
+    }
+
+    #[inline]
+    pub fn new_stop() -> WorldMoveState {
+        WorldMoveState {
+            moving: false,
+            speed: InputMoveSpeed::Normal,
+            direction: Vec2xz::ZERO,
+        }
+    }
+
+    #[inline]
     pub fn move_dir(&self) -> Option<Vec2xz> {
         match self.moving {
             true => Some(self.direction),
@@ -335,7 +355,7 @@ impl Default for InputVariables {
 }
 
 impl InputVariables {
-    const EMPTY: InputVariables = InputVariables {
+    pub const EMPTY: InputVariables = InputVariables {
         view_rads: Vec2::ZERO,
         view_dir_2d: DEFAULT_VIEW_DIR_2D,
         view_dir_3d: DEFAULT_VIEW_DIR_3D,
@@ -629,8 +649,8 @@ impl InputEventQueue {
     }
 
     #[inline]
-    pub fn variables(&self, frame: u32) -> XResult<InputVariables> {
-        self.index_or_last_meta(frame).map(|meta| meta.variables)
+    pub fn variables(&self, frame: u32) -> XResult<&InputVariables> {
+        self.index_or_last_meta(frame).map(|meta| &meta.variables)
     }
 
     #[inline]

@@ -1,7 +1,6 @@
 use jolt_physics_rs::{
-    vdata, BroadPhaseLayer, BroadPhaseLayerInterface, BroadPhaseLayerInterfaceVTable, ObjectLayer,
-    ObjectLayerPairFilter, ObjectLayerPairFilterVTable, ObjectVsBroadPhaseLayerFilter,
-    ObjectVsBroadPhaseLayerFilterVTable,
+    BroadPhaseLayer, BroadPhaseLayerInterface, BroadPhaseLayerInterfaceVTable, ObjectLayer, ObjectLayerPairFilter,
+    ObjectLayerPairFilterVTable, ObjectVsBroadPhaseLayerFilter, ObjectVsBroadPhaseLayerFilterVTable, vdata,
 };
 
 pub(crate) const PHY_BROAD_COUNT: u32 = 2;
