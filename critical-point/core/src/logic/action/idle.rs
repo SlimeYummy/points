@@ -4,11 +4,11 @@ use std::rc::Rc;
 
 use crate::instance::InstActionIdle;
 use crate::logic::action::base::{
-    impl_state_action, ActionStartArgs, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny,
-    LogicActionBase, StateActionAnimation, StateActionAny, StateActionBase,
+    ActionStartArgs, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
+    StateActionAnimation, StateActionAny, StateActionBase, impl_state_action,
 };
 use crate::logic::game::ContextUpdate;
-use crate::utils::{extend, loose_ge, ratio_saturating, ratio_warpping, xresf, ActionType, Castable, XResult};
+use crate::utils::{ActionType, Castable, XResult, extend, loose_ge, ratio_saturating, ratio_warpping, xresf};
 
 #[repr(u8)]
 #[derive(
@@ -114,20 +114,16 @@ unsafe impl LogicActionAny for LogicActionIdle {
     ) -> XResult<ActionStartReturn> {
         self._base.start(ctx, ctxa, args)?;
 
-        if let Some(anim_ready) = &self.inst.anim_ready {
-            if !ctxa.chara_physics.is_idle() {
-                // Starts in ready state
-                self.mode = ActionIdleMode::Ready;
-                self.ready_time = 0.0;
-                self.fade_in_weight = anim_ready.fade_in_weight(self.fade_in_weight, ctxa.time_step);
-                return Ok(ActionStartReturn::new());
-            }
+        if self.inst.anim_ready.is_some() && !ctxa.chara_phy.is_idle() {
+            // Starts in ready state
+            self.mode = ActionIdleMode::Ready;
+            self.ready_time = 0.0;
         }
-
-        // Starts in idle state
-        self.mode = ActionIdleMode::Idle;
-        self.idle_time = 0.0;
-        self.fade_in_weight = self.inst.anim_idle.fade_in_weight(self.fade_in_weight, ctxa.time_step);
+        else {
+            // Starts in idle state
+            self.mode = ActionIdleMode::Idle;
+            self.idle_time = 0.0;
+        }
         Ok(ActionStartReturn::new())
     }
 
@@ -139,7 +135,7 @@ unsafe impl LogicActionAny for LogicActionIdle {
         let has_ready = self.inst.anim_ready.is_some();
 
         // Update mode
-        let is_idle = ctxa.chara_physics.is_idle();
+        let is_idle = ctxa.chara_phy.is_idle();
         match self.mode {
             ActionIdleMode::Idle => {
                 if has_ready && !is_idle {
@@ -279,7 +275,7 @@ mod tests {
     use crate::logic::action::base::LogicActionStatus;
     use crate::logic::action::test_utils::*;
     use crate::utils::tests::FrameTicker;
-    use crate::utils::{id, s2f, sb, VirtualKey};
+    use crate::utils::{id, s2f, sb};
     use approx::assert_ulps_eq;
 
     const ANIME_IDLE_ID: u16 = 0;
@@ -297,7 +293,7 @@ mod tests {
         });
         raw_state.id = 123;
         raw_state.tmpl_id = id!("Action.Idle");
-        raw_state.status = LogicActionStatus::Activing;
+        raw_state.status = LogicActionStatus::Running;
         raw_state.first_frame = 15;
         raw_state.last_frame = 99;
         raw_state.derive_level = 1;
@@ -311,7 +307,7 @@ mod tests {
 
         assert_eq!(state.id, 123);
         assert_eq!(state.tmpl_id, id!("Action.Idle"));
-        assert_eq!(state.status, LogicActionStatus::Activing);
+        assert_eq!(state.status, LogicActionStatus::Running);
         assert_eq!(state.first_frame, 15);
         assert_eq!(state.last_frame, 99);
         assert_eq!(state.derive_level, 1);
@@ -337,15 +333,15 @@ mod tests {
         (logic_act, inst_act)
     }
 
-    static IDLE_OZZ: &str = "Girl_Idle_Empty.*";
-    static READY_OZZ: &str = "Girl_Idle_Axe.*";
+    static IDLE_OZZ: &str = "Girl/Idle_Empty.*";
+    static READY_OZZ: &str = "Girl/Idle_Axe.*";
 
     #[test]
     fn logic_new() {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
-        let (mut ctx, mut ctxa, sargs) = tenv.contexts(VirtualKey::Idle, true);
-        ctxa.chara_physics.set_idle(true);
+        let (mut ctx, mut ctxa, sargs) = tenv.contexts(true);
+        ctxa.chara_phy.set_idle(true);
 
         assert_eq!(logic_idle.tmpl_id(), id!("Action.Instance.Idle^1A"));
         assert!(logic_idle.is_starting());
@@ -359,7 +355,7 @@ mod tests {
         assert_eq!(logic_idle.switch_time, 0.0);
 
         logic_idle.start(&mut ctx, &mut ctxa, &sargs).unwrap();
-        assert!(logic_idle.is_activing());
+        assert!(logic_idle.is_running());
         assert_eq!(logic_idle.first_frame, TestEnv::FRAME);
         assert_eq!(logic_idle.last_frame, u32::MAX);
         assert_eq!(logic_idle.fade_in_weight, SPF / inst_idle.anim_idle.fade_in);
@@ -373,7 +369,7 @@ mod tests {
         assert_eq!(state.id, logic_idle.id);
         assert_eq!(state.tmpl_id, id!("Action.Instance.Idle^1A"));
         assert_eq!(state.typ, ActionType::Idle);
-        assert_eq!(state.status, LogicActionStatus::Activing);
+        assert_eq!(state.status, LogicActionStatus::Running);
         assert_eq!(state.first_frame, TestEnv::FRAME);
         assert_eq!(state.last_frame, u32::MAX);
         assert_eq!(state.animations.len(), 1);
@@ -390,12 +386,12 @@ mod tests {
         // first action
         {
             let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
-            let (mut ctx, mut ctxa, sargs) = tenv.contexts(VirtualKey::Idle, false);
-            ctxa.chara_physics.set_idle(true);
+            let (mut ctx, mut ctxa, sargs) = tenv.contexts(false);
+            ctxa.chara_phy.set_idle(true);
 
             logic_idle.start(&mut ctx, &mut ctxa, &sargs).unwrap();
             let ret = logic_idle.update(&mut ctx, &mut ctxa).unwrap();
-            assert!(logic_idle.is_activing());
+            assert!(logic_idle.is_running());
             assert_eq!(logic_idle.first_frame, TestEnv::FRAME);
             assert_eq!(logic_idle.last_frame, u32::MAX);
             assert_eq!(logic_idle.fade_in_weight, 1.0);
@@ -409,7 +405,7 @@ mod tests {
             assert_eq!(state.id, logic_idle.id);
             assert_eq!(state.tmpl_id, id!("Action.Instance.Idle^1A"));
             assert_eq!(state.typ, ActionType::Idle);
-            assert_eq!(state.status, LogicActionStatus::Activing);
+            assert_eq!(state.status, LogicActionStatus::Running);
             assert_eq!(state.first_frame, TestEnv::FRAME);
             assert_eq!(state.last_frame, u32::MAX);
             assert_eq!(state.animations.len(), 1);
@@ -425,12 +421,12 @@ mod tests {
         // derive action
         {
             let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
-            let (mut ctx, mut ctxa, sargs) = tenv.contexts(VirtualKey::Idle, true);
-            ctxa.chara_physics.set_idle(false);
+            let (mut ctx, mut ctxa, sargs) = tenv.contexts(true);
+            ctxa.chara_phy.set_idle(false);
 
             logic_idle.start(&mut ctx, &mut ctxa, &sargs).unwrap();
             let ret = logic_idle.update(&mut ctx, &mut ctxa).unwrap();
-            assert!(logic_idle.is_activing());
+            assert!(logic_idle.is_running());
             assert_eq!(logic_idle.first_frame, TestEnv::FRAME);
             assert_eq!(logic_idle.last_frame, u32::MAX);
             assert_eq!(logic_idle.fade_in_weight, 2.0 / s2f(0.4) as f32);
@@ -459,8 +455,8 @@ mod tests {
     fn logic_idle() {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
-        let (mut ctx, mut ctxa, sargs) = tenv.contexts(VirtualKey::Idle, true);
-        ctxa.chara_physics.set_idle(true);
+        let (mut ctx, mut ctxa, sargs) = tenv.contexts(true);
+        ctxa.chara_phy.set_idle(true);
 
         logic_idle.start(&mut ctx, &mut ctxa, &sargs).unwrap();
         for ft in FrameTicker::new(1..s2f(7.0)) {
@@ -481,8 +477,8 @@ mod tests {
     fn logic_ready() {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
-        let (mut ctx, mut ctxa, sargs) = tenv.contexts(VirtualKey::Idle, true);
-        ctxa.chara_physics.set_idle(false);
+        let (mut ctx, mut ctxa, sargs) = tenv.contexts(true);
+        ctxa.chara_phy.set_idle(false);
 
         logic_idle.start(&mut ctx, &mut ctxa, &sargs).unwrap();
         for ft in FrameTicker::new(1..s2f(7.0)) {
@@ -507,11 +503,11 @@ mod tests {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
         let anim_ready = inst_idle.anim_ready.as_ref().unwrap();
-        let (mut ctx, mut ctxa, sargs) = tenv.contexts(VirtualKey::Idle, true);
-        ctxa.chara_physics.set_idle(true);
+        let (mut ctx, mut ctxa, sargs) = tenv.contexts(true);
+        ctxa.chara_phy.set_idle(true);
         logic_idle.start(&mut ctx, &mut ctxa, &sargs).unwrap();
         logic_idle.update(&mut ctx, &mut ctxa).unwrap();
-        ctxa.chara_physics.set_idle(false);
+        ctxa.chara_phy.set_idle(false);
 
         for ft in FrameTicker::new(0..s2f(0.4)) {
             logic_idle.update(&mut ctx, &mut ctxa).unwrap();
@@ -551,11 +547,11 @@ mod tests {
     fn logic_ready_to_idle() {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
-        let (mut ctx, mut ctxa, sargs) = tenv.contexts(VirtualKey::Idle, true);
-        ctxa.chara_physics.set_idle(false);
+        let (mut ctx, mut ctxa, sargs) = tenv.contexts(true);
+        ctxa.chara_phy.set_idle(false);
         logic_idle.start(&mut ctx, &mut ctxa, &sargs).unwrap();
         logic_idle.update(&mut ctx, &mut ctxa).unwrap();
-        ctxa.chara_physics.set_idle(true);
+        ctxa.chara_phy.set_idle(true);
 
         logic_idle.auto_idle_time = inst_idle.auto_idle_delay - SPF * 5.1;
         for n in [4.1, 3.1, 2.1, 1.1, 0.1] {
@@ -609,11 +605,11 @@ mod tests {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
         let anim_ready = inst_idle.anim_ready.as_ref().unwrap();
-        let (mut ctx, mut ctxa, sargs) = tenv.contexts(VirtualKey::Idle, true);
-        ctxa.chara_physics.set_idle(false);
+        let (mut ctx, mut ctxa, sargs) = tenv.contexts(true);
+        ctxa.chara_phy.set_idle(false);
         logic_idle.start(&mut ctx, &mut ctxa, &sargs).unwrap();
         logic_idle.update(&mut ctx, &mut ctxa).unwrap();
-        ctxa.chara_physics.set_idle(true);
+        ctxa.chara_phy.set_idle(true);
 
         logic_idle.auto_idle_time = inst_idle.auto_idle_delay;
         for ft in FrameTicker::new(0..s2f(0.133333)) {
@@ -622,7 +618,7 @@ mod tests {
             assert_eq!(logic_idle.switch_time, ft.time(1));
         }
 
-        ctxa.chara_physics.set_idle(false);
+        ctxa.chara_phy.set_idle(false);
         let switch_base = anim_ready.fade_in * (1.0 / 3.0);
         for ft in FrameTicker::new(0..s2f(0.266667)) {
             logic_idle.update(&mut ctx, &mut ctxa).unwrap();

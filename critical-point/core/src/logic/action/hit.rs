@@ -7,12 +7,12 @@ use std::rc::Rc;
 use crate::consts::DEFAULT_TOWARD_DIR_2D;
 use crate::instance::InstActionHit;
 use crate::logic::action::base::{
-    impl_state_action, ActionStartArgs, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny,
-    LogicActionBase, StateActionAnimation, StateActionAny, StateActionBase,
+    ActionStartArgs, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
+    StateActionAnimation, StateActionAny, StateActionBase, impl_state_action,
 };
 use crate::logic::action::root_motion::{LogicMultiRootMotion, StateMultiRootMotion};
 use crate::logic::game::ContextUpdate;
-use crate::utils::{extend, loose_ge, ratio_warpping, xresf, ActionType, Castable, XResult};
+use crate::utils::{ActionType, Castable, XResult, extend, loose_ge, ratio_warpping, xresf};
 
 #[repr(u8)]
 #[derive(
@@ -132,7 +132,7 @@ unsafe impl LogicActionAny for LogicActionHit {
         self._base.start(ctx, ctxa, args)?;
 
         let hit_dir = args.dir.unwrap_or(-DEFAULT_TOWARD_DIR_2D);
-        let chara_dir = ctxa.chara_physics.direction();
+        let chara_dir = ctxa.chara_phy.direction();
         let angle = chara_dir.angle_to(hit_dir);
 
         let inst = self.inst.clone();
@@ -147,7 +147,6 @@ unsafe impl LogicActionAny for LogicActionHit {
 
         let be_hit = &inst.be_hits[self.be_hit_index0 as usize];
         self.root_motion.set_local_id(be_hit.anim.local_id, 0.0)?;
-        self.fade_in_weight = be_hit.anim.fade_in_weight(self.fade_in_weight, ctxa.time_step);
         Ok(ActionStartReturn::new())
     }
 

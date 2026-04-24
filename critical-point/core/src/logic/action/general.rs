@@ -7,16 +7,16 @@ use std::rc::Rc;
 use crate::animation::RootTrackName;
 use crate::instance::{InstActionGeneral, InstActionGeneralMovement};
 use crate::logic::action::base::{
-    impl_state_action, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
-    StateActionAnimation, StateActionAny, StateActionBase,
+    ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase, StateActionAnimation,
+    StateActionAny, StateActionBase, impl_state_action,
 };
 use crate::logic::action::root_motion::{LogicRootMotion, StateRootMotion};
 use crate::logic::action::{ActionStartArgs, DeriveKeeping};
 use crate::logic::game::ContextUpdate;
 use crate::logic::system::input::InputMoveSpeed;
 use crate::utils::{
-    ease_in_out_quad, extend, lerp_with, quat_from_dir_xz, strict_lt, xresf, ActionType, Castable, CustomEvent,
-    TimeRange, XResult, LEVEL_IDLE,
+    ActionType, Castable, CustomEvent, LEVEL_IDLE, TimeRange, XResult, ease_in_out_quad, extend, lerp_with,
+    quat_from_dir_xz, strict_lt, xresf,
 };
 
 #[repr(C)]
@@ -103,13 +103,11 @@ unsafe impl LogicActionAny for LogicActionGeneral {
         self.current_time = 0.0;
         self.from_rotation = 0.0;
         self.to_rotation = 0.0;
-        self.current_rotation = ctxa.chara_physics.direction().to_angle();
+        self.current_rotation = ctxa.chara_phy.direction().to_angle();
         self.rotation_time = TimeRange::EMPTY;
 
-        self.fade_in_weight = self.inst.anim_main.fade_in_weight(self.fade_in_weight, ctxa.time_step);
-
         let mut ret = ActionStartReturn::new();
-        if self.handle_input_rotation(ctxa, f32::NEG_INFINITY)? {
+        if self.handle_input_movement(ctxa, f32::NEG_INFINITY)? {
             ret.clear_preinput = true;
         }
 
@@ -141,7 +139,7 @@ unsafe impl LogicActionAny for LogicActionGeneral {
             self.fade_in_weight = self.inst.anim_main.fade_in_weight(self.fade_in_weight, ctxa.time_step);
         }
 
-        let clear_preinput = self.handle_input_rotation(ctxa, prev_time)?;
+        let clear_preinput = self.handle_input_movement(ctxa, prev_time)?;
         self.update_rotation();
         let direction = Vec2xz::from_angle(self.current_rotation);
         let rotation = quat_from_dir_xz(direction);
@@ -204,8 +202,8 @@ unsafe impl LogicActionAny for LogicActionGeneral {
 }
 
 impl LogicActionGeneral {
-    fn handle_input_rotation(&mut self, ctxa: &ContextAction, prev_time: f32) -> XResult<bool> {
-        let world_move = ctxa.input_vars.world_move();
+    fn handle_input_movement(&mut self, ctxa: &ContextAction, prev_time: f32) -> XResult<bool> {
+        let world_move = ctxa.optimized_world_move;
         if !world_move.moving {
             return Ok(false);
         }
@@ -231,7 +229,7 @@ impl LogicActionGeneral {
                 }
                 InstActionGeneralMovement::Rotation(rot) => {
                     self.rotation_time = TimeRange::new(self.current_time, self.current_time + rot.duration);
-                    let chara_dir = ctxa.chara_physics.direction();
+                    let chara_dir = ctxa.chara_phy.direction();
                     self.from_rotation = chara_dir.to_angle();
 
                     let (turn_angle, input_dir) = match rot.angle >= 0.0 {
@@ -297,7 +295,7 @@ mod tests {
     use crate::logic::action::base::LogicActionStatus;
     use crate::logic::action::test_utils::*;
     use crate::utils::tests::FrameTicker;
-    use crate::utils::{id, ratio_saturating, s2f, sb, VirtualKey, LEVEL_ACTION, LEVEL_ATTACK};
+    use crate::utils::{LEVEL_ACTION, LEVEL_ATTACK, VirtualKey, id, ratio_saturating, s2f, sb};
 
     #[test]
     fn test_state_rkyv() {
@@ -312,7 +310,7 @@ mod tests {
         });
         raw_state.id = 123;
         raw_state.tmpl_id = id!("Action.Instance.Attack^1A");
-        raw_state.status = LogicActionStatus::Activing;
+        raw_state.status = LogicActionStatus::Running;
         raw_state.first_frame = 15;
         raw_state.last_frame = 99;
         raw_state.derive_level = 1;
@@ -326,7 +324,7 @@ mod tests {
 
         assert_eq!(state.id, 123);
         assert_eq!(state.tmpl_id, id!("Action.Instance.Attack^1A"));
-        assert_eq!(state.status, LogicActionStatus::Activing);
+        assert_eq!(state.status, LogicActionStatus::Running);
         assert_eq!(state.first_frame, 15);
         assert_eq!(state.last_frame, 99);
         assert_eq!(state.derive_level, 1);
@@ -370,7 +368,7 @@ mod tests {
     fn test_logic_general() {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_gen, inst_gen) = new_general(&mut tenv);
-        let (mut ctx, mut ctxa, sargs) = tenv.contexts(VirtualKey::Attack1, true);
+        let (mut ctx, mut ctxa, sargs) = tenv.contexts(true);
 
         logic_gen.start(&mut ctx, &mut ctxa, &sargs).unwrap();
         for ft in FrameTicker::new(0..s2f(4.0)) {
@@ -378,7 +376,7 @@ mod tests {
             ctx.time = ft.time;
             let ret = logic_gen.update(&mut ctx, &mut ctxa).unwrap();
             if !ft.last {
-                assert!(logic_gen.is_activing());
+                assert!(logic_gen.is_running());
                 assert!(ret.derive_keeping.is_invalid());
             }
             else {
@@ -402,7 +400,7 @@ mod tests {
 
             assert_eq!(state.animations.len(), 1);
             assert_eq!(state.animations[0].animation_id, 0);
-            assert_eq!(state.animations[0].files, "Girl_Attack_Test.*");
+            assert_eq!(state.animations[0].files, "Girl/Attack_Test.*");
             assert_eq!(state.animations[0].ratio, ft.time(1) / inst_gen.anim_main.duration);
             assert_eq!(state.animations[0].weight, 1.0);
         }

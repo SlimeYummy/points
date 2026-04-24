@@ -9,14 +9,14 @@ use crate::logic::game::{ContextUpdate, LogicSystems};
 use crate::logic::{InputVariables, LogicActionEmpty};
 use crate::parameter::ParamPlayer;
 use crate::template::TmplDatabase;
-use crate::utils::{id, ifelse, ActionType, NumID, VirtualKey, XResult};
+use crate::utils::{ActionType, NumID, VirtualKey, XResult, id, ifelse};
 
 pub(super) fn test_state_action_rkyv(
     state: Box<dyn StateActionAny>,
     typ: ActionType,
 ) -> XResult<Box<dyn StateActionAny>> {
-    use rkyv::rancor::Error;
     use rkyv::Archived;
+    use rkyv::rancor::Error;
 
     let buffer = rkyv::to_bytes::<Error>(&state).unwrap();
     let archived = unsafe { rkyv::access_unchecked::<Archived<Box<dyn StateActionAny>>>(&buffer) };
@@ -29,7 +29,7 @@ pub(super) fn test_state_action_rkyv(
 pub(super) struct TestEnv {
     pub systems: LogicSystems,
     pub inst_player: Rc<InstCharacter>,
-    pub chara_physics: LogicCharaPhysics,
+    pub chara_phy: LogicCharaPhysics,
     pub inst_empty: Rc<InstActionEmpty>,
     pub logic_empty: LogicActionEmpty,
 }
@@ -49,9 +49,9 @@ impl TestEnv {
             level: 1,
             ..Default::default()
         };
-        let inst_player = Rc::new(InstCharacter::new_player(&mut ctx.context_assemble(), &param_player)?);
+        let inst_player = InstCharacter::new_player(&mut ctx.context_assemble(), &param_player)?;
 
-        let chara_physics = LogicCharaPhysics::new(
+        let chara_phy = LogicCharaPhysics::new(
             &mut ctx,
             Self::PLAYER_ID,
             inst_player.clone(),
@@ -65,7 +65,7 @@ impl TestEnv {
         Ok(TestEnv {
             systems,
             inst_player,
-            chara_physics,
+            chara_phy,
             inst_empty,
             logic_empty,
         })
@@ -75,14 +75,11 @@ impl TestEnv {
         ContextUpdate::new(&mut self.systems, Self::FRAME, 95)
     }
 
-    pub fn contexts(
-        &mut self,
-        key: VirtualKey,
-        prev_action: bool,
-    ) -> (ContextUpdate<'_>, ContextAction<'_>, ActionStartArgs<'_>) {
+    pub fn contexts(&mut self, prev_action: bool) -> (ContextUpdate<'_>, ContextAction<'_>, ActionStartArgs<'_>) {
         let ctx = ContextUpdate::new(&mut self.systems, 100, 95);
-        let ctxa = ContextAction::new_normalized(Self::PLAYER_ID, &self.chara_physics, InputVariables::default(), 1.0);
-        let sargs = ActionStartArgs::new(ifelse!(prev_action, Some(&self.logic_empty), None), key, None);
+        let mut ctxa = ContextAction::new(Self::PLAYER_ID, &self.chara_phy);
+        ctxa.set_time_normalized(1.0);
+        let sargs = ActionStartArgs::new(ifelse!(prev_action, Some(&self.logic_empty), None), None);
         (ctx, ctxa, sargs)
     }
 }
