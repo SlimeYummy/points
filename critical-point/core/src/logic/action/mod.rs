@@ -20,7 +20,7 @@ use std::rc::Rc;
 
 use crate::instance::InstActionAny;
 use crate::logic::game::ContextUpdate;
-use crate::utils::{xres, ActionType, Castable, XResult};
+use crate::utils::{ActionType, Castable, XResult, xres};
 
 pub(crate) fn new_logic_action(
     ctx: &mut ContextUpdate,

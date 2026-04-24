@@ -4,11 +4,11 @@ use std::rc::Rc;
 
 use crate::instance::InstActionEmpty;
 use crate::logic::action::base::{
-    impl_state_action, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase, StateActionAny,
-    StateActionBase,
+    ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase, StateActionAny, StateActionBase,
+    impl_state_action,
 };
 use crate::logic::game::ContextUpdate;
-use crate::utils::{extend, ActionType, XResult};
+use crate::utils::{ActionType, XResult, extend};
 
 #[repr(C)]
 #[derive(
