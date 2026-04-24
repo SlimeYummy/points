@@ -6,7 +6,7 @@ use std::rc::Rc;
 use crate::animation::{RootMotion, RootTrackName};
 use crate::instance::InstAnimation;
 use crate::logic::ContextUpdate;
-use crate::utils::{xresf, XResult};
+use crate::utils::{XResult, xresf};
 
 //
 // LogicRootMotion

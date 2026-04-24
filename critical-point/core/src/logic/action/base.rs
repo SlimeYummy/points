@@ -1,6 +1,6 @@
 use approx::abs_diff_eq;
 use critical_point_csgen::{CsEnum, CsOut};
-use glam::{Quat, Vec3A};
+use glam::Vec3A;
 use glam_ext::Vec2xz;
 use std::alloc::Layout;
 use std::any::Any;
@@ -8,89 +8,12 @@ use std::fmt::Debug;
 use std::hint::unlikely;
 use std::rc::Rc;
 
-use crate::consts::{MAX_ACTION_ANIMATION, SPF};
+use crate::consts::{INVALID_ACTION_ID, MAX_ACTION_ANIMATION, SPF};
 use crate::instance::{InstActionAny, InstAnimation};
 use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::ContextUpdate;
-use crate::logic::system::input::InputVariables;
-use crate::utils::{
-    interface, rkyv_self, xres, ActionType, ArrayVec, CustomEvent, NumID, Symbol, TmplID, VirtualKey, XResult,
-};
-
-pub const INVALID_ACTION_ID: u32 = u32::MAX;
-pub const INVALID_ANIMATION_ID: u16 = u16::MAX;
-
-//
-// StateActionAny & StateActionBase
-//
-
-#[typetag::serde(tag = "T")]
-pub unsafe trait StateActionAny
-where
-    Self: Debug + Any + Send + Sync,
-{
-    fn id(&self) -> u32;
-    fn typ(&self) -> ActionType;
-    fn layout(&self) -> Layout;
-}
-
-#[repr(C)]
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsOut,
-)]
-#[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
-pub struct StateActionBase {
-    pub id: u32,
-    pub tmpl_id: TmplID,
-    pub typ: ActionType,
-    pub status: LogicActionStatus,
-    pub first_frame: u32,
-    pub last_frame: u32,
-    pub fade_in_weight: f32,
-    pub derive_level: u16,
-    pub poise_level: u16,
-    pub animations: ArrayVec<StateActionAnimation, MAX_ACTION_ANIMATION>,
-}
-
-interface!(StateActionAny, StateActionBase);
-
-#[cfg(feature = "debug-print")]
-impl Drop for StateActionBase {
-    fn drop(&mut self) {
-        log::debug!("StateActionBase::drop() id={} tmpl_id={}", self.id, self.tmpl_id);
-    }
-}
-
-impl StateActionBase {
-    pub fn new(typ: ActionType) -> StateActionBase {
-        StateActionBase {
-            id: INVALID_ACTION_ID,
-            tmpl_id: TmplID::default(),
-            typ,
-            status: LogicActionStatus::Starting,
-            first_frame: 0,
-            last_frame: 0,
-            fade_in_weight: 1.0,
-            derive_level: 0,
-            poise_level: 0,
-            animations: Default::default(),
-        }
-    }
-}
-
-pub trait ArchivedStateActionAny: Debug + Any {
-    fn id(&self) -> u32;
-    fn typ(&self) -> ActionType;
-}
+use crate::logic::system::input::{InputVariables, WorldMoveState};
+use crate::utils::{ActionType, ArrayVec, CustomEvent, NumID, Symbol, TmplID, XResult, interface, rkyv_self, xres};
 
 #[repr(C)]
 #[derive(
@@ -177,6 +100,99 @@ impl StateActionAnimation {
     pub fn is_empty(&self) -> bool {
         self.files.is_empty()
     }
+}
+
+//
+// StateActionAny & StateActionBase
+//
+
+// Marks the action as belonging to the previous frame.
+// Only used for the first frame of a new action, providing an interpolation starting point.
+const SA_FLAG_PREVIOUS_FRAME: u8 = 0x1;
+
+#[repr(C)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    CsOut,
+)]
+#[rkyv(derive(Debug))]
+#[cs_attr(Ref)]
+pub struct StateActionBase {
+    pub tmpl_id: TmplID,
+    pub id: u32,
+    pub typ: ActionType,
+    pub status: LogicActionStatus,
+    pub flags: u8,
+    pub first_frame: u32,
+    pub last_frame: u32,
+    pub fade_in_weight: f32,
+    pub derive_level: u16,
+    pub poise_level: u16,
+    pub animations: ArrayVec<StateActionAnimation, MAX_ACTION_ANIMATION>,
+}
+
+interface!(StateActionAny, StateActionBase);
+
+#[cfg(feature = "debug-print")]
+impl Drop for StateActionBase {
+    fn drop(&mut self) {
+        log::debug!("StateActionBase::drop() id={} tmpl_id={}", self.id, self.tmpl_id);
+    }
+}
+
+impl StateActionBase {
+    pub fn new(typ: ActionType) -> StateActionBase {
+        StateActionBase {
+            tmpl_id: TmplID::default(),
+            id: INVALID_ACTION_ID,
+            typ,
+            status: LogicActionStatus::Starting,
+            flags: 0,
+            first_frame: 0,
+            last_frame: 0,
+            fade_in_weight: 1.0,
+            derive_level: 0,
+            poise_level: 0,
+            animations: Default::default(),
+        }
+    }
+
+    #[inline]
+    pub fn set_previous_frame(&mut self, previous_frame: bool) {
+        if previous_frame {
+            self.flags |= SA_FLAG_PREVIOUS_FRAME;
+        }
+        else {
+            self.flags &= !SA_FLAG_PREVIOUS_FRAME;
+        }
+    }
+
+    #[inline]
+    pub fn previous_frame(&self) -> bool {
+        self.flags & SA_FLAG_PREVIOUS_FRAME != 0
+    }
+}
+
+#[typetag::serde(tag = "T")]
+pub unsafe trait StateActionAny
+where
+    Self: Debug + Any + Send + Sync,
+{
+    fn id(&self) -> u32;
+    fn typ(&self) -> ActionType;
+    fn layout(&self) -> Layout;
+}
+
+pub trait ArchivedStateActionAny: Debug + Any {
+    fn id(&self) -> u32;
+    fn typ(&self) -> ActionType;
 }
 
 #[repr(transparent)]
@@ -420,18 +436,6 @@ pub(crate) use impl_state_action;
 // LogicActionAny & LogicActionBase
 //
 
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
-pub enum LogicActionStatus {
-    Starting,
-    Activing,
-    Fading,
-    Stopping,
-    Finalized,
-}
-
-rkyv_self!(LogicActionStatus);
-
 pub unsafe trait LogicActionAny: Debug + Any {
     fn typ(&self) -> ActionType;
     fn save(&self) -> Box<dyn StateActionAny>;
@@ -477,21 +481,69 @@ pub unsafe trait LogicActionAny: Debug + Any {
     }
 }
 
+pub struct ContextAction<'a> {
+    pub(crate) chara_id: NumID,
+    pub(crate) chara_phy: &'a LogicCharaPhysics,
+
+    pub(crate) time_speed: f32,
+    pub(crate) time_step: f32,
+    pub(crate) frac_1_time_step: f32,
+
+    pub(crate) optimized_world_move: WorldMoveState,
+    pub(crate) view_dir_2d: Vec2xz,
+    pub(crate) view_dir_3d: Vec3A,
+    pub(crate) future_id: u64,
+}
+
+impl<'a> ContextAction<'a> {
+    pub(crate) fn new(chara_id: NumID, chara_phy: &'a LogicCharaPhysics) -> ContextAction<'a> {
+        ContextAction {
+            chara_id,
+            chara_phy,
+
+            time_speed: 0.0,
+            time_step: 0.0,
+            frac_1_time_step: 0.0,
+
+            optimized_world_move: WorldMoveState::default(),
+            view_dir_2d: Vec2xz::ZERO,
+            view_dir_3d: Vec3A::ZERO,
+            future_id: 0,
+        }
+    }
+
+    pub(crate) fn set_time_normalized(&mut self, time_speed: f32) {
+        if abs_diff_eq!(time_speed, 0.0, epsilon = 1e-4) {
+            self.time_speed = 0.0;
+            self.time_step = 0.0;
+            self.frac_1_time_step = 0.0;
+        }
+        else {
+            self.time_speed = time_speed;
+            self.time_step = SPF * time_speed;
+            self.frac_1_time_step = 1.0 / self.time_step;
+        }
+    }
+
+    pub(crate) fn set_player_inputs(&mut self, vars: &InputVariables, future_id: u64) -> XResult<()> {
+        self.optimized_world_move = vars.optimized_world_move();
+        self.view_dir_2d = vars.view_dir_2d;
+        self.view_dir_3d = vars.view_dir_3d;
+        self.future_id = future_id;
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub struct ActionStartArgs<'t> {
     pub prev_action: Option<&'t dyn LogicActionAny>,
-    pub key: VirtualKey,
     pub dir: Option<Vec2xz>,
 }
 
 impl<'t> ActionStartArgs<'t> {
     #[inline]
-    pub fn new(
-        prev_action: Option<&'t dyn LogicActionAny>,
-        key: VirtualKey,
-        dir: Option<Vec2xz>,
-    ) -> ActionStartArgs<'t> {
-        ActionStartArgs { prev_action, key, dir }
+    pub fn new(prev_action: Option<&'t dyn LogicActionAny>, dir: Option<Vec2xz>) -> ActionStartArgs<'t> {
+        ActionStartArgs { prev_action, dir }
     }
 }
 
@@ -540,7 +592,7 @@ impl ActionUpdateReturn {
     }
 }
 
-pub const LA_FLAG_DERIVE_SELF: u8 = 0x1;
+const LA_FLAG_DERIVE_SELF: u8 = 0x1;
 
 #[derive(Debug)]
 pub struct LogicActionBase {
@@ -598,6 +650,7 @@ impl LogicActionBase {
             tmpl_id: self.inst.tmpl_id,
             typ,
             status: self.status,
+            flags: 0,
             first_frame: self.first_frame,
             last_frame: self.last_frame,
             fade_in_weight: self.fade_in_weight,
@@ -621,7 +674,7 @@ impl LogicActionBase {
             return xres!(Unexpected; "status != Starting");
         }
         log::info!("LogicActionAny::start() id={} tmpl_id={}", self.id, self.inst.tmpl_id);
-        self.status = LogicActionStatus::Activing;
+        self.status = LogicActionStatus::Running;
         self.first_frame = ctx.frame;
         if args.prev_action.is_none() {
             self.fade_in_weight = 1.0;
@@ -630,15 +683,15 @@ impl LogicActionBase {
     }
 
     pub fn update(&mut self, _ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
-        if unlikely(self.status != LogicActionStatus::Activing) {
-            return xres!(Unexpected; "status != Activing");
+        if unlikely(self.status != LogicActionStatus::Running) {
+            return xres!(Unexpected; "status != Running");
         }
         Ok(())
     }
 
     pub fn fade_start(&mut self, _ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
-        if unlikely(self.status != LogicActionStatus::Activing) {
-            return xres!(Unexpected; "status != Activing");
+        if unlikely(self.status != LogicActionStatus::Running) {
+            return xres!(Unexpected; "status != Running");
         }
         log::info!(
             "LogicActionAny::fade_start() id={} tmpl_id={}",
@@ -661,7 +714,7 @@ impl LogicActionBase {
             self.status,
             LogicActionStatus::Stopping | LogicActionStatus::Finalized
         )) {
-            return xres!(Unexpected; "status != Starting/Activing/Fading");
+            return xres!(Unexpected; "status != Starting/Running/Fading");
         }
         log::info!("LogicActionAny::stop() id={} tmpl_id={}", self.id, self.inst.tmpl_id);
         self.status = LogicActionStatus::Stopping;
@@ -689,70 +742,93 @@ impl LogicActionBase {
 
     #[inline]
     pub fn is_starting(&self) -> bool {
-        self.status == LogicActionStatus::Starting
+        self.status.is_starting()
     }
 
     #[inline]
-    pub fn is_activing(&self) -> bool {
-        self.status == LogicActionStatus::Activing
+    pub fn is_running(&self) -> bool {
+        self.status.is_running()
     }
 
     #[inline]
     pub fn is_stopping(&self) -> bool {
-        self.status == LogicActionStatus::Stopping
+        self.status.is_stopping()
     }
 
     #[inline]
     pub fn is_fading(&self) -> bool {
-        self.status == LogicActionStatus::Fading
+        self.status.is_fading()
     }
 
     #[inline]
     pub fn is_finalized(&self) -> bool {
-        self.status == LogicActionStatus::Finalized
+        self.status.is_finalized()
+    }
+
+    #[inline]
+    pub fn is_active(&self) -> bool {
+        self.status.is_active()
+    }
+
+    #[inline]
+    pub fn is_inactive(&self) -> bool {
+        self.status.is_inactive()
     }
 }
 
 //
-// ContextAction
+// Others
 //
 
-pub struct ContextAction<'a> {
-    pub(crate) chara_id: NumID,
-    pub(crate) chara_physics: &'a LogicCharaPhysics,
-    pub(crate) input_vars: InputVariables,
-    pub(crate) time_speed: f32,
-    pub(crate) time_step: f32,
-    pub(crate) frac_1_time_step: f32,
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
+pub enum LogicActionStatus {
+    Starting,
+    Running,
+    Fading,
+    Stopping,
+    Finalized,
 }
 
-impl<'a> ContextAction<'a> {
-    pub(crate) fn new_normalized(
-        chara_id: NumID,
-        chara_physics: &'a LogicCharaPhysics,
-        input_vars: InputVariables,
-        mut time_speed: f32,
-    ) -> ContextAction<'a> {
-        let time_step;
-        let frac_1_time_step;
-        if abs_diff_eq!(time_speed, 0.0, epsilon = 1e-4) {
-            time_speed = 0.0;
-            time_step = 0.0;
-            frac_1_time_step = 0.0;
-        }
-        else {
-            time_step = SPF * time_speed;
-            frac_1_time_step = 1.0 / time_step;
-        }
+rkyv_self!(LogicActionStatus);
 
-        ContextAction {
-            chara_id,
-            chara_physics,
-            input_vars,
-            time_speed,
-            time_step,
-            frac_1_time_step,
-        }
+impl LogicActionStatus {
+    #[inline]
+    pub fn is_starting(&self) -> bool {
+        *self == LogicActionStatus::Starting
+    }
+
+    #[inline]
+    pub fn is_running(&self) -> bool {
+        *self == LogicActionStatus::Running
+    }
+
+    #[inline]
+    pub fn is_stopping(&self) -> bool {
+        *self == LogicActionStatus::Stopping
+    }
+
+    #[inline]
+    pub fn is_fading(&self) -> bool {
+        *self == LogicActionStatus::Fading
+    }
+
+    #[inline]
+    pub fn is_finalized(&self) -> bool {
+        *self == LogicActionStatus::Finalized
+    }
+
+    #[inline]
+    pub fn is_active(&self) -> bool {
+        matches!(self, LogicActionStatus::Starting | LogicActionStatus::Running)
+    }
+
+    #[inline]
+    pub fn is_inactive(&self) -> bool {
+        matches!(
+            self,
+            LogicActionStatus::Stopping | LogicActionStatus::Fading | LogicActionStatus::Finalized
+        )
     }
 }
 
