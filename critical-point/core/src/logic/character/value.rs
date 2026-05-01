@@ -2,10 +2,10 @@ use critical_point_csgen::CsOut;
 use std::rc::Rc;
 
 use crate::instance::InstCharacter;
-use crate::logic::character::LogicCharaAction;
+use crate::logic::character::LogicCharaControl;
 use crate::logic::game::{ContextHitUpdate, ContextRestore, ContextUpdate, HitCharacterEvent};
 use crate::logic::physics::PhyHitCharacterEvent;
-use crate::utils::{cf2s, NumID, TimeRange, XResult};
+use crate::utils::{NumID, TimeRange, XResult, cf2s};
 
 #[repr(C)]
 #[derive(

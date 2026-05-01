@@ -8,16 +8,15 @@ use crate::animation::AnimationFileMeta;
 use crate::consts::DEFAULT_TOWARD_DIR_2D;
 use crate::instance::InstCharacter;
 use crate::logic::action::StateActionAny;
-use crate::logic::base::{impl_state, LogicAny, LogicType, StateBase, StateType};
+use crate::logic::base::{LogicAny, LogicType, StateBase, StateType, impl_state};
 use crate::logic::character::{
-    LogicCharaAction, LogicCharaHit, LogicCharaPhysics, LogicCharaValue, StateCharaAction, StateCharaHit,
-    StateCharaPhysics, StateCharaValue,
+    LogicCharaControl, LogicCharaPhysics, LogicCharaValue, StateCharaControl, StateCharaPhysics, StateCharaValue,
 };
 use crate::logic::game::{ContextHitGenerate, ContextRestore, ContextUpdate, HitCharacterEvent};
 use crate::logic::physics::PhyHitCharacterEvent;
 use crate::parameter::{ParamNpc, ParamPlayer};
 use crate::template::{TmplNpcCharacter, TmplStyle};
-use crate::utils::{extend, CustomEvent, NumID, Symbol, XResult};
+use crate::utils::{CustomEvent, NumID, Symbol, XResult, extend};
 
 #[repr(C)]
 #[derive(
@@ -47,9 +46,8 @@ impl_state!(StateCharacterInit, Character, CharacterInit, "CharacterInit");
 #[cs_attr(Ref)]
 pub struct StateCharacterUpdate {
     pub _base: StateBase,
+    pub control: StateCharaControl,
     pub physics: StateCharaPhysics,
-    pub action: StateCharaAction,
-    pub hit: StateCharaHit,
     pub value: StateCharaValue,
     pub actions: Vec<Box<dyn StateActionAny>>,
     pub custom_events: Vec<CustomEvent>,
@@ -65,10 +63,9 @@ pub struct LogicCharacter {
     spawn_frame: u32,
     death_frame: u32,
     inst: Rc<InstCharacter>,
-    chara_physics: LogicCharaPhysics,
-    chara_action: LogicCharaAction,
-    chara_hit: LogicCharaHit,
-    chara_value: LogicCharaValue,
+    chara_ctrl: LogicCharaControl,
+    chara_phy: LogicCharaPhysics,
+    chara_val: LogicCharaValue,
 }
 
 impl LogicAny for LogicCharacter {
@@ -98,7 +95,7 @@ impl LogicCharacter {
         ctx: &mut ContextUpdate,
         param_player: &ParamPlayer,
     ) -> XResult<(Box<LogicCharacter>, Arc<StateCharacterInit>)> {
-        let inst_chara = Rc::new(InstCharacter::new_player(&mut ctx.context_assemble(), param_player)?);
+        let inst_chara = InstCharacter::new_player(&mut ctx.context_assemble(), param_player)?;
         let tmpl_style = ctx.tmpl_db.find_as::<TmplStyle>(param_player.style)?;
         Self::new_impl(
             ctx,
@@ -113,7 +110,7 @@ impl LogicCharacter {
         ctx: &mut ContextUpdate,
         param: &ParamNpc,
     ) -> XResult<(Box<LogicCharacter>, Arc<StateCharacterInit>)> {
-        let inst_npc = Rc::new(InstCharacter::new_npc(&mut ctx.context_assemble(), param)?);
+        let inst_npc = InstCharacter::new_npc(&mut ctx.context_assemble(), param)?;
         let tmpl_chara = ctx.tmpl_db.find_as::<TmplNpcCharacter>(param.character)?;
         Self::new_impl(
             ctx,
@@ -142,13 +139,12 @@ impl LogicCharacter {
             spawn_frame: ctx.frame,
             death_frame: u32::MAX,
             inst: inst_chara.clone(),
-            chara_physics: LogicCharaPhysics::new(ctx, id, inst_chara.clone(), init_position, init_direction)?,
-            chara_action: LogicCharaAction::new(ctx, id, inst_chara.clone())?,
-            chara_hit: LogicCharaHit::new(ctx, id, inst_chara.clone())?,
-            chara_value: LogicCharaValue::new(ctx, id, inst_chara.clone()),
+            chara_ctrl: LogicCharaControl::new(ctx, id, inst_chara.clone(), inst_chara.ai_brain.clone())?,
+            chara_phy: LogicCharaPhysics::new(ctx, id, inst_chara.clone(), init_position, init_direction)?,
+            chara_val: LogicCharaValue::new(ctx, id, inst_chara.clone()),
         });
 
-        let animation_metas = chara.chara_action.preload_assets(ctx)?;
+        let animation_metas = chara.chara_ctrl.preload_assets(ctx)?;
         let state_init = Arc::new(StateCharacterInit {
             _base: StateBase::new(chara.id, StateType::CharacterInit, LogicType::Character),
             is_player: inst_chara.is_player,
@@ -159,21 +155,20 @@ impl LogicCharacter {
             init_direction,
         });
 
-        chara.chara_action.init(ctx, &chara.chara_physics, &chara.chara_value)?;
-        chara.chara_physics.init(ctx, &chara.chara_action)?;
-        chara.chara_hit.init(ctx)?;
-        chara.chara_value.init(ctx)?;
+        chara.chara_ctrl.init(ctx, &chara.chara_phy, &chara.chara_val)?;
+        chara.chara_ctrl.apply_animations(ctx)?;
+        chara.chara_phy.init(ctx, &chara.chara_ctrl)?;
+        chara.chara_val.init(ctx)?;
         Ok((chara, state_init))
     }
 
     pub fn state(&mut self) -> XResult<Box<StateCharacterUpdate>> {
-        let (action, actions, custom_events) = self.chara_action.take_states()?;
+        let (action, actions, custom_events) = self.chara_ctrl.take_states()?;
         Ok(Box::new(StateCharacterUpdate {
             _base: StateBase::new(self.id, StateType::CharacterUpdate, LogicType::Character),
-            physics: self.chara_physics.state(),
-            action,
-            hit: self.chara_hit.state(),
-            value: self.chara_value.state(),
+            control: action,
+            physics: self.chara_phy.state(),
+            value: self.chara_val.state(),
             actions,
             custom_events,
         }))
@@ -181,37 +176,26 @@ impl LogicCharacter {
 
     pub fn restore(&mut self, ctx: &ContextRestore) -> XResult<()> {
         let state = ctx.find_as::<StateCharacterUpdate>(self.id)?;
-        self.chara_action.restore(ctx, &state.action, &state.actions)?;
-        self.chara_physics.restore(ctx, &state.physics)?;
-        self.chara_hit.restore(ctx, &state.hit)?;
-        self.chara_value.restore(ctx, &state.value)?;
+        self.chara_ctrl.restore(ctx, &state.control, &state.actions)?;
+        self.chara_phy.restore(ctx, &state.physics)?;
+        self.chara_val.restore(ctx, &state.value)?;
         Ok(())
     }
 
     #[inline]
-    pub fn update_action(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
-        self.chara_action
-            .update(ctx, &self.chara_physics, &self.chara_value, &self.chara_hit)
+    pub fn update_control(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
+        self.chara_ctrl.update(ctx, &self.chara_phy, &self.chara_val)
     }
 
     #[inline]
     pub fn update_physics(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
-        self.chara_physics.update(ctx, &self.chara_action)
-    }
-
-    #[inline]
-    pub fn update_hit(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
-        self.chara_hit.update(ctx, &self.chara_action, &self.chara_physics)
+        self.chara_ctrl.apply_animations(ctx)?;
+        self.chara_phy.update(ctx, &self.chara_ctrl)
     }
 
     #[inline]
     pub fn update_value(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
-        self.chara_value.update(ctx)
-    }
-
-    #[inline]
-    pub fn update_clean_up(&mut self) {
-        self.chara_hit.clear_events();
+        self.chara_val.update(ctx)
     }
 
     pub(crate) fn before_hit(
@@ -220,14 +204,9 @@ impl LogicCharacter {
         ctx: &mut ContextHitGenerate<HitCharacterEvent>,
         phy_event: &PhyHitCharacterEvent,
     ) -> XResult<()> {
-        let event_count = self.chara_hit.detect_hits(
-            &mut dst_chara.chara_hit,
-            ctx,
-            &self.chara_action,
-            &self.chara_physics,
-            &dst_chara.chara_physics,
-            phy_event,
-        )?;
+        let event_count = self
+            .chara_phy
+            .detect_hits(&mut dst_chara.chara_phy, ctx, &self.chara_ctrl, phy_event)?;
         if event_count == 0 {
             return Ok(());
         }
@@ -238,8 +217,8 @@ impl LogicCharacter {
             debug_assert_eq!(ctx.events[idx].src_chara_id, phy_event.src_chara_id);
             debug_assert_eq!(ctx.events[idx].dst_chara_id, phy_event.dst_chara_id);
 
-            self.chara_value
-                .before_hit(&mut dst_chara.chara_value, &mut ctx.context_update(idx), phy_event)?;
+            self.chara_val
+                .before_hit(&mut dst_chara.chara_val, &mut ctx.context_update(idx), phy_event)?;
         }
         Ok(())
     }
@@ -254,7 +233,7 @@ mod tests {
     use super::*;
     use crate::logic::action::StateActionIdle;
     use crate::logic::test_utils::*;
-    use crate::utils::{id, sb, Castable};
+    use crate::utils::{Castable, id, sb};
 
     fn prepare_player(tenv: &mut TestEnv) -> (Box<LogicCharacter>, Arc<StateCharacterInit>) {
         let param_player = ParamPlayer {
@@ -278,13 +257,13 @@ mod tests {
         assert_eq!(logic_player.inst.tmpl_style, id!("Style.Instance^1A"));
 
         assert_eq!(state_init.id, 100);
-        assert_eq!(state_init.skeleton_files, "Girl.*");
+        assert_eq!(state_init.skeleton_files, "Girl/Girl.*");
         assert_eq!(state_init.animation_metas.len(), 4);
         let excepted_files = [
-            sb!("Girl_Idle_Empty"),
-            sb!("Girl_Idle_Axe"),
-            sb!("Girl_Run_Empty"),
-            sb!("Girl_Attack_01A"),
+            sb!("Girl/Idle_Empty"),
+            sb!("Girl/Idle_Axe"),
+            sb!("Girl/Run_Empty"),
+            sb!("Girl/Attack_01A"),
         ];
         for file in excepted_files.iter() {
             assert!(state_init.animation_metas.iter().find(|f| f.files == *file).is_some());
@@ -301,11 +280,11 @@ mod tests {
     fn test_logic_player_update() {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_player, _) = prepare_player(&mut tenv);
-        logic_player.update_hit(&mut tenv.context_update()).unwrap();
+        // logic_player.update_hit(&mut tenv.context_update()).unwrap();
         logic_player.update_value(&mut tenv.context_update()).unwrap();
-        logic_player.update_action(&mut tenv.context_update()).unwrap();
+        logic_player.update_control(&mut tenv.context_update()).unwrap();
         logic_player.update_physics(&mut tenv.context_update()).unwrap();
-        logic_player.update_clean_up();
+        // logic_player.update_clean_up();
         let state_update = logic_player.state().unwrap();
         assert_eq!(state_update.id, 100);
         assert_eq!(state_update.actions.len(), 1);
