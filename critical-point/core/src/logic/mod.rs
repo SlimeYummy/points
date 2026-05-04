@@ -1,4 +1,5 @@
 mod action;
+mod ai_task;
 mod base;
 mod character;
 mod game;
@@ -10,6 +11,7 @@ pub(super) mod test_utils;
 mod zone;
 
 pub use action::*;
+pub use ai_task::*;
 pub use base::*;
 pub use character::*;
 pub use game::*;

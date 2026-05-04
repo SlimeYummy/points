@@ -6,7 +6,7 @@ use crate::logic::game::{ContextUpdate, LogicSystems};
 use crate::logic::physics::{PhyBroadPhaseLayerInterface, PhyObjectLayerPairFilter, PhyObjectVsBroadPhaseLayerFilter};
 use crate::parameter::ParamPlayer;
 use crate::template::TmplDatabase;
-use crate::utils::{id, NumID, XResult};
+use crate::utils::{NumID, XResult, id};
 
 pub(super) struct TestEnv {
     pub systems: LogicSystems,
