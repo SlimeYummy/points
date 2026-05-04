@@ -3,13 +3,13 @@ use glam::Vec3A;
 use jolt_physics_rs::PhysicsSystem;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
-use std::slice;
 use std::sync::Arc;
+use std::{mem, slice};
 
 use crate::asset::AssetLoader;
 use crate::consts::{FPS, MAX_INPUT_WINDOW, SPF};
 use crate::instance::ContextAssemble;
-use crate::logic::base::{impl_state, LogicAny, LogicType, StateAny, StateBase, StateType};
+use crate::logic::base::{LogicAny, LogicType, StateAny, StateBase, StateType, impl_state};
 use crate::logic::character::LogicCharacter;
 use crate::logic::physics::{
     PhyBroadPhaseLayerInterface, PhyContactCollector, PhyHitCharacterEvent, PhyObjectLayerPairFilter,
@@ -23,7 +23,7 @@ use crate::logic::zone::LogicZone;
 use crate::parameter::ParamGame;
 // use crate::script::ScriptExecutor;
 use crate::template::TmplDatabase;
-use crate::utils::{bubble_sort_by, extend, force_mut, xres, Castable, HistoryVec, NumID, Symbol, XResult};
+use crate::utils::{Castable, HistoryVec, NumID, Symbol, XResult, bubble_sort_by, extend, force_mut, xres};
 
 //
 // LogicLoop
@@ -273,6 +273,7 @@ pub struct ContextUpdate<'t> {
     pub(crate) synced_frame: u32,
     pub(crate) time: f32,
     pub(crate) synced_time: f32,
+    pub(crate) zone: Option<&'t LogicZone>,
     pub(crate) hit_events: &'t [HitCharacterEvent],
 }
 
@@ -299,6 +300,7 @@ impl<'t> ContextUpdate<'t> {
             synced_frame,
             time: frame as f32 / FPS, // TODO: The error between time and accumulation time
             synced_time: synced_frame as f32 / FPS,
+            zone: None,
             hit_events: &[],
         }
     }
@@ -309,6 +311,22 @@ impl<'t> ContextUpdate<'t> {
             tmpl_db: &self.systems.tmpl_db,
             // executor: &mut self.systems.executor,
         }
+    }
+
+    // Safety: steal reference, we will reset those fields after use.
+    #[inline]
+    unsafe fn set_extras(&mut self, zone: &LogicZone, hit_events: &mut Vec<HitCharacterEvent>) {
+        self.zone = mem::transmute(zone);
+
+        let ptr = hit_events.as_ptr();
+        let len = hit_events.len();
+        self.hit_events = slice::from_raw_parts(ptr, len);
+    }
+
+    #[inline]
+    fn clear_extras(&mut self) {
+        self.zone = None;
+        self.hit_events = &[];
     }
 }
 
@@ -466,6 +484,8 @@ impl LogicGame {
         state_set.inits.push(zone_init);
 
         // new players & npcs
+        unsafe { ctx.set_extras(&zone, &mut vec![]) };
+
         let mut logic_characters = HistoryVec::with_capacity(param.players.len() + param.npcs.len());
 
         for param_player in param.players {
@@ -479,6 +499,8 @@ impl LogicGame {
             logic_characters.append_new(logic_npc);
             state_set.inits.push(npc_init);
         }
+
+        ctx.clear_extras();
 
         let mut game = Box::new(LogicGame {
             id: NumID::GAME,
@@ -515,39 +537,35 @@ impl LogicGame {
     fn update(&mut self, ctx: &mut ContextUpdate) -> XResult<Arc<StateSet>> {
         self.frame = ctx.frame;
 
-        let ptr = self.hit_events.as_ptr();
-        let len = self.hit_events.len();
-        // Safety: steal a reference, we will reset ctx.hit_events after use.
-        ctx.hit_events = unsafe { slice::from_raw_parts(ptr, len) };
+        self.zone.update(ctx)?;
 
-        // Update character hit & value
+        unsafe { ctx.set_extras(&self.zone, &mut self.hit_events) };
+
+        // Update value
         for chara in self.characters.iter_mut_by(|p| p.is_alive()) {
-            chara.update_hit(ctx)?;
             chara.update_value(ctx)?;
         }
 
         // TODO: Create new objects
         // TODO: Clear dead objects
 
-        // Update character action & physics
+        // Update character control
         for chara in self.characters.iter_mut_by(|p| p.is_alive()) {
-            chara.update_action(ctx)?;
+            chara.update_control(ctx)?;
+        }
+        
+        // Update character physics
+        for chara in self.characters.iter_mut_by(|p| p.is_alive()) {
             chara.update_physics(ctx)?;
         }
 
-        self.zone.update(ctx)?;
-
-        ctx.hit_events = &[];
+        // Clean up
+        ctx.clear_extras();
+        self.hit_events.clear();
 
         // Collect states
         let mut state_set = StateSet::new(self.frame, 0, 0);
         state_set.updates = self.collect_states_updates(ctx)?;
-
-        // Clean up hit events
-        self.hit_events.clear();
-        for chara in self.characters.iter_mut_by(|p| p.is_alive()) {
-            chara.update_clean_up();
-        }
 
         Ok(Arc::new(state_set))
     }
@@ -630,7 +648,7 @@ mod tests {
     use super::*;
     use crate::consts::TEST_ASSET_PATH;
     use crate::parameter::{ParamNpc, ParamPlayer, ParamZone};
-    use crate::utils::{id, RawInput, RawKey};
+    use crate::utils::{RawInput, RawKey, id};
 
     #[ctor::ctor]
     fn test_init_jolt_physics() {
@@ -651,6 +669,7 @@ mod tests {
             npcs: vec![ParamNpc {
                 character: id!("NpcCharacter.NpcInstance^1"),
                 level: 2,
+                ai_brain: id!("AiBrain.NpcInstance^1"),
                 ..Default::default()
             }],
             local_mode: false,

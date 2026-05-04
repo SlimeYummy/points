@@ -1,15 +1,37 @@
 use critical_point_csgen::CsOut;
+use glam::{Vec3, Vec3A};
 use jolt_physics_rs::{BodyCreationSettings, BodyID};
+use recastnavigation_rs::detour::{DtNavMesh, DtNavMeshQuery, DtPolyRef, DtQueryFilter};
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use crate::instance::InstZone;
-use crate::logic::base::{impl_state, LogicAny, LogicType, StateAny, StateBase, StateType};
+use crate::logic::base::{LogicAny, LogicType, StateAny, StateBase, StateType, impl_state};
 use crate::logic::game::{ContextRestore, ContextUpdate};
-use crate::logic::physics::phy_layer;
-use crate::logic::PhyBodyUserData;
+use crate::logic::physics::{PhyBodyUserData, phy_layer};
 use crate::parameter::ParamZone;
 use crate::template::TmplZone;
-use crate::utils::{extend, NumID, XResult};
+use crate::utils::{NumID, XResult, extend};
+
+const MAX_POLYS: usize = 256;
+const MAX_NODES: usize = 2048;
+
+#[derive(Debug)]
+struct NavMeshCache {
+    query: DtNavMeshQuery,
+    polys: Vec<DtPolyRef>,
+    path: Vec<[f32; 3]>,
+}
+
+impl NavMeshCache {
+    fn new(nav_mesh: &DtNavMesh) -> XResult<NavMeshCache> {
+        Ok(NavMeshCache {
+            query: DtNavMeshQuery::with_mesh(nav_mesh, MAX_NODES)?,
+            polys: Vec::with_capacity(MAX_POLYS),
+            path: Vec::with_capacity(MAX_POLYS),
+        })
+    }
+}
 
 #[repr(C)]
 #[derive(
@@ -19,7 +41,7 @@ use crate::utils::{extend, NumID, XResult};
 #[cs_attr(Ref)]
 pub struct StateZoneInit {
     pub _base: StateBase,
-    pub view_zone_file: String,
+    pub view_file: String,
 }
 
 extend!(StateZoneInit, StateBase);
@@ -45,6 +67,8 @@ pub struct LogicZone {
     id: NumID,
     inst: InstZone,
     phy_bodies: Vec<BodyID>,
+    nav_mesh: DtNavMesh,
+    cache: RefCell<NavMeshCache>,
 }
 
 impl LogicAny for LogicZone {
@@ -75,7 +99,7 @@ impl LogicZone {
         let tmpl_zone = ctx.tmpl_db.find_as::<TmplZone>(inst_zone.tmpl_zone)?;
 
         let asset = &mut ctx.systems.asset;
-        let zone_phy = asset.load_zone_physics(&tmpl_zone.zone_file)?;
+        let zone_phy = asset.load_zone_physics(inst_zone.files)?;
 
         let bofy_itf = &mut ctx.systems.physics.body_itf();
 
@@ -93,16 +117,29 @@ impl LogicZone {
             phy_bodies.push(body_id);
         }
 
+        let nav_mesh = asset.load_nav_mesh(inst_zone.files)?;
+        let cache = RefCell::new(NavMeshCache::new(&nav_mesh)?);
+
         let zone = Box::new(LogicZone {
             id: NumID::STAGE,
             inst: inst_zone,
             phy_bodies,
+            nav_mesh,
+            cache,
         });
         let state = Arc::new(StateZoneInit {
             _base: StateBase::new(zone.id, StateType::ZoneInit, LogicType::Zone),
-            view_zone_file: tmpl_zone.view_zone_file.to_owned(),
+            view_file: tmpl_zone.view_file.to_owned(),
         });
         Ok((zone, state))
+    }
+
+    pub fn cleanup(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
+        let bofy_itf = &mut ctx.systems.physics.body_itf();
+        for body_id in self.phy_bodies.drain(..) {
+            bofy_itf.remove_body(body_id);
+        }
+        Ok(())
     }
 
     pub fn state(&mut self) -> Box<StateZoneUpdate> {
@@ -119,13 +156,77 @@ impl LogicZone {
     pub fn update(&mut self, _ctx: &mut ContextUpdate) -> XResult<()> {
         Ok(())
     }
+
+    #[inline]
+    pub fn nav_mesh(&self) -> &DtNavMesh {
+        &self.nav_mesh
+    }
+
+    #[inline]
+    pub fn find_path(&self, start_point: Vec3A, end_point: Vec3A, out_path: &mut Vec<Vec3>) -> XResult<()> {
+        out_path.clear();
+
+        let mut cache = self.cache.borrow_mut();
+        let NavMeshCache { query, polys, path } = &mut *cache;
+
+        // Find nearest polygons for start and end positions
+        let extents = [2.0, 4.0, 2.0];
+        let filter = DtQueryFilter::default();
+
+        let start_pos = start_point.to_array();
+        let end_pos = end_point.to_array();
+
+        let (start_ref, _) = query.find_nearest_poly_1(&start_pos, &extents, &filter)?;
+        let (end_ref, _) = query.find_nearest_poly_1(&end_pos, &extents, &filter)?;
+
+        if start_ref.is_null() || end_ref.is_null() {
+            return Ok(());
+        }
+
+        // Find the polygon path
+        polys.clear();
+        polys.resize(MAX_POLYS, DtPolyRef::default());
+        let poly_count = query.find_path(start_ref, end_ref, &start_pos, &end_pos, &filter, polys)?;
+
+        if poly_count == 0 {
+            return Ok(());
+        }
+
+        // Calculate the real end position
+        let mut real_end_pos = end_pos;
+        if polys[poly_count - 1] != end_ref {
+            let (closest, _) = query.closest_point_on_poly(polys[poly_count - 1], &end_pos)?;
+            real_end_pos = closest;
+        }
+
+        // Find straight path
+        path.clear();
+        path.resize(MAX_POLYS, [0.0; 3]);
+        let straight_path_count = query.find_straight_path(
+            &start_pos,
+            &real_end_pos,
+            &polys[..poly_count],
+            path,
+            None,
+            None,
+            0, // No special options
+        )?;
+
+        // Write results to output
+        out_path.clear();
+        out_path.reserve(straight_path_count);
+        for i in 0..straight_path_count {
+            out_path.push(path[i].into());
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::logic::test_utils::*;
-    use crate::utils::{id, Castable};
+    use crate::utils::{Castable, id};
 
     #[test]
     fn test_zone_common() {

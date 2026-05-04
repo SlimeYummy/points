@@ -1,11 +1,11 @@
 use critical_point_csgen::{CsEnum, CsOut};
-use enum_iterator::{cardinality, Sequence};
+use enum_iterator::{Sequence, cardinality};
 use std::alloc::Layout;
 use std::any::Any;
 use std::fmt::Debug;
 use std::mem;
 
-use crate::utils::{interface, rkyv_self, xres, NumID, XError, XResult};
+use crate::utils::{NumID, XError, XResult, interface, rkyv_self, xres};
 
 //
 // LogicType & LogicAny
@@ -423,22 +423,21 @@ mod tests {
     use crate::animation::AnimationFileMeta;
     use crate::logic::action::DeriveKeeping;
     use crate::logic::character::{
-        StateCharaAction, StateCharaHit, StateCharaHitBoxPair, StateCharaHitGroupPair, StateCharaPhysics,
-        StateCharaValue, StateCharacterInit, StateCharacterUpdate,
+        StateCharaControl, StateCharaHitBoxPair, StateCharaHitGroupPair, StateCharaPhysics, StateCharaValue,
+        StateCharacterInit, StateCharacterUpdate,
     };
-    use crate::logic::game::{StateGameInit, StateGameUpdate};
+    use crate::logic::game::{HitCharacterEvent, StateGameInit, StateGameUpdate};
     use crate::logic::system::generation::StateGeneration;
     use crate::logic::zone::{StateZoneInit, StateZoneUpdate};
-    use crate::logic::HitCharacterEvent;
-    use crate::utils::{sb, smallvec, Castable};
+    use crate::utils::{Castable, sb, smallvec};
     use anyhow::Result;
     use glam::Vec3A;
     use glam_ext::Vec2xz;
     use jolt_physics_rs::BodyID;
 
     fn test_rkyv(state: Box<dyn StateAny>, typ: StateType, logic_typ: LogicType) -> Result<Box<dyn StateAny>> {
-        use rkyv::rancor::Failure;
         use rkyv::Archived;
+        use rkyv::rancor::Failure;
 
         let buffer = rkyv::to_bytes::<Failure>(&state)?;
         let archived = unsafe { rkyv::access_unchecked::<Archived<Box<dyn StateAny>>>(&buffer) };
@@ -474,6 +473,7 @@ mod tests {
                     player_id: NumID::MAX_PLAYER,
                     auto_gen_id: NumID::MIN_AUTO_GEN,
                     action_id: 0,
+                    ai_task_id: 0,
                 },
                 hit_events: vec![HitCharacterEvent {
                     src_chara_id: NumID(100),
@@ -496,6 +496,7 @@ mod tests {
         assert_eq!(state_game_update.gene.player_id, NumID::MAX_PLAYER);
         assert_eq!(state_game_update.gene.auto_gen_id, NumID::MIN_AUTO_GEN);
         assert_eq!(state_game_update.gene.action_id, 0);
+        assert_eq!(state_game_update.gene.ai_task_id, 0);
 
         assert_eq!(state_game_update.hit_events.len(), 1);
         assert_eq!(state_game_update.hit_events[0], HitCharacterEvent {
@@ -511,7 +512,7 @@ mod tests {
         let state_zone_new = test_rkyv(
             Box::new(StateZoneInit {
                 _base: StateBase::new(NumID(4321), StateType::ZoneInit, LogicType::Zone),
-                view_zone_file: "stage_file.tscn".into(),
+                view_file: "stage_file.tscn".into(),
             }),
             StateType::ZoneInit,
             LogicType::Zone,
@@ -522,7 +523,7 @@ mod tests {
         assert_eq!(state_zone_new.id, 4321);
         assert_eq!(state_zone_new.typ, StateType::ZoneInit);
         assert_eq!(state_zone_new.logic_typ, LogicType::Zone);
-        assert_eq!(state_zone_new.view_zone_file, "stage_file.tscn");
+        assert_eq!(state_zone_new.view_file, "stage_file.tscn");
 
         let state_zone_update = test_rkyv(
             Box::new(StateZoneUpdate {
@@ -574,18 +575,16 @@ mod tests {
         let state_player_update = test_rkyv(
             Box::new(StateCharacterUpdate {
                 _base: StateBase::new(NumID(2220), StateType::CharacterUpdate, LogicType::Character),
-                physics: StateCharaPhysics {
-                    velocity: Vec3A::ONE.into(),
-                    position: Vec3A::new(1.0, 2.0, 3.0).into(),
-                    direction: Vec2xz::X,
-                },
-                action: StateCharaAction {
+                control: StateCharaControl {
                     event_cursor_id: 100,
                     derive_keeping: DeriveKeeping::default(),
                     action_changed: false,
                     animation_changed: true,
                 },
-                hit: StateCharaHit {
+                physics: StateCharaPhysics {
+                    velocity: Vec3A::ONE.into(),
+                    position: Vec3A::new(1.0, 2.0, 3.0).into(),
+                    direction: Vec2xz::X,
                     body_ids: smallvec![BodyID(22)],
                     box_pairs: smallvec![StateCharaHitBoxPair {
                         box_index: 10,
@@ -616,26 +615,28 @@ mod tests {
         assert_eq!(state_player_update.physics.velocity, Vec3A::ONE);
         assert_eq!(state_player_update.physics.position, Vec3A::new(1.0, 2.0, 3.0));
         assert_eq!(state_player_update.physics.direction, Vec2xz::X);
-        assert_eq!(state_player_update.action, StateCharaAction {
-            event_cursor_id: 100,
-            derive_keeping: DeriveKeeping::default(),
-            action_changed: false,
-            animation_changed: true,
-        });
-        assert_eq!(state_player_update.hit.body_ids.as_slice(), &[BodyID(22)]);
-        assert_eq!(state_player_update.hit.box_pairs.as_slice(), &[StateCharaHitBoxPair {
-            box_index: 10,
-            dst_chara_id: NumID(101),
-            last_hit_time: 1.5,
-            hit_times: 2,
-        }]);
-        assert_eq!(state_player_update.hit.group_pairs.as_slice(), &[
+        assert_eq!(state_player_update.physics.body_ids.as_slice(), &[BodyID(22)]);
+        assert_eq!(state_player_update.physics.box_pairs.as_slice(), &[
+            StateCharaHitBoxPair {
+                box_index: 10,
+                dst_chara_id: NumID(101),
+                last_hit_time: 1.5,
+                hit_times: 2,
+            }
+        ]);
+        assert_eq!(state_player_update.physics.group_pairs.as_slice(), &[
             StateCharaHitGroupPair {
                 group: sb!("hit_group_1"),
                 dst_chara_id: NumID(101),
                 hit_times: 3,
             }
         ]);
+        assert_eq!(state_player_update.control, StateCharaControl {
+            event_cursor_id: 100,
+            derive_keeping: DeriveKeeping::default(),
+            action_changed: false,
+            animation_changed: true,
+        });
         assert_eq!(state_player_update.value, StateCharaValue::default());
         assert_eq!(state_player_update.actions.len(), 0);
     }
