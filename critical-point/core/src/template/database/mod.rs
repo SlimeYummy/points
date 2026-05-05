@@ -13,7 +13,7 @@ use std::any::TypeId;
 use std::mem;
 
 use crate::template::base::TmplAny;
-use crate::utils::{xres, TmplID, XResult};
+use crate::utils::{TmplID, XResult, xres};
 
 impl At<dyn TmplAny> {
     #[inline]
