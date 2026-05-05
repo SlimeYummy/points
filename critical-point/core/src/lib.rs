@@ -2,6 +2,7 @@
 #![feature(ptr_metadata)]
 #![feature(allocator_api)]
 #![feature(likely_unlikely)]
+#![feature(try_blocks)]
 #![feature(coroutines, coroutine_trait, stmt_expr_attributes, iter_from_coroutine)]
 #![feature(test)]
 extern crate test;
