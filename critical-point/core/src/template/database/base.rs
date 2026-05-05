@@ -2,12 +2,12 @@ use rustc_hash::FxBuildHasher;
 use std::fmt::Debug;
 use std::fs;
 use std::fs::File;
-use std::io::prelude::*;
 use std::io::SeekFrom;
+use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
 use crate::template::base::TmplAny;
-use crate::utils::{xerr, xerrf, xfromf, xresf, DtHashMap, TmplID, XResult};
+use crate::utils::{DtHashMap, TmplID, XResult, xerr, xerrf, xfromf, xresf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(super) struct TmplIndex {
@@ -49,8 +49,8 @@ impl TmplIndexCache {
     };
 
     pub(super) fn from_file<P: AsRef<Path>>(path: P) -> XResult<TmplIndexCache> {
-        use rkyv::rancor::Failure;
         use rkyv::Archived;
+        use rkyv::rancor::Failure;
 
         let path = PathBuf::from(path.as_ref());
         let rkyv_path = path.join("index.rkyv");

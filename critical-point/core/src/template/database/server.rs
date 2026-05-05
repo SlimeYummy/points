@@ -8,7 +8,7 @@ use std::ptr::NonNull;
 use std::{alloc, fmt, fs, mem, slice, u32};
 
 use crate::template2::base::{ArchivedTmplAny, TmplAny};
-use crate::template2::database::base::{load_json_to_rkyv, load_rkyv_into, TmplIndexCache};
+use crate::template2::database::base::{TmplIndexCache, load_json_to_rkyv, load_rkyv_into};
 use crate::template2::id::{TmplHashMap, TmplID};
 use crate::utils::{AsXResultIO, IdentityState, XResult};
 

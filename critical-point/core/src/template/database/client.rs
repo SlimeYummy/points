@@ -12,8 +12,8 @@ use std::rc::Rc;
 use std::{alloc, fmt, fs, mem, ptr, slice, u32};
 
 use crate::template::base::{ArchivedTmplAny, TmplAny};
-use crate::template::database::base::{load_json_to_rkyv, load_rkyv_into, TmplIndexCache};
-use crate::utils::{xerr, xfromf, xresf, DtHashMap, TmplID, XResult};
+use crate::template::database::base::{TmplIndexCache, load_json_to_rkyv, load_rkyv_into};
+use crate::utils::{DtHashMap, TmplID, XResult, xerr, xfromf, xresf};
 
 //
 // Database
