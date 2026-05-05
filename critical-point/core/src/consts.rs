@@ -21,7 +21,10 @@ pub const EQUIPMENT_MAX_COUNT: usize = 3;
 pub const ACCESSORY_MAX_COUNT: usize = 4;
 pub const MAX_ENTRY_PLUS: u32 = 3;
 
-pub const INVALID_ACTION_ANIMATION_ID: u16 = u16::MAX;
+pub const INVALID_ACTION_ID: u32 = u32::MAX;
+pub const INVALID_ANIMATION_ID: u16 = u16::MAX;
+pub const INVALID_AI_TASK_ID: u32 = u32::MAX;
+
 pub const MAX_ACTION_ANIMATION: usize = 5;
 pub const ACTION_WEIGHT_THRESHOLD: f32 = 0.01;
 pub const ACTION_DEFAULT_FADE_IN: f32 = 10.0 / FPS;

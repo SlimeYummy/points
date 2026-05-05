@@ -1,13 +1,14 @@
 use critical_point_csgen::CsOut;
 use jolt_physics_rs::{self, PhysicsSystem};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::instance::{assemble_npc, assemble_player, ContextAssemble, InstCharacter};
+use crate::instance::{ContextAssemble, InstCharacter};
 use crate::logic::{InputPlayerInputs, LogicLoop, PhyContactCollector, StateSet};
-use crate::parameter::{verify_npc, verify_player, ContextVerify, ParamGame, ParamNpc, ParamPlayer};
+use crate::parameter::{ContextVerify, ParamGame, ParamNpc, ParamPlayer, verify_npc, verify_player};
 use crate::template::TmplDatabase;
-use crate::utils::{xerr, xres, XResult};
+use crate::utils::{XResult, xerr, xres};
 
 #[derive(Debug)]
 pub struct EnvPath {
@@ -80,9 +81,9 @@ impl LogicEngine {
     }
 
     #[inline]
-    pub fn assemble_player(&mut self, param: ParamPlayer) -> XResult<InstCharacter> {
+    pub fn assemble_player(&mut self, param: ParamPlayer) -> XResult<Rc<InstCharacter>> {
         let mut ctx = ContextAssemble::new(&self.tmpl_database);
-        assemble_player(&mut ctx, &param)
+        InstCharacter::new_player(&mut ctx, &param)
     }
 
     #[inline]
@@ -92,9 +93,9 @@ impl LogicEngine {
     }
 
     #[inline]
-    pub fn assemble_npc(&mut self, param: ParamNpc) -> XResult<InstCharacter> {
+    pub fn assemble_npc(&mut self, param: ParamNpc) -> XResult<Rc<InstCharacter>> {
         let mut ctx = ContextAssemble::new(&self.tmpl_database);
-        assemble_npc(&mut ctx, &param)
+        InstCharacter::new_npc(&mut ctx, &param)
     }
 
     #[inline]
