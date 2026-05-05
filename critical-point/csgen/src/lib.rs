@@ -43,7 +43,7 @@ impl Generator {
     fn new() -> Generator {
         let mut consts = HashMap::new();
         consts.insert("FPS".into(), 15);
-        consts.insert("MAX_ACTION_ANIMATION".into(), 4);
+        consts.insert("MAX_ACTION_ANIMATION".into(), 5);
         consts.insert("MAX_ACCESSORY_COUNT".into(), 4);
         consts.insert("MAX_ENTRY_PLUS".into(), 3);
         consts.insert("MAX_EQUIPMENT_COUNT".into(), 3);
@@ -94,7 +94,7 @@ impl Generator {
         types_out.insert("f32".into(), TypeOut::new_value("f32", "float", 4, 4));
         types_out.insert("f64".into(), TypeOut::new_value("f64", "double", 8, 8));
         types_out.insert("TmplID".into(), TypeOut::new_value("TmplID", "TmplID", 8, 8));
-        types_out.insert("NumID".into(), TypeOut::new_value("NumID", "uint", 8, 8));
+        types_out.insert("NumID".into(), TypeOut::new_value("NumID", "uint", 4, 4));
         types_out.insert("Symbol".into(), TypeOut::new_value("Symbol", "Symbol", 8, 8));
         // types_out.insert("[f32; 2]".into(), TypeOut::new_value("[f32; 2]", "Vec2", 8, 4));
         // types_out.insert("[f32; 3]".into(), TypeOut::new_value("[f32; 3]", "Vec3", 12, 4));
@@ -115,12 +115,17 @@ impl Generator {
         // types_out.insert("String".into(), TypeOut::new_reference("String", 24, 8)); // TODO: Special handling for Vec<String>
         types_out.insert("dyn StateAny".into(), TypeOut::new_trait("StateAny"));
         types_out.insert("dyn StateActionAny".into(), TypeOut::new_trait("StateActionAny"));
+        types_out.insert("dyn StateAiTaskAny".into(), TypeOut::new_trait("StateAiTaskAny"));
 
         let mut bases = HashMap::new();
         bases.insert("StateBase".into(), BaseMeta::new("StateBase", "DynStateAny"));
         bases.insert(
             "StateActionBase".into(),
             BaseMeta::new("StateActionBase", "DynStateActionAny"),
+        );
+        bases.insert(
+            "StateAiTaskBase".into(),
+            BaseMeta::new("StateAiTaskBase", "DynStateAiTaskAny"),
         );
 
         unsafe { libc::atexit(Generator::on_exit) };
@@ -136,34 +141,34 @@ impl Generator {
     }
 
     fn parse_enum(&mut self, input: &ItemEnum) -> Result<()> {
-        let (rs_name, task, type_in, type_out) = parse_enum(input)?;
-        self.generate_tasks.push(task);
-        self.types_in.insert(rs_name.clone(), type_in);
-        self.types_out.insert(rs_name.clone(), type_out);
+        let er = parse_enum(input)?;
+        self.generate_tasks.push(er.task);
+        self.types_in.insert(er.rs_name.clone(), er.type_in);
+        self.types_out.insert(er.rs_name.clone(), er.type_out);
         Ok(())
     }
 
     fn parse_struct_in(&mut self, input: &ItemStruct) -> Result<()> {
-        let (rs_name, task, type_in) = parse_struct_in(input, &self.consts)?;
-        self.generate_tasks.push(task);
-        self.types_in.insert(rs_name.clone(), type_in);
+        let si = parse_struct_in(input, &self.consts)?;
+        self.generate_tasks.push(si.task);
+        self.types_in.insert(si.rs_name.clone(), si.type_in);
         Ok(())
     }
 
-    fn parse_struct_out(&mut self, input: &ItemStruct) -> Result<()> {
-        let (rs_name, base, task, layout_task, type_out) = parse_struct_out(input, &self.consts)?;
-        self.generate_tasks.push(task);
-        self.types_out.insert(rs_name.clone(), type_out);
-        if !base.is_empty() {
-            if let Some(meta) = self.bases.get_mut(&base) {
-                meta.rs_derives.push(rs_name);
+    fn parse_struct_out(&mut self, input: &ItemStruct) -> Result<Vec<proc_macro2::TokenStream>> {
+        let so = parse_struct_out(input, &self.consts)?;
+        self.generate_tasks.push(so.task);
+        self.types_out.insert(so.rs_name.clone(), so.type_out);
+        if !so.base.is_empty() {
+            if let Some(meta) = self.bases.get_mut(&so.base) {
+                meta.rs_derives.push(so.rs_name);
             }
             else {
-                return Err(anyhow!("Base ({}) not found", base));
+                return Err(anyhow!("Base ({}) not found", so.base));
             }
         }
-        self.layout_tasks.insert(layout_task.rs_name.clone(), layout_task);
-        Ok(())
+        self.layout_tasks.insert(so.layout_task.rs_name.clone(), so.layout_task);
+        Ok(so.tokens)
     }
 
     fn generate_file(&mut self) -> Result<()> {
@@ -271,10 +276,12 @@ pub fn csharp_struct_in_derive(input: TokenStream) -> TokenStream {
     TokenStream::from(quote! {})
 }
 
-#[proc_macro_derive(CsOut, attributes(cs_attr))]
+#[proc_macro_derive(CsOut, attributes(cs_attr, cs_hide))]
 pub fn csharp_struct_out_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
     let res = lock_generator().parse_struct_out(&input);
-    res.unwrap();
-    TokenStream::from(quote! {})
+    let tokens = res.unwrap();
+    TokenStream::from(quote! {
+        #(#tokens)*
+    })
 }

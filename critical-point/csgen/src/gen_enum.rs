@@ -5,7 +5,14 @@ use syn::ItemEnum;
 
 use crate::base::*;
 
-pub fn parse_enum(input: &ItemEnum) -> Result<(String, Box<dyn GenerateTask>, TypeIn, TypeOut)> {
+pub struct EnumResult {
+    pub rs_name: String,
+    pub task: Box<dyn GenerateTask>,
+    pub type_in: TypeIn,
+    pub type_out: TypeOut,
+}
+
+pub fn parse_enum(input: &ItemEnum) -> Result<EnumResult> {
     let raw = extract_attr_raw(&input.attrs, "repr")?;
     let (cs_type, size, align) = match raw.as_str() {
         "i8" => ("sbyte", 1, 1),
@@ -51,7 +58,12 @@ pub fn parse_enum(input: &ItemEnum) -> Result<(String, Box<dyn GenerateTask>, Ty
 
     let type_in = TypeIn::new_primitive(&rs_name);
     let type_out = TypeOut::new_value(&rs_name, &rs_name, size, align);
-    Ok((rs_name, task, type_in, type_out))
+    Ok(EnumResult {
+        rs_name,
+        task,
+        type_in,
+        type_out,
+    })
 }
 
 pub struct TaskEnum {
