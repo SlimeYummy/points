@@ -1,7 +1,7 @@
 {
   "skeleton": {
     "clipped_file": "{{clipped_file}}",
-    "renamed_file": "{{prefix}}.{{skeleton_suffix}}-ozz",
+    "renamed_file": "{{out_dir}}/{{skeleton_name}}.{{skeleton_suffix}}-ozz",
     "import": {
       "enable": true,
       "raw": false,
@@ -19,14 +19,14 @@
   "animations": [
     {
       "clip": "Idle_(Empty|Axe)",
-      "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
+      "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
       "raw": false,
       "additive": false,
       "optimize": true
     },
     {
       "clip": "(Run|Walk)(Start|Stop)?(_\\w{1,4})?_(Empty|Axe)",
-      "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
+      "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
       "raw": false,
       "additive": false,
       "optimize": true,
@@ -34,31 +34,39 @@
         <% if (root_motion) { %>
         "motion": {
           "enable": true,
-          "filename": "{{prefix}}_*.rm-ozz",
+          "filename": "{{out_dir}}/*.rm-ozz",
           "root_motion_joint": "Root"
         }
         <% } %>
       }
     },
     {
+      "clip": "Greet",
+      "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
+      "raw": false,
+      "additive": false,
+      "optimize": true,
+      "tracks": {
+        <% if (root_motion) { %>
+        "motion": {
+            "enable": true,
+            "filename": "{{out_dir}}/*.rm-ozz",
+            "root_motion_joint": "Root"
+          }
+        <%
+        } %>
+      }
+    },
+    {
       "clip": "Attack_\\d\\d\\w",
-      "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
+      "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
       "raw": false,
       "additive": false,
       "optimize": true
-      // "tracks": {
-      //   <% if (root_motion) { %>
-      //   "motion": {
-      //     "enable": true,
-      //     "filename": "{{prefix}}_*.rm-ozz",
-      //     "root_motion_joint": "Root"
-      //   }
-      //   <% } %>
-      // }
     }
     // {
     //   "clip": "Attack_\\d\\d\\a",
-    //   "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
+    //   "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
     //   "raw": false,
     //   "additive": false,
     //   "optimize": true,
@@ -66,7 +74,7 @@
     //     <% if (motion) { %>
     //     "motion": {
     //       "enable": true,
-    //       "filename": "{{prefix}}_*.rm-ozz",
+    //       "filename": "{{out_dir}}/*.rm-ozz",
     //       "position": {
     //         "components": "xzB",
     //         "reference": "skeleton",
@@ -89,7 +97,7 @@
     // },
     // {
     //   "clip": "^(?!tpose)$",
-    //   "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
+    //   "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
     //   "raw": false,
     //   "additive": false,
     //   "optimize": true
