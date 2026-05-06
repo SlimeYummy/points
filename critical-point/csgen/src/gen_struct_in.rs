@@ -7,10 +7,13 @@ use syn::*;
 
 use crate::base::*;
 
-pub fn parse_struct_in(
-    input: &ItemStruct,
-    _consts: &HashMap<String, u32>,
-) -> Result<(String, Box<dyn GenerateTask>, TypeIn)> {
+pub struct StructIn {
+    pub rs_name: String,
+    pub task: Box<dyn GenerateTask>,
+    pub type_in: TypeIn,
+}
+
+pub fn parse_struct_in(input: &ItemStruct, _consts: &HashMap<String, u32>) -> Result<StructIn> {
     let rs_name = input.ident.to_string();
     let args = extract_attr_args(&input.attrs, "cs_attr")?;
     let is_class = args.iter().any(|x| x == "Class");
@@ -53,7 +56,7 @@ pub fn parse_struct_in(
     }
 
     let type_in = TypeIn::new_primitive(&rs_name);
-    Ok((rs_name, task, type_in))
+    Ok(StructIn { rs_name, task, type_in })
 }
 
 static RE_COMMON: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^\w+$"#).unwrap());
