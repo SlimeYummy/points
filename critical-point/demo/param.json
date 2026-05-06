@@ -7,14 +7,33 @@
             "character": "Character.Demo",
             "style": "Style.Demo^1",
             "level": 1,
-            "position": [0, 0, 0]
+            "position": [
+                0,
+                0,
+                0
+            ]
         }
     ],
     "npcs": [
         {
             "character": "NpcCharacter.TrainingDummy",
             "level": 1,
-            "position": [3, 0, 3]
+            "ai_brain": "AiBrain.TrainingDummy",
+            "position": [
+                3,
+                0,
+                3
+            ]
+        },
+        {
+            "character": "NpcCharacter.Slime",
+            "level": 1,
+            "ai_brain": "AiBrain.Slime",
+            "position": [
+                -5,
+                0,
+                5
+            ]
         }
     ],
     "local_mode": true

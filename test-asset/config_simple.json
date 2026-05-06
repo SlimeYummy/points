@@ -1,44 +1,42 @@
 {
   "skeleton": {
     "clipped_file": "{{clipped_file}}",
-    "renamed_file": "{{prefix}}.{{skeleton_suffix}}-ozz",
+    "renamed_file": "{{out_dir}}/{{skeleton_name}}.{{skeleton_suffix}}-ozz",
     "import": {
       "enable": true,
-      "raw": false,
       "types": {
-        "skeleton": true,
-        "marker": false,
-        "camera": false,
-        "geometry": false,
-        "light": false,
-        "null": false,
-        "any": false
+        "skeleton": true
       }
     }
   },
   "animations": [
     {
-      "clip": "Idle",
-      "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
-      "raw": false,
-      "additive": false,
-      "optimize": true
-    },
-    {
-      "clip": "Hit\\d_\\w+",
-      "filename": "{{prefix}}_*.{{animation_suffix}}-ozz",
+      "clip": ".*",
+      "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
       "raw": false,
       "additive": false,
       "optimize": true,
       "tracks": {
         <% if (root_motion) { %>
         "motion": {
-          "enable": true,
-          "filename": "{{prefix}}_*.rm-ozz",
-          "root_motion_joint": "Root"
-        }
-        <% } %>
+            "enable": true,
+            "filename": "{{out_dir}}/*.rm-ozz",
+            "root_motion_joint": "Root"
+          }
+        <%
+        } %>
       }
     }
+  ],
+  "json_tracks": [
+    <% for(var i = 0; i < json_tracks.length; i++){ %>
+      {
+        "json": "<%= json_tracks[i].json %>",
+        "filename": "<%= json_tracks[i].filename %>"
+      }
+      <% if (i != json_tracks.length - 1) { %>, <%
+      } %>
+    <%
+    } %>
   ]
 }
