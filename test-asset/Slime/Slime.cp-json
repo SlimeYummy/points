@@ -1,0 +1,35 @@
+{
+    "bounding": {
+        "T": "Sphere",
+        "index": 0,
+        "radius": 0.5,
+        "position": [
+            0.0,
+            0.5,
+            0.0
+        ]
+    },
+    "parts": [
+        "Body"
+    ],
+    "shapes": [
+        {
+            "T": "Sphere",
+            "index": 0,
+            "radius": 0.5
+        }
+    ],
+    "bodies": [
+        {
+            "shape_index": 0,
+            "position": [
+                0.0,
+                0.3,
+                0.0
+            ],
+            "part": "Body",
+            "joint": "Body",
+            "ratio": 1.0
+        }
+    ]
+}
