@@ -3,7 +3,7 @@ import { checkArray } from './builtin';
 export type IDPrefix =
     | '#'
     | 'Character'
-    | 'NpcCharacter'
+    | 'CharacterNpc'
     | 'Style'
     | 'Equipment'
     | 'Entry'
