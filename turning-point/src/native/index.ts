@@ -54,6 +54,14 @@ export function loadRootMotionMeta(path: string, err?: string): native.RootMotio
     }
 }
 
+export function calcRootMotionDistances(
+    path: string,
+    ranges: { from: number; to: number }[],
+): number[] {
+    const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.rm-ozz')}`;
+    return native.calcRootMotionDistances(realPath, ranges);
+}
+
 const loadWeaponMotionMetaMemoize = memoize(native.loadWeaponMotionMeta);
 
 export function loadWeaponMotionMeta(path: string, err?: string): native.WeaponMotionMeta {

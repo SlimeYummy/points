@@ -1,6 +1,7 @@
 use critical_point_core::animation::{HitMotion, RootMotion, RootTrackName, WeaponMotion};
 use glam::{Vec3, Vec3Swizzles};
 use napi::bindgen_prelude::*;
+use napi::{Error, Status};
 use napi_derive::napi;
 use ozz_animation_rs::{Animation, Archive, Skeleton, Track};
 use std::collections::HashMap;
@@ -141,6 +142,35 @@ pub fn load_root_motion_meta(path: String) -> Result<RootMotionMeta> {
         position_move_ex,
         has_rotation: root_motion.has_rotation(),
     })
+}
+
+#[napi(object)]
+pub struct RangePair {
+    pub from: f64,
+    pub to: f64,
+}
+
+#[napi]
+pub fn calc_root_motion_distances(path: String, ranges: Vec<RangePair>) -> Result<Vec<f32>> {
+    let root_motion = match RootMotion::from_path(&path) {
+        Ok(root_motion) => root_motion,
+        Err(err) => return Err(cp_err_msg(err, &path)),
+    };
+
+    let mut distances = Vec::<f32>::with_capacity(ranges.len());
+    for (idx, range) in ranges.iter().enumerate() {
+        if range.from.is_nan() || range.to.is_nan() {
+            return Err(Error::new(Status::GenericFailure, format!("ranges[{}]", idx)));
+        }
+        let from = range.from as f32;
+        let to = range.to as f32;
+        let distance = match root_motion.calc_distance_between(RootTrackName::Default, from, to) {
+            Ok(distance) => distance,
+            Err(err) => return Err(cp_err_msg(err, &format!("ranges[{}]", idx))),
+        };
+        distances.push(distance);
+    }
+    Ok(distances)
 }
 
 #[napi(object)]
