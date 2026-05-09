@@ -58,10 +58,10 @@ export function parseFloat(
         throw new Error(`${where}: must be a float/percent`);
     }
 
-    if (opts.min !== undefined && (raw as number) < opts.min) {
+    if (opts.min !== undefined && res < opts.min) {
         throw new Error(`${where}: must >= ${opts.min}`);
     }
-    if (opts.max !== undefined && (raw as number) > opts.max) {
+    if (opts.max !== undefined && res > opts.max) {
         throw new Error(`${where}: must <= ${opts.max}`);
     }
     return res;

@@ -1,7 +1,7 @@
 import { checkArray, checkOrder, float, int } from './builtin';
 import { ENABLE_TIME_WARNING, FPS, LOGIC_SPF } from './config';
 
-const RE_TIME = /^(\d+(?:\.\d+)*)(s|m|min|h|hr|ms|F)$/;
+const RE_TIME = /^(\d+(?:\.\d+)?)(s|m|min|h|hr|ms|F)$/;
 
 export function parseTime(
     raw: float | string,
@@ -97,7 +97,7 @@ export function parseTimeArray(
     return res;
 }
 
-const RE_TIME_RANGE = /^(\d+(?:\.\d+)*)(|s|m|min|h|hr|ms|F)\-(\d+(?:\.\d+)*)(|s|m|min|h|hr|ms|F)$/;
+const RE_TIME_RANGE = /^(\d+(?:\.\d+)?)(|s|m|min|h|hr|ms|F)\-(\d+(?:\.\d+)?)(|s|m|min|h|hr|ms|F)$/;
 
 /** 一个左开右闭区间表示的时间段 */
 export function parseTimeRange(
