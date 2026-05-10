@@ -1,17 +1,24 @@
-import { NpcCharacter } from '../character';
-import { float, ID, IDPrefix, int, parseArray, parseFloat, parseID, parseInt, parseTime } from '../common';
-import { Sphere, SphereArgs, SphericalCone, SphericalConeArgs } from '../common/shape';
+import {
+    float,
+    ID,
+    IDPrefix,
+    int,
+    parseArray,
+    parseFloat,
+    parseID,
+    parseInt,
+    parseTime,
+} from '../common';
 import { Resource } from '../resource';
+import { CharacterNpc } from '../character';
+import { Sphere, SphereArgs, SphericalCone, SphericalConeArgs } from '../common/shape';
 import { AiPlan } from './plan';
 import { AiTask } from './task_base';
 
-export type AiIfArgs = {
-
-}
+export type AiIfArgs = {};
 
 export class AiIf {
-    public constructor(args: AiIfArgs, where: string) {
-    }
+    public constructor(args: AiIfArgs, where: string) {}
 }
 
 export type AiNodeTaskArgs = {
@@ -47,7 +54,14 @@ export class AiNodeTask {
         this.task = parseID(args.task, 'AiTask', `${where}.task`);
         this.weight = args.weight == null ? 1 : parseFloat(args.weight, `${where}.weight`);
         this.priority = args.priority == null ? 0 : parseInt(args.priority, `${where}.priority`);
-        this.conditions = args.conditions == null ? [] : parseArray(args.conditions, `${where}.conditions`, (condition, where) => new AiIf(condition, where));
+        this.conditions =
+            args.conditions == null
+                ? []
+                : parseArray(
+                      args.conditions,
+                      `${where}.conditions`,
+                      (condition, where) => new AiIf(condition, where),
+                  );
     }
 }
 
@@ -77,7 +91,14 @@ export class AiNodeBranch {
         } else {
             const args2 = args[0] as AiNodeBranchArgs;
             const where = args[1] as string;
-            this.conditions = args2.conditions == null ? [] : parseArray(args2.conditions, `${where}.conditions`, (condition, where) => new AiIf(condition, where));
+            this.conditions =
+                args2.conditions == null
+                    ? []
+                    : parseArray(
+                          args2.conditions,
+                          `${where}.conditions`,
+                          (condition, where) => new AiIf(condition, where),
+                      );
             this.nodes = args2.nodes == null ? [] : parseAiNodes(args2.nodes, `${where}.nodes`);
         }
     }
@@ -87,18 +108,18 @@ export type AiNodeArgs = AiNodeTaskArgs | AiNodeBranchArgs;
 export type AiNode = AiNodeTask | AiNodeBranch;
 
 function parseAiNodes(arrayArgs: AiNodeArgs[], where: string): ReadonlyArray<AiNode> {
-    return parseArray(arrayArgs, where, (nodeArgs, index) => {
+    return parseArray(arrayArgs, where, (nodeArgs) => {
         if ('task' in nodeArgs) {
-            return new AiNodeTask(nodeArgs, `${where}.${index}`);
+            return new AiNodeTask(nodeArgs, where);
         } else {
-            return new AiNodeBranch(nodeArgs, `${where}.${index}`);
+            return new AiNodeBranch(nodeArgs, where);
         }
     });
 }
 
 export type AiBrainArgs = {
-    /** 角色ID（仅NpcCharacter） */
-    character: ID;
+    /** 角色ID（仅CharacterNpc） */
+    character_npc: ID;
 
     /** 警戒范围（球形） */
     alert_sphere: SphereArgs;
@@ -117,7 +138,7 @@ export type AiBrainArgs = {
 };
 
 /**
- * AI执行器
+ * AI控制器
  */
 export class AiBrain extends Resource {
     public static override readonly prefix: IDPrefix = 'AiBrain' as const;
@@ -130,8 +151,8 @@ export class AiBrain extends Resource {
         return res;
     }
 
-    /** 角色ID（仅NpcCharacter） */
-    public readonly character: ID;
+    /** 角色ID（仅CharacterNpc） */
+    public readonly character_npc: ID;
 
     /** 警戒范围（球形） */
     public readonly alert_sphere: Sphere;
@@ -150,26 +171,31 @@ export class AiBrain extends Resource {
 
     public constructor(id: ID, args: AiBrainArgs) {
         super(id);
-        this.character = parseID(args.character, 'NpcCharacter', this.w('character'));
+        this.character_npc = parseID(args.character_npc, 'CharacterNpc', this.w('character_npc'));
         this.alert_sphere = new Sphere(args.alert_sphere, this.w('alert_sphere'));
         this.alert_cone = new SphericalCone(args.alert_cone, this.w('alert_cone'));
-        this.attack_exit_delay = parseTime(args.attack_exit_delay, this.w('attack_exit_delay'), { min: 0 });
+        this.attack_exit_delay = parseTime(args.attack_exit_delay, this.w('attack_exit_delay'), {
+            min: 0,
+        });
         this.idle = new AiNodeBranch(parseAiNodes(args.idle_nodes, this.w('idle_nodes')));
     }
 
     public override verify() {
-        NpcCharacter.find(this.character, this.w('character'));
+        CharacterNpc.find(this.character_npc, this.w('character_npc'));
         this.verify_nodes(this.idle.nodes, [], this.w('idle.nodes'));
     }
 
-    private verify_nodes(nodes: ReadonlyArray<AiNode>, branch_stack: AiNodeBranch[], where: string) {
+    private verify_nodes(
+        nodes: ReadonlyArray<AiNode>,
+        branch_stack: AiNodeBranch[],
+        where: string,
+    ) {
         for (const [idx, node] of nodes.entries()) {
             if (node instanceof AiNodeTask) {
                 const task = AiTask.find(node.task, `${where}[${idx}].task`);
-                if (task.character !== this.character) {
+                if (task.character_npc !== this.character_npc) {
                     throw this.error(`${where}[${idx}].task`, 'character mismatch');
                 }
-
             } else if (node instanceof AiNodeBranch) {
                 if (branch_stack.includes(node)) {
                     throw this.error(`${where}[${idx}]`, 'circular reference');
@@ -186,7 +212,12 @@ export class AiBrain extends Resource {
     public static task(task: ID, weight: float | string): AiNodeTaskArgs;
     public static task(task: ID, weight: float | string, conditions: AiIfArgs[]): AiNodeTaskArgs;
     public static task(task: ID, weight: float | string, priority: int): AiNodeTaskArgs;
-    public static task(task: ID, weight: float | string, priority: int, conditions: AiIfArgs[]): AiNodeTaskArgs;
+    public static task(
+        task: ID,
+        weight: float | string,
+        priority: int,
+        conditions: AiIfArgs[],
+    ): AiNodeTaskArgs;
     public static task(...args: any[]): AiNodeTaskArgs {
         const task = args[0] as ID;
         if (args.length === 1) {

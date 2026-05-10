@@ -1,5 +1,5 @@
-import { Action } from '../action';
-import { float, ID, int, parseInt, parseID, parseTimeRange } from '../common';
+import { float, ID, int, parseID, parseInt, parseTimeRange } from '../common';
+import { Action, ActionIdle } from '../action';
 import { AiTask, AiTaskArgs } from './task_base';
 
 export type AiTaskIdleArgs = AiTaskArgs & {
@@ -28,13 +28,23 @@ export class AiTaskIdle extends AiTask {
 
     public constructor(id: ID, args: AiTaskIdleArgs) {
         super(id, args);
-        this.max_repeat = args.max_repeat == null ? 1 : parseInt(args.max_repeat, this.w('max_repeat'), { min: 0 });
+        this.max_repeat =
+            args.max_repeat == null
+                ? 1
+                : parseInt(args.max_repeat, this.w('max_repeat'), { min: 0 });
         this.action_idle = parseID(args.action_idle, 'Action', this.w('action_idle'));
         this.duration = parseTimeRange(args.duration, this.w('duration'), { min: 0 });
     }
 
     public override verify() {
         super.verify();
-        Action.find(this.action_idle, this.w('action_idle'));
+
+        const idle = Action.find(this.action_idle, this.w('action_idle'));
+        if (!(idle instanceof ActionIdle)) {
+            throw this.error('action_idle', 'must be an ActionIdle');
+        }
+        if (!idle.character_npcs?.includes(this.character_npc)) {
+            throw this.error('action_idle', 'AiTaskIdle and ActionIdle mismatch');
+        }
     }
 }

@@ -1,10 +1,10 @@
-import { NpcCharacter } from '../character';
 import { ID, IDPrefix } from '../common';
 import { Resource } from '../resource';
+import { CharacterNpc } from '../character';
 
 export type AiTaskArgs = {
-    /** 角色ID（仅NpcCharacter） */
-    character: ID;
+    /** 角色ID（仅CharacterNpc） */
+    character_npc: ID;
 };
 
 /**
@@ -21,15 +21,15 @@ export abstract class AiTask extends Resource {
         return res;
     }
 
-    /** 角色ID（仅NpcCharacter） */
-    public readonly character: ID;
+    /** 角色ID（仅CharacterNpc） */
+    public readonly character_npc: ID;
 
     public constructor(id: ID, args: AiTaskArgs) {
         super(id);
-        this.character = args.character;
+        this.character_npc = args.character_npc;
     }
 
     public override verify() {
-        NpcCharacter.find(this.character, this.w('character'));
+        CharacterNpc.find(this.character_npc, this.w('character_npc'));
     }
 }
