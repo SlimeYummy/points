@@ -5,4 +5,5 @@ export * from './hit_attr';
 export * from './hit';
 export * from './idle';
 export * from './move';
+export * from './move_npc';
 export * from './general';

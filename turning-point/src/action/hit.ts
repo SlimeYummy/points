@@ -19,7 +19,10 @@ export class ActionHitBeHit {
         this.enter_angle = parseAngleXz(args.enter_angle, `${where}.enter_angle`);
     }
 
-    public static parseArray(args: ReadonlyArray<ActionHitBeHitArgs>, where: string): ReadonlyArray<ActionHitBeHit> {
+    public static parseArray(
+        args: ReadonlyArray<ActionHitBeHitArgs>,
+        where: string,
+    ): ReadonlyArray<ActionHitBeHit> {
         if (args.length < 1) {
             throw new Error(`${where}: length must >= 1`);
         }
@@ -105,17 +108,23 @@ export class ActionHit extends Action {
 
 function key_to_enter_level(key: 'Hit1' | 'Hit2' | 'Hit3'): int {
     switch (key) {
-        case 'Hit1': return 610;
-        case 'Hit2': return 630;
-        case 'Hit3': return 650;
+        case 'Hit1':
+            return 610;
+        case 'Hit2':
+            return 630;
+        case 'Hit3':
+            return 650;
     }
 }
 
 function key_to_derive_level(key: 'Hit1' | 'Hit2' | 'Hit3'): int {
     switch (key) {
-        case 'Hit1': return 600;
-        case 'Hit2': return 620;
-        case 'Hit3': return 640;
+        case 'Hit1':
+            return 600;
+        case 'Hit2':
+            return 620;
+        case 'Hit3':
+            return 640;
     }
 }
 

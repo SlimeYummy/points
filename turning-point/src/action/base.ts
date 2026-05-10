@@ -11,7 +11,7 @@ import {
     parseStringArray,
 } from '../common';
 import { Resource } from '../resource';
-import { Character, NpcCharacter, Style } from '../character';
+import { Character, CharacterNpc, Style } from '../character';
 import {
     parseVarBool,
     parseVarFloat,
@@ -183,7 +183,7 @@ export type ActionArgs = {
     styles?: ReadonlyArray<ID>;
 
     /** 所属NPC角色ID NpcAction科关联多个角色 */
-    npc_characters?: ReadonlyArray<ID>;
+    character_npcs?: ReadonlyArray<ID>;
 
     /** 标签 */
     tags?: ReadonlyArray<string>;
@@ -213,26 +213,46 @@ export abstract class Action extends Resource {
     public readonly styles?: ReadonlyArray<ID>;
 
     /** 所属NPC角色ID NpcAction科关联多个角色 */
-    public readonly npc_characters?: ReadonlyArray<ID>;
+    public readonly character_npcs?: ReadonlyArray<ID>;
 
     /** 标签 */
     public readonly tags: ReadonlyArray<string>;
 
-    public constructor(id: ID, args: ActionArgs) {
+    public constructor(
+        id: ID,
+        args: ActionArgs,
+        opts: {
+            character?: 'all' | 'player' | 'npc';
+        } = {},
+    ) {
         super(id);
-        this.enabled = parseVarBool(args.enabled || true, this.w('enabled'));
+        this.enabled =
+            args.enabled === undefined ? true : parseVarBool(args.enabled, this.w('enabled'));
 
         if (args.character || args.styles) {
+            if (opts.character === 'npc') {
+                throw this.e('character', 'character & styles not supported');
+            }
             this.character = parseID(args.character!, 'Character', this.w('character'));
             this.styles = parseIDArray(args.styles!, 'Style', this.w('styles'));
         }
 
-        if (args.npc_characters) {
-            this.npc_characters = parseIDArray(args.npc_characters, 'NpcCharacter', this.w('npc_characters'));
+        if (args.character_npcs) {
+            if (opts.character === 'player') {
+                throw this.e('character_npcs', 'character_npcs not supported');
+            }
+            this.character_npcs = parseIDArray(
+                args.character_npcs,
+                'CharacterNpc',
+                this.w('character_npcs'),
+            );
         }
 
-        if ((!this.character || !this.styles?.length) && !this.npc_characters?.length) {
-            throw this.e('character/styles/npc_characters', 'character&styles or npc_characters must be set');
+        if ((!this.character || !this.styles?.length) && !this.character_npcs?.length) {
+            throw this.e(
+                'character/styles/character_npcs',
+                'character&styles or character_npcs must be set',
+            );
         }
 
         this.tags = parseStringArray(args.tags || [], this.w('tags'), {
@@ -245,8 +265,12 @@ export abstract class Action extends Resource {
         if (this.styles?.length) {
             verifyVarValue(this.enabled, { styles: this.styles }, this.w('enabled'));
         }
-        if (this.npc_characters?.length) {
-            verifyVarValue(this.enabled, { npc_characters: this.npc_characters }, this.w('enabled'));
+        if (this.character_npcs?.length) {
+            verifyVarValue(
+                this.enabled,
+                { character_npcs: this.character_npcs },
+                this.w('enabled'),
+            );
         }
 
         if (this.character) {
@@ -262,9 +286,9 @@ export abstract class Action extends Resource {
             }
         }
 
-        if (this.npc_characters) {
-            for (const [idx, id] of this.npc_characters.entries()) {
-                NpcCharacter.find(id, this.w(`npc_characters[${idx}]`));
+        if (this.character_npcs) {
+            for (const [idx, id] of this.character_npcs.entries()) {
+                CharacterNpc.find(id, this.w(`character_npcs[${idx}]`));
             }
         }
     }
@@ -300,7 +324,7 @@ export abstract class Action extends Resource {
 
 //     public constructor(id: ID, args: NpcActionArgs) {
 //         super(id);
-//         this.characters = parseIDArray(args.characters, 'NpcCharacter', this.w('characters'), {
+//         this.characters = parseIDArray(args.characters, 'CharacterNpc', this.w('characters'), {
 //             min_len: 1,
 //         });
 //         this.tags = parseStringArray(args.tags || [], this.w('tags'), {
@@ -311,9 +335,9 @@ export abstract class Action extends Resource {
 
 //     public override verify() {
 //         for (const [idx, id] of this.characters.entries()) {
-//             const character = NpcCharacter.find(id, this.w(`characters[${idx}]`));
+//             const character = CharacterNpc.find(id, this.w(`characters[${idx}]`));
 //             if (!character.actions.includes(this.id)) {
-//                 throw this.e(`characters[${idx}]`, 'NpcCharacter and NpcAction mismatch');
+//                 throw this.e(`characters[${idx}]`, 'CharacterNpc and NpcAction mismatch');
 //             }
 //         }
 //     }

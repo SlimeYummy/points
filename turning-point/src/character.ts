@@ -19,6 +19,7 @@ import {
 } from './common';
 import { Resource } from './resource';
 import { Action } from './action';
+import { AiBrain } from './ai';
 import {
     parseAttributeTable,
     PRIMARY_ATTRIBUTES,
@@ -30,7 +31,6 @@ import { Equipment } from './equipment';
 import { parseJevelSlotsArray } from './jewel';
 import * as native from './native';
 import { Perk } from './perk';
-import { AiBrain } from './ai';
 
 export type CharacterArgs = {
     /** 角色名字 */
@@ -303,7 +303,7 @@ export class Style extends Resource {
     }
 }
 
-export type NpcCharacterArgs = {
+export type CharacterNpcArgs = {
     /** 角色名字 */
     name: string;
 
@@ -324,8 +324,8 @@ export type NpcCharacterArgs = {
     /** 可用的动作列表 */
     actions: ReadonlyArray<ID>;
 
-    /** AI执行器列表 */
-    ai_executors: ReadonlyArray<ID>;
+    /** AI控制器列表 */
+    ai_brains: ReadonlyArray<ID>;
 
     /** 用于移动的包围胶囊体 */
     bounding: Capsule | TaperedCapsule;
@@ -347,12 +347,12 @@ export type NpcCharacterArgs = {
 /**
  * NPC角色，包括敌人、BOSS、队友等非玩家控制角色。
  */
-export class NpcCharacter extends Resource {
-    public static override readonly prefix: IDPrefix = 'NpcCharacter';
+export class CharacterNpc extends Resource {
+    public static override readonly prefix: IDPrefix = 'CharacterNpc';
 
-    public static override find(id: string, where: string): NpcCharacter {
+    public static override find(id: string, where: string): CharacterNpc {
         const res = Resource.find(id, where);
-        if (!(res instanceof NpcCharacter)) {
+        if (!(res instanceof CharacterNpc)) {
             throw new Error(`${where}: Resource type miss match`);
         }
         return res;
@@ -378,8 +378,8 @@ export class NpcCharacter extends Resource {
     /** 可用的动作列表 */
     public readonly actions: ReadonlyArray<ID>;
 
-    /** AI执行器列表 */
-    public readonly ai_executors: ReadonlyArray<ID>;
+    /** AI控制器列表 */
+    public readonly ai_brains: ReadonlyArray<ID>;
 
     /** 用于移动的包围胶囊体 */
     public readonly bounding: Capsule | TaperedCapsule;
@@ -397,7 +397,7 @@ export class NpcCharacter extends Resource {
     /** 角色模型（渲染） */
     public readonly view_model: FilePath;
 
-    public constructor(id: ID, args: NpcCharacterArgs) {
+    public constructor(id: ID, args: CharacterNpcArgs) {
         super(id);
         this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
         this.tags = parseStringArray(args.tags || [], this.w('tags'), { deduplicate: true });
@@ -412,7 +412,7 @@ export class NpcCharacter extends Resource {
             this.w('fixed_attributes'),
         );
         this.actions = parseIDArray(args.actions, 'Action', this.w('actions'));
-        this.ai_executors = parseIDArray(args.ai_executors, 'AiBrain', this.w('ai_executors'));
+        this.ai_brains = parseIDArray(args.ai_brains, 'AiBrain', this.w('ai_brains'));
         this.bounding = checkType(args.bounding, [Capsule, TaperedCapsule], this.w('bounding'));
         this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), {
             extension: '.*',
@@ -423,6 +423,20 @@ export class NpcCharacter extends Resource {
         this.view_model = parseFile(args.view_model, this.w('view_model'), {
             extension: ['.vrm', '.prefab', '.unity'],
         });
+
+        this.checkSkeletonFiles();
+    }
+
+    private checkSkeletonFiles() {
+        if (!native.existCharacterPhysics(this.skeleton_files)) {
+            throw this.e('skeleton_files', `file not found (${this.skeleton_files})`);
+        }
+
+        native.loadSkeletonMeta(
+            this.skeleton_files,
+            false,
+            `${this.w('skeleton_files')}: file not found (${this.skeleton_files})`,
+        );
     }
 
     public verify(): void {
@@ -435,15 +449,15 @@ export class NpcCharacter extends Resource {
 
         for (const [idx, entry_id] of this.actions.entries()) {
             const action = Action.find(entry_id, this.w(`actions[${idx}]`));
-            if (!action.npc_characters?.includes(this.id)) {
-                throw this.e(`actions[${idx}]`, 'NpcCharacter and Action mismatch');
+            if (!action.character_npcs?.includes(this.id)) {
+                throw this.e(`actions[${idx}]`, 'CharacterNpc and Action mismatch');
             }
         }
 
-        for (const [idx, entry_id] of this.ai_executors.entries()) {
-            const ai_executor = AiBrain.find(entry_id, this.w(`ai_executors[${idx}]`));
-            if (ai_executor.character !== this.id) {
-                throw this.e(`ai_executors[${idx}]`, 'NpcCharacter and AiBrain mismatch');
+        for (const [idx, entry_id] of this.ai_brains.entries()) {
+            const ai_executor = AiBrain.find(entry_id, this.w(`ai_brains[${idx}]`));
+            if (ai_executor.character_npc !== this.id) {
+                throw this.e(`ai_brains[${idx}]`, 'CharacterNpc and AiBrain mismatch');
             }
         }
     }

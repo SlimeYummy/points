@@ -1,4 +1,6 @@
-import { FilePath, ID, IDPrefix, MAX_NAME_LEN, parseFile, parseString } from './common';
+import fs from 'node:fs';
+import path from 'node:path';
+import { FilePath, ID, IDPrefix, INPUT_ASSET, MAX_NAME_LEN, parseFile, parseString } from './common';
 import { Resource } from './resource';
 
 export type ZoneArgs = {
@@ -43,6 +45,20 @@ export class Zone extends Resource {
         this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
         this.files = parseFile(args.files, this.w('files'), { extension: '.*' });
         this.view_file = parseFile(args.view_file, this.w('view_file'));
+
+        this.checkZoneFiles();
+    }
+
+    private checkZoneFiles() {
+        if (!fs.existsSync(path.join(INPUT_ASSET, this.files.replace('.*', '.nm-bin')))) {
+            throw this.e('files', `file not found (${this.files})`);
+        }
+        if (
+            !fs.existsSync(path.join(INPUT_ASSET, this.files.replace('.*', '.zp-json'))) &&
+            !fs.existsSync(path.join(INPUT_ASSET, this.files.replace('.*', '.zp-rkyv')))
+        ) {
+            throw this.e('files', `file not found (${this.files})`);
+        }
     }
 
     public override verify() {}

@@ -12,5 +12,6 @@
         "^[./]"
     ],
     "importOrderSortSpecifiers": true,
-    "importOrderCaseInsensitive": true
+    "importOrderCaseInsensitive": true,
+    "endOfLine": "crlf"
 }
