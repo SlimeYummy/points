@@ -15,7 +15,7 @@ import {
     parseTimeArray,
 } from './common';
 import { Resource } from './resource';
-import { Character, NpcCharacter, Style } from './character';
+import { Character, CharacterNpc, Style } from './character';
 
 type VarMeta = {
     readonly id: ID;
@@ -23,7 +23,7 @@ type VarMeta = {
     readonly no_limit: boolean;
     readonly characters: ReadonlyArray<ID>;
     readonly styles: ReadonlyArray<ID>;
-    readonly npc_characters: ReadonlyArray<ID>;
+    readonly character_npcs: ReadonlyArray<ID>;
 };
 
 export class Var<T> {
@@ -41,7 +41,7 @@ export class Var<T> {
                 no_limit: false,
                 characters: [] as string[],
                 styles: [] as string[],
-                npc_characters: [] as string[],
+                character_npcs: [] as string[],
             };
 
             if (res_ids === '*') {
@@ -54,9 +54,9 @@ export class Var<T> {
                     );
                 } else if (res_id.startsWith('Style.')) {
                     meta.styles.push(parseID(res_id, 'Style', `Var.define(${var_id}: [1])`));
-                } else if (res_id.startsWith('NpcCharacter.')) {
-                    meta.npc_characters.push(
-                        parseID(res_id, 'NpcCharacter', `Var.define(${var_id}: [1])`),
+                } else if (res_id.startsWith('CharacterNpc.')) {
+                    meta.character_npcs.push(
+                        parseID(res_id, 'CharacterNpc', `Var.define(${var_id}: [1])`),
                     );
                 }
             } else if (Array.isArray(res_ids)) {
@@ -69,9 +69,9 @@ export class Var<T> {
                         meta.styles.push(
                             parseID(res_id, 'Style', `Var.define(${var_id}: [1][${idx}])`),
                         );
-                    } else if (res_id.startsWith('NpcCharacter.')) {
-                        meta.npc_characters.push(
-                            parseID(res_id, 'NpcCharacter', `Var.define(${var_id}: [1][${idx}])`),
+                    } else if (res_id.startsWith('CharacterNpc.')) {
+                        meta.character_npcs.push(
+                            parseID(res_id, 'CharacterNpc', `Var.define(${var_id}: [1][${idx}])`),
                         );
                     } else {
                         throw new Error(
@@ -228,7 +228,7 @@ export function verifyVarValue<T>(
     consumers: {
         character?: ID;
         styles?: ReadonlyArray<ID>;
-        npc_characters?: ReadonlyArray<ID>;
+        character_npcs?: ReadonlyArray<ID>;
     },
     where: string,
     callback?: (value: T, where: string) => void,
@@ -263,13 +263,13 @@ export function verifyVarValue<T>(
                 }
             }
         }
-        
-        if (consumers.npc_characters) {
-            for (const npc_character of consumers.npc_characters) {
-                NpcCharacter.find(npc_character, where);
-                const ok = meta.characters.includes(npc_character);
+
+        if (consumers.character_npcs) {
+            for (const npc_character of consumers.character_npcs) {
+                CharacterNpc.find(npc_character, where);
+                const ok = meta.character_npcs.includes(npc_character);
                 if (!ok) {
-                    throw new Error(`${where}: ${consumers.character} not defined in ${va.id}`);
+                    throw new Error(`${where}: ${npc_character} not defined in ${va.id}`);
                 }
             }
         }
@@ -280,7 +280,7 @@ export function verifyVarValue<T>(
     }
     if (callback) {
         for (const [idx, value] of va.values.entries()) {
-            callback(value, `${where}][${idx}]`);
+            callback(value, `${where}[${idx}]`);
         }
     }
 }
@@ -350,7 +350,7 @@ export function verifyVarIndexTable(
     for (const id of Object.keys(floats)) {
         const meta = Var.find(id, where);
         if (meta.no_limit) {
-            return;
+            continue;
         }
 
         if (suppliers.character) {

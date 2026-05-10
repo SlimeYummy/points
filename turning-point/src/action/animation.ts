@@ -120,7 +120,9 @@ export class Animation {
         } else {
             const dura = parseTime(duration, `${where}.duration`, { min: 0 });
             if (Math.abs(dura - anim.duration) > 1e-4) {
-                console.warn(`Warning: ${where}: duration mismatch (${duration} != ${anim.duration}s)`);
+                console.warn(
+                    `Warning: ${where}: duration mismatch (${duration} != ${anim.duration}s)`,
+                );
             }
             return dura;
         }
@@ -139,5 +141,22 @@ export class Animation {
                 (animation[pos] as any).local_id = pos;
             }
         }
+    }
+    
+    public calcSpeedRatio(move_speed: float, where: string): float {
+        if (!this.root_motion) {
+            throw new Error(`${where}: Animation has no root motion`);
+        }
+
+        const meta = native.loadRootMotionMeta(this.files);
+        if (meta.position_default == null) {
+            throw new Error(`${where}: no 'Default' in root motion`);
+        }
+        const whole_distance_xz = Math.abs(meta.position_default.whole_distance_xz);
+        if (whole_distance_xz <= 0) {
+            return 1;
+        }
+        const rm_speed = whole_distance_xz / this.duration;
+        return move_speed / rm_speed;
     }
 }

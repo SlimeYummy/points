@@ -87,6 +87,7 @@ export class Hit {
     ) {
         verifyVarValue(this.box_max_times, consumers, where);
         verifyVarValue(this.box_min_interval, consumers, where);
+        verifyVarValue(this.group_max_times, consumers, where);
     }
 
     public static parseArray(
@@ -110,7 +111,7 @@ export class Hit {
         for (const r of raw) {
             const idx = hits.findIndex((h) => h.group === r.group);
             if (idx < 0) {
-                throw new Error(`${where}[${idx}]: no group (${r.group}) in (${opts.files})`);
+                throw new Error(`${where}: no group (${r.group}) in (${opts.files})`);
             } else if (!hits[idx]!.#default) {
                 throw new Error(`${where}[${idx}]: duplicate group (${r.group})`);
             } else {

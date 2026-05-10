@@ -230,10 +230,13 @@ export class ActionGeneral extends Action {
                 : new VirtualKeyDir(args.enter_key, this.w('enter_key'));
         this.enter_level = parseActionLevel(args.enter_level || LEVEL_IDLE, this.w('enter_level'));
         this.cool_down_time = parseVarTime(args.cool_down_time || 0, this.w('cool_down_time'));
-        this.cool_down_round = parseVarInt(args.cool_down_round || 1, this.w('cool_down_round'));
+        this.cool_down_round = parseVarInt(args.cool_down_round || 1, this.w('cool_down_round'), {
+            min: 1,
+        });
         this.cool_down_init_round = parseVarInt(
             args.cool_down_init_round || args.cool_down_round || 1,
             this.w('cool_down_init_round'),
+            { min: 1 },
         );
         this.input_movements = !args.input_movements
             ? undefined

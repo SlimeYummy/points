@@ -37,7 +37,7 @@ export enum JewelSlotIndex {
     Defense = 2,
 }
 
-const RE_SOLTS = /^([A|D|S]\d+)?([A|D|S]\d+)?([A|D|S]\d+)?$/;
+const RE_SOLTS = /^([ADS]\d+)?([ADS]\d+)?([ADS]\d+)?$/;
 
 export function parseJevelSlots(
     slot: string | readonly [int, int, int],
