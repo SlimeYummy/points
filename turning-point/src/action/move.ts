@@ -5,6 +5,7 @@ import {
     int,
     LOGIC_SPF,
     parseAngleXzRange,
+    parseArray,
     parseBool,
     parseFloat,
     parseIDArray,
@@ -41,18 +42,16 @@ export class ActionMoveStart {
     public constructor(args: ActionMoveStartArgs, where: string) {
         this.anim = new Animation(args, where, { root_motion: true });
         this.enter_angle = parseAngleXzRange(args.enter_angle, `${where}.enter_angle`);
-        this.turn_in_place_end = parseTime(
-            args.turn_in_place_end || 0,
-            `${where}.turn_in_place_end`,
-            {
-                min: LOGIC_SPF,
-            },
-        );
-        this.quick_stop_end = parseTime(
-            args.quick_stop_end || this.anim.duration / 2,
-            `${where}.quick_stop_end`,
-            { min: 0 },
-        );
+        this.turn_in_place_end =
+            args.turn_in_place_end == null
+                ? 0
+                : parseTime(args.turn_in_place_end, `${where}.turn_in_place_end`, {
+                      min: LOGIC_SPF,
+                  });
+        this.quick_stop_end =
+            args.quick_stop_end == null
+                ? this.anim.duration / 2
+                : parseTime(args.quick_stop_end, `${where}.quick_stop_end`, { min: 0 });
     }
 }
 
@@ -139,7 +138,7 @@ export class ActionMoveStop {
     }
 
     private parseEnterPhaseTable(
-        table: Array<ActionMoveStopEnterArgs>,
+        table: ReadonlyArray<ActionMoveStopEnterArgs>,
         duration: float,
         where: string,
     ) {
@@ -224,25 +223,19 @@ export type ActionMoveArgs = ActionArgs & {
     move_speed: float;
 
     /** 移动开始动画 */
-    anim_starts?: ReadonlyArray<ActionMoveStartArgs>;
+    anim_starts: ReadonlyArray<ActionMoveStartArgs>;
 
-    /** 移动开始时间 仅在未匹配到starts时生效 */
-    start_time?: float | string;
+    /** 移动停止动画 */
+    anim_stops: ReadonlyArray<ActionMoveStopArgs>;
+
+    /** 快速停止时间 */
+    quick_stop_time?: float | string;
 
     /** 转身动画 */
     anim_turns?: ReadonlyArray<ActionMoveTurnArgs>;
 
     /** 转身180°所需时间 仅在未匹配到turns时生效 */
     turn_time: float | string;
-
-    /** 移动停止动画 */
-    anim_stops?: ReadonlyArray<ActionMoveStopArgs>;
-
-    /** 移动停止时间 仅在未匹配到stops时生效 */
-    stop_time?: float | string;
-
-    /** 快速停止时间 */
-    quick_stop_time?: float | string;
 
     /** 是否继承上个动作派生 */
     derive_keeping?: boolean | int;
@@ -277,17 +270,26 @@ export class ActionMove extends Action {
      **/
     public readonly special_derive_level: int;
 
+    /** 韧性等级 */
+    public readonly poise_level: int;
+
     /** 前向移动动画 */
     public readonly anim_move: Animation;
 
     /** 移动速度（m/s） 以anim_move为参考 影响Action内全部动画 */
     public readonly move_speed: float;
 
+    /** 速度倍率 */
+    public readonly speed_ratio: float;
+
     /** 移动开始动画 */
     public readonly starts: ReadonlyArray<ActionMoveStart>;
 
-    /** 移动开始时间 仅在未匹配到starts时生效 */
-    public readonly start_time: float;
+    /** 移动停止动画 */
+    public readonly stops: ReadonlyArray<ActionMoveStop>;
+
+    /** 快速停止时间 */
+    public readonly quick_stop_time: float;
 
     /** 转身动画 */
     public readonly turns: ReadonlyArray<ActionMoveTurn>;
@@ -295,20 +297,8 @@ export class ActionMove extends Action {
     /** 转身180°所需时间 仅在未匹配到turns时生效 */
     public readonly turn_time: float;
 
-    /** 移动停止动画 */
-    public readonly stops: ReadonlyArray<ActionMoveStop>;
-
-    /** 移动停止时间 仅在未匹配到stops时生效 */
-    public readonly stop_time: float;
-
-    /** 快速停止时间 */
-    public readonly quick_stop_time: float;
-
     /** 是否继承上个动作派生 */
     public readonly derive_keeping: boolean;
-
-    /** 韧性等级 */
-    public readonly poise_level: int;
 
     /**
      * 平滑切换移动动作列表
@@ -322,43 +312,56 @@ export class ActionMove extends Action {
     public readonly smooth_move_duration: float;
 
     public constructor(id: ID, args: ActionMoveArgs) {
-        super(id, args);
+        super(id, args, { character: 'player' });
         this.enter_key = parseString(args.enter_key as string, this.w('enter_key'), {
             includes: ['Run', 'Walk', 'Dash'],
         }) as any;
         this.enter_level = parseActionLevel(args.enter_level || LEVEL_MOVE, this.w('enter_level'));
         this.derive_level = parseActionLevel(
-            args.enter_level || LEVEL_MOVE - 10,
-            this.w('enter_level'),
+            args.derive_level || LEVEL_MOVE - 10,
+            this.w('derive_level'),
         );
         this.special_derive_level = parseActionLevel(
             args.special_derive_level || LEVEL_MOVE + 10,
             this.w('special_derive_level'),
         );
+        this.poise_level = 0;
+
         this.anim_move = new Animation(args.anim_move, this.w('anim_move'), {
             root_motion: true,
         });
         this.move_speed = parseFloat(args.move_speed, this.w('move_speed'), { min: 0, max: 1000 });
-        this.starts = (args.anim_starts || []).map(
-            (args, idx) => new ActionMoveStart(args, this.w(`anim_starts[${idx}]`)),
+        this.speed_ratio = this.anim_move.calcSpeedRatio(this.move_speed, this.w('anim_move'));
+
+        this.starts = parseArray(
+            args.anim_starts,
+            this.w('anim_starts'),
+            (item, idx) => new ActionMoveStart(item, this.w(`anim_starts[${idx}]`)),
+            { min_len: 1 },
         );
-        this.start_time = parseTime(args.start_time || '8F', this.w('start_time'), { min: 0 });
-        this.turns = (args.anim_turns || []).map(
-            (args, idx) => new ActionMoveTurn(args, this.w(`anim_turns[${idx}]`)),
+
+        this.stops = parseArray(
+            args.anim_stops,
+            this.w('anim_stops'),
+            (item, idx) => new ActionMoveStop(item, this.w(`anim_stops[${idx}]`)),
+            { min_len: 1 },
         );
-        this.turn_time = parseTime(args.turn_time || '12F', this.w('turn_time'), { min: 0 });
-        this.stops = (args.anim_stops || []).map(
-            (args, idx) => new ActionMoveStop(args, this.w(`anim_stops[${idx}]`)),
-        );
-        this.stop_time = parseTime(args.stop_time || '8F', this.w('stop_time'), { min: 0 });
         this.quick_stop_time = parseTime(args.quick_stop_time || 0, this.w('quick_stop_time'), {
             min: 0,
         });
+
+        this.turns =
+            args.anim_turns == null
+                ? []
+                : parseArray(args.anim_turns, this.w('anim_turns'), (item, idx) => {
+                      return new ActionMoveTurn(item, this.w(`anim_turns[${idx}]`));
+                  });
+        this.turn_time = parseTime(args.turn_time || '12F', this.w('turn_time'), { min: 0 });
+
         this.derive_keeping =
             args.derive_keeping == null
                 ? true
                 : parseBool(args.derive_keeping, this.w('derive_keeping'));
-        this.poise_level = 0;
         this.smooth_move_froms = parseIDArray(
             args.smooth_move_froms || [],
             'Action',
