@@ -3,17 +3,22 @@ import {
     ActionHit,
     ActionIdle,
     ActionMove,
+    ActionMoveNpc,
     AiBrain,
     AiTask,
     AiTaskPatrol,
     Attack1,
     Attack2,
+    Attack5,
     Capsule,
     Character,
     Hit1,
+    Item1,
     LEVEL_ACTION,
     LEVEL_ATTACK,
-    NpcCharacter,
+    LEVEL_IDLE,
+    LEVEL_MOVE,
+    CharacterNpc,
     Resource,
     Run,
     Style,
@@ -80,6 +85,7 @@ new Style('Style.Demo^1', {
         'Action.Demo.Attack2',
         'Action.Demo.Attack3',
         'Action.Demo.Attack4',
+        'Action.Demo.Greet',
     ],
     view_model: 'StyleOne-1.vrm',
 });
@@ -172,6 +178,7 @@ new ActionMove('Action.Demo.Run', {
         },
     ],
     quick_stop_time: 0,
+    smooth_move_froms: ['Action.Demo.Run', 'Action.Demo.Walk'],
 });
 
 new ActionMove('Action.Demo.Walk', {
@@ -267,6 +274,7 @@ new ActionMove('Action.Demo.Walk', {
         },
     ],
     quick_stop_time: 0,
+    smooth_move_froms: ['Action.Demo.Run', 'Action.Demo.Walk'],
 });
 
 new ActionGeneral('Action.Demo.Attack1', {
@@ -292,7 +300,7 @@ new ActionGeneral('Action.Demo.Attack1', {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        }
+        },
     },
     derive_levels: {
         '0-124F': LEVEL_ACTION,
@@ -304,14 +312,14 @@ new ActionGeneral('Action.Demo.Attack1', {
     ],
     hits: [
         {
-            group: "Axe",
+            group: 'Axe',
             box_max_times: 1,
-        }
+        },
     ],
     custom_events: {
         '56F': 'SE_Slash',
-        '64F': 'VFX_Slash'
-    }
+        '64F': 'VFX_Slash',
+    },
 });
 
 new ActionGeneral('Action.Demo.Attack2', {
@@ -337,7 +345,7 @@ new ActionGeneral('Action.Demo.Attack2', {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        }
+        },
     },
     derive_levels: {
         '0-124F': LEVEL_ACTION,
@@ -349,14 +357,14 @@ new ActionGeneral('Action.Demo.Attack2', {
     ],
     hits: [
         {
-            group: "Axe",
+            group: 'Axe',
             box_max_times: 1,
-        }
+        },
     ],
     custom_events: {
         '58F': 'SE_Slash',
-        '66F': 'VFX_Slash'
-    }
+        '66F': 'VFX_Slash',
+    },
 });
 
 new ActionGeneral('Action.Demo.Attack3', {
@@ -381,7 +389,7 @@ new ActionGeneral('Action.Demo.Attack3', {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        }
+        },
     },
     derive_levels: {
         '0-130F': LEVEL_ACTION,
@@ -393,14 +401,14 @@ new ActionGeneral('Action.Demo.Attack3', {
     ],
     hits: [
         {
-            group: "Axe",
+            group: 'Axe',
             box_max_times: 1,
-        }
+        },
     ],
     custom_events: {
         '48F': 'SE_Slash',
-        '46F': 'VFX_Slash'
-    }
+        '46F': 'VFX_Slash',
+    },
 });
 
 new ActionGeneral('Action.Demo.Attack4', {
@@ -425,7 +433,7 @@ new ActionGeneral('Action.Demo.Attack4', {
             damage_rdc: '20%',
             shield_dmg_rdc: 0,
             poise_level: 1,
-        }
+        },
     },
     derive_levels: {
         '0-130F': LEVEL_ACTION,
@@ -433,9 +441,9 @@ new ActionGeneral('Action.Demo.Attack4', {
     },
     hits: [
         {
-            group: "Axe",
+            group: 'Axe',
             box_max_times: 1,
-        }
+        },
     ],
     derives: [
         { key: Attack1, level: LEVEL_ATTACK + 1, action: 'Action.Demo.Attack1' },
@@ -443,15 +451,32 @@ new ActionGeneral('Action.Demo.Attack4', {
     ],
     custom_events: {
         '48F': 'SE_Slash',
-        '46F': 'VFX_Slash'
-    }
+        '46F': 'VFX_Slash',
+    },
+});
+
+new ActionGeneral('Action.Demo.Greet', {
+    anim_main: {
+        files: 'Girl/Greet.*',
+        duration: '350F',
+        root_motion: true,
+    },
+    character: PLAYER.id,
+    styles: PLAYER.styles,
+    tags: [],
+    enter_key: Attack5,
+    enter_level: LEVEL_MOVE,
+    attributes: {
+        '0-350F': { poise_level: 0 },
+    },
+    derive_levels: { '0-350F': LEVEL_IDLE },
 });
 
 //
 // NPC
 //
 
-const NPC = new NpcCharacter('NpcCharacter.TrainingDummy', {
+const NPC = new CharacterNpc('CharacterNpc.TrainingDummy', {
     name: 'TrainingDummy',
     tags: ['Npc'],
     level: [1, 1],
@@ -459,11 +484,8 @@ const NPC = new NpcCharacter('NpcCharacter.TrainingDummy', {
         MaxHealth: [1000 * 1000 * 1000],
     },
     fixed_attributes,
-    actions: [
-        'Action.TrainingDummy.Idle',
-        'Action.TrainingDummy.Hit1',
-    ],
-    ai_executors: ['AiBrain.TrainingDummy'],
+    actions: ['Action.TrainingDummy.Idle', 'Action.TrainingDummy.Hit1'],
+    ai_brains: ['AiBrain.TrainingDummy'],
     bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'TrainingDummy/TrainingDummy.*',
     skeleton_toward: [0, 1],
@@ -471,7 +493,7 @@ const NPC = new NpcCharacter('NpcCharacter.TrainingDummy', {
 });
 
 new ActionIdle('Action.TrainingDummy.Idle', {
-    npc_characters: [NPC.id],
+    character_npcs: [NPC.id],
     tags: ['Idle'],
     anim_idle: {
         files: 'TrainingDummy/Idle.*',
@@ -480,7 +502,7 @@ new ActionIdle('Action.TrainingDummy.Idle', {
 });
 
 new ActionHit('Action.TrainingDummy.Hit1', {
-    npc_characters: [NPC.id],
+    character_npcs: [NPC.id],
     tags: ['Hit'],
     enter_key: Hit1,
     anim_be_hits: [
@@ -512,7 +534,7 @@ new ActionHit('Action.TrainingDummy.Hit1', {
 });
 
 new AiBrain('AiBrain.TrainingDummy', {
-    character: 'NpcCharacter.TrainingDummy',
+    character_npc: 'CharacterNpc.TrainingDummy',
     alert_sphere: { radius: 5 },
     alert_cone: { radius: 10, half_angle: 45 },
     attack_exit_delay: '30s',
@@ -520,13 +542,13 @@ new AiBrain('AiBrain.TrainingDummy', {
 });
 
 // new AiTaskIdle('AiTask.SlimeBlue.Idle', {
-//     character: 'NpcCharacter.TrainingDummy',
+//     character_npc: 'CharacterNpc.TrainingDummy',
 //     max_repeat: 1,
 //     action_idle: 'Action.TrainingDummy.Idle',
 //     duration: '4s-6s',
 // });
 
-const SLIME = new NpcCharacter('NpcCharacter.Slime', {
+const SLIME = new CharacterNpc('CharacterNpc.Slime', {
     name: 'Slime',
     tags: ['Npc', 'Enemy'],
     level: [1, 1],
@@ -538,11 +560,8 @@ const SLIME = new NpcCharacter('NpcCharacter.Slime', {
         PhysicalDefense: [3],
     },
     fixed_attributes,
-    actions: [
-        'Action.Slime.Idle',
-        'Action.Slime.Move',
-    ],
-    ai_executors: ['AiBrain.Slime'],
+    actions: ['Action.Slime.Idle', 'Action.Slime.Move'],
+    ai_brains: ['AiBrain.Slime'],
     bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'Slime/Slime.*',
     skeleton_toward: [0, 1],
@@ -550,29 +569,43 @@ const SLIME = new NpcCharacter('NpcCharacter.Slime', {
 });
 
 new ActionIdle('Action.Slime.Idle', {
-    npc_characters: [SLIME.id],
+    character_npcs: [SLIME.id],
     tags: ['Idle'],
     anim_idle: { files: 'Slime/Idle.*' },
 });
 
-new ActionMove('Action.Slime.Move', {
-    npc_characters: [SLIME.id],
-    tags: ['Move'],
-    enter_key: Run,
+const x = new ActionMoveNpc('Action.Slime.Move', {
+    character_npcs: [SLIME.id],
+    tags: ['Walk'],
+    enter_key: Walk,
+    move_speed: 1.5,
     anim_move: {
-        files: 'Slime/Move.*',
-        fade_in: '4F',
+        files: 'Slime/WalkLoop.*',
+        duration: '80F',
         root_motion: true,
     },
-    move_speed: 2,
-    start_time: '8F',
-    stop_time: '8F',
-    turn_time: '12F',
-    quick_stop_time: 0,
+    anim_start: {
+        files: 'Slime/WalkStart.*',
+        duration: '40F',
+        root_motion: true,
+    },
+    anim_stops: [
+        {
+            files: 'Slime/WalkStop.*',
+            duration: '40F',
+            root_motion: true,
+            enter_from_table: [
+                { anim: 'Slime/WalkStart.*', ratio: 1.0 },
+                { anim: 'Slime/WalkLoop.*', ratio: 0.5 },
+                { anim: 'Slime/WalkLoop.*', ratio: 1.0 },
+            ],
+        }
+    ],
+    turn_time: '60F',
 });
 
 new AiBrain('AiBrain.Slime', {
-    character: 'NpcCharacter.Slime',
+    character_npc: 'CharacterNpc.Slime',
     alert_sphere: { radius: 3 },
     alert_cone: { radius: 5, half_angle: 60 },
     attack_exit_delay: '10s',
@@ -580,7 +613,7 @@ new AiBrain('AiBrain.Slime', {
 });
 
 new AiTaskPatrol('AiTask.Slime.Patrol', {
-    character: 'NpcCharacter.Slime',
+    character_npc: 'CharacterNpc.Slime',
     action_idle: 'Action.Slime.Idle',
     action_move: 'Action.Slime.Move',
     route: [

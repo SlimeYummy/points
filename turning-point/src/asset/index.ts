@@ -18,6 +18,7 @@ class FileMeta {
             this.time = stat.mtime.getTime();
             this.size = stat.size;
         } else if (
+            arguments[0] &&
             typeof arguments[0] === 'object' &&
             typeof arguments[0].path === 'string' &&
             typeof arguments[0].time === 'number' &&
@@ -47,6 +48,7 @@ class AssetMeta {
             this.id = arguments[0];
             this.metas = arguments[1].map((x: any) => new FileMeta(x));
         } else if (
+            arguments[0] &&
             typeof arguments[0] === 'object' &&
             typeof arguments[0].id === 'string' &&
             Array.isArray(arguments[0].metas)
@@ -149,7 +151,7 @@ export class Asset {
         filterMap: (dir: string, file: string) => string | null | undefined,
     ) {
         const dstDirs = new Set<string>();
-        fs.mkdirSync(INPUT_ASSET, { recursive: true });
+        fs.mkdirSync(OUTPUT_ASSET, { recursive: true });
 
         function copyFile(src: string, dst: string) {
             const dstDir = path.dirname(dst);
@@ -187,17 +189,24 @@ export class Asset {
         skeletonName: string,
         dstDir: string,
     ) {
-        fs.mkdirSync(path.join(OUTPUT_ASSET, dstDir), { recursive: true });
+        function joinPath(root: string, subPath: string) {
+            if (path.isAbsolute(subPath)) {
+                throw new Error(`subPath must be a relative path: ${subPath}`);
+            }
+            return path.join(root, subPath);
+        }
+
+        fs.mkdirSync(joinPath(OUTPUT_ASSET, dstDir), { recursive: true });
         animation.gltf2ozz(
-            path.join(INPUT_ASSET, gltfFile),
-            jsonTrackDir && path.join(INPUT_ASSET, jsonTrackDir),
+            joinPath(INPUT_ASSET, gltfFile),
+            jsonTrackDir && joinPath(INPUT_ASSET, jsonTrackDir),
             {
-                configFile: path.join(INPUT_ASSET, configFiles.configFile),
-                logicFile: path.join(INPUT_ASSET, configFiles.logicFile),
-                viewFile: path.join(INPUT_ASSET, configFiles.viewFile),
+                configFile: joinPath(INPUT_ASSET, configFiles.configFile),
+                logicFile: joinPath(INPUT_ASSET, configFiles.logicFile),
+                viewFile: joinPath(INPUT_ASSET, configFiles.viewFile),
             },
             skeletonName,
-            path.join(OUTPUT_ASSET, dstDir),
+            joinPath(OUTPUT_ASSET, dstDir),
         );
     }
 }
