@@ -18,7 +18,7 @@ import {
     LEVEL_ATTACK,
     MAX_ENTRY_PLUS,
     ActionHit,
-    NpcCharacter,
+    CharacterNpc,
     Perk,
     Rare1,
     Rare2,
@@ -36,6 +36,8 @@ import {
     Zone,
     AiBrain,
     AiTaskIdle,
+    ActionMoveNpc,
+    Walk,
 } from '../src';
 
 Var.define({
@@ -595,7 +597,7 @@ new Entry('Entry.Variable', {
 // Npc
 //
 
-new NpcCharacter('NpcCharacter.Enemy', {
+new CharacterNpc('CharacterNpc.Enemy', {
     name: 'Enemy',
     tags: ['Npc'],
     level: [1, 3],
@@ -605,9 +607,10 @@ new NpcCharacter('NpcCharacter.Enemy', {
     fixed_attributes,
     actions: [
         'Action.Enemy.Idle',
+        'Action.Enemy.Walk',
         'Action.Enemy.Hit1',
     ],
-    ai_executors: [
+    ai_brains: [
         'AiBrain.Enemy',
     ],
     bounding: new Capsule(0.5, 0.5),
@@ -617,7 +620,7 @@ new NpcCharacter('NpcCharacter.Enemy', {
 });
 
 new ActionIdle('Action.Enemy.Idle', {
-    npc_characters: ['NpcCharacter.Enemy'],
+    character_npcs: ['CharacterNpc.Enemy'],
     tags: ['Idle'],
     anim_idle: {
         files: 'TrainingDummy/Idle.*',
@@ -626,7 +629,7 @@ new ActionIdle('Action.Enemy.Idle', {
 });
 
 new ActionHit('Action.Enemy.Hit1', {
-    npc_characters: ['NpcCharacter.Enemy'],
+    character_npcs: ['CharacterNpc.Enemy'],
     tags: ['Hit'],
     enter_key: Hit1,
     anim_be_hits: [
@@ -639,12 +642,62 @@ new ActionHit('Action.Enemy.Hit1', {
     ],
 });
 
+// new CharacterNpc('CharacterNpc.Slime', {
+//     name: 'Slime',
+//     tags: ['Npc'],
+//     level: [1, 3],
+//     attributes: {
+//         MaxHealth: [10000, 20000, 30000],
+//     },
+//     fixed_attributes,
+//     actions: [
+//         'Action.Slime.Walk',
+//     ],
+//     ai_brains: [
+//         'AiBrain.Enemy',
+//     ],
+//     bounding: new Capsule(0.5, 0.5),
+//     skeleton_files: 'Slime/Slime.*',
+//     skeleton_toward: [0, 1],
+//     view_model: 'Slime.prefab',
+// });
+
+const x = new ActionMoveNpc('Action.Enemy.Walk', {
+    character_npcs: ['CharacterNpc.Enemy'],
+    tags: ['Walk'],
+    enter_key: Walk,
+    move_speed: 1.5,
+    anim_move: {
+        files: 'Slime/WalkLoop.*',
+        duration: '80F',
+        root_motion: true,
+    },
+    anim_start: {
+        files: 'Slime/WalkStart.*',
+        duration: '40F',
+        root_motion: true,
+    },
+    anim_stops: [
+        {
+            files: 'Slime/WalkStop.*',
+            duration: '40F',
+            root_motion: true,
+            enter_from_table: [
+                { anim: 'Slime/WalkStart.*', ratio: 1.0 },
+                { anim: 'Slime/WalkLoop.*', ratio: 0.5 },
+                { anim: 'Slime/WalkLoop.*', ratio: 1.0 },
+            ],
+        }
+    ],
+    turn_time: '12F',
+});
+
 //
 // Ai
 //
 
 new AiBrain('AiBrain.Enemy', {
-    character: 'NpcCharacter.Enemy',
+    character_npc: 'CharacterNpc.Enemy',
     alert_sphere: { radius: 5 },
     alert_cone: { radius: 10, half_angle: 45 },
     attack_exit_delay: '30s',
@@ -654,7 +707,7 @@ new AiBrain('AiBrain.Enemy', {
 });
 
 new AiTaskIdle('AiTask.Enemy.Idle', {
-    character: 'NpcCharacter.Enemy',
+    character_npc: 'CharacterNpc.Enemy',
     max_repeat: 1,
     action_idle: 'Action.Enemy.Idle',
     duration: '4s-6s',

@@ -22,6 +22,7 @@ const MAPPING_VRM_HUMAN = {
 
 Asset.gltf2ozz('Girl/GirlLocomotion.glb', null, MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
 Asset.gltf2ozz('Girl/GirlAttack.glb', 'Girl/', MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
+Asset.gltf2ozz('Girl/GirlExtra.glb', null, MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
 
 const MAPPING_SIMPLE = {
     configFile: 'config_simple.json',
