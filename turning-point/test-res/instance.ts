@@ -14,7 +14,7 @@ import {
     Hit1,
     LEVEL_ACTION,
     LEVEL_ATTACK,
-    NpcCharacter,
+    CharacterNpc,
     Perk,
     Run,
     Slot1,
@@ -22,6 +22,8 @@ import {
     Style,
     TaperedCapsule,
     Var,
+    ActionMoveNpc,
+    Walk,
 } from '../src';
 
 //
@@ -342,8 +344,8 @@ new ActionGeneral('Action.Instance.AttackUnused^1A', {
 // NPC
 //
 
-new NpcCharacter('NpcCharacter.NpcInstance^1', {
-    name: 'NpcCharacter 1',
+new CharacterNpc('CharacterNpc.InstanceNpc^1', {
+    name: 'CharacterNpc 1',
     tags: ['Npc'],
     level: [1, 3],
     attributes: {
@@ -354,18 +356,19 @@ new NpcCharacter('NpcCharacter.NpcInstance^1', {
     },
     fixed_attributes,
     actions: [
-        'Action.NpcInstance.Idle^1A',
-        'Action.NpcInstance.Hit1^1A',
+        'Action.InstanceNpc.Idle^1A',
+        'Action.InstanceNpc.Walk^1A',
+        'Action.InstanceNpc.Hit1^1A',
     ],
-    ai_executors: ['AiBrain.NpcInstance^1'],
+    ai_brains: ['AiBrain.InstanceNpc^1'],
     bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'TrainingDummy/TrainingDummy.*',
     skeleton_toward: [0, 1],
     view_model: 'TrainingDummy.prefab',
 });
 
-new ActionIdle('Action.NpcInstance.Idle^1A', {
-    npc_characters: ['NpcCharacter.NpcInstance^1'],
+new ActionIdle('Action.InstanceNpc.Idle^1A', {
+    character_npcs: ['CharacterNpc.InstanceNpc^1'],
     tags: ['Idle'],
     anim_idle: {
         files: 'TrainingDummy/Idle.*',
@@ -374,8 +377,8 @@ new ActionIdle('Action.NpcInstance.Idle^1A', {
     },
 });
 
-new ActionHit('Action.NpcInstance.Hit1^1A', {
-    npc_characters: ['NpcCharacter.NpcInstance^1'],
+new ActionHit('Action.InstanceNpc.Hit1^1A', {
+    character_npcs: ['CharacterNpc.InstanceNpc^1'],
     tags: ['Hit'],
     enter_key: Hit1,
     anim_be_hits: [
@@ -388,28 +391,58 @@ new ActionHit('Action.NpcInstance.Hit1^1A', {
     ],
 });
 
-new AiBrain('AiBrain.NpcInstance^1', {
-    character: 'NpcCharacter.NpcInstance^1',
+const x = new ActionMoveNpc('Action.InstanceNpc.Walk^1A', {
+    character_npcs: ['CharacterNpc.InstanceNpc^1'],
+    tags: ['Walk'],
+    enter_key: Walk,
+    move_speed: 1.5,
+    anim_move: {
+        files: 'Slime/WalkLoop.*',
+        duration: '80F',
+        root_motion: true,
+    },
+    anim_start: {
+        files: 'Slime/WalkStart.*',
+        duration: '40F',
+        root_motion: true,
+    },
+    anim_stops: [
+        {
+            files: 'Slime/WalkStop.*',
+            duration: '40F',
+            root_motion: true,
+            enter_from_table: [
+                { anim: 'Slime/WalkStart.*', ratio: 1.0 },
+                { anim: 'Slime/WalkLoop.*', ratio: 0.5 },
+                { anim: 'Slime/WalkLoop.*', ratio: 1.0 },
+            ],
+        }
+    ],
+    turn_time: '12F',
+});
+
+new AiBrain('AiBrain.InstanceNpc^1', {
+    character_npc: 'CharacterNpc.InstanceNpc^1',
     alert_sphere: { radius: 5 },
     alert_cone: { radius: 10, half_angle: 45 },
     attack_exit_delay: '30s',
     idle_nodes: [
-        AiBrain.task('AiTask.NpcInstance.Idle^1', 1),
-        AiBrain.task('AiTask.NpcInstance.Patrol^1', 1),
+        AiBrain.task('AiTask.InstanceNpc.Idle^1', 1),
+        AiBrain.task('AiTask.InstanceNpc.Patrol^1', 1),
     ],
 });
 
-new AiTaskIdle('AiTask.NpcInstance.Idle^1', {
-    character: 'NpcCharacter.NpcInstance^1',
+new AiTaskIdle('AiTask.InstanceNpc.Idle^1', {
+    character_npc: 'CharacterNpc.InstanceNpc^1',
     max_repeat: 1,
-    action_idle: 'Action.NpcInstance.Idle^1A',
+    action_idle: 'Action.InstanceNpc.Idle^1A',
     duration: '3s-5s',
 });
 
-new AiTaskPatrol('AiTask.NpcInstance.Patrol^1', {
-    character: 'NpcCharacter.NpcInstance^1',
-    action_idle: 'Action.NpcInstance.Idle^1A',
-    action_move: 'Action.NpcInstance.Idle^1A',
+new AiTaskPatrol('AiTask.InstanceNpc.Patrol^1', {
+    character_npc: 'CharacterNpc.InstanceNpc^1',
+    action_idle: 'Action.InstanceNpc.Idle^1A',
+    action_move: 'Action.InstanceNpc.Walk^1A',
     route: [
         ['Move', [-3, 0, 0]],
         ['Idle', '2.5s'],

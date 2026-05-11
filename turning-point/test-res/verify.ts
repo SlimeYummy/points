@@ -3,7 +3,7 @@ import {
     Capsule,
     Character,
     Equipment,
-    NpcCharacter,
+    CharacterNpc,
     Perk,
     Slot1,
     Slot3,
@@ -142,7 +142,7 @@ new Perk('Perk.Verify^2A', {
 // NPC
 //
 
-new NpcCharacter('NpcCharacter.Verify^1', {
+new CharacterNpc('CharacterNpc.Verify^1', {
     name: 'Verify^1',
     tags: ['Npc'],
     level: [1, 3],
@@ -151,15 +151,15 @@ new NpcCharacter('NpcCharacter.Verify^1', {
     },
     fixed_attributes,
     actions: [],
-    ai_executors: ['AiBrain.Verify^1'],
+    ai_brains: ['AiBrain.Verify^1'],
     bounding: new Capsule(0.5, 0.5),
-    skeleton_files: 'TrainingDummy.*',
+    skeleton_files: 'TrainingDummy/TrainingDummy.*',
     skeleton_toward: [0, 1],
     view_model: 'TrainingDummy.prefab',
 });
 
 new AiBrain('AiBrain.Verify^1', {
-    character: 'NpcCharacter.Verify^1',
+    character_npc: 'CharacterNpc.Verify^1',
     alert_sphere: { radius: 5 },
     alert_cone: { radius: 10, half_angle: 45 },
     attack_exit_delay: '30s',
