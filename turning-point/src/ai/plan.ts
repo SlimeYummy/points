@@ -1,6 +1,6 @@
-import { NpcCharacter } from '../character';
 import { float, ID, IDPrefix, parseArray, parseFloat, parseID } from '../common';
 import { Resource } from '../resource';
+import { CharacterNpc } from '../character';
 import { AiTask } from './task_base';
 
 export type AiPlanCandidateArgs = {
@@ -25,8 +25,8 @@ export class AiPlanCandidate {
 }
 
 export type AiPlanArgs = {
-    /** 角色ID（仅NpcCharacter） */
-    character: ID;
+    /** 角色ID（仅CharacterNpc） */
+    character_npc: ID;
 
     /** 候选行为列表 */
     candidates: readonly AiPlanCandidateArgs[];
@@ -46,15 +46,15 @@ export class AiPlan extends Resource {
         return res;
     }
 
-    /** 角色ID（仅NpcCharacter） */
-    public readonly character: ID;
+    /** 角色ID（仅CharacterNpc） */
+    public readonly character_npc: ID;
 
     /** 候选行为列表 */
     public readonly candidates: readonly AiPlanCandidate[];
 
     public constructor(id: ID, args: AiPlanArgs) {
         super(id);
-        this.character = parseID(args.character, 'NpcCharacter', this.w('character'));
+        this.character_npc = parseID(args.character_npc, 'CharacterNpc', this.w('character_npc'));
         this.candidates = parseArray(
             args.candidates,
             this.w('candidates'),
@@ -64,18 +64,18 @@ export class AiPlan extends Resource {
     }
 
     public override verify() {
-        NpcCharacter.find(this.character, this.w('character'));
+        CharacterNpc.find(this.character_npc, this.w('character_npc'));
 
         for (const [idx, candidate] of this.candidates.entries()) {
             if (candidate.id.startsWith('AiTask')) {
                 const task = AiTask.find(candidate.id, this.w(`candidates[${idx}].id`));
-                if (task.character !== this.character) {
-                    throw this.error(`candidates[${idx}].id`, 'character mismatch');
+                if (task.character_npc !== this.character_npc) {
+                    throw this.error(`candidates[${idx}].id`, 'character_npc mismatch');
                 }
             } else if (candidate.id.startsWith('AiPlan')) {
                 const plan = AiPlan.find(candidate.id, this.w(`candidates[${idx}].id`));
-                if (plan.character !== this.character) {
-                    throw this.error(`candidates[${idx}].id`, 'character mismatch');
+                if (plan.character_npc !== this.character_npc) {
+                    throw this.error(`candidates[${idx}].id`, 'character_npc mismatch');
                 }
             }
         }
