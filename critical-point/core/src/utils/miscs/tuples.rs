@@ -84,22 +84,22 @@ impl From<TmplIDPlus> for (TmplID, u32) {
 }
 
 //
-// LevelRange
+// U32Range
 //
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LevelRange {
+pub struct U32Range {
     pub min: u32,
     pub max: u32,
 }
 
-rkyv_self!(LevelRange);
-serde_by!(LevelRange, [u32; 2], LevelRange::from, LevelRange::to_array);
+rkyv_self!(U32Range);
+serde_by!(U32Range, [u32; 2], U32Range::from, U32Range::to_array);
 
-impl LevelRange {
+impl U32Range {
     #[inline]
-    pub fn new(min: u32, max: u32) -> LevelRange {
-        LevelRange { min, max }
+    pub fn new(min: u32, max: u32) -> U32Range {
+        U32Range { min, max }
     }
 
     #[inline]
@@ -116,39 +116,119 @@ impl LevelRange {
     pub fn to_range(&self) -> RangeInclusive<u32> {
         self.min..=self.max
     }
-}
 
-impl From<[u32; 2]> for LevelRange {
     #[inline]
-    fn from(range: [u32; 2]) -> LevelRange {
-        LevelRange::new(range[0], range[1])
+    pub fn contains(&self, val: u32) -> bool {
+        self.min <= val && val <= self.max
     }
 }
 
-impl From<LevelRange> for [u32; 2] {
+impl From<[u32; 2]> for U32Range {
     #[inline]
-    fn from(val: LevelRange) -> Self {
+    fn from(range: [u32; 2]) -> U32Range {
+        U32Range::new(range[0], range[1])
+    }
+}
+
+impl From<U32Range> for [u32; 2] {
+    #[inline]
+    fn from(val: U32Range) -> Self {
         val.to_array()
     }
 }
 
-impl From<(u32, u32)> for LevelRange {
+impl From<(u32, u32)> for U32Range {
     #[inline]
-    fn from(range: (u32, u32)) -> LevelRange {
-        LevelRange::new(range.0, range.1)
+    fn from(range: (u32, u32)) -> U32Range {
+        U32Range::new(range.0, range.1)
     }
 }
 
-impl From<LevelRange> for (u32, u32) {
+impl From<U32Range> for (u32, u32) {
     #[inline]
-    fn from(val: LevelRange) -> Self {
+    fn from(val: U32Range) -> Self {
         val.to_tuple()
     }
 }
 
-impl From<LevelRange> for RangeInclusive<u32> {
+impl From<U32Range> for RangeInclusive<u32> {
     #[inline]
-    fn from(val: LevelRange) -> Self {
+    fn from(val: U32Range) -> Self {
+        val.to_range()
+    }
+}
+
+//
+// F32Range
+//
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct F32Range {
+    pub min: f32,
+    pub max: f32,
+}
+
+rkyv_self!(F32Range);
+serde_by!(F32Range, [f32; 2], F32Range::from, F32Range::to_array);
+
+impl F32Range {
+    #[inline]
+    pub fn new(min: f32, max: f32) -> F32Range {
+        F32Range { min, max }
+    }
+
+    #[inline]
+    pub fn to_array(&self) -> [f32; 2] {
+        [self.min, self.max]
+    }
+
+    #[inline]
+    pub fn to_tuple(&self) -> (f32, f32) {
+        (*self).into()
+    }
+
+    #[inline]
+    pub fn to_range(&self) -> RangeInclusive<f32> {
+        self.min..=self.max
+    }
+
+    #[inline]
+    pub fn contains(&self, val: f32) -> bool {
+        self.min <= val && val <= self.max
+    }
+}
+
+impl From<[f32; 2]> for F32Range {
+    #[inline]
+    fn from(range: [f32; 2]) -> F32Range {
+        F32Range::new(range[0], range[1])
+    }
+}
+
+impl From<F32Range> for [f32; 2] {
+    #[inline]
+    fn from(val: F32Range) -> Self {
+        val.to_array()
+    }
+}
+
+impl From<(f32, f32)> for F32Range {
+    #[inline]
+    fn from(range: (f32, f32)) -> F32Range {
+        F32Range::new(range.0, range.1)
+    }
+}
+
+impl From<F32Range> for (f32, f32) {
+    #[inline]
+    fn from(val: F32Range) -> Self {
+        val.to_tuple()
+    }
+}
+
+impl From<F32Range> for RangeInclusive<f32> {
+    #[inline]
+    fn from(val: F32Range) -> Self {
         val.to_range()
     }
 }
@@ -219,9 +299,9 @@ impl JewelSlots {
     #[inline]
     pub fn merge(&self, other: &JewelSlots) -> JewelSlots {
         JewelSlots {
-            special: self.special + other.special,
-            attack: self.attack + other.attack,
-            defense: self.defense + other.defense,
+            special: self.special.saturating_add(other.special),
+            attack: self.attack.saturating_add(other.attack),
+            defense: self.defense.saturating_add(other.defense),
         }
     }
 

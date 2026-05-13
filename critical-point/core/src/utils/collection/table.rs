@@ -61,7 +61,7 @@ const _: () = {
         type Value = TableKv<K, V>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            formatter.write_str(r#"[key, value] or {"key": key, "value": value}"#)
+            formatter.write_str(r#"[key, value] or {"k": key, "v": value}"#)
         }
 
         fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
