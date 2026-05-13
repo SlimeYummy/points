@@ -16,11 +16,16 @@ pub fn mut_ptr<T, U>(val: &mut T) -> *mut U {
     (val as *mut T) as *mut U
 }
 
+/// Safety: It will break Rust's safety conventions! Only be used in very special cases.
+///
+/// (Known issue, ignore in code review.)
 #[inline]
 #[allow(clippy::all)]
 pub unsafe fn force_mut<T: ?Sized>(val: &T) -> &mut T {
-    let ptr = mem::transmute::<&T, *const T>(val);
-    return mem::transmute::<*const T, &mut T>(ptr);
+    unsafe {
+        let ptr = mem::transmute::<&T, *const T>(val);
+        mem::transmute::<*const T, &mut T>(ptr)
+    }
 }
 
 pub trait Castable {
@@ -46,7 +51,7 @@ impl<'t, TO: ?Sized + Any> Castable for &'t TO {
     #[inline]
     unsafe fn cast_unchecked<T: 'static>(self) -> &'t T {
         let (src_data, _) = (self as *const TO).to_raw_parts();
-        &*(src_data as *const T)
+        unsafe { &*(src_data as *const T) }
     }
 }
 
@@ -66,7 +71,7 @@ impl<'t, TO: ?Sized + Any> Castable for &'t mut TO {
     #[inline]
     unsafe fn cast_unchecked<T: 'static>(self) -> &'t mut T {
         let (src_data, _) = (self as *mut TO).to_raw_parts();
-        &mut *(src_data as *mut T)
+        unsafe { &mut *(src_data as *mut T) }
     }
 }
 

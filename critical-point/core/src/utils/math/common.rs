@@ -217,6 +217,24 @@ pub fn to_euler_degree(quat: Quat) -> (f32, f32, f32) {
     (euler.0.to_degrees(), euler.1.to_degrees(), euler.2.to_degrees())
 }
 
+#[inline]
+pub fn calc_dir(from: Vec3A, to: Vec3A, def: Vec3A) -> Vec3A {
+    let dir = to - from;
+    match dir.length_squared() > 1e-6 {
+        true => dir.normalize(),
+        false => def,
+    }
+}
+
+#[inline]
+pub fn calc_dir_xz(from: Vec2xz, to: Vec2xz, def: Vec2xz) -> Vec2xz {
+    let dir = to - from;
+    match dir.length_squared() > 1e-6 {
+        true => dir.normalize(),
+        false => def,
+    }
+}
+
 // #[inline]
 // pub fn normalize_radian(rad: f32) -> f32 {
 //     let mut norm = rad % (2.0 * PI);

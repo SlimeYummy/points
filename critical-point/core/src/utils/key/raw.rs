@@ -130,6 +130,12 @@ impl RawKey {
 pub struct RawInput {
     pub key: RawKey,
     pub pressed: bool,
+
+    /// For Move, motion is device direction, in 2d croodinate (W:+Y S:-Y A:-X S:+X).
+    ///
+    /// For View, motion is view angles, in right-handed world space.
+    ///   - motion.x is the angle of view direction in xz plane, [-PI, PI].
+    ///   - motion.y is pitch angle, [-PI/2, PI/2].
     pub motion: Vec2,
 }
 

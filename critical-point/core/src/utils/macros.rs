@@ -101,6 +101,9 @@ pub(crate) use interface;
 // serde & rkyv
 //
 
+/// This macro assumes that we only support little-endian systems, so we will not encounter byte order issues.
+///
+/// (Known issue, ignore in code review.)
 macro_rules! rkyv_self {
     ($type:ty) => {
         const _: () = {
