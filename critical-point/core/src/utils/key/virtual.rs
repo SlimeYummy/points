@@ -1,9 +1,9 @@
 use critical_point_csgen::CsEnum;
-use glam::Vec3A;
+use glam::{Vec3, Vec3A};
 use glam_ext::Vec2xz;
 
 use super::raw::RawKey;
-use crate::consts::{DEFAULT_VIEW_DIR_2D, DEFAULT_VIEW_DIR_3D};
+use crate::consts::DEFAULT_VIEW_DIR_3D;
 use crate::utils::macros::rkyv_self;
 use crate::utils::serde_by;
 
@@ -129,44 +129,54 @@ pub struct VirtualInput {
     pub frame: u32,
     pub key: VirtualKey,
     pub pressed: bool,
-    pub view_dir_2d: Vec2xz,
-    pub view_dir_3d: Vec3A,
+
+    /// View direction 3d, in world space (not player space).
+    pub view_dir_3d: Vec3,
+
+    /// Move direction in world space.
     pub world_move_dir: Vec2xz,
+    // TODO: consider save player direction !!!!!
+    // pub player_dir_2d: Vec2xz,
+    // pub player_move_dir: Vec2xz,
+}
+
+impl Default for VirtualInput {
+    #[inline]
+    fn default() -> Self {
+        Self::EMPTY
+    }
 }
 
 impl VirtualInput {
-    #[inline]
-    pub fn new(id: u64, frame: u32, key: VirtualKey, pressed: bool) -> VirtualInput {
-        VirtualInput::new_ex(
-            id,
-            frame,
-            key,
-            pressed,
-            DEFAULT_VIEW_DIR_2D,
-            DEFAULT_VIEW_DIR_3D,
-            Vec2xz::ZERO,
-        )
-    }
+    pub const EMPTY: VirtualInput = VirtualInput {
+        id: 0,
+        frame: u32::MAX,
+        key: VirtualKey::None,
+        pressed: false,
+        view_dir_3d: Vec3::from_array(DEFAULT_VIEW_DIR_3D.to_array()),
+        world_move_dir: Vec2xz::ZERO,
+    };
 
     #[inline]
-    pub fn new_ex(
-        id: u64,
-        frame: u32,
-        key: VirtualKey,
-        pressed: bool,
-        view_dir_2d: Vec2xz,
-        view_dir_3d: Vec3A,
-        world_move_dir: Vec2xz,
-    ) -> VirtualInput {
+    pub fn new(id: u64, frame: u32, key: VirtualKey, pressed: bool) -> VirtualInput {
         VirtualInput {
             id,
             frame,
             key,
             pressed,
-            view_dir_2d,
-            view_dir_3d,
-            world_move_dir,
+            view_dir_3d: DEFAULT_VIEW_DIR_3D.into(),
+            world_move_dir: Vec2xz::ZERO,
         }
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.id == 0
+    }
+
+    #[inline]
+    pub fn view_dir_3d(&self) -> Vec3A {
+        self.view_dir_3d.into()
     }
 }
 

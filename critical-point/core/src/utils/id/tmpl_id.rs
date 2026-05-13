@@ -32,11 +32,13 @@ fn symbol_cache() -> &'static TmplSymbolCache {
 
 #[allow(dead_code)]
 pub(crate) unsafe fn init_id_static<P: AsRef<Path>>(path: P, force_reinit: bool) -> XResult<()> {
-    #[allow(static_mut_refs)]
-    if SYMBOL_CACHE.is_empty() || force_reinit {
-        SYMBOL_CACHE = TmplSymbolCache::from_file(path)?;
+    unsafe {
+        #[allow(static_mut_refs)]
+        if SYMBOL_CACHE.is_empty() || force_reinit {
+            SYMBOL_CACHE = TmplSymbolCache::from_file(path)?;
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -79,7 +81,7 @@ unsafe impl Sync for TmplSymbolCache {}
 impl Drop for TmplSymbolCache {
     fn drop(&mut self) {
         if !self.buf.is_null() {
-            unsafe { alloc::dealloc(self.buf, Layout::from_size_align_unchecked(NODE_SIZE, NODE_ALIGN)) };
+            unsafe { alloc::dealloc(self.buf, Layout::from_size_align_unchecked(self.buf_size, NODE_ALIGN)) };
         }
         self.list = Vec::new();
         self.map = Vec::new();
@@ -146,8 +148,13 @@ impl TmplSymbolCache {
         let mut map = vec![u32::MAX; map_len];
 
         let mut offset = 0;
-        for (idx, string) in strings.iter().enumerate() {
+        let mut idx = 0;
+        for string in strings.iter() {
             let string = string.as_ref();
+            if string.is_empty() {
+                continue;
+            }
+
             let node = unsafe { &mut *(buf.add(offset) as *mut TmplSymbol) };
             node.next = u32::MAX;
             node.hash = Self::hash(string);
@@ -165,6 +172,7 @@ impl TmplSymbolCache {
             node.next = next_offset;
 
             offset += ((string.len() + NODE_MASK) & !NODE_MASK) + NODE_SIZE;
+            idx += 1;
         }
         debug_assert_eq!(offset, buf_size);
 
@@ -260,7 +268,7 @@ impl TmplSymbolCache {
 pub enum TmplPrefix {
     Var,
     Character,
-    NpcCharacter,
+    CharacterNpc,
     Style,
     Equipment,
     Entry,
@@ -285,7 +293,7 @@ impl FromStr for TmplPrefix {
         let prefix = match s {
             "#" => TmplPrefix::Var,
             "Character" => TmplPrefix::Character,
-            "NpcCharacter" => TmplPrefix::NpcCharacter,
+            "CharacterNpc" => TmplPrefix::CharacterNpc,
             "Style" => TmplPrefix::Style,
             "Equipment" => TmplPrefix::Equipment,
             "Entry" => TmplPrefix::Entry,
@@ -311,7 +319,7 @@ impl TryFrom<u8> for TmplPrefix {
         let prefix = match value {
             0 => TmplPrefix::Var,
             1 => TmplPrefix::Character,
-            2 => TmplPrefix::NpcCharacter,
+            2 => TmplPrefix::CharacterNpc,
             3 => TmplPrefix::Style,
             4 => TmplPrefix::Equipment,
             5 => TmplPrefix::Entry,
@@ -322,8 +330,8 @@ impl TryFrom<u8> for TmplPrefix {
             10 => TmplPrefix::Action,
             11 => TmplPrefix::NpcAction,
             12 => TmplPrefix::AiBrain,
-            14 => TmplPrefix::AiTask,
-            15 => TmplPrefix::Zone,
+            13 => TmplPrefix::AiTask,
+            14 => TmplPrefix::Zone,
             _ => return xres!(NotFound; "TmplPrefix u8"),
         };
         Ok(prefix)
@@ -335,7 +343,7 @@ impl AsRef<str> for TmplPrefix {
         match self {
             TmplPrefix::Var => "#",
             TmplPrefix::Character => "Character",
-            TmplPrefix::NpcCharacter => "NpcCharacter",
+            TmplPrefix::CharacterNpc => "CharacterNpc",
             TmplPrefix::Style => "Style",
             TmplPrefix::Equipment => "Equipment",
             TmplPrefix::Entry => "Entry",
@@ -469,6 +477,10 @@ impl TmplID {
     }
 
     fn to_string_with(&self, cache: &TmplSymbolCache) -> String {
+        if self.is_invalid() {
+            return "INVALID".to_string();
+        }
+
         let prefix = self.prefix();
         let key1 = cache.find_str_or(self.key1(), "?");
         let key2 = cache.find_str_or(self.key2(), "?");
