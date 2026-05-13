@@ -27,8 +27,8 @@ pub struct HashIndex<K, V, S = FxBuildHasher> {
 
 pub type DtHashIndex<K, V> = HashIndex<K, V, FxBuildHasher>;
 
-unsafe impl<K, V, S: BuildHasher> Send for HashIndex<K, V, S> {}
-unsafe impl<K, V, S: BuildHasher> Sync for HashIndex<K, V, S> {}
+unsafe impl<K: Send, V: Send, S: BuildHasher + Send> Send for HashIndex<K, V, S> {}
+unsafe impl<K: Sync, V: Sync, S: BuildHasher + Sync> Sync for HashIndex<K, V, S> {}
 
 impl<K, V, S> Default for HashIndex<K, V, S>
 where
@@ -43,6 +43,9 @@ where
 
 impl<K, V, S> Drop for HashIndex<K, V, S> {
     fn drop(&mut self) {
+        if self.nodes.is_null() {
+            return;
+        }
         for idx in 0..(self.prime as usize) {
             unsafe { self.nodes.add(idx).drop_in_place() };
         }

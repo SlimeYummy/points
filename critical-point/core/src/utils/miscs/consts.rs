@@ -51,7 +51,10 @@ pub enum ActionType {
     Empty,
     Idle,
     Move,
+    MoveNpc,
+    Attack,
     General,
+    AiGeneral,
     Dodge,
     Guard,
     Aim,
@@ -106,7 +109,7 @@ impl TryFrom<rkyv::primitive::ArchivedU16> for ActionType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize, CsEnum)]
 pub enum AiTaskType {
     Idle,
-    Patrol,
+    General,
 }
 
 rkyv_self!(AiTaskType);

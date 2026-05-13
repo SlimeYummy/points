@@ -1,6 +1,7 @@
 use critical_point_csgen::CsOut;
 
 use crate::utils::macros::{rkyv_self, serde_by};
+use crate::utils::{XResult, xres};
 
 //
 // TimeRange
@@ -55,12 +56,15 @@ impl TimeRange {
     }
 
     #[inline]
-    pub fn step(&self, step: f32) -> TimeRangeStep {
-        TimeRangeStep {
+    pub fn step(&self, step: f32) -> XResult<TimeRangeStep> {
+        if step <= 0.0 {
+            return xres!(BadArgument; "step <= 0.0");
+        }
+        Ok(TimeRangeStep {
             range: *self,
             step,
             current: self.begin,
-        }
+        })
     }
 
     /// time in open range (begin, end)

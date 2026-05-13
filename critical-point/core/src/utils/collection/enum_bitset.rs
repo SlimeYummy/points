@@ -95,13 +95,11 @@ impl<E: Bitsetable, const L: usize> Iterator for EnumBitsetIter<E, L> {
     type Item = E;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.cursor != enum_iterator::last() {
-            if self.bitset.get(self.cursor.unwrap()) {
-                let value = self.cursor;
-                self.cursor = enum_iterator::next(&self.cursor).unwrap();
-                return value;
+        while let Some(current) = self.cursor {
+            self.cursor = enum_iterator::next(&current);
+            if self.bitset.get(current) {
+                return Some(current);
             }
-            self.cursor = enum_iterator::next(&self.cursor).unwrap();
         }
         None
     }
@@ -175,7 +173,40 @@ const _: () = {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use enum_iterator::Sequence;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence)]
+    enum Single {
+        A,
+    }
+    unsafe impl Bitsetable for Single {
+        fn ordinal(&self) -> usize {
+            0
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence)]
+    enum Double {
+        A,
+        B,
+    }
+    unsafe impl Bitsetable for Double {
+        fn ordinal(&self) -> usize {
+            *self as usize
+        }
+    }
 
     #[test]
-    fn test_enum_bitset() {}
+    fn test_enum_bitset() {
+        let mut bs1 = EnumBitset::<Single, 1>::new();
+        bs1.set(Single::A, true);
+        assert_eq!(bs1.iter().next(), Some(Single::A));
+        assert_eq!(bs1.to_vec(), vec![Single::A]);
+
+        let mut bs2 = EnumBitset::<Double, 1>::new();
+        bs2.set(Double::B, true);
+        assert_eq!(bs2.iter().collect::<Vec<_>>(), vec![Double::B]);
+        bs2.set(Double::A, true);
+        assert_eq!(bs2.iter().collect::<Vec<_>>(), vec![Double::A, Double::B]);
+    }
 }
