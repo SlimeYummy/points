@@ -13,7 +13,7 @@ pub struct TmplActionIdle {
     #[serde(default)]
     pub styles: Vec<TmplID>,
     #[serde(default)]
-    pub npc_characters: Vec<TmplID>,
+    pub character_npcs: Vec<TmplID>,
     pub tags: Vec<String>,
     pub anim_idle: TmplAnimation,
     #[serde(default)]
@@ -28,21 +28,6 @@ pub struct TmplActionIdle {
 }
 
 impl_tmpl!(TmplActionIdle, ActionIdle, "ActionIdle");
-
-// #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-// #[rkyv(derive(Debug))]
-// pub struct TmplNpcActionIdle {
-//     pub id: TmplID,
-//     pub characters: Vec<TmplID>,
-//     pub tags: Vec<String>,
-//     pub anim_idle: TmplAnimation,
-//     #[serde(default)]
-//     pub anim_ready: Option<TmplAnimation>,
-//     pub auto_idle_delay: f32,
-//     pub poise_level: u16,
-// }
-
-// impl_tmpl!(TmplNpcActionIdle, NpcActionIdle, "NpcActionIdle");
 
 #[cfg(test)]
 mod tests {
@@ -59,7 +44,7 @@ mod tests {
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character, id!("Character.One"));
         assert_eq!(act.styles.as_slice(), &[id!("Style.One^1"), id!("Style.One^2")]);
-        assert!(act.npc_characters.is_empty());
+        assert!(act.character_npcs.is_empty());
         assert_eq!(act.tags.as_slice(), &["Idle"]);
 
         assert_eq!(act.anim_idle.files, "Girl/Idle_Empty.*");
@@ -99,7 +84,7 @@ mod tests {
         assert_eq!(act.id, id!("Action.Enemy.Idle"));
         assert!(act.character.is_invalid());
         assert!(act.styles.is_empty());
-        assert_eq!(act.npc_characters.as_slice(), &[id!("NpcCharacter.Enemy")]);
+        assert_eq!(act.character_npcs.as_slice(), &[id!("CharacterNpc.Enemy")]);
         assert_eq!(act.tags.as_slice(), &["Idle"]);
 
         assert_eq!(act.anim_idle.files, "TrainingDummy/Idle.*");

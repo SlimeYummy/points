@@ -5,7 +5,7 @@ use crate::utils::TmplID;
 #[rkyv(derive(Debug))]
 pub struct TmplAiTaskAttack {
     pub id: TmplID,
-    pub character: TmplID,
+    pub character_npc: TmplID,
 }
 
 impl_tmpl!(TmplAiTaskAttack, AiTaskAttack, "AiTaskAttack");

@@ -13,7 +13,7 @@ pub struct TmplActionHit {
     #[serde(default)]
     pub styles: Vec<TmplID>,
     #[serde(default)]
-    pub npc_characters: Vec<TmplID>,
+    pub character_npcs: Vec<TmplID>,
     pub tags: Vec<String>,
     pub enter_key: VirtualKey,
     pub enter_level: u16,
@@ -26,22 +26,6 @@ pub struct TmplActionHit {
 }
 
 impl_tmpl!(TmplActionHit, ActionHit, "ActionHit");
-
-// #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-// #[rkyv(derive(Debug))]
-// pub struct TmplNpcActionHit {
-//     pub id: TmplID,
-//     pub characters: Vec<TmplID>,
-//     pub tags: Vec<String>,
-//     pub enter_key: VirtualKey,
-//     pub be_hits: Vec<TmplActionHitBeHit>,
-//     pub anim_down: Option<TmplAnimation>,
-//     #[serde(default)]
-//     pub max_down_time: f32,
-//     pub anim_recovery: Option<TmplAnimation>,
-// }
-
-// impl_tmpl!(TmplNpcActionHit, NpcActionHit, "NpcActionHit");
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
@@ -62,7 +46,7 @@ mod tests {
 
         let act = db.find_as::<TmplActionHit>(id!("Action.Enemy.Hit1")).unwrap();
         assert_eq!(act.id, id!("Action.Enemy.Hit1"));
-        assert_eq!(act.npc_characters.as_slice(), &[id!("NpcCharacter.Enemy")]);
+        assert_eq!(act.character_npcs.as_slice(), &[id!("CharacterNpc.Enemy")]);
         assert_eq!(act.tags.as_slice(), &["Hit"]);
         assert_eq!(act.enter_key, VirtualKey::Hit1);
         assert_eq!(act.enter_level, 610);

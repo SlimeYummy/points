@@ -26,7 +26,7 @@ impl At<dyn TmplAny> {
 
     #[inline]
     pub unsafe fn cast_unchecked<T: TmplAny + rkyv::Archive + 'static>(self) -> At<T> {
-        mem::transmute::<At<dyn TmplAny>, At<T>>(self)
+        unsafe { mem::transmute::<At<dyn TmplAny>, At<T>>(self) }
     }
 }
 

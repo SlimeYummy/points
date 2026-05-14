@@ -1,3 +1,5 @@
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use static_assertions::const_assert_eq;
 use std::alloc::Layout;
 use std::cell::{Cell, UnsafeCell};

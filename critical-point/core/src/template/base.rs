@@ -14,7 +14,7 @@ use crate::utils::{Castable, TmplID, XError, XResult, rkyv_self, xres};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize, CsEnum)]
 pub enum TmplType {
     Character,
-    NpcCharacter,
+    CharacterNpc,
     Style,
     Equipment,
     Entry,
@@ -27,16 +27,18 @@ pub enum TmplType {
 
     ActionIdle,
     ActionMove,
+    ActionMoveNpc,
     ActionGeneral,
+    ActionAiGeneral,
     ActionDodge,
     ActionGuard,
     ActionAim,
     ActionHit,
 
     AiBrain,
-    AiTaskAttack,
     AiTaskIdle,
-    AiTaskPatrol,
+    AiTaskGeneral,
+    AiTaskAttack,
 }
 
 rkyv_self!(TmplType);
@@ -119,15 +121,15 @@ const _: () = {
     use super::accessory::{ArchivedTmplAccessory, ArchivedTmplAccessoryPool, TmplAccessory, TmplAccessoryPool};
     use super::action::{
         ArchivedTmplActionGeneral, ArchivedTmplActionHit, ArchivedTmplActionIdle, ArchivedTmplActionMove,
-        TmplActionGeneral, TmplActionHit, TmplActionIdle, TmplActionMove,
+        ArchivedTmplActionMoveNpc, TmplActionGeneral, TmplActionHit, TmplActionIdle, TmplActionMove, TmplActionMoveNpc,
     };
     use super::ai_brain::{ArchivedTmplAiBrain, TmplAiBrain};
     use super::ai_task::{
-        ArchivedTmplAiTaskAttack, ArchivedTmplAiTaskIdle, ArchivedTmplAiTaskPatrol, TmplAiTaskAttack, TmplAiTaskIdle,
-        TmplAiTaskPatrol,
+        ArchivedTmplAiTaskAttack, ArchivedTmplAiTaskGeneral, ArchivedTmplAiTaskIdle, TmplAiTaskAttack,
+        TmplAiTaskGeneral, TmplAiTaskIdle,
     };
     use super::character::{
-        ArchivedTmplCharacter, ArchivedTmplNpcCharacter, ArchivedTmplStyle, TmplCharacter, TmplNpcCharacter, TmplStyle,
+        ArchivedTmplCharacter, ArchivedTmplCharacterNpc, ArchivedTmplStyle, TmplCharacter, TmplCharacterNpc, TmplStyle,
     };
     use super::entry::{ArchivedTmplEntry, TmplEntry};
     use super::equipment::{ArchivedTmplEquipment, TmplEquipment};
@@ -165,7 +167,7 @@ const _: () = {
             let archived_ref: &dyn ArchivedTmplAny = unsafe {
                 match typ {
                     Character => mem::transmute_copy::<usize, &ArchivedTmplCharacter>(&0),
-                    NpcCharacter => mem::transmute_copy::<usize, &ArchivedTmplNpcCharacter>(&0),
+                    CharacterNpc => mem::transmute_copy::<usize, &ArchivedTmplCharacterNpc>(&0),
                     Style => mem::transmute_copy::<usize, &ArchivedTmplStyle>(&0),
                     Equipment => mem::transmute_copy::<usize, &ArchivedTmplEquipment>(&0),
                     Entry => mem::transmute_copy::<usize, &ArchivedTmplEntry>(&0),
@@ -175,15 +177,14 @@ const _: () = {
                     Jewel => mem::transmute_copy::<usize, &ArchivedTmplJewel>(&0),
                     Zone => mem::transmute_copy::<usize, &ArchivedTmplZone>(&0),
                     ActionIdle => mem::transmute_copy::<usize, &ArchivedTmplActionIdle>(&0),
-                    // NpcActionIdle => mem::transmute_copy::<usize, &ArchivedTmplNpcActionIdle>(&0),
                     ActionMove => mem::transmute_copy::<usize, &ArchivedTmplActionMove>(&0),
+                    ActionMoveNpc => mem::transmute_copy::<usize, &ArchivedTmplActionMoveNpc>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &ArchivedTmplActionGeneral>(&0),
                     ActionHit => mem::transmute_copy::<usize, &ArchivedTmplActionHit>(&0),
-                    // NpcActionHit => mem::transmute_copy::<usize, &ArchivedTmplNpcActionHit>(&0),
                     AiBrain => mem::transmute_copy::<usize, &ArchivedTmplAiBrain>(&0),
-                    AiTaskAttack => mem::transmute_copy::<usize, &ArchivedTmplAiTaskAttack>(&0),
                     AiTaskIdle => mem::transmute_copy::<usize, &ArchivedTmplAiTaskIdle>(&0),
-                    AiTaskPatrol => mem::transmute_copy::<usize, &ArchivedTmplAiTaskPatrol>(&0),
+                    AiTaskGeneral => mem::transmute_copy::<usize, &ArchivedTmplAiTaskGeneral>(&0),
+                    AiTaskAttack => mem::transmute_copy::<usize, &ArchivedTmplAiTaskAttack>(&0),
                     _ => unreachable!("pointer_metadata() Invalid TmplType"),
                 }
             };
@@ -221,7 +222,7 @@ const _: () = {
 
             match self.typ() {
                 Character => serialize::<TmplCharacter, _>(self, serializer),
-                NpcCharacter => serialize::<TmplNpcCharacter, _>(self, serializer),
+                CharacterNpc => serialize::<TmplCharacterNpc, _>(self, serializer),
                 Style => serialize::<TmplStyle, _>(self, serializer),
                 Equipment => serialize::<TmplEquipment, _>(self, serializer),
                 Entry => serialize::<TmplEntry, _>(self, serializer),
@@ -231,15 +232,14 @@ const _: () = {
                 Jewel => serialize::<TmplJewel, _>(self, serializer),
                 Zone => serialize::<TmplZone, _>(self, serializer),
                 ActionIdle => serialize::<TmplActionIdle, _>(self, serializer),
-                // NpcActionIdle => serialize::<TmplNpcActionIdle, _>(self, serializer),
                 ActionMove => serialize::<TmplActionMove, _>(self, serializer),
+                ActionMoveNpc => serialize::<TmplActionMoveNpc, _>(self, serializer),
                 ActionGeneral => serialize::<TmplActionGeneral, _>(self, serializer),
                 ActionHit => serialize::<TmplActionHit, _>(self, serializer),
-                // NpcActionHit => serialize::<TmplNpcActionHit, _>(self, serializer),
                 AiBrain => serialize::<TmplAiBrain, _>(self, serializer),
-                AiTaskAttack => serialize::<TmplAiTaskAttack, _>(self, serializer),
                 AiTaskIdle => serialize::<TmplAiTaskIdle, _>(self, serializer),
-                AiTaskPatrol => serialize::<TmplAiTaskPatrol, _>(self, serializer),
+                AiTaskGeneral => serialize::<TmplAiTaskGeneral, _>(self, serializer),
+                AiTaskAttack => serialize::<TmplAiTaskAttack, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid TmplType"),
             }
         }
@@ -271,7 +271,7 @@ const _: () = {
 
             match self.typ() {
                 Character => deserialize::<TmplCharacter, _>(self, deserializer, out),
-                NpcCharacter => deserialize::<TmplNpcCharacter, _>(self, deserializer, out),
+                CharacterNpc => deserialize::<TmplCharacterNpc, _>(self, deserializer, out),
                 Style => deserialize::<TmplStyle, _>(self, deserializer, out),
                 Equipment => deserialize::<TmplEquipment, _>(self, deserializer, out),
                 Entry => deserialize::<TmplEntry, _>(self, deserializer, out),
@@ -283,13 +283,14 @@ const _: () = {
                 ActionIdle => deserialize::<TmplActionIdle, _>(self, deserializer, out),
                 // NpcActionIdle => deserialize::<TmplNpcActionIdle, _>(self, deserializer, out),
                 ActionMove => deserialize::<TmplActionMove, _>(self, deserializer, out),
+                ActionMoveNpc => deserialize::<TmplActionMoveNpc, _>(self, deserializer, out),
                 ActionGeneral => deserialize::<TmplActionGeneral, _>(self, deserializer, out),
                 ActionHit => deserialize::<TmplActionHit, _>(self, deserializer, out),
                 // NpcActionHit => deserialize::<TmplNpcActionHit, _>(self, deserializer, out),
                 AiBrain => deserialize::<TmplAiBrain, _>(self, deserializer, out),
-                AiTaskAttack => deserialize::<TmplAiTaskAttack, _>(self, deserializer, out),
                 AiTaskIdle => deserialize::<TmplAiTaskIdle, _>(self, deserializer, out),
-                AiTaskPatrol => deserialize::<TmplAiTaskPatrol, _>(self, deserializer, out),
+                AiTaskGeneral => deserialize::<TmplAiTaskGeneral, _>(self, deserializer, out),
+                AiTaskAttack => deserialize::<TmplAiTaskAttack, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid TmplType"),
             }
         }
@@ -298,7 +299,7 @@ const _: () = {
             let value_ref: &dyn TmplAny = unsafe {
                 match self.typ() {
                     Character => mem::transmute_copy::<usize, &TmplCharacter>(&0),
-                    NpcCharacter => mem::transmute_copy::<usize, &TmplNpcCharacter>(&0),
+                    CharacterNpc => mem::transmute_copy::<usize, &TmplCharacterNpc>(&0),
                     Style => mem::transmute_copy::<usize, &TmplStyle>(&0),
                     Equipment => mem::transmute_copy::<usize, &TmplEquipment>(&0),
                     Entry => mem::transmute_copy::<usize, &TmplEntry>(&0),
@@ -310,13 +311,14 @@ const _: () = {
                     ActionIdle => mem::transmute_copy::<usize, &TmplActionIdle>(&0),
                     // NpcActionIdle => mem::transmute_copy::<usize, &TmplNpcActionIdle>(&0),
                     ActionMove => mem::transmute_copy::<usize, &TmplActionMove>(&0),
+                    ActionMoveNpc => mem::transmute_copy::<usize, &TmplActionMoveNpc>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &TmplActionGeneral>(&0),
                     ActionHit => mem::transmute_copy::<usize, &TmplActionHit>(&0),
                     // NpcActionHit => mem::transmute_copy::<usize, &TmplNpcActionHit>(&0),
                     AiBrain => mem::transmute_copy::<usize, &TmplAiBrain>(&0),
-                    AiTaskAttack => mem::transmute_copy::<usize, &TmplAiTaskAttack>(&0),
                     AiTaskIdle => mem::transmute_copy::<usize, &TmplAiTaskIdle>(&0),
-                    AiTaskPatrol => mem::transmute_copy::<usize, &TmplAiTaskPatrol>(&0),
+                    AiTaskGeneral => mem::transmute_copy::<usize, &TmplAiTaskGeneral>(&0),
+                    AiTaskAttack => mem::transmute_copy::<usize, &TmplAiTaskAttack>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid TmplType"),
                 }
             };

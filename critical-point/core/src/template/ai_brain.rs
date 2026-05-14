@@ -40,7 +40,7 @@ pub struct AiNodeBranch {
 #[rkyv(derive(Debug))]
 pub struct TmplAiBrain {
     pub id: TmplID,
-    pub character: TmplID,
+    pub character_npc: TmplID,
     pub alert_sphere: ShapeSphere,
     pub alert_cone: ShapeSphericalCone,
     pub attack_exit_delay: f32,
@@ -63,7 +63,7 @@ mod tests {
 
         let executor = db.find_as::<TmplAiBrain>(id!("AiBrain.Enemy")).unwrap();
         assert_eq!(executor.id, id!("AiBrain.Enemy"));
-        assert_eq!(executor.character, id!("NpcCharacter.Enemy"));
+        assert_eq!(executor.character_npc, id!("CharacterNpc.Enemy"));
 
         assert_eq!(executor.alert_sphere.radius, 5.0);
         assert_eq!(executor.alert_cone.radius, 10.0);
