@@ -14,7 +14,7 @@ pub struct TmplActionGeneral {
     #[serde(default)]
     pub styles: Vec<TmplID>,
     #[serde(default)]
-    pub npc_characters: Vec<TmplID>,
+    pub character_npcs: Vec<TmplID>,
     pub tags: Vec<String>,
     pub anim_main: TmplAnimation,
     pub enter_key: Option<VirtualKeyDir>,
@@ -145,9 +145,9 @@ mod tests {
         assert_eq!(act.id, id!("Action.One.Attack^1"));
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character, id!("Character.One"));
-        assert!(act.npc_characters.is_empty());
+        assert!(act.character_npcs.is_empty());
         assert_eq!(act.styles.as_slice(), &[id!("Style.One^1"), id!("Style.One^2")]);
-        assert!(act.npc_characters.is_empty());
+        assert!(act.character_npcs.is_empty());
         assert_eq!(act.tags.as_slice(), &["Attack"]);
 
         assert_eq!(act.anim_main.files, "Girl/Attack_Test.*");

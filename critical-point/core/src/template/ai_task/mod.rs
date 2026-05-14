@@ -1,7 +1,9 @@
 mod attack;
+mod base;
+mod general;
 mod idle;
-mod patrol;
 
 pub use attack::*;
+pub use base::*;
+pub use general::*;
 pub use idle::*;
-pub use patrol::*;

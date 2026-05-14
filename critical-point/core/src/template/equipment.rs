@@ -1,6 +1,6 @@
 use crate::template::attribute::TmplAttribute;
 use crate::template::base::impl_tmpl;
-use crate::utils::{JewelSlots, LevelRange, PiecePlus, Table, TmplID, impl_for, rkyv_self};
+use crate::utils::{JewelSlots, PiecePlus, Table, TmplID, U32Range, impl_for, rkyv_self};
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -21,7 +21,7 @@ pub struct TmplEquipment {
     pub slot: TmplEquipmentSlot,
     #[serde(default)]
     pub parents: Table<TmplID, u32>,
-    pub level: LevelRange,
+    pub level: U32Range,
     #[serde(default)]
     pub materials: Table<TmplID, Vec<f32>>,
     pub attributes: Table<TmplAttribute, Vec<f32>>,

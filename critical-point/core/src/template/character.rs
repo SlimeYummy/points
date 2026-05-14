@@ -3,7 +3,7 @@ use glam_ext::Vec2xz;
 
 use crate::template::attribute::TmplAttribute;
 use crate::template::base::impl_tmpl;
-use crate::utils::{JewelSlots, LevelRange, Table, TmplID, impl_for, rkyv_self};
+use crate::utils::{JewelSlots, Table, TmplID, U32Range, impl_for, rkyv_self};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
 #[repr(u8)]
@@ -20,7 +20,7 @@ rkyv_self!(CharacterType);
 pub struct TmplCharacter {
     pub id: TmplID,
     pub name: String,
-    pub level: LevelRange,
+    pub level: U32Range,
     pub styles: Vec<TmplID>,
     pub equipments: Vec<TmplID>,
     pub skeleton_files: String,
@@ -57,23 +57,23 @@ impl_tmpl!(TmplStyle, Style, "Style");
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-pub struct TmplNpcCharacter {
+pub struct TmplCharacterNpc {
     pub id: TmplID,
     pub name: String,
     pub tags: Vec<String>,
-    pub level: LevelRange,
+    pub level: U32Range,
     pub attributes: Table<TmplAttribute, Vec<f32>>,
     pub fixed_attributes: TmplFixedAttributes,
     pub actions: Vec<TmplID>,
-    pub ai_executors: Vec<TmplID>,
+    pub ai_brains: Vec<TmplID>,
     pub skeleton_files: String,
     pub skeleton_toward: Vec2xz,
     pub view_model: String,
 }
 
-impl_tmpl!(TmplNpcCharacter, NpcCharacter, "NpcCharacter");
+impl_tmpl!(TmplCharacterNpc, CharacterNpc, "CharacterNpc");
 
-impl_for!(TmplNpcCharacter, ArchivedTmplNpcCharacter, {
+impl_for!(TmplCharacterNpc, ArchivedTmplCharacterNpc, {
     #[inline]
     pub fn level_to_index(&self, level: u32) -> usize {
         (level.clamp(self.level.min, self.level.max) - self.level.min) as usize
@@ -195,8 +195,8 @@ mod tests {
     fn test_load_npc() {
         let db = TmplDatabase::new(10240, 150).unwrap();
 
-        let npc = db.find_as::<TmplNpcCharacter>(id!("NpcCharacter.Enemy")).unwrap();
-        assert_eq!(npc.id(), id!("NpcCharacter.Enemy"));
+        let npc = db.find_as::<TmplCharacterNpc>(id!("CharacterNpc.Enemy")).unwrap();
+        assert_eq!(npc.id(), id!("CharacterNpc.Enemy"));
         assert_eq!(npc.name, "Enemy");
         assert_eq!(&npc.tags.as_slice(), &["Npc"]);
 
@@ -215,10 +215,11 @@ mod tests {
 
         assert_eq!(npc.actions.as_slice(), &[
             id!("Action.Enemy.Idle"),
+            id!("Action.Enemy.Walk"),
             id!("Action.Enemy.Hit1")
         ]);
 
-        assert_eq!(npc.ai_executors.as_slice(), &[id!("AiBrain.Enemy")]);
+        assert_eq!(npc.ai_brains.as_slice(), &[id!("AiBrain.Enemy")]);
 
         assert_eq!(npc.skeleton_files, "TrainingDummy/TrainingDummy.*");
         assert_eq!(npc.skeleton_toward, Vec2xz::Z);

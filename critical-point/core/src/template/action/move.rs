@@ -8,27 +8,22 @@ use crate::utils::{TmplID, VirtualKey};
 pub struct TmplActionMove {
     pub id: TmplID,
     pub enabled: TmplVar<bool>,
-    #[serde(default)]
     pub character: TmplID,
-    #[serde(default)]
     pub styles: Vec<TmplID>,
-    #[serde(default)]
-    pub npc_characters: Vec<TmplID>,
     pub tags: Vec<String>,
     pub enter_key: VirtualKey,
     pub enter_level: u16,
     pub derive_level: u16,
-    pub special_derive_level: u16,
+    pub derive_level_special: u16,
+    pub poise_level: u16,
     pub anim_move: TmplAnimation,
     pub move_speed: f32,
+    pub speed_ratio: f32,
     pub starts: Vec<TmplActionMoveStart>,
-    pub start_time: f32,
+    pub stops: Vec<TmplActionMoveStop>,
+    pub quick_stop_time: f32,
     pub turns: Vec<TmplActionMoveTurn>,
     pub turn_time: f32,
-    pub stops: Vec<TmplActionMoveStop>,
-    pub stop_time: f32,
-    pub quick_stop_time: f32,
-    pub poise_level: u16,
     pub smooth_move_froms: Vec<TmplID>,
     pub smooth_move_duration: f32,
 }
@@ -130,14 +125,13 @@ mod tests {
         assert_eq!(act.id, id!("Action.One.Run"));
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character, id!("Character.One"));
-        assert!(act.npc_characters.is_empty());
         assert_eq!(act.styles.as_slice(), &[id!("Style.One^1"), id!("Style.One^2")]);
-        assert!(act.npc_characters.is_empty());
         assert_eq!(act.tags.as_slice(), &["Run"]);
         assert_eq!(act.enter_key, VirtualKey::Run);
         assert_eq!(act.enter_level, LEVEL_MOVE);
         assert_eq!(act.derive_level, LEVEL_MOVE - 10);
-        assert_eq!(act.special_derive_level, LEVEL_MOVE + 10);
+        assert_eq!(act.derive_level_special, LEVEL_MOVE + 10);
+        assert_eq!(act.poise_level, 0);
 
         assert_eq!(act.anim_move.files, "Girl/Run_Empty.*");
         assert_eq!(act.anim_move.duration, 0.93333334);
@@ -148,7 +142,6 @@ mod tests {
         assert_eq!(act.move_speed, 3.0);
 
         assert_eq!(act.starts.len(), 3);
-        assert_eq!(act.start_time, cf2s(4));
         assert_eq!(act.starts[0].anim.files, "Girl/RunStart_Empty.*");
         assert_eq!(act.starts[0].anim.fade_in, 0.0);
         assert_eq!(act.starts[0].anim.root_motion, true);
@@ -167,11 +160,7 @@ mod tests {
         assert_eq!(act.starts[2].turn_in_place_end, cf2s(8));
         assert_eq!(act.starts[2].quick_stop_end, cf2s(26));
 
-        assert_eq!(act.turns.len(), 0);
-        assert_eq!(act.turn_time, cf2s(10));
-
         assert_eq!(act.stops.len(), 2);
-        assert_eq!(act.stop_time, cf2s(6));
         assert_eq!(act.quick_stop_time, cf2s(0));
         assert_eq!(act.stops[0].anim.files, "Girl/RunStop_L_Empty.*");
         assert_eq!(act.stops[0].anim.fade_in, cf2s(4));
@@ -221,7 +210,9 @@ mod tests {
             }
         );
 
-        assert_eq!(act.poise_level, 0);
+        assert_eq!(act.turns.len(), 0);
+        assert_eq!(act.turn_time, cf2s(10));
+
         assert_eq!(act.smooth_move_froms.as_slice(), &[id!("Action.One.Run")]);
         assert_eq!(act.smooth_move_duration, cf2s(10));
     }
