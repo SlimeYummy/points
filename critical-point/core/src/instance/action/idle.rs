@@ -119,11 +119,11 @@ mod tests {
         };
 
         let db = TmplDatabase::new(10240, 150).unwrap();
-        let tmpl_act = db.find_as::<TmplActionIdle>(id!("Action.NpcInstance.Idle^1A")).unwrap();
+        let tmpl_act = db.find_as::<TmplActionIdle>(id!("Action.InstanceNpc.Idle^1A")).unwrap();
 
         let inst_act = InstActionIdle::new_from_action(&ctx, tmpl_act).unwrap();
 
-        assert_eq!(inst_act.tmpl_id, id!("Action.NpcInstance.Idle^1A"));
+        assert_eq!(inst_act.tmpl_id, id!("Action.InstanceNpc.Idle^1A"));
         assert_eq!(inst_act.tags, vec![sb!("Idle")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Idle, None));
         assert_eq!(inst_act.enter_level, 0);

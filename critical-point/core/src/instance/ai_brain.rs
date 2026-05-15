@@ -22,7 +22,7 @@ struct NodeBranch {
 #[derive(Debug)]
 pub struct InstAiBrain {
     pub tmpl_id: TmplID,
-    pub character: TmplID,
+    pub character_npc: TmplID,
     pub alert_sphere: ShapeSphere,
     pub alert_cone: ShapeSphericalCone,
     pub attack_exit_delay: f32,
@@ -37,7 +37,7 @@ impl InstAiBrain {
     pub(crate) fn new(db: &TmplDatabase, tmpl: At<TmplAiBrain>) -> XResult<Rc<InstAiBrain>> {
         let mut inst = InstAiBrain {
             tmpl_id: tmpl.id,
-            character: tmpl.character,
+            character_npc: tmpl.character_npc,
             alert_sphere: tmpl.alert_sphere,
             alert_cone: tmpl.alert_cone,
             attack_exit_delay: tmpl.attack_exit_delay.to_native(),
@@ -187,12 +187,12 @@ mod tests {
     #[test]
     fn test_new_inst_ai_brain() {
         let db = TmplDatabase::new(10240, 150).unwrap();
-        let tmpl = db.find_as::<TmplAiBrain>(id!("AiBrain.NpcInstance^1")).unwrap();
+        let tmpl = db.find_as::<TmplAiBrain>(id!("AiBrain.InstanceNpc^1")).unwrap();
 
         let inst = InstAiBrain::new(&db, tmpl).unwrap();
 
-        assert_eq!(inst.tmpl_id, id!("AiBrain.NpcInstance^1"));
-        assert_eq!(inst.character, id!("NpcCharacter.NpcInstance^1"));
+        assert_eq!(inst.tmpl_id, id!("AiBrain.InstanceNpc^1"));
+        assert_eq!(inst.character_npc, id!("CharacterNpc.InstanceNpc^1"));
         assert_eq!(inst.alert_sphere.radius, 5.0);
         assert_eq!(inst.alert_cone.radius, 10.0);
         assert_eq!(inst.alert_cone.half_angle, 45.0f32.to_radians());
@@ -211,7 +211,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(task_ids.len(), 2);
-        assert_eq!(task_ids[0], id!("AiTask.NpcInstance.Idle^1"));
-        assert_eq!(task_ids[1], id!("AiTask.NpcInstance.Patrol^1"));
+        assert_eq!(task_ids[0], id!("AiTask.InstanceNpc.Idle^1"));
+        assert_eq!(task_ids[1], id!("AiTask.InstanceNpc.Idle^1"));
     }
 }
