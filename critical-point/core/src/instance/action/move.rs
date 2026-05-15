@@ -8,29 +8,6 @@ pub type InstActionMoveStopEnter = TmplActionMoveStopEnter;
 pub type InstActionMoveStopLeave = TmplActionMoveStopLeave;
 
 #[derive(Debug)]
-#[repr(C)]
-pub struct InstActionMove {
-    pub _base: InstActionBase,
-    pub derive_level: u16,
-    pub special_derive_level: u16,
-    pub anim_move: InstAnimation,
-    pub move_speed: f32,
-    pub starts: Vec<InstActionMoveStart>,
-    pub start_time: f32,
-    pub turns: Vec<InstActionMoveTurn>,
-    pub turn_time: f32,
-    pub direct_turn_cos: [f32; 2],
-    pub stops: Vec<InstActionMoveStop>,
-    pub stop_time: f32,
-    pub quick_stop_time: f32,
-    pub poise_level: u16,
-    pub smooth_move_froms: Vec<TmplID>,
-    pub smooth_move_duration: f32,
-}
-
-extend!(InstActionMove, InstActionBase);
-
-#[derive(Debug)]
 pub struct InstActionMoveStart {
     pub anim: InstAnimation,
     pub enter_angle: [f32; 2],
@@ -48,9 +25,31 @@ pub struct InstActionMoveTurn {
 #[derive(Debug)]
 pub struct InstActionMoveStop {
     pub anim: InstAnimation,
-    pub enter_phase_table: SmallVec<[InstActionMoveStopEnter; 2]>,
-    pub leave_phase_table: SmallVec<[InstActionMoveStopLeave; 3]>,
+    pub enter_phase_table: SmallVec<[InstActionMoveStopEnter; 3]>,
+    pub leave_phase_table: SmallVec<[InstActionMoveStopLeave; 4]>,
 }
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct InstActionMove {
+    pub _base: InstActionBase,
+    pub derive_level: u16,
+    pub derive_level_special: u16,
+    pub poise_level: u16,
+    pub anim_move: InstAnimation,
+    pub move_speed: f32,
+    pub speed_ratio: f32,
+    pub starts: Vec<InstActionMoveStart>,
+    pub stops: Vec<InstActionMoveStop>,
+    pub quick_stop_time: f32,
+    pub turns: Vec<InstActionMoveTurn>,
+    pub turn_time: f32,
+    pub direct_turn_cos: [f32; 2],
+    pub smooth_move_froms: Vec<TmplID>,
+    pub smooth_move_duration: f32,
+}
+
+extend!(InstActionMove, InstActionBase);
 
 unsafe impl InstActionAny for InstActionMove {
     #[inline]
@@ -73,7 +72,7 @@ impl InstActionMove {
 
         let mut starts = Vec::with_capacity(tmpl.starts.len());
         for a in tmpl.starts.iter() {
-            let mut enter_angle = [a.enter_angle[0].into(), a.enter_angle[1].into()];
+            let mut enter_angle = [a.enter_angle[0].to_native(), a.enter_angle[1].to_native()];
             if enter_angle[0] > enter_angle[1] {
                 enter_angle.swap(0, 1);
             }
@@ -81,15 +80,15 @@ impl InstActionMove {
             starts.push(InstActionMoveStart {
                 anim: InstAnimation::from_rkyv(&a.anim),
                 enter_angle,
-                turn_in_place_end: a.turn_in_place_end.into(),
-                quick_stop_end: a.quick_stop_end.into(),
+                turn_in_place_end: a.turn_in_place_end.to_native(),
+                quick_stop_end: a.quick_stop_end.to_native(),
             });
         }
 
         let mut direct_turn_angle: [f32; 2] = [-std::f32::consts::PI, std::f32::consts::PI];
         let mut turns = Vec::with_capacity(tmpl.turns.len());
         for a in tmpl.turns.iter() {
-            let mut enter_angle = [a.enter_angle[0].into(), a.enter_angle[1].into()];
+            let mut enter_angle = [a.enter_angle[0].to_native(), a.enter_angle[1].to_native()];
             if enter_angle[0] > enter_angle[1] {
                 enter_angle.swap(0, 1);
             }
@@ -107,7 +106,7 @@ impl InstActionMove {
             turns.push(InstActionMoveTurn {
                 anim: InstAnimation::from_rkyv(&a.anim),
                 enter_angle,
-                turn_in_place_end: a.turn_in_place_end.into(),
+                turn_in_place_end: a.turn_in_place_end.to_native(),
             });
         }
 
@@ -133,24 +132,23 @@ impl InstActionMove {
                 tmpl_id: tmpl.id,
                 tags: tmpl.tags.iter().map(|t| sb!(t)).collect(),
                 enter_key: Some(VirtualKeyDir::new(tmpl.enter_key, None)),
-                enter_level: tmpl.enter_level.into(),
+                enter_level: tmpl.enter_level.to_native(),
                 ..Default::default()
             },
-            derive_level: tmpl.derive_level.into(),
-            special_derive_level: tmpl.special_derive_level.into(),
+            derive_level: tmpl.derive_level.to_native(),
+            derive_level_special: tmpl.derive_level_special.to_native(),
+            poise_level: tmpl.poise_level.to_native(),
             anim_move: InstAnimation::from_rkyv(&tmpl.anim_move),
-            move_speed: tmpl.move_speed.into(),
+            move_speed: tmpl.move_speed.to_native(),
+            speed_ratio: tmpl.speed_ratio.to_native(),
             starts,
-            start_time: tmpl.start_time.into(),
-            turns,
-            turn_time: tmpl.turn_time.into(),
-            direct_turn_cos: [direct_turn_angle[0].cos(), direct_turn_angle[1].cos()],
             stops,
-            stop_time: tmpl.stop_time.into(),
-            quick_stop_time: tmpl.quick_stop_time.into(),
-            poise_level: tmpl.poise_level.into(),
+            quick_stop_time: tmpl.quick_stop_time.to_native(),
+            turns,
+            turn_time: tmpl.turn_time.to_native(),
+            direct_turn_cos: [direct_turn_angle[0].cos(), direct_turn_angle[1].cos()],
             smooth_move_froms: tmpl.smooth_move_froms.iter().map(|x| *x).collect(),
-            smooth_move_duration: tmpl.smooth_move_duration.into(),
+            smooth_move_duration: tmpl.smooth_move_duration.to_native(),
         })
     }
 
@@ -249,7 +247,7 @@ mod tests {
     use crate::utils::{DtHashMap, LEVEL_MOVE, VirtualKey, cf2s, id};
 
     #[test]
-    fn test_new() {
+    fn test_new_move() {
         let db = TmplDatabase::new(10240, 150).unwrap();
         let var_indexes = DtHashMap::default();
 
@@ -263,16 +261,17 @@ mod tests {
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Run, None));
         assert_eq!(inst_act.enter_level, LEVEL_MOVE);
         assert_eq!(inst_act.derive_level, LEVEL_MOVE - 10);
-        assert_eq!(inst_act.special_derive_level, LEVEL_MOVE + 10);
+        assert_eq!(inst_act.derive_level_special, LEVEL_MOVE + 10);
+        assert_eq!(inst_act.poise_level, 0);
 
         assert_eq!(inst_act.anim_move.files, "Girl/Run_Empty.*");
         assert_eq!(inst_act.anim_move.duration, 0.93333334);
         assert_eq!(inst_act.anim_move.fade_in, cf2s(4));
         assert_eq!(inst_act.anim_move.root_motion, true);
         assert_eq!(inst_act.move_speed, 3.0);
+        assert_eq!(inst_act.speed_ratio, 1.0);
 
         assert_eq!(inst_act.starts.len(), 3);
-        assert_eq!(inst_act.start_time, cf2s(4));
         assert_eq!(inst_act.starts[0].anim.files, "Girl/RunStart_Empty.*");
         assert_eq!(inst_act.starts[0].anim.fade_in, 0.0);
         assert_eq!(inst_act.starts[0].anim.root_motion, true);
@@ -297,12 +296,7 @@ mod tests {
         assert_eq!(inst_act.starts[2].turn_in_place_end, cf2s(8));
         assert_eq!(inst_act.starts[2].quick_stop_end, cf2s(26));
 
-        assert_eq!(inst_act.turns.len(), 0);
-        assert_eq!(inst_act.turn_time, cf2s(10));
-        assert_eq!(inst_act.direct_turn_cos, [-1.0; 2]);
-
         assert_eq!(inst_act.stops.len(), 2);
-        assert_eq!(inst_act.stop_time, cf2s(6));
         assert_eq!(inst_act.quick_stop_time, cf2s(0));
         assert_eq!(inst_act.stops[0].anim.files, "Girl/RunStop_L_Empty.*");
         assert_eq!(inst_act.stops[0].anim.fade_in, cf2s(4));
@@ -335,7 +329,10 @@ mod tests {
             }
         ]);
 
-        assert_eq!(inst_act.poise_level, 0);
+        assert_eq!(inst_act.turns.len(), 0);
+        assert_eq!(inst_act.turn_time, cf2s(10));
+        assert_eq!(inst_act.direct_turn_cos, [-1.0; 2]);
+
         assert_eq!(inst_act.smooth_move_froms.as_slice(), &[]);
         assert_eq!(inst_act.smooth_move_duration, cf2s(10));
     }

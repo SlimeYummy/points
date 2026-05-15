@@ -12,8 +12,8 @@ use crate::instance::values::{PanelValues, PrimaryValues, SecondaryValues};
 use crate::instance::{InstAiBrain, InstAiNode};
 use crate::parameter::{ParamNpc, ParamPlayer};
 use crate::template::{
-    TmplAccessory, TmplAccessoryPool, TmplAiBrain, TmplCharacter, TmplEntry, TmplEquipment, TmplJewel,
-    TmplNpcCharacter, TmplPerk, TmplStyle,
+    TmplAccessory, TmplAccessoryPool, TmplAiBrain, TmplCharacter, TmplCharacterNpc, TmplEntry, TmplEquipment,
+    TmplJewel, TmplPerk, TmplStyle,
 };
 use crate::utils::{
     Castable, DtHashIndex, DtHashMap, JewelSlots, PiecePlus, Symbol, TmplID, VirtualKey, XResult, force_mut,
@@ -23,7 +23,7 @@ use crate::utils::{
 #[derive(Debug, Default)]
 pub struct InstCharacter {
     pub is_player: bool,
-    pub tmpl_character: TmplID, // TmplCharacter for
+    pub tmpl_character: TmplID, // TmplCharacter/TmplCharacterNpc
     pub tmpl_style: TmplID,     // player only
     pub level: u32,
 
@@ -276,7 +276,7 @@ impl InstCharacter {
     }
 
     fn collect_npc_character(ctx: &mut ContextAssemble<'_>, param: &ParamNpc, inst: &mut InstCharacter) -> XResult<()> {
-        let chara = ctx.tmpl_db.find_as::<TmplNpcCharacter>(param.character)?;
+        let chara = ctx.tmpl_db.find_as::<TmplCharacterNpc>(param.character)?;
 
         inst.tags = chara.tags.iter().map(|t| sb!(t)).collect();
         inst.skeleton_files = sb!(&chara.skeleton_files);
@@ -296,7 +296,7 @@ impl InstCharacter {
             var_indexes: &inst.var_indexes,
         };
 
-        let chara = ctx.tmpl_db.find_as::<TmplNpcCharacter>(param.character)?;
+        let chara = ctx.tmpl_db.find_as::<TmplCharacterNpc>(param.character)?;
         for id in chara.actions.iter() {
             let action = ctx.tmpl_db.find(*id)?;
             if let Some(action) = assemble_action(&ctxa, action)? {
@@ -732,7 +732,7 @@ mod tests {
         let mut ctx = ContextAssemble::new(&db);
 
         let mut param = ParamNpc::default();
-        param.character = id!("NpcCharacter.NpcInstance^1");
+        param.character = id!("CharacterNpc.InstanceNpc^1");
         param.level = 3;
         let mut inst = InstCharacter::default();
         InstCharacter::collect_npc_character(&mut ctx, &param, &mut inst).unwrap();
@@ -754,22 +754,27 @@ mod tests {
         let mut ctx = ContextAssemble::new(&db);
 
         let mut param = ParamNpc::default();
-        param.character = id!("NpcCharacter.NpcInstance^1");
+        param.character = id!("CharacterNpc.InstanceNpc^1");
         let mut inst = InstCharacter::default();
         InstCharacter::collect_npc_actions(&mut ctx, &param, &mut inst).unwrap();
 
-        assert_eq!(inst.actions.len(), 2);
-        assert!(inst.actions.contains_key(&id!("Action.NpcInstance.Idle^1A")));
-        assert!(inst.actions.contains_key(&id!("Action.NpcInstance.Hit1^1A")));
+        assert_eq!(inst.actions.len(), 3);
+        assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Idle^1A")));
+        assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Walk^1A")));
+        assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Hit1^1A")));
 
-        assert_eq!(inst.primary_keys.len(), 2);
+        assert_eq!(inst.primary_keys.len(), 3);
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Idle).unwrap(),
-            &id!("Action.NpcInstance.Idle^1A")
+            &id!("Action.InstanceNpc.Idle^1A")
+        );
+        assert_eq!(
+            inst.primary_keys.find_first(&VirtualKey::Walk).unwrap(),
+            &id!("Action.InstanceNpc.Walk^1A")
         );
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Hit1).unwrap(),
-            &id!("Action.NpcInstance.Hit1^1A")
+            &id!("Action.InstanceNpc.Hit1^1A")
         );
     }
 
@@ -779,14 +784,14 @@ mod tests {
         let mut ctx = ContextAssemble::new(&db);
 
         let param = ParamNpc {
-            character: id!("NpcCharacter.NpcInstance^1"),
+            character: id!("CharacterNpc.InstanceNpc^1"),
             level: 4,
-            ai_brain: id!("AiBrain.NpcInstance^1"),
+            ai_brain: id!("AiBrain.InstanceNpc^1"),
             position: Vec3A::ZERO,
         };
         let inst = InstCharacter::new_npc(&mut ctx, &param).unwrap();
 
-        assert_eq!(inst.actions.len(), 2);
+        assert_eq!(inst.actions.len(), 3);
 
         assert_eq!(inst.primary.max_health, 1000.0);
         assert_eq!(inst.primary.max_posture, 160.0);

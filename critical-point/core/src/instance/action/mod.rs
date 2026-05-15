@@ -7,6 +7,7 @@ mod general;
 mod hit;
 mod idle;
 mod r#move;
+mod move_npc;
 
 // pub use aim::*;
 pub use base::*;
@@ -17,6 +18,7 @@ pub use general::*;
 pub use hit::*;
 pub use idle::*;
 pub use r#move::*;
+pub use move_npc::*;
 
 use std::rc::Rc;
 
@@ -32,10 +34,10 @@ pub(crate) fn assemble_action(
             Some(act) => Rc::new(act),
             None => return Ok(None),
         },
-        // TmplType::NpcActionIdle => match InstActionIdle::new_from_npc_action(unsafe { tmpl.cast_unchecked() }) {
-        //     Some(act) => Rc::new(act),
-        //     None => return Ok(None),
-        // },
+        TmplType::ActionMoveNpc => match InstActionMoveNpc::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
+            Some(act) => Rc::new(act),
+            None => return Ok(None),
+        },
         TmplType::ActionMove => match InstActionMove::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
             Some(act) => Rc::new(act),
             None => return Ok(None),
