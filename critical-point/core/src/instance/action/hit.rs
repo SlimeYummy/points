@@ -1,4 +1,3 @@
-use approx::abs_diff_eq;
 use rkyv::Archived;
 use std::f32::consts::PI;
 
@@ -6,20 +5,7 @@ use crate::instance::action::base::{
     ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation, InstDeriveRule,
 };
 use crate::template::{At, TmplActionHit, TmplActionHitBeHit};
-use crate::utils::{ActionType, TmplID, VirtualKeyDir, XResult, extend, ifelse, ratio_saturating, sb, xresf};
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct InstActionHit {
-    pub _base: InstActionBase,
-    pub be_hits: Vec<InstActionHitBeHit>,
-    pub anim_down: Option<InstAnimation>,
-    pub max_down_time: f32,
-    pub anim_recovery: Option<InstAnimation>,
-    pub derive_level: u16,
-}
-
-extend!(InstActionHit, InstActionBase);
+use crate::utils::{ActionType, TmplID, VirtualKeyDir, XResult, extend, ifelse, sb, xresf};
 
 #[derive(Debug)]
 pub struct InstActionHitBeHit {
@@ -50,6 +36,19 @@ impl InstActionHitBeHit {
         Ok(be_hits)
     }
 }
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct InstActionHit {
+    pub _base: InstActionBase,
+    pub be_hits: Vec<InstActionHitBeHit>,
+    pub anim_down: Option<InstAnimation>,
+    pub max_down_time: f32,
+    pub anim_recovery: Option<InstAnimation>,
+    pub derive_level: u16,
+}
+
+extend!(InstActionHit, InstActionBase);
 
 unsafe impl InstActionAny for InstActionHit {
     #[inline]
@@ -206,18 +205,18 @@ mod tests {
     // }
 
     #[test]
-    fn test_new_npc() {
+    fn test_new_npc_hit() {
         let var_indexes = DtHashMap::default();
         let ctx = ContextActionAssemble {
             var_indexes: &var_indexes,
         };
 
         let db = TmplDatabase::new(10240, 150).unwrap();
-        let tmpl_act = db.find_as::<TmplActionHit>(id!("Action.NpcInstance.Hit1^1A")).unwrap();
+        let tmpl_act = db.find_as::<TmplActionHit>(id!("Action.InstanceNpc.Hit1^1A")).unwrap();
 
         let inst_act = InstActionHit::new_from_action(&ctx, tmpl_act).unwrap().unwrap();
 
-        assert_eq!(inst_act.tmpl_id, id!("Action.NpcInstance.Hit1^1A"));
+        assert_eq!(inst_act.tmpl_id, id!("Action.InstanceNpc.Hit1^1A"));
         assert_eq!(inst_act.tags, vec![sb!("Hit")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Hit1, None));
         assert_eq!(inst_act.enter_level, 610);
