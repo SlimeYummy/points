@@ -15,7 +15,7 @@ use crate::logic::character::{
 use crate::logic::game::{ContextHitGenerate, ContextRestore, ContextUpdate, HitCharacterEvent};
 use crate::logic::physics::PhyHitCharacterEvent;
 use crate::parameter::{ParamNpc, ParamPlayer};
-use crate::template::{TmplNpcCharacter, TmplStyle};
+use crate::template::{TmplCharacterNpc, TmplStyle};
 use crate::utils::{CustomEvent, NumID, Symbol, XResult, extend};
 
 #[repr(C)]
@@ -111,7 +111,7 @@ impl LogicCharacter {
         param: &ParamNpc,
     ) -> XResult<(Box<LogicCharacter>, Arc<StateCharacterInit>)> {
         let inst_npc = InstCharacter::new_npc(&mut ctx.context_assemble(), param)?;
-        let tmpl_chara = ctx.tmpl_db.find_as::<TmplNpcCharacter>(param.character)?;
+        let tmpl_chara = ctx.tmpl_db.find_as::<TmplCharacterNpc>(param.character)?;
         Self::new_impl(
             ctx,
             inst_npc,
@@ -243,13 +243,13 @@ mod tests {
             ..Default::default()
         };
         let mut ctx = tenv.context_update();
-        let (logic_player, state_init) = LogicCharacter::new_player(&mut ctx, &param_player).unwrap();
         ctx.input.init(1).unwrap();
+        let (logic_player, state_init) = LogicCharacter::new_player(&mut ctx, &param_player).unwrap();
         (logic_player, state_init)
     }
 
     #[test]
-    fn test_new() {
+    fn test_logic_player_new() {
         let mut tenv = TestEnv::new().unwrap();
         let (mut logic_player, state_init) = prepare_player(&mut tenv);
         assert_eq!(logic_player.id, 100);

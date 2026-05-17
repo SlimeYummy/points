@@ -17,7 +17,7 @@ impl TestEnv {
 
     pub fn new() -> XResult<TestEnv> {
         let db = TmplDatabase::new(10240, 150)?;
-        let systems = LogicSystems::new(db, TEST_ASSET_PATH, None)?;
+        let mut systems = LogicSystems::new(db, TEST_ASSET_PATH, None)?;
         Ok(TestEnv { systems })
     }
 
