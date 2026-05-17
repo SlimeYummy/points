@@ -1,10 +1,10 @@
 mod base;
+mod general;
 mod idle;
-mod patrol;
 
 pub use base::*;
+pub use general::*;
 pub use idle::*;
-pub use patrol::*;
 
 use std::rc::Rc;
 
@@ -17,8 +17,8 @@ pub(crate) fn assemble_ai_task(tmpl: At<dyn TmplAny>) -> XResult<Rc<dyn InstAiTa
             let inst = InstAiTaskIdle::new(unsafe { tmpl.cast_unchecked() });
             Rc::new(inst)
         }
-        TmplType::AiTaskPatrol => {
-            let inst = InstAiTaskPatrol::new(unsafe { tmpl.cast_unchecked() });
+        TmplType::AiTaskGeneral => {
+            let inst = InstAiTaskGeneral::new(unsafe { tmpl.cast_unchecked() });
             Rc::new(inst)
         }
         _ => return xres!(BadType),
