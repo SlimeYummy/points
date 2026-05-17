@@ -177,7 +177,7 @@ impl LogicCharaPhysics {
             self.handle_action_changed(ctx, chara_ctrl)?
         }
         self.update_boxes_and_groups(ctx, chara_ctrl)?;
-        
+
         self.hit_events.clear();
         self.be_hit_events.clear();
         Ok(())
@@ -217,17 +217,22 @@ impl LogicCharaPhysics {
     }
 
     #[inline]
+    pub fn id(&self) -> NumID {
+        self.chara_id
+    }
+
+    #[inline]
     pub fn position(&self) -> Vec3A {
         self.position
     }
 
     #[inline]
-    pub fn position_xz(&self) -> Vec3A {
+    pub fn position_xz_3d(&self) -> Vec3A {
         Vec3A::new(self.position.x, 0.0, self.position.z)
     }
 
     #[inline]
-    pub fn position_2d(&self) -> Vec2xz {
+    pub fn position_xz(&self) -> Vec2xz {
         Vec2xz::from_vec2(self.position.xz())
     }
 
@@ -237,13 +242,13 @@ impl LogicCharaPhysics {
     }
 
     #[inline]
-    pub fn direction(&self) -> Vec2xz {
-        self.direction
+    pub fn direction(&self) -> Vec3A {
+        self.direction.as_vec3a()
     }
 
     #[inline]
-    pub fn direction_3d(&self) -> Vec3A {
-        self.direction.as_vec3a()
+    pub fn direction_xz(&self) -> Vec2xz {
+        self.direction
     }
 
     #[cfg(test)]

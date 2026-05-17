@@ -156,7 +156,7 @@ pub struct StateBase {
 #[cfg(feature = "debug-print")]
 impl Drop for StateBase {
     fn drop(&mut self) {
-        log::debug!("StateBase::drop() id={}  typ={:?}", self.id, self.typ);
+        log::debug!("StateBase::drop() id={} typ={:?}", self.id, self.typ);
     }
 }
 
@@ -428,6 +428,7 @@ mod tests {
     };
     use crate::logic::game::{HitCharacterEvent, StateGameInit, StateGameUpdate};
     use crate::logic::system::generation::StateGeneration;
+    use crate::logic::system::random::StateRandom;
     use crate::logic::zone::{StateZoneInit, StateZoneUpdate};
     use crate::utils::{Castable, sb, smallvec};
     use anyhow::Result;
@@ -475,6 +476,7 @@ mod tests {
                     action_id: 0,
                     ai_task_id: 0,
                 },
+                rand: StateRandom::default(),
                 hit_events: vec![HitCharacterEvent {
                     src_chara_id: NumID(100),
                     dst_chara_id: NumID(101),
@@ -497,6 +499,8 @@ mod tests {
         assert_eq!(state_game_update.gene.auto_gen_id, NumID::MIN_AUTO_GEN);
         assert_eq!(state_game_update.gene.action_id, 0);
         assert_eq!(state_game_update.gene.ai_task_id, 0);
+
+        assert_eq!(state_game_update.rand, StateRandom::default());
 
         assert_eq!(state_game_update.hit_events.len(), 1);
         assert_eq!(state_game_update.hit_events[0], HitCharacterEvent {
@@ -576,7 +580,7 @@ mod tests {
             Box::new(StateCharacterUpdate {
                 _base: StateBase::new(NumID(2220), StateType::CharacterUpdate, LogicType::Character),
                 control: StateCharaControl {
-                    event_cursor_id: 100,
+                    input_cursor_id: 100,
                     derive_keeping: DeriveKeeping::default(),
                     action_changed: false,
                     animation_changed: true,
@@ -632,7 +636,7 @@ mod tests {
             }
         ]);
         assert_eq!(state_player_update.control, StateCharaControl {
-            event_cursor_id: 100,
+            input_cursor_id: 100,
             derive_keeping: DeriveKeeping::default(),
             action_changed: false,
             animation_changed: true,

@@ -17,6 +17,7 @@ use crate::logic::physics::{
 };
 use crate::logic::system::generation::{StateGeneration, SystemGeneration};
 use crate::logic::system::input::{InputFrameInputs, InputPlayerInputs, SystemInput};
+use crate::logic::system::random::{StateRandom, SystemRandom};
 use crate::logic::system::save::SystemSave;
 use crate::logic::system::state::{StateSet, SystemState};
 use crate::logic::zone::LogicZone;
@@ -213,6 +214,7 @@ pub struct LogicSystems {
     pub(crate) asset: AssetLoader,
     pub(crate) gene: SystemGeneration,
     pub(crate) input: SystemInput,
+    pub(crate) rand: SystemRandom,
     pub(crate) state: SystemState,
     pub(crate) save: Option<SystemSave>,
     pub(crate) physics: PhysicsSystem,
@@ -245,6 +247,7 @@ impl LogicSystems {
             // executor: ScriptExecutor::new(),
             gene: SystemGeneration::new(),
             input: SystemInput::new(MAX_INPUT_WINDOW),
+            rand: SystemRandom::new(12345, 98765),
             state: SystemState::new(),
             save: match save_path {
                 Some(save_path) => Some(SystemSave::new(save_path)?),
@@ -316,11 +319,11 @@ impl<'t> ContextUpdate<'t> {
     // Safety: steal reference, we will reset those fields after use.
     #[inline]
     unsafe fn set_extras(&mut self, zone: &LogicZone, hit_events: &mut Vec<HitCharacterEvent>) {
-        self.zone = mem::transmute(zone);
+        self.zone = unsafe { mem::transmute(zone) };
 
         let ptr = hit_events.as_ptr();
         let len = hit_events.len();
-        self.hit_events = slice::from_raw_parts(ptr, len);
+        self.hit_events = unsafe { slice::from_raw_parts(ptr, len) };
     }
 
     #[inline]
@@ -431,7 +434,10 @@ impl_state!(StateGameInit, Game, GameInit, "GameInit");
 pub struct StateGameUpdate {
     pub _base: StateBase,
     pub frame: u32,
+    #[cs_hide(16, 4)]
     pub gene: StateGeneration,
+    #[cs_hide(48, 16)]
+    pub rand: StateRandom,
     pub hit_events: Vec<HitCharacterEvent>,
 }
 
@@ -553,7 +559,7 @@ impl LogicGame {
         for chara in self.characters.iter_mut_by(|p| p.is_alive()) {
             chara.update_control(ctx)?;
         }
-        
+
         // Update character physics
         for chara in self.characters.iter_mut_by(|p| p.is_alive()) {
             chara.update_physics(ctx)?;
@@ -561,11 +567,11 @@ impl LogicGame {
 
         // Clean up
         ctx.clear_extras();
-        self.hit_events.clear();
 
         // Collect states
         let mut state_set = StateSet::new(self.frame, 0, 0);
         state_set.updates = self.collect_states_updates(ctx)?;
+        self.hit_events.clear();
 
         Ok(Arc::new(state_set))
     }
@@ -576,6 +582,7 @@ impl LogicGame {
             _base: StateBase::new(self.id, StateType::GameUpdate, LogicType::Game),
             frame: self.frame,
             gene: ctx.gene.state(),
+            rand: ctx.rand.state(),
             hit_events: self.hit_events.drain(..).collect(),
         }));
 
@@ -667,9 +674,9 @@ mod tests {
                 ..Default::default()
             }],
             npcs: vec![ParamNpc {
-                character: id!("NpcCharacter.NpcInstance^1"),
+                character: id!("CharacterNpc.InstanceNpc^1"),
                 level: 2,
-                ai_brain: id!("AiBrain.NpcInstance^1"),
+                ai_brain: id!("AiBrain.InstanceNpc^1"),
                 ..Default::default()
             }],
             local_mode: false,
