@@ -326,7 +326,7 @@ mod tests {
 
     fn new_idle(tenv: &mut TestEnv) -> (LogicActionIdle, Rc<InstActionIdle>) {
         let inst_act: Rc<InstActionIdle> = tenv
-            .inst_player
+            .inst_chara
             .find_action_by_id(id!("Action.Instance.Idle^1A"))
             .unwrap();
         let logic_act = LogicActionIdle::new(&mut tenv.context_update(), inst_act.clone()).unwrap();
@@ -358,7 +358,7 @@ mod tests {
         assert!(logic_idle.is_running());
         assert_eq!(logic_idle.first_frame, TestEnv::FRAME);
         assert_eq!(logic_idle.last_frame, u32::MAX);
-        assert_eq!(logic_idle.fade_in_weight, SPF / inst_idle.anim_idle.fade_in);
+        assert_eq!(logic_idle.fade_in_weight, 0.0);
         assert_eq!(logic_idle.mode, ActionIdleMode::Idle);
         assert_eq!(logic_idle.idle_time, 0.0);
         assert_eq!(logic_idle.ready_time, 0.0);
@@ -429,7 +429,7 @@ mod tests {
             assert!(logic_idle.is_running());
             assert_eq!(logic_idle.first_frame, TestEnv::FRAME);
             assert_eq!(logic_idle.last_frame, u32::MAX);
-            assert_eq!(logic_idle.fade_in_weight, 2.0 / s2f(0.4) as f32);
+            assert_eq!(logic_idle.fade_in_weight, 1.0 / s2f(0.4) as f32);
             assert_eq!(logic_idle.mode, ActionIdleMode::Ready);
             assert_eq!(logic_idle.idle_time, 0.0);
             assert_eq!(logic_idle.ready_time, SPF);

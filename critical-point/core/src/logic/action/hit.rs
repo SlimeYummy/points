@@ -1,10 +1,9 @@
 use critical_point_csgen::{CsEnum, CsOut};
-use glam::{Vec2, Vec3Swizzles};
+use glam::Vec3Swizzles;
 use glam_ext::Vec2xz;
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use crate::consts::DEFAULT_TOWARD_DIR_2D;
 use crate::instance::InstActionHit;
 use crate::logic::action::base::{
     ActionStartArgs, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
@@ -131,8 +130,8 @@ unsafe impl LogicActionAny for LogicActionHit {
     ) -> XResult<ActionStartReturn> {
         self._base.start(ctx, ctxa, args)?;
 
-        let hit_dir = args.dir.unwrap_or(-DEFAULT_TOWARD_DIR_2D);
-        let chara_dir = ctxa.chara_phy.direction();
+        let hit_dir = args.input_world_move_dir;
+        let chara_dir = ctxa.chara_phy.direction_xz();
         let angle = chara_dir.angle_to(hit_dir);
 
         let inst = self.inst.clone();
