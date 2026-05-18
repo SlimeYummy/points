@@ -9,11 +9,13 @@ use std::hint::unlikely;
 use std::rc::Rc;
 
 use crate::consts::{INVALID_ACTION_ID, MAX_ACTION_ANIMATION, SPF};
-use crate::instance::{InstActionAny, InstAnimation};
+use crate::instance::{InstActionAny, InstAnimation, InstCharacter};
+use crate::logic::ai_task::AiBrainThinking;
 use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::ContextUpdate;
-use crate::logic::system::input::{InputVariables, WorldMoveState};
-use crate::utils::{ActionType, ArrayVec, CustomEvent, NumID, Symbol, TmplID, XResult, interface, rkyv_self, xres};
+use crate::utils::{
+    ActionType, ArrayVec, CustomEvent, NumID, Symbol, TmplID, VirtualKey, XResult, interface, rkyv_self, xres,
+};
 
 #[repr(C)]
 #[derive(
@@ -225,6 +227,7 @@ const _: () = {
     use crate::logic::action::hit::{ArchivedStateActionHit, StateActionHit};
     use crate::logic::action::idle::{ArchivedStateActionIdle, StateActionIdle};
     use crate::logic::action::r#move::{ArchivedStateActionMove, StateActionMove};
+    use crate::logic::action::move_npc::{ArchivedStateActionMoveNpc, StateActionMoveNpc};
     use crate::utils::Castable;
     use ActionType::*;
 
@@ -239,6 +242,9 @@ const _: () = {
                 },
                 (Move, Move) => unsafe {
                     self.cast_unchecked::<StateActionMove>() == other.cast_unchecked::<StateActionMove>()
+                },
+                (MoveNpc, MoveNpc) => unsafe {
+                    self.cast_unchecked::<StateActionMoveNpc>() == other.cast_unchecked::<StateActionMoveNpc>()
                 },
                 (General, General) => unsafe {
                     self.cast_unchecked::<StateActionGeneral>() == other.cast_unchecked::<StateActionGeneral>()
@@ -282,6 +288,7 @@ const _: () = {
                     Empty => mem::transmute_copy::<usize, &ArchivedStateActionEmpty>(&0),
                     Idle => mem::transmute_copy::<usize, &ArchivedStateActionIdle>(&0),
                     Move => mem::transmute_copy::<usize, &ArchivedStateActionMove>(&0),
+                    MoveNpc => mem::transmute_copy::<usize, &ArchivedStateActionMoveNpc>(&0),
                     General => mem::transmute_copy::<usize, &ArchivedStateActionGeneral>(&0),
                     Hit => mem::transmute_copy::<usize, &ArchivedStateActionHit>(&0),
                     _ => unreachable!("pointer_metadata() Invalid ActionType"),
@@ -326,6 +333,7 @@ const _: () = {
                 Empty => serialize::<StateActionEmpty, _>(self, serializer),
                 Idle => serialize::<StateActionIdle, _>(self, serializer),
                 Move => serialize::<StateActionMove, _>(self, serializer),
+                MoveNpc => serialize::<StateActionMoveNpc, _>(self, serializer),
                 General => serialize::<StateActionGeneral, _>(self, serializer),
                 Hit => serialize::<StateActionHit, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid ActionType"),
@@ -365,6 +373,7 @@ const _: () = {
                 Empty => deserialize::<StateActionEmpty, _>(self, deserializer, out),
                 Idle => deserialize::<StateActionIdle, _>(self, deserializer, out),
                 Move => deserialize::<StateActionMove, _>(self, deserializer, out),
+                MoveNpc => deserialize::<StateActionMoveNpc, _>(self, deserializer, out),
                 General => deserialize::<StateActionGeneral, _>(self, deserializer, out),
                 Hit => deserialize::<StateActionHit, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid ActionType"),
@@ -377,6 +386,7 @@ const _: () = {
                     Empty => mem::transmute_copy::<usize, &StateActionEmpty>(&0),
                     Idle => mem::transmute_copy::<usize, &StateActionIdle>(&0),
                     Move => mem::transmute_copy::<usize, &StateActionMove>(&0),
+                    MoveNpc => mem::transmute_copy::<usize, &StateActionMoveNpc>(&0),
                     General => mem::transmute_copy::<usize, &StateActionGeneral>(&0),
                     Hit => mem::transmute_copy::<usize, &StateActionHit>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid ActionType"),
@@ -483,32 +493,31 @@ pub unsafe trait LogicActionAny: Debug + Any {
 
 pub struct ContextAction<'a> {
     pub(crate) chara_id: NumID,
+    pub(crate) inst_chara: Rc<InstCharacter>,
     pub(crate) chara_phy: &'a LogicCharaPhysics,
+    pub(crate) ai_thinking: Option<&'a AiBrainThinking>,
 
     pub(crate) time_speed: f32,
     pub(crate) time_step: f32,
     pub(crate) frac_1_time_step: f32,
-
-    pub(crate) optimized_world_move: WorldMoveState,
-    pub(crate) view_dir_2d: Vec2xz,
-    pub(crate) view_dir_3d: Vec3A,
-    pub(crate) future_id: u64,
 }
 
 impl<'a> ContextAction<'a> {
-    pub(crate) fn new(chara_id: NumID, chara_phy: &'a LogicCharaPhysics) -> ContextAction<'a> {
+    pub(crate) fn new(
+        chara_id: NumID,
+        inst_chara: Rc<InstCharacter>,
+        chara_phy: &'a LogicCharaPhysics,
+        ai_thinking: Option<&'a AiBrainThinking>,
+    ) -> ContextAction<'a> {
         ContextAction {
             chara_id,
+            inst_chara,
             chara_phy,
+            ai_thinking,
 
-            time_speed: 0.0,
-            time_step: 0.0,
-            frac_1_time_step: 0.0,
-
-            optimized_world_move: WorldMoveState::default(),
-            view_dir_2d: Vec2xz::ZERO,
-            view_dir_3d: Vec3A::ZERO,
-            future_id: 0,
+            time_speed: 1.0,
+            time_step: SPF,
+            frac_1_time_step: 1.0 / SPF,
         }
     }
 
@@ -525,25 +534,40 @@ impl<'a> ContextAction<'a> {
         }
     }
 
-    pub(crate) fn set_player_inputs(&mut self, vars: &InputVariables, future_id: u64) -> XResult<()> {
-        self.optimized_world_move = vars.optimized_world_move();
-        self.view_dir_2d = vars.view_dir_2d;
-        self.view_dir_3d = vars.view_dir_3d;
-        self.future_id = future_id;
-        Ok(())
-    }
+    // pub(crate) fn set_player_inputs(&mut self, vars: &InputVariables, future_id: u64) -> XResult<()> {
+    //     self.optimized_world_move = vars.optimized_world_move();
+    //     self.view_dir_2d = vars.view_dir_2d;
+    //     self.view_dir_3d = vars.view_dir_3d;
+    //     // self.future_id = future_id;
+    //     Ok(())
+    // }
 }
+
+pub enum ActionInput {}
 
 #[derive(Debug)]
 pub struct ActionStartArgs<'t> {
     pub prev_action: Option<&'t dyn LogicActionAny>,
-    pub dir: Option<Vec2xz>,
+
+    /// The input key triggers this action.
+    pub input_key: VirtualKey,
+
+    /// The input direction triggers this action, in world space (not player space)).
+    pub input_world_move_dir: Vec2xz,
 }
 
 impl<'t> ActionStartArgs<'t> {
     #[inline]
-    pub fn new(prev_action: Option<&'t dyn LogicActionAny>, dir: Option<Vec2xz>) -> ActionStartArgs<'t> {
-        ActionStartArgs { prev_action, dir }
+    pub fn new(
+        prev_action: Option<&'t dyn LogicActionAny>,
+        key: VirtualKey,
+        world_move_dir: Vec2xz,
+    ) -> ActionStartArgs<'t> {
+        ActionStartArgs {
+            prev_action,
+            input_key: key,
+            input_world_move_dir: world_move_dir,
+        }
     }
 }
 
