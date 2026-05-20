@@ -16,9 +16,10 @@ use crate::logic::action::base::{
 };
 use crate::logic::action::root_motion::{LogicMultiRootMotion, StateMultiRootMotion};
 use crate::logic::game::ContextUpdate;
+use crate::logic::system::input::{RefInputEventQueue, WorldMoveState};
 use crate::utils::{
-    ActionType, Castable, XResult, calc_fade_in, extend, ifelse, lerp, loose_ge, loose_le, ratio_saturating,
-    ratio_warpping, s2ff_round, strict_gt, xres, xresf,
+    ActionType, Castable, XResult, calc_fade_in, extend, ifelse, lerp, loose_ge, loose_le, ok_or, ratio_warpping,
+    s2ff_round, strict_gt, xres, xresf,
 };
 
 #[repr(u8)]
@@ -41,18 +42,6 @@ pub enum ActionMoveMode {
     Move,
     Turn,
     Stop,
-    StartNoAnim,
-    StopNoAnim,
-}
-
-impl ActionMoveMode {
-    #[inline]
-    fn using_move_anim(&self) -> bool {
-        matches!(
-            self,
-            ActionMoveMode::Move | ActionMoveMode::StartNoAnim | ActionMoveMode::StopNoAnim
-        )
-    }
 }
 
 #[repr(C)]
@@ -73,7 +62,6 @@ pub struct StateActionMove {
     pub current_time: f32,
     pub anim_offset_time: f32,
     pub local_fade_in_weight: f32,
-    pub no_anim_timer: f32,
 
     pub start_turn_angle_step: Vec2xz,
     pub smooth_move_start_speed: f32,
@@ -83,12 +71,18 @@ pub struct StateActionMove {
 extend!(StateActionMove, StateActionBase);
 impl_state_action!(StateActionMove, Move, "Move");
 
+///
+/// Move action designs specifically for player-controlled characters.
+///
+/// In order to respond to player input more quickly, the start, loop, turn, and stop phases of
+/// this action all need to consider rapid stopping and switching.
+///
 #[repr(C)]
 #[derive(Debug)]
 pub(crate) struct LogicActionMove {
     _base: LogicActionBase,
     inst: Rc<InstActionMove>,
-    speed_ratio: f32,
+    player_inputs: Option<RefInputEventQueue>,
     turn_angle_step: Vec2xz,
     turn_cos_step: f32,
 
@@ -101,12 +95,11 @@ pub(crate) struct LogicActionMove {
     current_time: f32,
     anim_offset_time: f32,
     local_fade_in_weight: f32,
-    no_anim_timer: f32,
 
     start_turn_angle_step: Vec2xz,
     smooth_move_start_speed: f32,
     root_motion: LogicMultiRootMotion,
-    anim_queue: Vec<StateActionAnimation>,
+    prev_anim_queue: Vec<StateActionAnimation>,
 }
 
 extend!(LogicActionMove, LogicActionBase);
@@ -115,12 +108,9 @@ impl LogicActionMove {
     pub fn new(ctx: &mut ContextUpdate, inst_act: Rc<InstActionMove>) -> XResult<LogicActionMove> {
         let root_motion =
             LogicMultiRootMotion::new_with_capacity(ctx, inst_act.animations(), inst_act.animations_count())?;
-        let move_track = root_motion.track(inst_act.anim_move.local_id);
-        let speed_ratio = inst_act.move_speed / move_track.whole_position(RootTrackName::Default).xz().length();
 
-        let turn_angle_step = Vec2xz::from_angle(PI / s2ff_round(inst_act.turn_time));
-        let turn_cos_step = libm::cosf(PI / s2ff_round(inst_act.turn_time));
-        // println!("{:?}", (inst_act.turn_time, turn_angle_step, turn_cos_step));
+        let turn_angle_step = Vec2xz::from_angle(PI / s2ff_round(inst_act.turn_time).max(1.0));
+        let turn_cos_step = libm::cosf(PI / s2ff_round(inst_act.turn_time).max(1.0));
 
         Ok(LogicActionMove {
             _base: LogicActionBase {
@@ -129,7 +119,7 @@ impl LogicActionMove {
                 ..LogicActionBase::new(ctx.gene.gen_action_id(), inst_act.clone())
             },
             inst: inst_act.clone(),
-            speed_ratio,
+            player_inputs: None,
             turn_angle_step,
             turn_cos_step,
 
@@ -142,12 +132,11 @@ impl LogicActionMove {
             current_time: 0.0,
             anim_offset_time: 0.0,
             local_fade_in_weight: 1.0,
-            no_anim_timer: 0.0,
 
             start_turn_angle_step: Vec2xz::ZERO,
             smooth_move_start_speed: 0.0,
             root_motion,
-            anim_queue: Vec::new(),
+            prev_anim_queue: Vec::new(),
         })
     }
 }
@@ -174,17 +163,15 @@ unsafe impl LogicActionAny for LogicActionMove {
         self.current_time = state.current_time;
         self.anim_offset_time = state.anim_offset_time;
         self.local_fade_in_weight = state.local_fade_in_weight;
-        self.no_anim_timer = state.no_anim_timer;
 
         self.start_turn_angle_step = state.start_turn_angle_step;
         self.smooth_move_start_speed = state.smooth_move_start_speed;
         self.root_motion.restore(&state.root_motion);
 
-        self.anim_queue.clear();
-        for anim in &state.animations {
-            if !anim.is_empty() {
-                self.anim_queue.push(anim.clone());
-            }
+        self.prev_anim_queue.clear();
+        let prev_len = state.animations.len().saturating_sub(1);
+        for anim in state.animations.iter().take(prev_len) {
+            self.prev_anim_queue.push(anim.clone());
         }
         Ok(())
     }
@@ -201,15 +188,14 @@ unsafe impl LogicActionAny for LogicActionMove {
             current_time: self.current_time,
             anim_offset_time: self.anim_offset_time,
             local_fade_in_weight: self.local_fade_in_weight,
-            no_anim_timer: self.no_anim_timer,
 
             start_turn_angle_step: self.start_turn_angle_step,
             smooth_move_start_speed: self.smooth_move_start_speed,
             root_motion: self.root_motion.save(),
         });
 
-        debug_assert!(self.anim_queue.len() + 1 <= MAX_ACTION_ANIMATION);
-        state.animations.extend(self.anim_queue.iter().cloned());
+        debug_assert!(self.prev_anim_queue.len() + 1 <= MAX_ACTION_ANIMATION);
+        state.animations.extend(self.prev_anim_queue.iter().cloned());
         state.animations.push(self.save_current_animation());
         state
     }
@@ -222,12 +208,29 @@ unsafe impl LogicActionAny for LogicActionMove {
     ) -> XResult<ActionStartReturn> {
         self._base.start(ctx, ctxa, args)?;
 
+        if ctxa.inst_chara.is_player {
+            self.player_inputs = Some(ctx.input.player_inputs(ctxa.chara_id)?);
+        }
+        else {
+            log::warn!(
+                "LogicActionMove::start: non-player character, action_id={}, tmpl_action={}, chara_id={}, tmpl_character={}",
+                self.id,
+                self.inst.tmpl_id,
+                ctxa.chara_id,
+                ctxa.inst_chara.tmpl_character,
+            );
+        }
+
         let mut ret = ActionStartReturn::new();
         if self.try_enter_smooth(ctxa, args)? {
             ret.prev_fade_update = true;
         }
         else {
-            self.prepare_start(ctxa)?;
+            let world_move = match &self.player_inputs {
+                Some(player_inputs) => player_inputs.borrow().last_variables()?.world_move(),
+                None => WorldMoveState::default(),
+            };
+            self.prepare_start(ctxa, world_move)?;
         }
         Ok(ret)
     }
@@ -235,27 +238,30 @@ unsafe impl LogicActionAny for LogicActionMove {
     fn update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
 
+        let world_move = match &self.player_inputs {
+            Some(player_inputs) => player_inputs.borrow().last_variables()?.world_move(),
+            None => WorldMoveState::default(),
+        };
+
         let res = match self.mode {
-            ActionMoveMode::Start => self.update_start(ctxa)?,
-            ActionMoveMode::Move => self.update_move(ctxa)?,
+            ActionMoveMode::Start => self.update_start(ctxa, world_move)?,
+            ActionMoveMode::Move => self.update_move(ctxa, world_move)?,
             ActionMoveMode::Turn => self.update_turn(ctxa)?,
             ActionMoveMode::Stop => self.update_stop(ctxa)?,
-            ActionMoveMode::StartNoAnim => self.update_start_no_anim(ctxa)?,
-            ActionMoveMode::StopNoAnim => self.update_stop_no_anim(ctxa)?,
         };
 
         if let Operation::Enter(enter) = res.operation {
             // Save previous animation
-            self.anim_queue.push(self.save_current_animation());
-            while self.anim_queue.len() >= MAX_ACTION_ANIMATION {
-                self.anim_queue.remove(0);
+            self.prev_anim_queue.push(self.save_current_animation());
+            while self.prev_anim_queue.len() >= MAX_ACTION_ANIMATION {
+                self.prev_anim_queue.remove(0);
             }
 
             match enter.new_mode {
                 ActionMoveMode::Move => self.prepare_move(ctxa, &enter)?,
                 ActionMoveMode::Turn => self.prepare_turn(ctxa, &enter)?,
                 ActionMoveMode::Stop => self.prepare_stop(ctxa, &enter)?,
-                ActionMoveMode::Start | ActionMoveMode::StartNoAnim | ActionMoveMode::StopNoAnim => {
+                ActionMoveMode::Start => {
                     return xres!(Unexpected; "unreachable start")?;
                 }
             }
@@ -266,7 +272,7 @@ unsafe impl LogicActionAny for LogicActionMove {
 
         // Clear saved animation, if fade in is complete
         if self.local_fade_in_weight >= 1.0 {
-            self.anim_queue.clear();
+            self.prev_anim_queue.clear();
         }
 
         let mut ret = ActionUpdateReturn::new();
@@ -279,7 +285,6 @@ unsafe impl LogicActionAny for LogicActionMove {
         else {
             ret.set_velocity(res.new_direction.as_vec3a() * res.new_speed);
         }
-        // println!("{:?} {:?} {:?}", self.mode, ret.new_velocity.unwrap().length(), ret.new_direction.unwrap());
         Ok(ret)
     }
 
@@ -362,45 +367,44 @@ struct OptEnter {
 }
 
 impl LogicActionMove {
-    fn prepare_start(&mut self, ctxa: &mut ContextAction) -> XResult<ActionStartReturn> {
+    #[inline]
+    fn init_anim(&mut self, mode: ActionMoveMode, anim_idx: u16) {
+        self.mode = mode;
+        match mode {
+            ActionMoveMode::Start => self.start_anim_idx = anim_idx,
+            ActionMoveMode::Turn => self.turn_anim_idx = anim_idx,
+            ActionMoveMode::Stop => self.stop_anim_idx = anim_idx,
+            ActionMoveMode::Move => {}
+        }
+
+        self.current_time = 0.0;
+        self.anim_offset_time = 0.0;
+        self.local_fade_in_weight = 1.0;
+        self.derive_level = self.inst.derive_level;
+    }
+
+    fn prepare_start(&mut self, ctxa: &mut ContextAction, world_move: WorldMoveState) -> XResult<ActionStartReturn> {
         let inst_act = self.inst.clone();
-        let chara_dir = ctxa.chara_phy.direction();
-        let world_move = ctxa.optimized_world_move;
+        let chara_dir = ctxa.chara_phy.direction_xz();
         let move_dir = world_move.move_dir().unwrap_or(chara_dir);
         let angle = chara_dir.angle_to(move_dir);
 
         if let Some((start_idx, start)) = inst_act.find_start_by_angle(angle) {
-            self.mode = ActionMoveMode::Start;
-            self.start_anim_idx = start_idx as u16;
-
-            self.current_time = 0.0;
-            self.anim_offset_time = 0.0;
-            self.local_fade_in_weight = 1.0;
-
+            self.init_anim(ActionMoveMode::Start, start_idx as u16);
+            self.derive_level = inst_act.derive_level_special;
             self.start_turn_angle_step = Vec2xz::from_angle(angle / s2ff_round(start.turn_in_place_end + CFG_SPF));
             self.root_motion.set_local_id(start.anim.local_id, 0.0)?;
-
-            self.derive_level = inst_act.special_derive_level;
         }
         else {
-            self.mode = ActionMoveMode::StartNoAnim;
-
-            self.current_time = 0.0;
-            self.anim_offset_time = 0.0;
-            self.local_fade_in_weight = 1.0;
-            self.no_anim_timer = 0.0;
-
-            self.derive_level = inst_act.derive_level;
-
+            self.init_anim(ActionMoveMode::Move, 0);
             self.root_motion.set_local_id(inst_act.anim_move.local_id, 0.0)?;
         }
         Ok(ActionStartReturn::new())
     }
 
-    fn update_start(&mut self, ctxa: &mut ContextAction) -> XResult<UpdateRes> {
+    fn update_start(&mut self, ctxa: &mut ContextAction, world_move: WorldMoveState) -> XResult<UpdateRes> {
         let inst_act = self.inst.clone();
-        let chara_dir = ctxa.chara_phy.direction();
-        let world_move = ctxa.optimized_world_move;
+        let chara_dir = ctxa.chara_phy.direction_xz();
         let start = &inst_act.starts[self.start_anim_idx as usize];
         let mut res = UpdateRes::new(chara_dir);
 
@@ -414,13 +418,13 @@ impl LogicActionMove {
         self.handle_fade_in(&start.anim, ctxa.time_step);
 
         self.root_motion.update(start.anim.ratio_saturating(adjusted_time))?;
-        let speed = self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.speed_ratio;
+        let speed = self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.inst.speed_ratio;
         res.set_dir_speed(chara_dir, speed); // Setup default values
 
         'X: {
             // Turn inplace
             if loose_le!(adjusted_time, start.turn_in_place_end + CFG_SPF) {
-                let chara_dir = ctxa.chara_phy.direction();
+                let chara_dir = ctxa.chara_phy.direction_xz();
                 let new_direction = self.start_turn_angle_step.rotate(chara_dir);
                 res.set_dir_speed(new_direction, speed);
                 // println!(
@@ -478,93 +482,31 @@ impl LogicActionMove {
         if res.is_keep() && loose_ge!(adjusted_time, start.anim.duration) {
             res.enter(ActionMoveMode::Move, u16::MAX);
         }
-
-        // println!("update_start => ratio:{:?} speed:{:?} res:{:?}", start.anim.ratio_saturating(adjusted_time), speed, res);
-        return Ok(res);
-    }
-
-    fn update_start_no_anim(&mut self, ctxa: &mut ContextAction) -> XResult<UpdateRes> {
-        let inst_act = self.inst.clone();
-        let chara_dir = ctxa.chara_phy.direction();
-        let world_move = ctxa.optimized_world_move;
-        let mut res = UpdateRes::new(chara_dir);
-
-        self.current_time += ctxa.time_step;
-        let adjusted_time = self.current_time + self.anim_offset_time;
-
-        self.derive_level = inst_act.derive_level;
-
-        self.handle_fade_in(&inst_act.anim_move, ctxa.time_step);
-
-        self.root_motion
-            .update(self.inst.anim_move.ratio_unsafe(adjusted_time))?;
-        let speed = self.root_motion.position_delta().xz().length()
-            * ctxa.frac_1_time_step
-            * self.speed_ratio
-            * ratio_saturating(self.no_anim_timer, self.inst.start_time);
-        self.no_anim_timer += ctxa.time_step;
-
-        res.set_dir_speed(chara_dir, speed); // Setup default values
-
-        // Move
-        if let Some(move_dir) = world_move.move_dir() {
-            let diff_cos = chara_dir.dot(move_dir);
-            let diff_cross_sign = chara_dir.angle_to_sign(move_dir);
-
-            // Direct turn
-            let new_direction = if diff_cos >= self.turn_cos_step {
-                move_dir
-            }
-            else {
-                let mut step_vec = self.turn_angle_step;
-                step_vec.z *= diff_cross_sign;
-                step_vec.rotate(chara_dir)
-            };
-            res.set_dir_speed(new_direction, speed);
-        }
-        // Stop
-        else {
-            res.exit();
-        }
-
-        if res.is_keep() && loose_ge!(self.no_anim_timer, self.inst.start_time) {
-            res.enter(ActionMoveMode::Move, u16::MAX);
-        }
         return Ok(res);
     }
 
     fn prepare_move(&mut self, _ctxa: &mut ContextAction, _change: &OptEnter) -> XResult<()> {
-        let prev_mode = self.mode;
-        self.mode = ActionMoveMode::Move;
-
-        if !prev_mode.using_move_anim() {
-            self.current_time = 0.0;
-            self.anim_offset_time = 0.0;
+        if self.mode != ActionMoveMode::Move {
+            self.init_anim(ActionMoveMode::Move, 0);
             self.local_fade_in_weight = ifelse!(self.inst.anim_move.fade_in <= 0.0, 1.0, 0.0);
-
             self.root_motion.set_local_id(self.inst.anim_move.local_id, 0.0)?;
         }
-
-        self._base.derive_level = self.inst.derive_level;
         Ok(())
     }
 
-    fn update_move(&mut self, ctxa: &mut ContextAction) -> XResult<UpdateRes> {
+    fn update_move(&mut self, ctxa: &mut ContextAction, world_move: WorldMoveState) -> XResult<UpdateRes> {
         let inst_act = self.inst.clone();
-        let chara_dir = ctxa.chara_phy.direction();
-        let world_move = ctxa.optimized_world_move;
+        let chara_dir = ctxa.chara_phy.direction_xz();
         let mut res = UpdateRes::new(chara_dir);
 
         self.current_time += ctxa.time_step;
         let adjusted_time = self.current_time + self.anim_offset_time;
 
-        self.derive_level = inst_act.derive_level;
-
         self.handle_fade_in(&inst_act.anim_move, ctxa.time_step);
 
         self.root_motion
             .update(self.inst.anim_move.ratio_unsafe(adjusted_time))?;
-        let speed = self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.speed_ratio;
+        let speed = self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.inst.speed_ratio;
         res.set_dir_speed(chara_dir, speed); // Setup default values
 
         'X: {
@@ -624,43 +566,20 @@ impl LogicActionMove {
     }
 
     fn prepare_stop(&mut self, _ctxa: &mut ContextAction, enter: &OptEnter) -> XResult<()> {
-        if enter.new_mode == ActionMoveMode::Stop {
-            let stop = &self.inst.stops[enter.anim_idx as usize];
-            self.stop_anim_idx = enter.anim_idx;
+        self.init_anim(ActionMoveMode::Stop, enter.anim_idx);
+        self.anim_offset_time = enter.anim_offset_time;
 
-            self.mode = ActionMoveMode::Stop;
+        let stop = &self.inst.stops[enter.anim_idx as usize];
+        self.local_fade_in_weight = ifelse!(stop.anim.fade_in <= 0.0, 1.0, 0.0);
+        self.root_motion
+            .set_local_id(stop.anim.local_id, stop.anim.ratio_saturating(self.anim_offset_time))?;
 
-            self.current_time = 0.0;
-            self.anim_offset_time = enter.anim_offset_time;
-            self.local_fade_in_weight = ifelse!(stop.anim.fade_in <= 0.0, 1.0, 0.0);
-
-            self.root_motion
-                .set_local_id(stop.anim.local_id, stop.anim.ratio_saturating(self.anim_offset_time))?;
-
-            self._base.derive_level = self.inst.derive_level;
-            self.set_derive_self(true);
-        }
-        else {
-            let prev_mode = self.mode;
-            self.mode = ActionMoveMode::StopNoAnim;
-
-            if !prev_mode.using_move_anim() {
-                self.current_time = 0.0;
-                self.anim_offset_time = 0.0;
-                self.local_fade_in_weight = ifelse!(self.inst.stop_time <= 0.0, 1.0, 0.0);
-
-                self.root_motion.set_local_id(self.inst.anim_move.local_id, 0.0)?;
-            }
-
-            self.no_anim_timer = 0.0;
-            self._base.derive_level = self.inst.derive_level;
-            self.set_derive_self(true);
-        }
+        self.set_derive_self(true);
         Ok(())
     }
 
     fn update_stop(&mut self, ctxa: &mut ContextAction) -> XResult<UpdateRes> {
-        let chara_dir = ctxa.chara_phy.direction();
+        let chara_dir = ctxa.chara_phy.direction_xz();
         let inst_act = self.inst.clone();
         let stop = &inst_act.stops[self.stop_anim_idx as usize];
         let mut res = UpdateRes::new(chara_dir);
@@ -669,43 +588,20 @@ impl LogicActionMove {
         let adjusted_time = self.current_time + self.anim_offset_time;
 
         // self.derive_level = match loose_le!(adjusted_time, stop.speed_down_end) {
-        //     true => self.inst.special_derive_level,
+        //     true => self.inst.derive_level_special,
         //     false => self.inst.derive_level,
         // };
 
         self.handle_fade_in(&stop.anim, ctxa.time_step);
 
         self.root_motion.update(stop.anim.ratio_saturating(adjusted_time))?;
-        let speed: f32 = self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.speed_ratio;
+        let speed: f32 =
+            self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.inst.speed_ratio;
         res.set_dir_speed(chara_dir, speed);
 
         if loose_ge!(adjusted_time, stop.anim.duration) {
             res.exit();
         }
-
-        return Ok(res);
-    }
-
-    fn update_stop_no_anim(&mut self, ctxa: &mut ContextAction) -> XResult<UpdateRes> {
-        let chara_dir = ctxa.chara_phy.direction();
-        let mut res = UpdateRes::new(chara_dir);
-
-        self.current_time += ctxa.time_step;
-        let adjusted_time = self.current_time + self.anim_offset_time;
-
-        self.root_motion
-            .update(self.inst.anim_move.ratio_saturating(adjusted_time))?;
-        let speed: f32 = self.root_motion.position_delta().xz().length()
-            * ctxa.frac_1_time_step
-            * self.speed_ratio
-            * (1.0 - ratio_saturating(self.no_anim_timer, self.inst.stop_time));
-        self.no_anim_timer += ctxa.time_step;
-        res.set_dir_speed(chara_dir, speed);
-
-        if loose_ge!(self.no_anim_timer, self.inst.stop_time) {
-            res.exit();
-        }
-
         return Ok(res);
     }
 
@@ -729,30 +625,31 @@ impl LogicActionMove {
     }
 
     fn try_enter_smooth(&mut self, ctxa: &mut ContextAction, args: &ActionStartArgs) -> XResult<bool> {
-        let Some(prev_act) = args.prev_action
-        else {
+        fn init_smooth(zelf: &mut LogicActionMove, prev_mov: &LogicActionMove, mode: ActionMoveMode, anim_idx: u16) {
+            zelf.init_anim(mode, anim_idx);
+            zelf.smooth_move_switch = true;
+            zelf.fade_in_weight = 0.0;
+            zelf.derive_level = prev_mov.derive_level;
+        }
+
+        let prev_act = ok_or!(args.prev_action; return Ok(false));
+        let inst_act = self.inst.clone();
+
+        if !inst_act.smooth_move_froms.contains(&prev_act.tmpl_id()) {
             return Ok(false);
-        };
+        }
 
         if let Ok(prev_mov) = prev_act.cast::<LogicActionMove>() {
             if prev_mov.mode == ActionMoveMode::Move {
                 let prev_adjusted_time = prev_mov.current_time + prev_mov.anim_offset_time;
                 let prev_ratio = prev_mov.inst.anim_move.ratio_warpping(prev_adjusted_time);
 
-                self.mode = ActionMoveMode::Move;
-                self.smooth_move_switch = true;
-
-                self.current_time = 0.0;
-                self.anim_offset_time = self.inst.anim_move.duration * prev_ratio;
-                self.local_fade_in_weight = 1.0;
+                init_smooth(self, &prev_mov, ActionMoveMode::Move, 0);
+                self.anim_offset_time = inst_act.anim_move.duration * prev_ratio;
 
                 self.smooth_move_start_speed =
                     prev_mov.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step;
-                self.root_motion
-                    .set_local_id(self.inst.anim_move.local_id, prev_ratio)?;
-
-                self._base.fade_in_weight = 0.0;
-                self._base.derive_level = self.inst.derive_level;
+                self.root_motion.set_local_id(inst_act.anim_move.local_id, prev_ratio)?;
                 return Ok(true);
             }
             else if prev_mov.mode == ActionMoveMode::Start {
@@ -763,25 +660,15 @@ impl LogicActionMove {
                     prev_start.anim.duration - prev_start.turn_in_place_end,
                 );
 
-                if let Some((start_idx, start)) = self.inst.find_start_by_angle(0.0) {
-                    self.mode = ActionMoveMode::Start;
-                    self.smooth_move_switch = true;
-                    self.start_anim_idx = start_idx as u16;
-
-                    self.current_time = 0.0;
+                if let Some((start_idx, start)) = inst_act.find_start_by_angle(0.0) {
+                    init_smooth(self, &prev_mov, ActionMoveMode::Start, start_idx as u16);
                     self.anim_offset_time =
-                        start.turn_in_place_end + prev_x_ratio * (start.anim.duration - prev_start.turn_in_place_end);
-                    self.local_fade_in_weight = 1.0;
+                        start.turn_in_place_end + prev_x_ratio * (start.anim.duration - start.turn_in_place_end);
 
                     self.smooth_move_start_speed =
                         prev_mov.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step;
-                    self.root_motion.set_local_id(
-                        self.inst.anim_move.local_id,
-                        start.anim.ratio_warpping(self.anim_offset_time),
-                    )?;
-
-                    self._base.fade_in_weight = 0.0;
-                    self._base.derive_level = self.inst.derive_level;
+                    self.root_motion
+                        .set_local_id(start.anim.local_id, start.anim.ratio_warpping(self.anim_offset_time))?;
                     return Ok(true);
                 }
             }
@@ -790,35 +677,20 @@ impl LogicActionMove {
                 let prev_ratio = prev_mov
                     .inst
                     .calc_stop_phase(prev_mov.stop_anim_idx as usize, prev_adjusted_time);
-                log::info!(
-                    "calc_stop_phase stop_idx={} time={} phase={:?}",
-                    prev_mov.stop_anim_idx,
-                    prev_adjusted_time,
-                    prev_ratio
-                );
-                // println!(
-                //     "{:?}",
-                //     prev_mov.inst.stops[prev_mov.stop_anim_idx as usize].leave_phase_table
+                // log::info!(
+                //     "calc_stop_phase stop_idx={} time={} phase={:?}",
+                //     prev_mov.stop_anim_idx,
+                //     prev_adjusted_time,
+                //     prev_ratio
                 // );
-                let Some(prev_ratio) = prev_ratio
-                else {
-                    return Ok(false);
-                };
+                let prev_ratio = ok_or!(prev_ratio; return Ok(false));
 
-                self.mode = ActionMoveMode::Move;
-                self.smooth_move_switch = true;
-
-                self.current_time = 0.0;
-                self.anim_offset_time = self.inst.anim_move.duration * prev_ratio;
-                self.local_fade_in_weight = 1.0;
+                init_smooth(self, &prev_mov, ActionMoveMode::Move, 0);
+                self.anim_offset_time = inst_act.anim_move.duration * prev_ratio;
 
                 self.smooth_move_start_speed =
                     prev_mov.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step;
-                self.root_motion
-                    .set_local_id(self.inst.anim_move.local_id, prev_ratio)?;
-
-                self._base.fade_in_weight = 0.0;
-                self._base.derive_level = self.inst.derive_level;
+                self.root_motion.set_local_id(inst_act.anim_move.local_id, prev_ratio)?;
                 return Ok(true);
             }
         }
@@ -826,6 +698,7 @@ impl LogicActionMove {
         Ok(false)
     }
 
+    // TODO: remove or fix this
     fn fade_update_impl(&mut self, ctxa: &mut ContextAction) -> XResult<()> {
         match self.mode {
             ActionMoveMode::Move => {
@@ -847,40 +720,31 @@ impl LogicActionMove {
         let anim;
         let ratio;
         match self.mode {
-            ActionMoveMode::Start => match self.inst.starts.get(self.start_anim_idx as usize) {
-                Some(start) => {
-                    anim = &start.anim;
-                    ratio = anim.ratio_saturating(adjusted_time);
-                }
-                None => {
-                    anim = &self.inst.anim_move;
-                    ratio = anim.ratio_warpping(adjusted_time);
-                }
-            },
-            ActionMoveMode::Move | ActionMoveMode::StartNoAnim | ActionMoveMode::StopNoAnim => {
+            ActionMoveMode::Start => {
+                anim = match self.inst.starts.get(self.start_anim_idx as usize) {
+                    Some(start) => &start.anim,
+                    None => &self.inst.anim_move,
+                };
+                ratio = anim.ratio_saturating(adjusted_time);
+            }
+            ActionMoveMode::Move => {
                 anim = &self.inst.anim_move;
                 ratio = anim.ratio_warpping(adjusted_time);
             }
-            ActionMoveMode::Turn => match self.inst.turns.get(self.turn_anim_idx as usize) {
-                Some(turn) => {
-                    anim = &turn.anim;
-                    ratio = anim.ratio_saturating(adjusted_time);
-                }
-                None => {
-                    anim = &self.inst.anim_move;
-                    ratio = anim.ratio_warpping(adjusted_time);
-                }
-            },
-            ActionMoveMode::Stop => match self.inst.stops.get(self.stop_anim_idx as usize) {
-                Some(stop) => {
-                    anim = &stop.anim;
-                    ratio = anim.ratio_saturating(adjusted_time);
-                }
-                None => {
-                    anim = &self.inst.anim_move;
-                    ratio = anim.ratio_warpping(adjusted_time);
-                }
-            },
+            ActionMoveMode::Turn => {
+                anim = match self.inst.turns.get(self.turn_anim_idx as usize) {
+                    Some(turn) => &turn.anim,
+                    None => &self.inst.anim_move,
+                };
+                ratio = anim.ratio_saturating(adjusted_time);
+            }
+            ActionMoveMode::Stop => {
+                anim = match self.inst.stops.get(self.stop_anim_idx as usize) {
+                    Some(stop) => &stop.anim,
+                    None => &self.inst.anim_move,
+                };
+                ratio = anim.ratio_saturating(adjusted_time);
+            }
         };
 
         StateActionAnimation::new_with_anim(&anim, ratio, self.local_fade_in_weight)
