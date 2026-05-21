@@ -1,10 +1,10 @@
 mod base;
+mod general;
 mod idle;
-mod patrol;
 
 pub use base::*;
+pub use general::*;
 pub use idle::*;
-pub use patrol::*;
 
 use std::rc::Rc;
 
@@ -24,16 +24,16 @@ pub(crate) fn new_logic_ai_task(
             let inst_task = unsafe { inst_task.cast_unchecked() };
             Box::new(LogicAiTaskIdle::new(ctx, inst_task, inst_chara)?)
         }
-        Patrol => {
+        General => {
             let inst_task = unsafe { inst_task.cast_unchecked() };
-            Box::new(LogicAiTaskPatrol::new(ctx, inst_task, inst_chara)?)
+            Box::new(LogicAiTaskGeneral::new(ctx, inst_task, inst_chara)?)
         }
         _ => return xres!(BadType),
     };
     Ok(logic_task)
 }
 
-pub(crate) fn try_reuse_logic_aitask(
+pub(crate) fn try_reuse_logic_ai_task(
     logic_task: &mut Box<dyn LogicAiTaskAny>,
     ctx: &mut ContextUpdate,
     inst_task: Rc<dyn InstAiTaskAny>,
@@ -49,10 +49,10 @@ pub(crate) fn try_reuse_logic_aitask(
                 return Ok(true);
             }
         }
-        Patrol => {
-            if let Ok(logic_task) = logic_task.cast::<LogicAiTaskPatrol>() {
+        General => {
+            if let Ok(logic_task) = logic_task.cast::<LogicAiTaskGeneral>() {
                 let inst_task = unsafe { inst_task.cast_unchecked() };
-                *logic_task = LogicAiTaskPatrol::new(ctx, inst_task, inst_chara)?;
+                *logic_task = LogicAiTaskGeneral::new(ctx, inst_task, inst_chara)?;
                 return Ok(true);
             }
         }
