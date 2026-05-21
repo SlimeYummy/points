@@ -8,12 +8,11 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use crate::consts::{INVALID_AI_TASK_ID, SPF};
-use crate::instance::{InstActionAny, InstAiTaskAny};
+use crate::instance::{InstActionAny, InstAiTaskAny, InstCharacter};
 use crate::logic::character::{LogicCharaControl, LogicCharaPhysics};
 use crate::logic::game::ContextUpdate;
-use crate::logic::system::input::WorldMoveState;
 use crate::logic::zone::LogicZone;
-use crate::utils::{AiTaskType, NumID, TmplID, VirtualKey, XResult, interface, rkyv_self};
+use crate::utils::{AiTaskType, NumID, TmplID, XResult, interface, rkyv_self};
 
 //
 // StateAiTaskAny & StateAiTaskBase
@@ -40,6 +39,7 @@ pub struct StateAiTaskBase {
     pub status: LogicAiTaskStatus,
     pub first_frame: u32,
     pub last_frame: u32,
+    pub current_action: TmplID,
 }
 
 interface!(StateAiTaskAny, StateAiTaskBase);
@@ -54,12 +54,13 @@ impl Drop for StateAiTaskBase {
 impl StateAiTaskBase {
     pub fn new(typ: AiTaskType) -> StateAiTaskBase {
         StateAiTaskBase {
-            tmpl_id: TmplID::default(),
+            tmpl_id: TmplID::INVALID,
             id: INVALID_AI_TASK_ID,
             typ,
             status: LogicAiTaskStatus::Starting,
             first_frame: 0,
             last_frame: 0,
+            current_action: TmplID::INVALID,
         }
     }
 }
@@ -93,8 +94,9 @@ impl Default for StateAiTaskAnyMetadata {
 #[allow(unreachable_patterns)]
 const _: () = {
     use ptr_meta::Pointee;
+    use rkyv::de::Pooling;
     use rkyv::rancor::{Fallible, Source};
-    use rkyv::ser::{Allocator, Writer, WriterExt};
+    use rkyv::ser::{Allocator, Sharing, Writer, WriterExt};
     use rkyv::traits::{ArchivePointee, LayoutRaw, NoUndef, Portable};
     use rkyv::{
         Archive, ArchiveUnsized, Archived, ArchivedMetadata, Deserialize, DeserializeUnsized, Serialize,
@@ -104,8 +106,8 @@ const _: () = {
     use std::ptr::DynMetadata;
     use std::{mem, ptr};
 
+    use crate::logic::ai_task::general::{ArchivedStateAiTaskGeneral, StateAiTaskGeneral};
     use crate::logic::ai_task::idle::{ArchivedStateAiTaskIdle, StateAiTaskIdle};
-    use crate::logic::ai_task::patrol::{ArchivedStateAiTaskPatrol, StateAiTaskPatrol};
     use crate::utils::Castable;
     use AiTaskType::*;
 
@@ -115,8 +117,8 @@ const _: () = {
                 (Idle, Idle) => unsafe {
                     self.cast_unchecked::<StateAiTaskIdle>() == other.cast_unchecked::<StateAiTaskIdle>()
                 },
-                (Patrol, Patrol) => unsafe {
-                    self.cast_unchecked::<StateAiTaskPatrol>() == other.cast_unchecked::<StateAiTaskPatrol>()
+                (General, General) => unsafe {
+                    self.cast_unchecked::<StateAiTaskGeneral>() == other.cast_unchecked::<StateAiTaskGeneral>()
                 },
                 _ => false,
             }
@@ -152,7 +154,7 @@ const _: () = {
             let archived_ref: &Self = unsafe {
                 match typ {
                     Idle => mem::transmute_copy::<usize, &ArchivedStateAiTaskIdle>(&0),
-                    Patrol => mem::transmute_copy::<usize, &ArchivedStateAiTaskPatrol>(&0),
+                    General => mem::transmute_copy::<usize, &ArchivedStateAiTaskGeneral>(&0),
                     _ => unreachable!("pointer_metadata() Invalid AiTaskType"),
                 }
             };
@@ -170,7 +172,7 @@ const _: () = {
 
     impl<S> SerializeUnsized<S> for dyn StateAiTaskAny
     where
-        S: Fallible + Allocator + Writer + ?Sized,
+        S: Fallible + Allocator + Writer + Pooling + Sharing + ?Sized,
         S::Error: Source,
     {
         fn serialize_unsized(&self, serializer: &mut S) -> Result<usize, S::Error> {
@@ -193,7 +195,7 @@ const _: () = {
 
             match self.typ() {
                 Idle => serialize::<StateAiTaskIdle, _>(self, serializer),
-                Patrol => serialize::<StateAiTaskPatrol, _>(self, serializer),
+                General => serialize::<StateAiTaskGeneral, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid AiTaskType"),
             }
         }
@@ -201,7 +203,7 @@ const _: () = {
 
     impl<D> DeserializeUnsized<dyn StateAiTaskAny, D> for dyn ArchivedStateAiTaskAny
     where
-        D: Fallible + ?Sized,
+        D: Fallible + Pooling + ?Sized,
         D::Error: Source,
     {
         unsafe fn deserialize_unsized(
@@ -229,7 +231,7 @@ const _: () = {
 
             match self.typ() {
                 Idle => deserialize::<StateAiTaskIdle, _>(self, deserializer, out),
-                Patrol => deserialize::<StateAiTaskPatrol, _>(self, deserializer, out),
+                General => deserialize::<StateAiTaskGeneral, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid AiTaskType"),
             }
         }
@@ -238,7 +240,7 @@ const _: () = {
             let value_ref: &dyn StateAiTaskAny = unsafe {
                 match self.typ() {
                     Idle => mem::transmute_copy::<usize, &StateAiTaskIdle>(&0),
-                    Patrol => mem::transmute_copy::<usize, &StateAiTaskPatrol>(&0),
+                    General => mem::transmute_copy::<usize, &StateAiTaskGeneral>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid AiTaskType"),
                 }
             };
@@ -324,9 +326,10 @@ pub unsafe trait LogicAiTaskAny: Debug + Any {
 }
 
 pub struct ContextAiTask<'a> {
-    pub(crate) chara_id: NumID,
+    pub(crate) inst_chara: Rc<InstCharacter>,
     pub(crate) chara_ctrl: &'a LogicCharaControl,
     pub(crate) chara_phy: &'a LogicCharaPhysics,
+    pub(crate) tgt_chara_phy: Option<&'a LogicCharaPhysics>,
     pub(crate) zone: &'a LogicZone,
     pub(crate) time_speed: f32,
     pub(crate) time_step: f32,
@@ -335,32 +338,48 @@ pub struct ContextAiTask<'a> {
 
 impl<'a> ContextAiTask<'a> {
     pub(crate) fn new(
-        chara_id: NumID,
+        inst_chara: Rc<InstCharacter>,
         chara_ctrl: &'a LogicCharaControl,
         chara_phy: &'a LogicCharaPhysics,
+        tgt_chara_phy: Option<&'a LogicCharaPhysics>,
         zone: &'a LogicZone,
-        mut time_speed: f32,
     ) -> ContextAiTask<'a> {
-        let time_step;
-        let frac_1_time_step;
-        if abs_diff_eq!(time_speed, 0.0, epsilon = 1e-4) {
-            time_speed = 0.0;
-            time_step = 0.0;
-            frac_1_time_step = 0.0;
-        }
-        else {
-            time_step = SPF * time_speed;
-            frac_1_time_step = 1.0 / time_step;
-        }
-
         ContextAiTask {
-            chara_id,
+            inst_chara,
             chara_ctrl,
             chara_phy,
+            tgt_chara_phy,
             zone,
-            time_speed,
-            time_step,
-            frac_1_time_step,
+
+            time_speed: 1.0,
+            time_step: SPF,
+            frac_1_time_step: 1.0 / SPF,
+        }
+    }
+
+    pub(crate) fn set_time_normalized(&mut self, time_speed: f32) {
+        if abs_diff_eq!(time_speed, 0.0, epsilon = 1e-4) {
+            self.time_speed = 0.0;
+            self.time_step = 0.0;
+            self.frac_1_time_step = 0.0;
+        }
+        else {
+            self.time_speed = time_speed;
+            self.time_step = SPF * time_speed;
+            self.frac_1_time_step = 1.0 / self.time_step;
+        }
+    }
+
+    #[inline]
+    pub(crate) fn chara_id(&self) -> NumID {
+        self.chara_phy.id()
+    }
+
+    #[inline]
+    pub(crate) fn tgt_chara_id(&self) -> NumID {
+        match self.tgt_chara_phy {
+            Some(tgt_chara_phy) => tgt_chara_phy.id(),
+            None => NumID::INVALID,
         }
     }
 }
@@ -368,16 +387,7 @@ impl<'a> ContextAiTask<'a> {
 #[derive(Debug, Default)]
 pub struct AiTaskReturn {
     pub next_action: Option<Rc<dyn InstActionAny>>,
-    pub view_dir_2d: Vec2xz,
-    pub world_move: WorldMoveState,
-    pub quick_switch: bool,
-}
-
-impl AiTaskReturn {
-    #[inline]
-    pub fn view_dir_3d(&self) -> Vec3A {
-        Vec3A::new(self.view_dir_2d.x, 0.0, self.view_dir_2d.z)
-    }
+    pub thinking: AiBrainThinking,
 }
 
 #[derive(Debug)]
@@ -387,6 +397,7 @@ pub struct LogicAiTaskBase {
     pub status: LogicAiTaskStatus,
     pub first_frame: u32,
     pub last_frame: u32,
+    pub current_action: TmplID,
 }
 
 interface!(LogicAiTaskAny, LogicAiTaskBase);
@@ -399,17 +410,19 @@ impl LogicAiTaskBase {
             status: LogicAiTaskStatus::Starting,
             first_frame: 0,
             last_frame: u32::MAX,
+            current_action: TmplID::INVALID,
         }
     }
 
     pub fn save(&self, typ: AiTaskType) -> StateAiTaskBase {
         StateAiTaskBase {
+            tmpl_id: self.inst.tmpl_id,
             id: self.id,
-            tmpl_id: TmplID::default(),
             typ,
             status: self.status,
             first_frame: self.first_frame,
             last_frame: self.last_frame,
+            current_action: self.current_action,
         }
     }
 
@@ -475,3 +488,32 @@ pub enum LogicAiTaskStatus {
 }
 
 rkyv_self!(LogicAiTaskStatus);
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum AiBrainPurpose {
+    #[default]
+    None,
+    ToLocation,
+    ToCharacter,
+    Attack,
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct AiBrainThinking {
+    pub(crate) purpose: AiBrainPurpose,
+
+    /// Destination point in world space.
+    pub(crate) dst_point: Vec3A,
+
+    /// Move direction in world space.
+    pub(crate) move_dir: Vec2xz,
+}
+
+impl AiBrainThinking {
+    #[inline]
+    pub(crate) fn reset(&mut self) {
+        self.purpose = AiBrainPurpose::None;
+        self.dst_point = Vec3A::ZERO;
+        self.move_dir = Vec2xz::ZERO;
+    }
+}
