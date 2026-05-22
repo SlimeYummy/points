@@ -97,7 +97,8 @@ impl LogicRootMotion {
 
         if pos_track != self.state.pos_track {
             self.state.pos_track = pos_track;
-            self.state.previous_pos = run_position_job(&self.root_motion, self.state.pos_track, self.state.ratio)?;
+            self.state.current_pos = run_position_job(&self.root_motion, self.state.pos_track, self.state.ratio)?;
+            self.state.previous_pos = self.state.current_pos;
         }
         Ok(())
     }
@@ -265,7 +266,8 @@ impl LogicMultiRootMotion {
 
             if pos_track != self.state.pos_track {
                 self.state.pos_track = pos_track;
-                self.state.previous_pos = run_position_job(&root_motion, self.state.pos_track, self.state.ratio)?;
+                self.state.current_pos = run_position_job(&root_motion, self.state.pos_track, self.state.ratio)?;
+                self.state.pos_delta = self.state.current_pos - self.state.previous_pos;
             }
         }
         Ok(())
