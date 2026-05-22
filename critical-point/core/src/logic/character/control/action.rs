@@ -6,15 +6,14 @@ use std::rc::Rc;
 use crate::consts::DEFAULT_TOWARD_DIR_2D;
 use crate::instance::InstActionAny;
 use crate::logic::action::{
-    ActionStartArgs, ContextAction, DeriveKeeping, LogicActionAny, LogicActionStatus, StateActionAny, new_logic_action,
+    ActionStartArgs, ContextAction, DeriveKeeping, LogicActionAny, StateActionAny, new_logic_action,
     try_reuse_logic_action,
 };
-use crate::logic::ai_task::AiTaskReturn;
 use crate::logic::character::physics::LogicCharaPhysics;
 use crate::logic::character::value::LogicCharaValue;
 use crate::logic::game::ContextUpdate;
-use crate::ok_or;
-use crate::utils::{InputDir, VirtualKey, XResult, ifelse};
+use crate::logic::system::input::InputVariables;
+use crate::utils::{InputDir, VirtualInput, VirtualKey, XResult, ok_or};
 
 use super::control::*;
 
@@ -25,18 +24,20 @@ impl LogicCharaControl {
         chara_phy: &LogicCharaPhysics,
     ) -> XResult<Option<NextAction>> {
         let current_act = self.action_queue.last().unwrap(); // verified
-        let player_dir = chara_phy.direction();
+        let player_dir = chara_phy.direction_xz();
         let mut next_act = None;
 
         for ev_idx in chara_phy.be_hit_events().iter().cloned() {
             let event = &ctx.hit_events[ev_idx];
-            let mut dir = Vec2xz::new(event.character_vector.x, event.character_vector.z);
-            dir = match abs_diff_ne!(dir, Vec2xz::ZERO) {
-                true => dir.normalize(),
+            let mut hit_dir = Vec2xz::new(event.character_vector.x, event.character_vector.z);
+            hit_dir = match abs_diff_ne!(hit_dir, Vec2xz::ZERO) {
+                true => hit_dir.normalize(),
                 false => -DEFAULT_TOWARD_DIR_2D,
             };
-            // TODO: special handle for hits
-            next_act = self.find_next_action(current_act, next_act, player_dir, VirtualKey::Hit1, dir);
+
+            if let Some(act) = self.find_next_action_impl(current_act, None, player_dir, VirtualKey::Hit1, hit_dir) {
+                next_act = Some(NextAction::new(act, VirtualKey::Hit1, hit_dir));
+            }
         }
         Ok(next_act)
     }
@@ -47,43 +48,39 @@ impl LogicCharaControl {
         chara_phy: &LogicCharaPhysics,
         mut next_act: Option<NextAction>,
     ) -> XResult<Option<NextAction>> {
+        let player_inputs = ok_or!(self.player_inputs.as_ref(); return Ok(None)).borrow();
         let current_act = self.action_queue.last().unwrap(); // verified
         let frame = ctx.frame;
-        let player_dir = chara_phy.direction();
-        let events = ctx.input.player_events(self.chara_id)?;
-        let events = events.borrow_mut();
+        let player_dir = chara_phy.direction_xz();
 
         if self.derive_keeping.is_valid() && self.derive_keeping.end_time > ctx.time {
             self.derive_keeping.clear();
         }
 
-        // Handle preinput events
-        for event in events.iter_preinput(frame, self.event_cursor_id)? {
-            if event.pressed {
+        // Handle preinput inputs
+        for input in player_inputs.iter_preinput(frame, self.input_cursor_id)? {
+            if input.pressed {
                 continue;
             }
-            next_act = self.find_next_action(current_act, next_act, player_dir, event.key, event.world_move_dir);
+            next_act = self.find_next_action(current_act, next_act, player_dir, &input);
         }
 
-        // Handle current frame events
-        for event in events.iter_current(frame)? {
-            if event.pressed {
+        // Handle current frame inputs
+        for input in player_inputs.iter_current(frame)? {
+            if input.pressed {
                 continue;
             }
-            next_act = self.find_next_action(current_act, next_act, player_dir, event.key, event.world_move_dir);
+            next_act = self.find_next_action(current_act, next_act, player_dir, &input);
         }
 
         // No next action found, try Walk/Run/Dash.
         if next_act.is_none() {
-            let mov = events.variables(frame)?.optimized_world_move();
-            if let Some(mov_dir) = mov.move_dir() {
-                let mov_key = mov.speed.to_virtual_key();
-                next_act = self.find_next_action(current_act, None, player_dir, mov_key, mov_dir);
-            }
+            let input_var = player_inputs.variables(frame)?;
+            next_act = self.try_enter_move_action(current_act, player_dir, &input_var);
         }
 
         if next_act.is_some() {
-            self.event_cursor_id = events.future_id(); // Currently, clear preinput after matching a new action
+            self.input_cursor_id = player_inputs.future_id(); // Currently, clear preinput after matching a new action
         }
         Ok(next_act)
     }
@@ -93,9 +90,48 @@ impl LogicCharaControl {
         current_act: &Box<dyn LogicActionAny>,
         candidate_act: Option<NextAction>,
         player_dir: Vec2xz,
-        key: VirtualKey,
-        dir: Vec2xz,
+        input: &VirtualInput,
     ) -> Option<NextAction> {
+        let candidate_action = candidate_act.as_ref().map(|act| act.action.clone());
+        let next_action = self.find_next_action_impl(
+            current_act,
+            candidate_action,
+            player_dir,
+            input.key,
+            input.world_move_dir,
+        )?;
+
+        if let Some(candidate_act) = candidate_act
+            && Rc::ptr_eq(&candidate_act.action, &next_action)
+        {
+            return Some(candidate_act);
+        }
+
+        Some(NextAction::new_from_input(next_action, input))
+    }
+
+    fn try_enter_move_action(
+        &self,
+        current_act: &Box<dyn LogicActionAny>,
+        player_dir: Vec2xz,
+        input_vars: &InputVariables,
+    ) -> Option<NextAction> {
+        let mov = input_vars.optimized_world_move();
+        let move_dir = ok_or!(mov.move_dir(); return None);
+        let move_key = mov.speed.to_virtual_key();
+
+        let next_action = self.find_next_action_impl(current_act, None, player_dir, move_key, move_dir)?;
+        Some(NextAction::new(next_action, move_key, move_dir))
+    }
+
+    fn find_next_action_impl(
+        &self,
+        current_act: &Box<dyn LogicActionAny>,
+        candidate_act: Option<Rc<dyn InstActionAny>>,
+        player_dir: Vec2xz,
+        input_key: VirtualKey,
+        input_dir: Vec2xz,
+    ) -> Option<Rc<dyn InstActionAny>> {
         let check_enter_action = |cur_derive_level: u16,
                                   new_inst_act: &dyn InstActionAny,
                                   new_enter_level: u16,
@@ -113,10 +149,10 @@ impl LogicCharaControl {
             // Check enter direction (move combination key)
             if let Some(new_enter_dir) = new_enter_dir {
                 let in_range = match new_enter_dir {
-                    InputDir::Forward(cos) => player_dir.dot(dir) > cos,
-                    InputDir::Backward(cos) => (-player_dir).dot(dir) > cos,
-                    InputDir::Left(cos) => Vec2xz::new(-player_dir.z, player_dir.x).dot(dir) > cos,
-                    InputDir::Right(cos) => Vec2xz::new(player_dir.z, -player_dir.x).dot(dir) > cos,
+                    InputDir::Forward(cos) => player_dir.dot(input_dir) > cos,
+                    InputDir::Backward(cos) => (-player_dir).dot(input_dir) > cos,
+                    InputDir::Left(cos) => Vec2xz::new(-player_dir.z, player_dir.x).dot(input_dir) > cos,
+                    InputDir::Right(cos) => Vec2xz::new(player_dir.z, -player_dir.x).dot(input_dir) > cos,
                 };
                 if !in_range {
                     return false;
@@ -129,12 +165,12 @@ impl LogicCharaControl {
         };
 
         let compare_with_candidate = |new_inst_act: Rc<dyn InstActionAny>, new_enter_level: u16| {
-            if let Some(action) = candidate_act.as_ref().map(|x| &x.action) {
+            if let Some(action) = candidate_act.as_ref().map(|act| act) {
                 if action.enter_level >= new_enter_level {
                     return candidate_act.clone();
                 }
             }
-            Some(NextAction::new(new_inst_act, dir, true))
+            Some(new_inst_act)
         };
 
         if self.derive_keeping.is_valid() {
@@ -144,25 +180,38 @@ impl LogicCharaControl {
                 derive_level,
                 ..
             } = self.derive_keeping;
-            for (rule, inst_act) in self.inst_chara.filter_derive_actions(&(action_id, key)) {
+            for (rule, inst_act) in self.inst_chara.filter_derive_actions(&(action_id, input_key)) {
                 if check_enter_action(derive_level, inst_act.as_ref(), rule.level, rule.dir) {
                     return compare_with_candidate(inst_act, rule.level);
                 }
             }
         }
 
-        let derive_level = match current_act.is_running() {
-            true => current_act.derive_level,
-            false => 0, // TODO: error!!!
+        let derive_level;
+        if current_act.is_running() {
+            derive_level = current_act.derive_level;
+        }
+        else {
+            derive_level = 0;
+            log::warn!(
+                "LogicCharaControl::find_next_action() not running, chara_id={}, chara_tmpl_id={}, act_id={}, act_tmpl_id={}",
+                self.chara_id,
+                self.inst_chara.tmpl_character,
+                current_act.id,
+                current_act.tmpl_id()
+            );
         };
 
-        for (rule, inst_act) in self.inst_chara.filter_derive_actions(&(current_act.tmpl_id(), key)) {
+        for (rule, inst_act) in self
+            .inst_chara
+            .filter_derive_actions(&(current_act.tmpl_id(), input_key))
+        {
             if check_enter_action(derive_level, inst_act.as_ref(), rule.level, rule.dir) {
                 return compare_with_candidate(inst_act, rule.level);
             }
         }
 
-        for inst_act in self.inst_chara.filter_primary_actions(&key) {
+        for inst_act in self.inst_chara.filter_primary_actions(&input_key) {
             let enter_level = inst_act.enter_level;
             let enter_dir = inst_act.enter_key.and_then(|k| k.dir);
             if check_enter_action(derive_level, inst_act.as_ref(), enter_level, enter_dir) {
@@ -173,66 +222,29 @@ impl LogicCharaControl {
         candidate_act.clone()
     }
 
-    pub(super) fn make_ctxa_default<'a>(
-        &self,
-        ctx: &mut ContextUpdate,
-        chara_phy: &'a LogicCharaPhysics,
-        chara_val: &LogicCharaValue,
-    ) -> XResult<ContextAction<'a>> {
-        let time_speed = ifelse!(chara_val.hit_lag_time().contains(ctx.time), 0.0, 1.0);
-        let mut ctxa = ContextAction::new(self.chara_id, chara_phy);
-        ctxa.set_time_normalized(time_speed);
-        Ok(ctxa)
-    }
-
-    pub(super) fn make_ctxa_from_inputs<'a>(
-        &self,
-        ctx: &mut ContextUpdate,
-        chara_phy: &'a LogicCharaPhysics,
-        chara_val: &LogicCharaValue,
-    ) -> XResult<ContextAction<'a>> {
-        let time_speed = ifelse!(chara_val.hit_lag_time().contains(ctx.time), 0.0, 1.0);
-        let mut ctxa = ContextAction::new(self.chara_id, chara_phy);
-        ctxa.set_time_normalized(time_speed);
-
-        let events = ctx.input.player_events(self.chara_id)?;
-        let events = events.borrow();
-        ctxa.set_player_inputs(events.variables(ctx.frame)?, events.future_id())?;
-        Ok(ctxa)
-    }
-
-    pub(super) fn make_ctxa_from_ai_return<'a>(
-        &self,
-        ctx: &mut ContextUpdate,
-        chara_phy: &'a LogicCharaPhysics,
-        chara_val: &LogicCharaValue,
-        ai_ret: &AiTaskReturn,
-    ) -> ContextAction<'a> {
-        let time_speed = ifelse!(chara_val.hit_lag_time().contains(ctx.time), 0.0, 1.0);
-        let mut ctxa = ContextAction::new(self.chara_id, chara_phy);
-        ctxa.set_time_normalized(time_speed);
-
-        ctxa.optimized_world_move = ai_ret.world_move;
-        ctxa.view_dir_2d = ai_ret.view_dir_2d;
-        ctxa.view_dir_3d = Vec3A::new(ai_ret.view_dir_2d.x, 0.0, ai_ret.view_dir_2d.z);
-        ctxa
-    }
-
     pub(super) fn update_current_actions(
         &mut self,
         ctx: &mut ContextUpdate,
-        ctxa: &mut ContextAction,
         chara_phy: &LogicCharaPhysics,
+        chara_val: &LogicCharaValue,
     ) -> XResult<()> {
         // Clear temporary values
         self.new_velocity = Vec3A::ZERO;
-        self.new_direction = chara_phy.direction();
+        self.new_direction = chara_phy.direction_xz();
         self.action_events = Vec::new();
 
         let current_act = self.action_queue.last_mut().unwrap(); // verified
 
+        let mut ctxa = ContextAction::new(
+            self.chara_id,
+            self.inst_chara.clone(),
+            chara_phy,
+            Some(&self.ai_thinking),
+        );
+        ctxa.set_time_normalized(chara_val.time_speed());
+
         // Update current action
-        let ret = current_act.update(ctx, ctxa)?;
+        let ret = current_act.update(ctx, &mut ctxa)?;
         if let Some(new_velocity) = ret.new_velocity {
             self.new_velocity = new_velocity;
         }
@@ -241,7 +253,9 @@ impl LogicCharaControl {
         }
 
         if ret.clear_preinput {
-            self.event_cursor_id = ctxa.future_id;
+            if let Some(player_inputs) = self.player_inputs.as_ref() {
+                self.input_cursor_id = player_inputs.borrow().future_id();
+            }
         }
 
         self.action_events = ret.custom_events;
@@ -253,7 +267,7 @@ impl LogicCharaControl {
 
         // Update previous fade action
         for act in self.action_queue.iter_mut().rev().take_while(|act| act.is_fading()) {
-            act.fade_update(ctx, ctxa)?;
+            act.fade_update(ctx, &mut ctxa)?;
         }
         Ok(())
     }
@@ -261,7 +275,8 @@ impl LogicCharaControl {
     pub(super) fn handle_next_action(
         &mut self,
         ctx: &mut ContextUpdate,
-        ctxa: &mut ContextAction,
+        chara_phy: &LogicCharaPhysics,
+        chara_val: &LogicCharaValue,
         next_act: Option<NextAction>,
     ) -> XResult<Option<Box<dyn StateActionAny>>> {
         let next_act = match next_act {
@@ -272,7 +287,7 @@ impl LogicCharaControl {
                 {
                     return Ok(None);
                 }
-                NextAction::new_idle(self.inst_idle_action.clone())
+                NextAction::new(self.inst_idle_action.clone(), VirtualKey::Idle, Vec2xz::ZERO)
             }
         };
 
@@ -286,17 +301,27 @@ impl LogicCharaControl {
         let prev_act = prev_act.map(|act| act.as_mut());
         let current_act = current_act.unwrap();
 
+        let mut ctxa = ContextAction::new(
+            self.chara_id,
+            self.inst_chara.clone(),
+            chara_phy,
+            Some(&self.ai_thinking),
+        );
+        ctxa.set_time_normalized(chara_val.time_speed());
+
         // Start current action
         let ret = {
-            let args = ActionStartArgs::new(prev_act.as_deref(), next_act.dir);
-            current_act.start(ctx, ctxa, &args)?
+            let args = ActionStartArgs::new(prev_act.as_deref(), next_act.input_key, next_act.input_world_move_dir);
+            current_act.start(ctx, &mut ctxa, &args)?
         };
 
         let mut previous_frame_state = current_act.save();
         previous_frame_state.set_previous_frame(true);
 
         if ret.clear_preinput {
-            self.event_cursor_id = ctxa.future_id;
+            if let Some(player_inputs) = self.player_inputs.as_ref() {
+                self.input_cursor_id = player_inputs.borrow().future_id();
+            }
         }
 
         self.action_events.extend(ret.custom_events);
@@ -308,7 +333,8 @@ impl LogicCharaControl {
 
         // Handle previous action
         if let Some(prev_act) = prev_act {
-            let prev_fade_update = ret.prev_fade_update && prev_act.is_running() && prev_act.fade_start(ctx, ctxa)?;
+            let prev_fade_update =
+                ret.prev_fade_update && prev_act.is_running() && prev_act.fade_start(ctx, &mut ctxa)?;
             // println!(
             //     "prev_fade_update: {} {} {}",
             //     prev_fade_update,
@@ -326,28 +352,12 @@ impl LogicCharaControl {
                         .count();
                 let end = self.action_queue.len() - 1;
                 for act in self.action_queue.range_mut(start..end) {
-                    act.stop(ctx, ctxa)?;
+                    act.stop(ctx, &mut ctxa)?;
                 }
             }
         }
 
         Ok(Some(previous_frame_state))
-    }
-
-    pub(crate) fn quick_switch_next_action(
-        &mut self,
-        ctx: &mut ContextUpdate,
-        ctxa: &mut ContextAction,
-        chara_phy: &LogicCharaPhysics,
-    ) -> XResult<Option<Box<dyn StateActionAny>>> {
-        let current_act = ok_or!(self.action_queue.last(); return Ok(None));
-
-        let mut state = current_act.save();
-        state.set_previous_frame(true);
-        debug_assert_eq!(state.fade_in_weight, 0.0, "quick_switch_next_action: {}", state.tmpl_id);
-
-        self.update_current_actions(ctx, ctxa, chara_phy)?;
-        Ok(Some(state))
     }
 
     pub(super) fn collect_states_and_cleanup(
@@ -407,8 +417,12 @@ impl LogicCharaControl {
         }
 
         // Finalize actions
-        let mut ctxa = ContextAction::new(self.chara_id, chara_phy);
-        ctxa.set_time_normalized(1.0);
+        let mut ctxa = ContextAction::new(
+            self.chara_id,
+            self.inst_chara.clone(),
+            chara_phy,
+            Some(&self.ai_thinking),
+        );
         for idx in 0..zero_count {
             if self.action_queue[idx].is_fading() {
                 self.action_queue[idx].stop(ctx, &mut ctxa)?;
