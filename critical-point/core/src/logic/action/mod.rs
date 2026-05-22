@@ -4,6 +4,7 @@ mod general;
 mod hit;
 mod idle;
 mod r#move;
+mod move_npc;
 mod root_motion;
 #[cfg(test)]
 mod test_utils;
@@ -14,6 +15,7 @@ pub use general::*;
 pub use hit::*;
 pub use idle::*;
 pub use r#move::*;
+pub use move_npc::*;
 pub use root_motion::*;
 
 use std::rc::Rc;
@@ -40,6 +42,10 @@ pub(crate) fn new_logic_action(
         Move => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
             Box::new(LogicActionMove::new(ctx, inst_act)?)
+        }
+        MoveNpc => {
+            let inst_act = unsafe { inst_act.cast_unchecked() };
+            Box::new(LogicActionMoveNpc::new(ctx, inst_act)?)
         }
         General => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
@@ -80,6 +86,13 @@ pub(crate) fn try_reuse_logic_action(
             if let Ok(logic_act) = logic_act.cast::<LogicActionMove>() {
                 let inst_act = unsafe { inst_act.cast_unchecked() };
                 *logic_act = LogicActionMove::new(ctx, inst_act)?;
+                return Ok(true);
+            }
+        }
+        MoveNpc => {
+            if let Ok(logic_act) = logic_act.cast::<LogicActionMoveNpc>() {
+                let inst_act = unsafe { inst_act.cast_unchecked() };
+                *logic_act = LogicActionMoveNpc::new(ctx, inst_act)?;
                 return Ok(true);
             }
         }
