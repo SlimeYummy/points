@@ -9,11 +9,12 @@ use crate::animation::{AnimationFileMeta, Animator, HitMotionSampler};
 use crate::consts::{DEFAULT_TOWARD_DIR_2D, MAX_ACTION_ANIMATION};
 use crate::instance::{InstActionAny, InstActionIdle, InstAiBrain, InstCharacter};
 use crate::logic::action::{DeriveKeeping, LogicActionAny, StateActionAny};
-use crate::logic::ai_task::{AiTaskReturn, LogicAiTaskAny};
+use crate::logic::ai_task::{AiBrainThinking, AiTaskReturn, LogicAiTaskAny};
 use crate::logic::character::physics::LogicCharaPhysics;
 use crate::logic::character::value::LogicCharaValue;
 use crate::logic::game::{ContextRestore, ContextUpdate};
-use crate::utils::{CustomEvent, DtHashMap, HistoryQueue, NumID, VirtualKey, XResult, xerr, xres};
+use crate::logic::system::input::RefInputEventQueue;
+use crate::utils::{CustomEvent, DtHashMap, HistoryQueue, NumID, VirtualInput, VirtualKey, XResult, xerr, xres};
 
 const DEFAULT_ACTION_QUEUE_CAP: usize = 8;
 
@@ -30,8 +31,9 @@ const DEFAULT_ACTION_QUEUE_CAP: usize = 8;
     CsOut,
 )]
 #[rkyv(derive(Debug))]
+#[cs_attr(Value)]
 pub struct StateCharaControl {
-    pub event_cursor_id: u64,
+    pub input_cursor_id: u64,
     pub derive_keeping: DeriveKeeping,
     pub action_changed: bool,
     pub animation_changed: bool,
@@ -43,13 +45,16 @@ pub(crate) struct LogicCharaControl {
     pub(super) inst_chara: Rc<InstCharacter>,
     pub(super) inst_idle_action: Rc<InstActionIdle>,
     pub(super) inst_ai_brain: Option<Rc<InstAiBrain>>,
+    pub(super) player_inputs: Option<RefInputEventQueue>,
 
     pub(super) action_queue: HistoryQueue<Box<dyn LogicActionAny>>,
-    pub(super) current_task: Option<Box<dyn LogicAiTaskAny>>,
-    pub(super) event_cursor_id: u64,
+    pub(super) input_cursor_id: u64,
     pub(super) derive_keeping: DeriveKeeping,
     pub(super) action_changed: bool,
     pub(super) animation_changed: bool,
+
+    pub(super) current_task: Option<Box<dyn LogicAiTaskAny>>,
+    pub(super) ai_thinking: AiBrainThinking,
 
     pub(super) new_velocity: Vec3A,
     pub(super) new_direction: Vec2xz,
@@ -75,15 +80,18 @@ impl LogicCharaControl {
         Ok(LogicCharaControl {
             chara_id,
             inst_chara,
-            inst_ai_brain,
             inst_idle_action,
+            inst_ai_brain,
+            player_inputs: None,
 
             action_queue: HistoryQueue::with_capacity(DEFAULT_ACTION_QUEUE_CAP),
-            current_task: None,
-            event_cursor_id: 0,
+            input_cursor_id: 0,
             derive_keeping: DeriveKeeping::default(),
             action_changed: false,
             animation_changed: false,
+
+            current_task: None,
+            ai_thinking: AiBrainThinking::default(),
 
             new_velocity: Vec3A::ZERO,
             new_direction: DEFAULT_TOWARD_DIR_2D,
@@ -131,18 +139,16 @@ impl LogicCharaControl {
         chara_phy: &LogicCharaPhysics,
         chara_val: &LogicCharaValue,
     ) -> XResult<()> {
-        let mut ctxa;
-        let mut next_action = None;
         if self.inst_chara.is_player {
-            ctxa = self.make_ctxa_default(ctx, chara_phy, chara_val)?;
+            self.player_inputs = Some(ctx.input.player_inputs(self.chara_id)?);
         }
-        else {
-            let mut ai_ret = self.handle_ai_all(ctx, chara_phy, chara_val)?;
-            ai_ret.quick_switch = false;
-            ctxa = self.make_ctxa_from_ai_return(ctx, chara_phy, chara_val, &ai_ret);
+
+        let mut next_action = None;
+        if !self.inst_chara.is_player {
+            let ai_ret = self.handle_ai_all(ctx, chara_phy, chara_val)?;
             next_action = NextAction::try_from_ai_return(&ai_ret);
         }
-        self.handle_next_action(ctx, &mut ctxa, next_action)?;
+        self.handle_next_action(ctx, chara_phy, chara_val, next_action)?;
 
         self.collect_states_and_cleanup(ctx, chara_phy, None)?;
         Ok(())
@@ -160,21 +166,17 @@ impl LogicCharaControl {
         }
 
         let mut next_action = self.handle_hit_events(ctx, chara_phy)?;
-
-        let mut ctxa;
         if self.inst_chara.is_player {
             next_action = self.handle_player_inputs(ctx, chara_phy, next_action)?;
-            ctxa = self.make_ctxa_from_inputs(ctx, chara_phy, chara_val)?;
         }
         else {
             let ai_ret = self.handle_ai_all(ctx, chara_phy, chara_val)?;
-            ctxa = self.make_ctxa_from_ai_return(ctx, chara_phy, chara_val, &ai_ret);
             next_action = NextAction::try_from_ai_return(&ai_ret).or(next_action);
         }
 
-        let previous_frame_state = self.handle_next_action(ctx, &mut ctxa, next_action)?;
+        let previous_frame_state = self.handle_next_action(ctx, chara_phy, chara_val, next_action)?;
 
-        self.update_current_actions(ctx, &mut ctxa, chara_phy)?;
+        self.update_current_actions(ctx, chara_phy, chara_val)?;
 
         self.collect_states_and_cleanup(ctx, chara_phy, previous_frame_state)?;
         Ok(())
@@ -186,7 +188,7 @@ impl LogicCharaControl {
         state: &StateCharaControl,
         states: &[Box<dyn StateActionAny>],
     ) -> XResult<()> {
-        self.event_cursor_id = state.event_cursor_id;
+        self.input_cursor_id = state.input_cursor_id;
         self.derive_keeping = state.derive_keeping;
         self.action_changed = state.action_changed;
         self.animation_changed = state.animation_changed;
@@ -234,13 +236,15 @@ impl LogicCharaControl {
         Ok(&self.cache_states)
     }
 
-    pub(crate) fn take_states(&mut self) -> XResult<(StateCharaControl, Vec<Box<dyn StateActionAny>>, Vec<CustomEvent>)> {
+    pub(crate) fn take_states(
+        &mut self,
+    ) -> XResult<(StateCharaControl, Vec<Box<dyn StateActionAny>>, Vec<CustomEvent>)> {
         if self.cache_states.is_empty() {
             return xres!(LogicBadState; "states already taken");
         }
         Ok((
             StateCharaControl {
-                event_cursor_id: self.event_cursor_id,
+                input_cursor_id: self.input_cursor_id,
                 derive_keeping: self.derive_keeping,
                 action_changed: self.action_changed,
                 animation_changed: self.animation_changed,
@@ -320,26 +324,30 @@ impl LogicCharaControl {
 #[derive(Debug, Clone)]
 pub(super) struct NextAction {
     pub(super) action: Rc<dyn InstActionAny>,
-    pub(super) dir: Option<Vec2xz>,
-    pub(super) quick_switch: bool,
+
+    /// The input key triggers this action.
+    pub(super) input_key: VirtualKey,
+
+    /// The input direction triggers this action, in world space (not player space)).
+    pub(super) input_world_move_dir: Vec2xz,
 }
 
 impl NextAction {
     #[inline]
-    pub(super) fn new(action: Rc<dyn InstActionAny>, dir: Vec2xz, quick_switch: bool) -> NextAction {
+    pub(super) fn new(action: Rc<dyn InstActionAny>, key: VirtualKey, world_move_dir: Vec2xz) -> NextAction {
         NextAction {
             action,
-            dir: Some(dir),
-            quick_switch,
+            input_key: key,
+            input_world_move_dir: world_move_dir,
         }
     }
 
     #[inline]
-    pub(super) fn new_idle(action: Rc<dyn InstActionAny>) -> NextAction {
+    pub(super) fn new_from_input(action: Rc<dyn InstActionAny>, input: &VirtualInput) -> NextAction {
         NextAction {
             action,
-            dir: None,
-            quick_switch: false,
+            input_key: input.key,
+            input_world_move_dir: input.world_move_dir,
         }
     }
 
@@ -348,8 +356,8 @@ impl NextAction {
         match &ai_ret.next_action {
             Some(action) => Some(NextAction {
                 action: action.clone(),
-                dir: ai_ret.world_move.move_dir().map(|dir| dir.into()),
-                quick_switch: ai_ret.quick_switch,
+                input_key: VirtualKey::None,
+                input_world_move_dir: ai_ret.thinking.move_dir,
             }),
             None => None,
         }
