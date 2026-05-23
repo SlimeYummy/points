@@ -1,12 +1,9 @@
-use critical_point_csgen::CsOut;
-use std::rc::Rc;
-
-use crate::instance::{InstAiBrain, InstAiNode, InstCharacter};
+use crate::instance::InstAiNode;
 use crate::logic::ai_task::{AiTaskReturn, ContextAiTask, new_logic_ai_task};
 use crate::logic::character::physics::LogicCharaPhysics;
 use crate::logic::character::value::LogicCharaValue;
-use crate::logic::game::{ContextRestore, ContextUpdate};
-use crate::utils::{NumID, XResult, ifelse, ok_or};
+use crate::logic::game::ContextUpdate;
+use crate::utils::{XResult, ifelse, ok_or};
 
 use super::control::*;
 
@@ -17,18 +14,19 @@ impl LogicCharaControl {
         chara_phy: &LogicCharaPhysics,
         chara_val: &LogicCharaValue,
     ) -> XResult<AiTaskReturn> {
+        let mut ai_ret = AiTaskReturn::default();
         if self.current_task.is_some() {
-            self.update_current_ai_task(ctx, chara_phy, chara_val)
+            ai_ret = self.update_current_ai_task(ctx, chara_phy, chara_val)?;
         }
         else {
             self.find_next_ai_task(ctx)?;
             if self.current_task.is_some() {
-                self.start_current_ai_task(ctx, chara_phy, chara_val)
-            }
-            else {
-                Ok(AiTaskReturn::default())
+                ai_ret = self.start_current_ai_task(ctx, chara_phy, chara_val)?;
             }
         }
+
+        self.ai_thinking = ai_ret.thinking.clone();
+        Ok(ai_ret)
     }
 
     fn find_next_ai_task(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
@@ -55,8 +53,8 @@ impl LogicCharaControl {
 
         let mut task = self.current_task.take().unwrap();
         let res: XResult<AiTaskReturn> = try {
-            let time_speed = ifelse!(chara_val.hit_lag_time().contains(ctx.time), 0.0, 1.0);
-            let mut ctxt = ContextAiTask::new(self.chara_id.clone(), self, chara_phy, zone, time_speed);
+            let mut ctxt = ContextAiTask::new(self.inst_chara.clone(), self, chara_phy, None, zone);
+            ctxt.set_time_normalized(chara_val.time_speed());
             task.start(ctx, &mut ctxt)?
         };
         self.current_task = Some(task);
@@ -74,8 +72,8 @@ impl LogicCharaControl {
 
         let mut task = self.current_task.take().unwrap();
         let res: XResult<AiTaskReturn> = try {
-            let time_speed = ifelse!(chara_val.hit_lag_time().contains(ctx.time), 0.0, 1.0);
-            let mut ctxt = ContextAiTask::new(self.chara_id.clone(), self, chara_phy, zone, time_speed);
+            let mut ctxt = ContextAiTask::new(self.inst_chara.clone(), self, chara_phy, None, zone);
+            ctxt.set_time_normalized(chara_val.time_speed());
             task.update(ctx, &mut ctxt)?
         };
         self.current_task = Some(task);

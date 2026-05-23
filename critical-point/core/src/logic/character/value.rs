@@ -2,10 +2,9 @@ use critical_point_csgen::CsOut;
 use std::rc::Rc;
 
 use crate::instance::InstCharacter;
-use crate::logic::character::LogicCharaControl;
 use crate::logic::game::{ContextHitUpdate, ContextRestore, ContextUpdate, HitCharacterEvent};
 use crate::logic::physics::PhyHitCharacterEvent;
-use crate::utils::{NumID, TimeRange, XResult, cf2s};
+use crate::utils::{NumID, TimeRange, XResult, cf2s, ifelse};
 
 #[repr(C)]
 #[derive(
@@ -22,6 +21,7 @@ use crate::utils::{NumID, TimeRange, XResult, cf2s};
 #[rkyv(derive(Debug))]
 #[cs_attr(Value)]
 pub struct StateCharaValue {
+    pub time_speed: f32,
     pub hit_lag_time: TimeRange,
 }
 
@@ -30,6 +30,7 @@ pub(crate) struct LogicCharaValue {
     chara_id: NumID,
     inst_chara: Rc<InstCharacter>,
 
+    time_speed: f32,
     hit_lag_time: TimeRange,
 }
 
@@ -38,12 +39,14 @@ impl LogicCharaValue {
         LogicCharaValue {
             chara_id,
             inst_chara,
+            time_speed: 1.0,
             hit_lag_time: TimeRange::EMPTY,
         }
     }
 
     pub(crate) fn state(&self) -> StateCharaValue {
         StateCharaValue {
+            time_speed: self.time_speed,
             hit_lag_time: self.hit_lag_time,
         }
     }
@@ -61,6 +64,8 @@ impl LogicCharaValue {
         if !self.hit_lag_time.contains(ctx.time) {
             self.hit_lag_time = TimeRange::EMPTY;
         }
+
+        self.time_speed = ifelse!(self.hit_lag_time().contains(ctx.time), 0.0, 1.0);
         Ok(())
     }
 
@@ -92,6 +97,11 @@ impl LogicCharaValue {
 }
 
 impl LogicCharaValue {
+    #[inline]
+    pub(crate) fn time_speed(&self) -> f32 {
+        self.time_speed
+    }
+
     #[inline]
     pub(crate) fn hit_lag_time(&self) -> TimeRange {
         self.hit_lag_time
