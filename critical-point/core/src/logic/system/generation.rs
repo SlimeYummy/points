@@ -1,13 +1,12 @@
 use std::collections::VecDeque;
 
-use critical_point_csgen::CsOut;
-
 use crate::consts::FPS_USIZE;
 use crate::utils::{NumID, XResult, xres};
 
 #[repr(C)]
 #[derive(
     Debug,
+    Default,
     Clone,
     Copy,
     PartialEq,
@@ -18,10 +17,8 @@ use crate::utils::{NumID, XResult, xres};
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsOut,
 )]
-#[rkyv(derive(Debug))]
-#[cs_attr(Value)]
+#[rkyv(derive(Debug, Default))]
 pub struct StateGeneration {
     pub player_id: NumID,
     pub auto_gen_id: NumID,
@@ -81,6 +78,9 @@ impl SystemGeneration {
     }
 
     pub(crate) fn update(&mut self, frame: u32) {
+        let last_frame = self.history.back().map_or(0, |(fr, _)| *fr);
+        debug_assert!(last_frame + 1 == frame || frame == 0);
+
         self.history.push_back((frame, StateGeneration {
             player_id: self.player_id,
             auto_gen_id: self.auto_gen_id,
@@ -90,6 +90,11 @@ impl SystemGeneration {
     }
 
     pub(crate) fn restore(&mut self, frame: u32) {
+        let last_frame = self.history.back().map_or(0, |(fr, _)| *fr);
+        debug_assert!(last_frame >= frame);
+        let first_frame = self.history.front().map_or(0, |(fr, _)| *fr);
+        debug_assert!(first_frame <= frame);
+
         while let Some((fr, state)) = self.history.back() {
             if *fr > frame {
                 self.history.pop_back();
@@ -105,6 +110,11 @@ impl SystemGeneration {
     }
 
     pub(crate) fn discard(&mut self, frame: u32) {
+        let first_frame = self.history.front().map_or(0, |(fr, _)| *fr);
+        debug_assert!(first_frame <= frame);
+        let last_frame = self.history.back().map_or(0, |(fr, _)| *fr);
+        debug_assert!(last_frame > frame);
+
         while let Some((fr, _)) = self.history.front() {
             if *fr <= frame {
                 self.history.pop_front();
@@ -123,5 +133,60 @@ impl SystemGeneration {
             action_id: self.action_id,
             ai_task_id: self.ai_task_id,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_system_generation_state() {
+        let mut sys_gen = SystemGeneration::new();
+
+        sys_gen.update(1); // [1]
+        let id1_action = sys_gen.gen_action_id();
+        let id1_ai = sys_gen.gen_ai_task_id();
+
+        sys_gen.update(2); // [1, 2]
+        let id2_action = sys_gen.gen_action_id();
+        let id2_ai = sys_gen.gen_ai_task_id();
+
+        sys_gen.restore(1); // [1]
+        assert_eq!(sys_gen.gen_action_id(), id1_action);
+        assert_eq!(sys_gen.gen_ai_task_id(), id1_ai);
+
+        sys_gen.restore(1); // [1]
+        assert_eq!(sys_gen.gen_action_id(), id1_action);
+        assert_eq!(sys_gen.gen_ai_task_id(), id1_ai);
+
+        sys_gen.update(2); // [1, 2]
+        assert_eq!(sys_gen.gen_action_id(), id2_action);
+        assert_eq!(sys_gen.gen_ai_task_id(), id2_ai);
+
+        sys_gen.update(3); // [1, 2, 3]
+        let id3_action = sys_gen.gen_action_id();
+        let id3_num = sys_gen.gen_num_id();
+
+        sys_gen.discard(2); // [3]
+        assert_eq!(sys_gen.history.len(), 1);
+
+        sys_gen.restore(3); // [3]
+        assert_eq!(sys_gen.gen_action_id(), id3_action);
+        assert_eq!(sys_gen.gen_num_id(), id3_num);
+
+        sys_gen.update(4); // [3, 4]
+        let id4_action = sys_gen.gen_action_id();
+        sys_gen.update(5); // [3, 4, 5]
+        let id5_action = sys_gen.gen_action_id();
+
+        sys_gen.discard(3); // [4, 5]
+        assert_eq!(sys_gen.history.len(), 2);
+
+        sys_gen.restore(5); // [4, 5]
+        assert_eq!(sys_gen.gen_action_id(), id5_action);
+
+        sys_gen.restore(4); // [4]
+        assert_eq!(sys_gen.gen_action_id(), id4_action);
     }
 }

@@ -1,6 +1,6 @@
 use critical_point_csgen::CsEnum;
 use glam::{Quat, Vec3};
-use ozz_animation_rs::{Archive, OzzError, Track};
+use ozz_animation_rs::{Archive, OzzError, Track, TrackSamplingJobRef};
 use std::io::{ErrorKind, Read};
 use std::path::Path;
 
@@ -150,5 +150,44 @@ impl RootMotion {
     #[inline]
     pub fn whole_rotation(&self) -> Quat {
         self.last_rotation() * self.first_rotation().inverse()
+    }
+
+    #[inline]
+    pub fn sample_position(&self, tt: RootTrackName, ratio: f32) -> Vec3 {
+        let track = self.position(tt);
+        let mut job: TrackSamplingJobRef<Vec3> = TrackSamplingJobRef::default();
+        job.set_track(track);
+        job.set_ratio(ratio);
+        let _ = job.run();
+        job.result()
+    }
+
+    #[inline]
+    pub fn calc_distance_between(&self, tt: RootTrackName, from: f32, to: f32) -> XResult<f32> {
+        if from < 0.0 || from > 1.0 {
+            return xres!(BadArgument; "from out of range [0, 1]");
+        }
+        if to < 0.0 || to > 1.0 {
+            return xres!(BadArgument; "to out of range [0, 1]");
+        }
+
+        if !self.has_position(tt) {
+            return xres!(BadAsset; "not found position track");
+        }
+
+        if from <= to {
+            let p0 = self.sample_position(tt, from);
+            let p1 = self.sample_position(tt, to);
+            Ok(p0.distance(p1))
+        }
+        else {
+            let p_from = self.sample_position(tt, from);
+            let p_end = self.last_position(tt);
+            let p_start = self.first_position(tt);
+            let p_to = self.sample_position(tt, to);
+
+            let delta = (p_end - p_from) + (p_to - p_start);
+            Ok(delta.length())
+        }
     }
 }
