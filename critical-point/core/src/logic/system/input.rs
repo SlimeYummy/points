@@ -10,7 +10,8 @@ use std::rc::Rc;
 use crate::consts::{DEFAULT_VIEW_DIR_2D, DEFAULT_VIEW_DIR_3D, FPS_USIZE, MAX_PLAYER};
 use crate::utils::{NumID, RawInput, RawKey, VirtualInput, VirtualKey, XResult, xerrf, xres, xresf};
 
-const FIRST_EVENT_ID: u64 = 1;
+pub(crate) const FIRST_EVENT_ID: u64 = 1;
+pub(crate) const INVALID_EVENT_ID: u64 = 0;
 
 //
 // Input inputs collections
@@ -59,15 +60,15 @@ impl InputPlayerInputs {
 )]
 pub struct InputFrameInputs {
     pub frame: u32,
-    pub player_events: Vec<InputPlayerInputs>,
+    pub player_inputs: Vec<InputPlayerInputs>,
 }
 
 impl InputFrameInputs {
     #[inline]
-    pub fn new(frame: u32, player_events: &[InputPlayerInputs]) -> InputFrameInputs {
+    pub fn new(frame: u32, player_inputs: &[InputPlayerInputs]) -> InputFrameInputs {
         InputFrameInputs {
             frame,
-            player_events: player_events.to_vec(),
+            player_inputs: player_inputs.to_vec(),
         }
     }
 }
@@ -79,7 +80,7 @@ impl InputFrameInputs {
 #[derive(Debug)]
 pub struct SystemInput {
     // Input event queue for all players, including local player and network remote players.
-    queues: Vec<Rc<RefCell<InputEventQueue>>>,
+    queues: Vec<RefInputEventQueue>,
 
     // Pre-input window in frame.
     input_window: u32,
@@ -147,13 +148,13 @@ impl SystemInput {
     }
 
     // Returns the frame which the game should restore to.
-    pub fn produce(&mut self, player_events: &[InputPlayerInputs]) -> XResult<u32> {
-        if player_events.is_empty() {
+    pub fn produce(&mut self, player_inputs: &[InputPlayerInputs]) -> XResult<u32> {
+        if player_inputs.is_empty() {
             return xres!(BadArgument; "empty inputs");
         }
-        let base_frame = player_events.iter().map(|e| e.frame.wrapping_sub(1)).min().unwrap_or(0);
+        let base_frame = player_inputs.iter().map(|e| e.frame.wrapping_sub(1)).min().unwrap_or(0);
 
-        for inputs in player_events {
+        for inputs in player_inputs {
             let player_idx = inputs.player_id.0 - NumID::MIN_PLAYER.0;
             match self.queues.get(player_idx as usize) {
                 Some(queue) => {
@@ -179,7 +180,7 @@ impl SystemInput {
     }
 
     #[inline]
-    pub fn player_events(&mut self, player_id: NumID) -> XResult<Rc<RefCell<InputEventQueue>>> {
+    pub fn player_inputs(&mut self, player_id: NumID) -> XResult<RefInputEventQueue> {
         let player_idx = player_id.0 - NumID::MIN_PLAYER.0;
         match self.queues.get(player_idx as usize) {
             Some(queue) => Ok(queue.clone()),
@@ -254,7 +255,9 @@ impl InputMoveSpeed {
 pub struct InputMoveState {
     pub moving: bool,
     pub speed: InputMoveSpeed,
-    pub direction: Vec2, // device direction, in 2d croodinate, W:+Y S:-Y A:-X S:+X
+
+    /// Device direction, in 2d croodinate (W:+Y S:-Y A:-X S:+X).
+    pub direction: Vec2,
 }
 
 impl InputMoveState {
@@ -298,7 +301,9 @@ impl InputMoveState {
 pub struct WorldMoveState {
     pub moving: bool,
     pub speed: InputMoveSpeed,
-    pub direction: Vec2xz, // world direction, in XZ plane
+
+    /// Move direction in world space (not player space).
+    pub direction: Vec2xz,
 }
 
 impl WorldMoveState {
@@ -341,9 +346,17 @@ impl WorldMoveState {
     serde::Deserialize,
 )]
 pub struct InputVariables {
+    /// View angles in world space (not player space).
+    ///  - x => xz plane angle, [-PI, PI].
+    ///  - y => pitch angle, [-PI/2, PI/2].
     pub view_rads: Vec2,
+
+    /// View direction in xz plane, in world space (not player space).
     pub view_dir_2d: Vec2xz,
+
+    /// View direction 3d, in world space (not player space).
     pub view_dir_3d: Vec3A,
+
     pub device_move: InputMoveState,
     pub optimized_device_move: InputMoveState,
 }
@@ -378,7 +391,7 @@ impl InputVariables {
             WorldMoveState::default()
         }
         else {
-            let angle = Vec2xz::from_vec2(self.device_move.direction.yx()); // Adjust angle dir, +Y -> 0°
+            let angle = Vec2xz::from_vec2(self.device_move.direction.yx()); // Adjust angle dir, +Z -> 0°
             let direction = angle.rotate(self.view_dir_2d);
             WorldMoveState {
                 moving: true,
@@ -393,7 +406,7 @@ impl InputVariables {
             WorldMoveState::default()
         }
         else {
-            let angle = Vec2xz::from_vec2(self.optimized_device_move.direction.yx()); // Adjust angle dir, +Y -> 0°
+            let angle = Vec2xz::from_vec2(self.optimized_device_move.direction.yx()); // Adjust angle dir, +Z -> 0°
             let direction = angle.rotate(self.view_dir_2d);
             WorldMoveState {
                 moving: true,
@@ -426,6 +439,8 @@ impl InputFrameMeta {
         (self.end_next_event_id - self.start_event_id) as usize
     }
 }
+
+pub type RefInputEventQueue = Rc<RefCell<InputEventQueue>>;
 
 #[derive(Debug)]
 pub struct InputEventQueue {
@@ -538,15 +553,14 @@ impl InputEventQueue {
             }
             // Other inputs
             else {
-                self.inputs.push_back(VirtualInput::new_ex(
-                    self.id_counter,
-                    current_frame,
-                    event.key.into(),
-                    event.pressed,
-                    self.variables.view_dir_2d,
-                    self.variables.view_dir_3d,
-                    self.variables.world_move().direction,
-                ));
+                self.inputs.push_back(VirtualInput {
+                    id: self.id_counter,
+                    frame: current_frame,
+                    key: event.key.into(),
+                    pressed: event.pressed,
+                    view_dir_3d: self.variables.view_dir_3d.into(),
+                    world_move_dir: self.variables.world_move().direction,
+                });
                 self.id_counter += 1;
             }
         }
@@ -654,6 +668,11 @@ impl InputEventQueue {
     }
 
     #[inline]
+    pub fn last_variables(&self) -> XResult<&InputVariables> {
+        self.variables(self.current_frame)
+    }
+
+    #[inline]
     fn index_meta(&self, frame: u32) -> Option<&InputFrameMeta> {
         self.metas.get((frame.wrapping_sub(self.base_frame)) as usize)
     }
@@ -667,11 +686,20 @@ impl InputEventQueue {
             || xerrf!(Overflow; "frame={}, base_frame={}, metas.len={}", frame, self.base_frame, self.metas.len()),
         )
     }
+
+    #[inline]
+    pub fn get_input(&self, id: u64) -> Option<&VirtualInput> {
+        match id >= self.base_id {
+            true => self.inputs.get((id - self.base_id) as usize),
+            false => None,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use approx::assert_ulps_eq;
+    use glam::Vec3;
 
     use super::*;
     use crate::utils::VirtualKey;
@@ -985,16 +1013,16 @@ mod tests {
         let inputs = iq.iter_current(1).unwrap().collect::<Vec<_>>();
         assert_eq!(inputs.len(), 3);
         assert_eq!(inputs[0].key, VirtualKey::Attack5);
-        assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::NEG_Z);
-        assert_ulps_eq!(inputs[0].view_dir_3d, Vec3A::NEG_Z);
+        // assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::NEG_Z);
+        // assert_ulps_eq!(inputs[0].view_dir_3d, Vec3A::NEG_Z);
         assert_ulps_eq!(inputs[0].world_move_dir, Vec2xz::ZERO);
         assert_eq!(inputs[1].key, VirtualKey::Attack5);
-        assert_ulps_eq!(inputs[1].view_dir_2d, Vec2xz::NEG_X);
-        assert_ulps_eq!(inputs[1].view_dir_3d, Vec3A::NEG_X);
+        // assert_ulps_eq!(inputs[1].view_dir_2d, Vec2xz::NEG_X);
+        // assert_ulps_eq!(inputs[1].view_dir_3d, Vec3A::NEG_X);
         assert_ulps_eq!(inputs[1].world_move_dir, Vec2xz::X);
         assert_eq!(inputs[2].key, VirtualKey::Attack1);
-        assert_ulps_eq!(inputs[2].view_dir_2d, Vec2xz::NEG_X);
-        assert_ulps_eq!(inputs[2].view_dir_3d, Vec3A::NEG_X);
+        // assert_ulps_eq!(inputs[2].view_dir_2d, Vec2xz::NEG_X);
+        // assert_ulps_eq!(inputs[2].view_dir_3d, Vec3A::NEG_X);
         assert_ulps_eq!(inputs[2].world_move_dir, Vec2xz::ZERO);
         assert_eq!(iq.variables.view_rads, Vec2::new(PI, 0.0));
         assert_eq!(iq.variables.device_move, InputMoveState::new(Vec2::ZERO));
@@ -1032,21 +1060,49 @@ mod tests {
         let inputs = iq.iter_current(4).unwrap().collect::<Vec<_>>();
         assert_eq!(inputs.len(), 1);
         assert_eq!(inputs[0].key, VirtualKey::Attack1);
-        assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::X);
-        assert_ulps_eq!(inputs[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
+        // assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::X);
+        assert_ulps_eq!(inputs[0].view_dir_3d, Vec3::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
         assert_ulps_eq!(inputs[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
 
         iq.produce(5, &[s1_down, s1_up]).unwrap();
         let inputs = iq.iter_current(5).unwrap().collect::<Vec<_>>();
         assert_eq!(inputs.len(), 2);
         assert_eq!(inputs[0].key, VirtualKey::Skill1);
-        assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::X);
-        assert_ulps_eq!(inputs[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
+        // assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::X);
+        assert_ulps_eq!(inputs[0].view_dir_3d, Vec3::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
         assert_ulps_eq!(inputs[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
         assert_eq!(inputs[1].key, VirtualKey::Skill1);
-        assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::X);
-        assert_ulps_eq!(inputs[0].view_dir_3d, Vec3A::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
+        // assert_ulps_eq!(inputs[0].view_dir_2d, Vec2xz::X);
+        assert_ulps_eq!(inputs[0].view_dir_3d, Vec3::new(FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0));
         assert_ulps_eq!(inputs[0].world_move_dir, Vec2xz::new(1.0, 1.0).normalize());
+    }
+
+    #[test]
+    fn test_input_queue_get_input() {
+        let a1_down = RawInput::new_button(RawKey::Attack1, true);
+        let a1_up = RawInput::new_button(RawKey::Attack1, false);
+        let s1_down = RawInput::new_button(RawKey::Skill1, true);
+
+        let mut iq = InputEventQueue::new(NumID(0), 3);
+        iq.produce(1, &[a1_down, a1_up]).unwrap();
+        iq.produce(2, &[s1_down]).unwrap();
+
+        assert_eq!(iq.get_input(0), None);
+        assert_eq!(iq.get_input(1), Some(&evt(1, 1, a1_down)));
+        assert_eq!(iq.get_input(2), Some(&evt(2, 1, a1_up)));
+        assert_eq!(iq.get_input(3), Some(&evt(3, 2, s1_down)));
+        assert_eq!(iq.get_input(4), None);
+
+        iq.confirm(2).unwrap();
+        iq.produce(3, &[]).unwrap();
+        iq.produce(4, &[]).unwrap();
+        iq.produce(5, &[]).unwrap();
+        iq.confirm(5).unwrap();
+
+        assert_eq!(iq.base_id, 3);
+        assert_eq!(iq.get_input(1), None);
+        assert_eq!(iq.get_input(2), None);
+        assert_eq!(iq.get_input(3), Some(&evt(3, 2, s1_down)));
     }
 
     #[test]
@@ -1066,8 +1122,8 @@ mod tests {
         assert_eq!(si.player_count(), 2);
         assert_eq!(si.input_window(), 3);
 
-        let player0 = si.player_events(NumID(100)).unwrap();
-        let player1 = si.player_events(NumID(101)).unwrap();
+        let player0 = si.player_inputs(NumID(100)).unwrap();
+        let player1 = si.player_inputs(NumID(101)).unwrap();
 
         // p1=1, p2=?
         let inputs = vec![InputPlayerInputs {

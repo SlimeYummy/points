@@ -1,5 +1,5 @@
 mod contact;
 mod layer;
 
-pub use contact::*;
+pub(crate) use contact::*;
 pub use layer::*;

@@ -3,7 +3,6 @@ use ozz_animation_rs::{Archive, OzzError, Track, TrackSamplingJobRef};
 use std::fmt::Debug;
 use std::hint::likely;
 use std::io::{ErrorKind, Read};
-use std::mem;
 use std::ops::Index;
 use std::path::Path;
 

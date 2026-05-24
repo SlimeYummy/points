@@ -1,5 +1,4 @@
 use ozz_animation_rs::{Animation, Archive, Skeleton};
-use std::fs::File;
 use std::rc::Rc;
 
 use crate::animation::{HitMotion, RootMotion, WeaponMotion};
