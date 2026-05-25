@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use case::CaseExt;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use regex::Regex;
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -410,7 +410,11 @@ impl TaskStructOut {
                         }
                         TypeOut::Reference(r) if !self.is_value => {
                             ls += f!("    [FieldOffset({0})] internal Rs{1} _{2};", offset, r.rs_name, field);
-                            ls += f!("    public Ref{0} {1} {{ get {{ fixed (Rs{0} * v = &_{1}) {{ return new Ref{0}(v); }} }} }}", r.rs_name, field);
+                            ls += f!(
+                                "    public Ref{0} {1} {{ get {{ fixed (Rs{0} * v = &_{1}) {{ return new Ref{0}(v); }} }} }}",
+                                r.rs_name,
+                                field
+                            );
                         }
                         _ => return Err(anyhow!("Value type ({}) not found", rs_type)),
                     };

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Ok, Result};
+use anyhow::{Ok, Result, anyhow};
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::ItemEnum;

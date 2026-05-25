@@ -16,7 +16,7 @@
     ],
     "npcs": [
         {
-            "character": "NpcCharacter.TrainingDummy",
+            "character": "CharacterNpc.TrainingDummy",
             "level": 1,
             "ai_brain": "AiBrain.TrainingDummy",
             "position": [
@@ -26,7 +26,7 @@
             ]
         },
         {
-            "character": "NpcCharacter.Slime",
+            "character": "CharacterNpc.Slime",
             "level": 1,
             "ai_brain": "AiBrain.Slime",
             "position": [
