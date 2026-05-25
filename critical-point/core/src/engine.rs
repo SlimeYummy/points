@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::instance::{ContextAssemble, InstCharacter};
-use crate::logic::{InputPlayerInputs, LogicLoop, PhyContactCollector, StateSet};
+use crate::logic::{InputPlayerInputs, LogicLoop, StateSet};
 use crate::parameter::{ContextVerify, ParamGame, ParamNpc, ParamPlayer, verify_npc, verify_player};
 use crate::template::TmplDatabase;
 use crate::utils::{XResult, xerr, xres};
