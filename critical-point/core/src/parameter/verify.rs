@@ -1,8 +1,8 @@
 use crate::consts::{ACCESSORY_MAX_COUNT, EQUIPMENT_MAX_COUNT, MAX_ENTRY_PLUS};
 use crate::parameter::{ParamNpc, ParamPlayer};
 use crate::template::{
-    TmplAccessory, TmplAccessoryPattern, TmplAccessoryPool, TmplAiBrain, TmplCharacter, TmplDatabase, TmplEquipment,
-    TmplJewel, TmplJewelSlot, TmplNpcCharacter, TmplPerk, TmplStyle,
+    TmplAccessory, TmplAccessoryPattern, TmplAccessoryPool, TmplAiBrain, TmplCharacter, TmplCharacterNpc, TmplDatabase,
+    TmplEquipment, TmplJewel, TmplJewelSlot, TmplPerk, TmplStyle,
 };
 use crate::utils::{JewelSlots, TmplIDLevel, TmplIDPlus, XResult, xres, xresf};
 
@@ -157,7 +157,7 @@ fn verify_jewels(ctx: &mut ContextVerify<'_>, param: &ParamPlayer, slots: JewelS
 
 pub fn verify_npc(ctx: &mut ContextVerify<'_>, param: &ParamNpc) -> XResult<()> {
     if param.character.is_invalid() {
-        return xres!(BadParameter; "invalid npc character id");
+        return xres!(BadParameter; "invalid ai character id");
     }
 
     verify_npc_character(ctx, param)?;
@@ -167,7 +167,7 @@ pub fn verify_npc(ctx: &mut ContextVerify<'_>, param: &ParamNpc) -> XResult<()> 
 }
 
 pub fn verify_npc_character(ctx: &mut ContextVerify<'_>, param: &ParamNpc) -> XResult<()> {
-    let character = ctx.tmpl_db.find_as::<TmplNpcCharacter>(param.character)?;
+    let character = ctx.tmpl_db.find_as::<TmplCharacterNpc>(param.character)?;
     if param.level < character.level.min || param.level > character.level.max {
         return xresf!(BadParameter; "character.id={}, param.level={}", character.id, param.level);
     }
@@ -176,13 +176,13 @@ pub fn verify_npc_character(ctx: &mut ContextVerify<'_>, param: &ParamNpc) -> XR
 
 pub fn verify_ai_brain(ctx: &mut ContextVerify<'_>, param: &ParamNpc) -> XResult<()> {
     if param.ai_brain.is_invalid() {
-        return xres!(BadParameter; "invalid npc ai_brain id");
+        return xres!(BadParameter; "invalid ai brain id");
     }
 
-    let character = ctx.tmpl_db.find_as::<TmplNpcCharacter>(param.character)?;
+    let character = ctx.tmpl_db.find_as::<TmplCharacterNpc>(param.character)?;
     let ai_brain = ctx.tmpl_db.find_as::<TmplAiBrain>(param.ai_brain)?;
 
-    if !character.ai_executors.contains(&ai_brain.id) {
+    if !character.ai_brains.contains(&ai_brain.id) {
         return xresf!(BadParameter; "character.id={}, ai_brain.id={}", character.id, ai_brain.id);
     }
     Ok(())
@@ -358,13 +358,13 @@ mod tests {
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamNpc::default();
-        param.character = id!("NpcCharacter.Verify^1");
+        param.character = id!("CharacterNpc.Verify^1");
         param.level = 1;
         verify_npc_character(&mut ctx, &param).unwrap();
 
         param.level = 5;
         let err = verify_npc_character(&mut ctx, &param).unwrap_err();
-        assert_eq!(err.msg(), "character.id=NpcCharacter.Verify^1, param.level=5");
+        assert_eq!(err.msg(), "character.id=CharacterNpc.Verify^1, param.level=5");
     }
 
     #[test]
@@ -373,7 +373,7 @@ mod tests {
         let mut ctx = ContextVerify::new(&db);
 
         let mut param = ParamNpc::default();
-        param.character = id!("NpcCharacter.Verify^1");
+        param.character = id!("CharacterNpc.Verify^1");
         param.ai_brain = id!("AiBrain.Verify^1");
         verify_ai_brain(&mut ctx, &param).unwrap();
     }
