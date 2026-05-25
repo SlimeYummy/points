@@ -3,7 +3,7 @@ mod gen_enum;
 mod gen_struct_in;
 mod gen_struct_out;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use gen_enum::parse_enum;
 use gen_struct_in::parse_struct_in;
 use gen_struct_out::parse_struct_out;
@@ -184,6 +184,7 @@ impl Generator {
         file.write_all(
             [
                 "using MessagePack;",
+                "using Newtonsoft.Json;",
                 "using System;",
                 "using System.Collections.Generic;",
                 "using System.Numerics;",

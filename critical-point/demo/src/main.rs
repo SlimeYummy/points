@@ -8,7 +8,7 @@ use critical_point_core::parameter::ParamGame;
 use critical_point_core::utils::{Castable, NumID};
 use glam::{Vec2, Vec3A};
 use input::{CharacterType, InputHandler};
-use jolt_physics_rs::debug::{run_debug_application, CameraState, DebugApp, DebugKeyboard, DebugMouse};
+use jolt_physics_rs::debug::{CameraState, DebugApp, DebugKeyboard, DebugMouse, run_debug_application};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

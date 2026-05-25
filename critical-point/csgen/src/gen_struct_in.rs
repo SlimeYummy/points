@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use quote::ToTokens;
 use regex::Regex;
 use std::collections::HashMap;
@@ -134,6 +134,7 @@ impl GenerateTask for TaskStructIn {
     fn generate(&self, ctx: &GenerateContext<'_>) -> Result<String> {
         let mut ls = Lines::new(self.fields.len());
         ls += f!("  [MessagePackObject(keyAsPropertyName: true)]");
+        ls += f!("  [JsonObject]");
         ls += match (self.is_struct, self.is_partial) {
             (true, false) => f!("  public struct {} {{", self.cs_name),
             (true, true) => f!("  public partial struct {} {{", self.cs_name),
@@ -151,6 +152,8 @@ impl GenerateTask for TaskStructIn {
                 FieldIn::Type { field, rs_type } => {
                     match typ {
                         TypeIn::Primitive(p) => {
+                            ls += f!("    [Key(\"{}\")]", field);
+                            ls += f!("    [JsonProperty(\"{}\")]", field);
                             ls += f!("    public {} {};", p.name, field);
                         }
                         _ => return Err(anyhow!("Primitive ({}) not found", rs_type)),
@@ -160,6 +163,7 @@ impl GenerateTask for TaskStructIn {
                     match typ {
                         TypeIn::Primitive(p) => {
                             ls += f!("    [Key(\"{}\")]", field);
+                            ls += f!("    [JsonProperty(\"{}\")]", field);
                             ls += f!("    public List<{}> {};", p.name, field);
                         }
                         _ => return Err(anyhow!("Primitive ({}) not found", rs_type)),
@@ -183,6 +187,7 @@ impl GenerateTask for TaskStructIn {
                                 };
                             }
                             ls += f!("    [Key(\"{}\")]", field);
+                            ls += f!("    [JsonProperty(\"{}\")]", field);
                             ls += f!("    public {}<{}> {};", g.name, cs_sub_types.join(", "), field);
                         }
                         _ => return Err(anyhow!("Generic ({}) not found", rs_type)),
