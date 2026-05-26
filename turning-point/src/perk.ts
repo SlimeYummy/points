@@ -116,7 +116,7 @@ export class Perk extends Resource {
         this.style = parseID(args.style, 'Style', this.w('style'));
         this.usable_styles = this.parseUsableStyles(args.usable_styles, this.style);
         this.parents = this.parseParents(args.parents);
-        this.max_level = parseInt(args.max_level, this.w('max_level'), { min: 0 });
+        this.max_level = parseInt(args.max_level, this.w('max_level'), { type: 'u32' });
         this.attributes = !args.attributes
             ? undefined
             : parseAttributeTable(
@@ -133,7 +133,10 @@ export class Perk extends Resource {
             : parseEntryTable(args.entries, this.w('entries'), { len: this.max_level });
         this.var_indexes = !args.var_indexes
             ? undefined
-            : parseVarIndexTable(args.var_indexes, this.w('var_indexes'), { len: this.max_level });
+            : parseVarIndexTable(args.var_indexes, this.w('var_indexes'), {
+                  len: this.max_level,
+                  type: 'u32',
+              });
     }
 
     private parseUsableStyles(
@@ -160,7 +163,7 @@ export class Perk extends Resource {
         const res: Record<ID, int> = {};
         for (const [pid, level] of Object.entries(parents)) {
             const res_pid = parseID(pid, 'Perk', this.w(`parents[${pid}]`));
-            res[res_pid] = parseInt(level, this.w(`parents[${pid}]`), { min: 0 });
+            res[res_pid] = parseInt(level, this.w(`parents[${pid}]`), { type: 'u32' });
         }
         return res;
     }

@@ -63,7 +63,7 @@ export class AccessoryPool extends Resource {
     public constructor(id: ID, args: AccessoryPatternArgs) {
         super(id);
         this.rare = parseRareLevel(args.rare, this.w('rare'));
-        this.max_level = parseInt(args.max_level, this.w('max_level'), { min: 1 });
+        this.max_level = parseInt(args.max_level, this.w('max_level'), { min: 1, type: 'u32' });
         this.patterns = this.parsePattern(args.patterns, args.max_level);
         this.a_entries = this.parsePool(args.a_entries, 'a_entries');
         this.b_entries = this.parsePool(args.b_entries, 'b_entries');
@@ -97,7 +97,7 @@ export class AccessoryPool extends Resource {
         const res: Record<string, number> = {};
         for (const [id, val] of Object.entries(pool)) {
             const resId = parseID(id, 'Entry', this.w(`${field}[${id}]`));
-            res[resId] = parseFloat(val, this.w(`${field}[${id}]`), { min: 0 });
+            res[resId] = parseFloat(val, this.w(`${field}[${id}]`), { min: 0, type: 'f32' });
         }
         return res;
     }
@@ -178,7 +178,7 @@ export class Accessory extends Resource {
         this.pool = parseID(args.pool, 'AccessoryPool', this.w('pool'));
         this.rare = parseRareLevel(args.rare, this.w('rare'));
         this.entry = parseID(args.entry, 'Entry', this.w('entry'));
-        this.piece = parseInt(args.piece, this.w('piece'), { min: 1 });
+        this.piece = parseInt(args.piece, this.w('piece'), { min: 1, type: 'u32' });
         this.variant = parseAccessoryVariant(args.variant, this.w('variant'));
     }
 

@@ -103,7 +103,7 @@ export class Character extends Resource {
     public constructor(id: ID, args: CharacterArgs) {
         super(id);
         this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
-        this.level = parseIntRange(args.level, this.w('level'), { min: 0 });
+        this.level = parseIntRange(args.level, this.w('level'), { type: 'u32' });
         this.styles = parseIDArray(args.styles, 'Style', this.w('styles'));
         this.equipments = parseIDArray(args.equipments, 'Equipment', this.w('equipments'));
         this.bounding = checkType(args.bounding, [Capsule, TaperedCapsule], this.w('bounding'));
@@ -401,7 +401,7 @@ export class CharacterNpc extends Resource {
         super(id);
         this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
         this.tags = parseStringArray(args.tags || [], this.w('tags'), { deduplicate: true });
-        this.level = parseIntRange(args.level, this.w('level'), { min: 0 });
+        this.level = parseIntRange(args.level, this.w('level'), { type: 'u32' });
         this.attributes = parseAttributeTable<PrimaryAttribute | SecondaryAttribute>(
             args.attributes,
             [PRIMARY_ATTRIBUTES, SECONDARY_ATTRIBUTES],
@@ -518,35 +518,36 @@ export class FixedAttributes {
         this.damage_reduce_param_1 = parseFloat(
             args.damage_reduce_param_1,
             `${where}.damage_reduce_param_1`,
-            { min: 0, max: 1 },
+            { min: 0, max: 1, type: 'f32' },
         );
         this.damage_reduce_param_2 = parseFloat(
             args.damage_reduce_param_2,
             `${where}.damage_reduce_param_2`,
-            { min: 0 },
+            { min: 0, type: 'f32' },
         );
         this.guard_damage_ratio_1 = parseFloat(
             args.guard_damage_ratio_1,
             `${where}.guard_damage_ratio_1`,
-            { min: 0, max: 1 },
+            { min: 0, max: 1, type: 'f32' },
         );
         this.deposture_reduce_param_1 = parseFloat(
             args.deposture_reduce_param_1,
             `${where}.deposture_reduce_param_1`,
-            { min: 0, max: 1 },
+            { min: 0, max: 1, type: 'f32' },
         );
         this.deposture_reduce_param_2 = parseFloat(
             args.deposture_reduce_param_2,
             `${where}.deposture_reduce_param_2`,
-            { min: 0 },
+            { min: 0, type: 'f32' },
         );
         this.guard_deposture_ratio_1 = parseFloat(
             args.guard_deposture_ratio_1,
             `${where}.guard_deposture_ratio_1`,
-            { min: 0, max: 1 },
+            { min: 0, max: 1, type: 'f32' },
         );
         this.weak_damage_up = parseFloat(args.weak_damage_up, `${where}.weak_damage_up`, {
             min: 0,
+            type: 'f32',
         });
     }
 }

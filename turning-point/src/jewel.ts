@@ -59,7 +59,7 @@ export function parseJevelSlots(
             return res;
         }
     } else if (Array.isArray(slot)) {
-        return parseIntArray(slot, where, { len: 3, min: 0 }) as [int, int, int];
+        return parseIntArray(slot, where, { len: 3, type: 'u8' }) as [int, int, int];
     }
     throw new Error(where + ': must be an A_D_S_/[int,int,int]');
 }
@@ -176,7 +176,7 @@ export class Jewel extends Resource {
         this.slot = parseJewelSlot(args.slot, this.w('slot'));
         this.rare = parseRareLevel(args.rare, this.w('rare'));
         this.entry = parseID(args.entry, 'Entry', this.w('entry'));
-        this.piece = parseInt(args.piece, this.w('piece'), { min: 1 });
+        this.piece = parseInt(args.piece, this.w('piece'), { min: 1, type: 'u32' });
         if (!args.sub_entry !== !args.sub_piece) {
             throw this.e('', 'sub_entry & sub_piece must be using together');
         }
@@ -185,7 +185,7 @@ export class Jewel extends Resource {
             : parseID(args.sub_entry, 'Entry', this.w('sub_entry'));
         this.sub_piece = !args.sub_piece
             ? undefined
-            : parseInt(args.sub_piece, this.w('sub_piece'), { min: 1 });
+            : parseInt(args.sub_piece, this.w('sub_piece'), { min: 1, type: 'u32' });
         this.variant = parseJewelVariant(args.variant, this.w('variant'));
     }
 
