@@ -1,6 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { FilePath, ID, IDPrefix, INPUT_ASSET, MAX_NAME_LEN, parseFile, parseString } from './common';
+import {
+    FilePath,
+    ID,
+    IDPrefix,
+    INPUT_ASSET,
+    MAX_NAME_LEN,
+    parseFile,
+    parseString,
+} from './common';
 import { Resource } from './resource';
 
 export type ZoneArgs = {

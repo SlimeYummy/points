@@ -10,5 +10,6 @@ export * from './equipment';
 export * from './jewel';
 export * from './perk';
 export * from './resource';
+export * from './script';
 export * from './variable';
 export * from './zone';

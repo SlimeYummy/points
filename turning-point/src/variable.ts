@@ -37,7 +37,10 @@ export class Var<T> {
             Resource.newId(var_id, '#');
             const meta = {
                 id: parseID(var_id, '#', `Var.define(${var_id}: ...)`),
-                max_level: parseInt(max_level, `Var.define(${var_id}: [0])`, { min: 1 }),
+                max_level: parseInt(max_level, `Var.define(${var_id}: [0])`, {
+                    min: 1,
+                    type: 'u32',
+                }),
                 no_limit: false,
                 characters: [] as string[],
                 styles: [] as string[],
@@ -169,6 +172,7 @@ export function parseVarInt(
         min?: int;
         max?: int;
         allow_bool?: boolean;
+        type?: 'u8' | 'u16' | 'u32' | 'u64' | 'i8' | 'i16' | 'i32' | 'i64';
     } = {},
 ): int | Var<int> {
     return parseVarValueArgs(raw, where, opts, parseInt, parseIntArray);
@@ -184,6 +188,7 @@ export function parseVarFloat(
         max_len?: int;
         min?: float;
         max?: float;
+        type?: 'f32' | 'f64';
     } = {},
 ): float | Var<float> {
     return parseVarValueArgs(raw, where, opts, parseFloat, parseFloatArray);
@@ -199,6 +204,7 @@ export function parseVarTime(
         max_len?: int;
         min?: float;
         max?: float;
+        type?: 'f32' | 'f64';
     } = {},
 ): float | Var<float> {
     return parseVarValueArgs(raw, where, opts, parseTime, parseTimeArray);
@@ -288,7 +294,10 @@ export function verifyVarValue<T>(
 export function parseVarIndexTable(
     raw: Readonly<Record<ID, ReadonlyArray<int | boolean>>>,
     where: string,
-    opts: { len?: int } = {},
+    opts: {
+        len?: int;
+        type?: 'u8' | 'u16' | 'u32' | 'u64' | 'i8' | 'i16' | 'i32' | 'i64';
+    } = {},
 ): Readonly<Record<ID, ReadonlyArray<int>> | undefined> {
     if (typeof raw !== 'object' || raw === null) {
         throw new Error(`${where}: must be a object`);
@@ -298,7 +307,7 @@ export function parseVarIndexTable(
     let any_index = false;
     for (const [id, values] of Object.entries(raw)) {
         const res_id = parseID(id, '#', `${where}[${id}]`);
-        res_indexes[res_id] = parseIntArray(values, `${where}[${id}]`, { ...opts, min: 0 });
+        res_indexes[res_id] = parseIntArray(values, `${where}[${id}]`, opts);
         any_index = true;
     }
     return any_index ? res_indexes : undefined;
@@ -307,7 +316,10 @@ export function parseVarIndexTable(
 export function parseVarIndexPlusTable(
     raw: Readonly<Record<ID, ReadonlyArray<int | boolean>>>,
     where: string,
-    opts: { len?: int } = {},
+    opts: {
+        len?: int;
+        type?: 'u8' | 'u16' | 'u32' | 'u64' | 'i8' | 'i16' | 'i32' | 'i64';
+    } = {},
 ): [
     Readonly<Record<ID, ReadonlyArray<int>> | undefined>,
     Readonly<Record<ID, ReadonlyArray<int>> | undefined>,
@@ -324,14 +336,11 @@ export function parseVarIndexPlusTable(
     for (const [id, values] of Object.entries(raw)) {
         if (id.startsWith('$')) {
             const res_id = parseID(id.slice(1), '#', `${where}[${id}]`);
-            res_plus_indexes[res_id] = parseIntArray(values, `${where}[${id}]`, {
-                ...opts,
-                min: 0,
-            });
+            res_plus_indexes[res_id] = parseIntArray(values, `${where}[${id}]`, opts);
             any_plus_index = true;
         } else {
             const res_id = parseID(id, '#', `${where}[${id}]`);
-            res_indexes[res_id] = parseIntArray(values, `${where}[${id}]`, { ...opts, min: 0 });
+            res_indexes[res_id] = parseIntArray(values, `${where}[${id}]`, opts);
             any_index = true;
         }
     }
