@@ -130,7 +130,7 @@ export class Equipment extends Resource {
         this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
         this.character = parseID(args.character, 'Character', this.w('character'));
         this.slot = parseEquipmentSlot(args.slot, this.w('slot'));
-        this.level = parseIntRange(args.level, this.w('level'), { min: 0 });
+        this.level = parseIntRange(args.level, this.w('level'), { type: 'u32' });
         const levels = this.level[1] - this.level[0] + 1;
         this.parents = this.parseParents(args.parents);
         // this.materials = this.parseMaterials(args.materials, levels);
@@ -159,7 +159,7 @@ export class Equipment extends Resource {
         const res: Record<ID, int> = {};
         for (const [pid, level] of Object.entries(parents)) {
             const res_pid = parseID(pid, 'Equipment', this.w(`parents[${pid}]`));
-            res[res_pid] = parseInt(level, this.w(`parents[${pid}]`), { min: 0 });
+            res[res_pid] = parseInt(level, this.w(`parents[${pid}]`), { type: 'u32' });
         }
         return res;
     }
@@ -180,7 +180,7 @@ export class Equipment extends Resource {
                     checkArray(tuple, where, { len: 2 });
                     return [
                         parseID(id, 'Material', `${where}[0]`),
-                        parseInt(cnt, `${where}[1]`, { min: 0 }),
+                        parseInt(cnt, `${where}[1]`, { type: 'u32' }),
                     ];
                 });
             },

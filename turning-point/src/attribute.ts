@@ -205,7 +205,7 @@ export function parseAttributeTable<
         if (!includes.find((x) => x === rev)) {
             throw new Error(`${where}[${attr}]: attribute not includes`);
         }
-        res[attr] = parseFloatArray(vals!, `${where}[${attr}]`, opts);
+        res[attr] = parseFloatArray(vals!, `${where}[${attr}]`, { ...opts, type: 'f32' });
     }
     return res;
 }
@@ -240,11 +240,12 @@ export function parseAttributePlusTable<
             const pcattr = attr.slice(1);
             pcattrs[pcattr] = parseFloatArray(vals!, `${where}[${attr}]`, {
                 ...opts,
+                type: 'f32',
                 add_first: 0,
             });
             any_pcattrs = true;
         } else {
-            attrs[attr] = parseFloatArray(vals!, `${where}[${attr}]`, opts);
+            attrs[attr] = parseFloatArray(vals!, `${where}[${attr}]`, { ...opts, type: 'f32' });
             any_attrs = true;
         }
     }

@@ -105,7 +105,7 @@ export class Entry extends Resource {
     public constructor(id: ID, args: EntryArgs) {
         super(id);
         this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
-        this.max_piece = parseInt(args.max_piece, this.w('max_piece'), { min: 1 });
+        this.max_piece = parseInt(args.max_piece, this.w('max_piece'), { min: 1, type: 'u32' });
         [this.attributes, this.plus_attributes] = !args.attributes
             ? [undefined, undefined]
             : parseAttributePlusTable(
@@ -119,6 +119,7 @@ export class Entry extends Resource {
             ? [undefined, undefined]
             : parseVarIndexPlusTable(args.var_indexes, this.w('var_indexes'), {
                   len: this.max_piece,
+                  type: 'u32',
               });
     }
 
@@ -152,8 +153,8 @@ export function parseEntryTable(
                     throw new Error(`${where}: [1] must <= [0] * {MAX_ENTRY_PLUS}`);
                 }
                 return [
-                    parseInt(piece, `${where}[0]`, { min: 0 }),
-                    parseInt(plus, `${where}[1]`, { min: 0 }),
+                    parseInt(piece, `${where}[0]`, { type: 'u32' }),
+                    parseInt(plus, `${where}[1]`, { type: 'u32' }),
                 ];
             },
             opts,
