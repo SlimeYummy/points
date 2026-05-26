@@ -1,6 +1,6 @@
 import exitHook from 'exit-hook';
 import fs from 'node:fs';
-import path from 'node:path/posix';
+import path from 'node:path';
 import { INPUT_ASSET, OUTPUT_ASSET } from '../common';
 import * as animation from './animation';
 

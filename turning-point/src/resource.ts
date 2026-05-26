@@ -1,9 +1,11 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { ID, IDPrefix, RE_TMPL_ID_EXTRA } from './common';
 
 export abstract class Resource {
     static #resources = new Map<string, Resource>();
-    static #symbols = new Set<string>();
+    static #keys = new Set<string>();
+    static #done: boolean = false;
 
     public static readonly prefix?: IDPrefix = undefined;
 
@@ -19,7 +21,7 @@ export abstract class Resource {
         }
         for (let idx = 1; idx <= 3; idx += 1) {
             if (match[idx]) {
-                Resource.#symbols.add(match[idx]!);
+                Resource.#keys.add(match[idx]!);
             }
         }
     }
@@ -78,10 +80,10 @@ export abstract class Resource {
         fs.rmSync(folder, { force: true, recursive: true });
         fs.mkdirSync(folder, { recursive: true });
 
-        const symbols = Array.from(Resource.#symbols);
-        symbols.sort();
+        const keys = Array.from(Resource.#keys);
+        keys.sort();
         if (Array.isArray(extra_symbols)) {
-            symbols.unshift(...extra_symbols);
+            keys.unshift(...extra_symbols);
         }
 
         const indexes: Record<ID, [number, number]> = {};
@@ -96,9 +98,15 @@ export abstract class Resource {
         }
         resources[resources.length - 1] = '\r\n]';
 
-        fs.writeFileSync(`${folder}/symbol.json`, JSON.stringify(symbols));
-        fs.writeFileSync(`${folder}/index.json`, JSON.stringify(indexes));
-        fs.writeFileSync(`${folder}/data.json`, resources.join(''));
+        fs.writeFileSync(path.join(folder, 'key.json'), JSON.stringify(keys));
+        fs.writeFileSync(path.join(folder, 'index.json'), JSON.stringify(indexes));
+        fs.writeFileSync(path.join(folder, 'data.json'), resources.join(''));
+
         console.log(`Templates: ${folder}`);
+        Resource.#done = true;
+    }
+
+    public static done(): boolean {
+        return Resource.#done;
     }
 }

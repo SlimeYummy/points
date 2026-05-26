@@ -28,9 +28,15 @@ const MAPPING_SIMPLE = {
     configFile: 'config_simple.json',
     logicFile: 'mapping_simple.json',
     viewFile: 'mapping_simple.json',
-}
+};
 
-Asset.gltf2ozz('TrainingDummy/TrainingDummy.glb', 'TrainingDummy/', MAPPING_SIMPLE, 'TrainingDummy', 'TrainingDummy/');
+Asset.gltf2ozz(
+    'TrainingDummy/TrainingDummy.glb',
+    'TrainingDummy/',
+    MAPPING_SIMPLE,
+    'TrainingDummy',
+    'TrainingDummy/',
+);
 Asset.gltf2ozz('Slime/Slime.glb', 'Slime/', MAPPING_SIMPLE, 'Slime', 'Slime/');
 
 console.log('\nGenerate assets done\n');
