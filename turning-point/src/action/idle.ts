@@ -38,8 +38,8 @@ export class ActionIdle extends Action {
     /** 进入等级 */
     public readonly enter_level: int;
 
-    /** 派生等级 */
-    public readonly derive_level: int;
+    /** 维持等级 */
+    public readonly keep_level: int;
 
     /** 是否继承上个动作派生 */
     public readonly derive_keeping: boolean;
@@ -64,9 +64,11 @@ export class ActionIdle extends Action {
                           root_motion: false,
                       }),
               );
-        this.auto_idle_delay = parseTime(args.auto_idle_delay || '10s', this.w('auto_idle_delay'));
+        this.auto_idle_delay = parseTime(args.auto_idle_delay || '10s', this.w('auto_idle_delay'), {
+            type: 'f32',
+        });
         this.enter_level = LEVEL_IDLE;
-        this.derive_level = LEVEL_IDLE;
+        this.keep_level = LEVEL_IDLE;
         this.derive_keeping =
             args.derive_keeping == null
                 ? true
@@ -113,7 +115,7 @@ export class ActionIdle extends Action {
 //             : new Animation(args.anim_ready, this.w('anim_ready'), {
 //                   root_motion: false,
 //               });
-//         this.auto_idle_delay = parseTime(args.auto_idle_delay || '10s', this.w('auto_idle_delay'));
+//         this.auto_idle_delay = parseTime(args.auto_idle_delay || '10s', this.w('auto_idle_delay'), { type: 'f32' });
 //         this.poise_level = 0;
 
 //         Animation.generateLocalID([this.anim_idle, this.anim_ready]);

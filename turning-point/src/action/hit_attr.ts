@@ -62,12 +62,14 @@ export class Hit {
                 : parseVarInt(args.box_max_times, `${where}.box_max_times`, {
                       min: 0,
                       max: MAX_HIT_TIMES,
+                      type: 'u16',
                   });
         this.box_min_interval =
             args.box_min_interval == null
                 ? 1e10
                 : parseVarTime(args.box_min_interval, `${where}.box_min_interval`, {
                       min: SPF / MAX_HIT_TIMES_PER_FRAME,
+                      type: 'f32',
                   });
         this.group_max_times =
             args.group_max_times == null
@@ -75,6 +77,7 @@ export class Hit {
                 : parseVarInt(args.group_max_times, `${where}.group_max_times`, {
                       min: 0,
                       max: MAX_HIT_TIMES,
+                      type: 'u16',
                   });
     }
 
