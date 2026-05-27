@@ -20,7 +20,10 @@ export class AiPlanCandidate {
 
     public constructor(args: AiPlanCandidateArgs, where: string) {
         this.id = parseID(args.id, ['AiTask', 'AiPlan'], `${where}.id`);
-        this.probability = parseFloat(args.probability, `${where}.probability`, { min: 0 });
+        this.probability = parseFloat(args.probability, `${where}.probability`, {
+            min: 0,
+            type: 'f32',
+        });
     }
 }
 

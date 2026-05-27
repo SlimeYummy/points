@@ -47,11 +47,15 @@ export class ActionMoveStart {
                 ? 0
                 : parseTime(args.turn_in_place_end, `${where}.turn_in_place_end`, {
                       min: LOGIC_SPF,
+                      type: 'f32',
                   });
         this.quick_stop_end =
             args.quick_stop_end == null
                 ? this.anim.duration / 2
-                : parseTime(args.quick_stop_end, `${where}.quick_stop_end`, { min: 0 });
+                : parseTime(args.quick_stop_end, `${where}.quick_stop_end`, {
+                      min: 0,
+                      type: 'f32',
+                  });
     }
 }
 
@@ -148,17 +152,33 @@ export class ActionMoveStop {
             if (Array.isArray(item)) {
                 checkArray(item[0], `${where}[${idx}]`, { len: 2 });
                 phase = [
-                    parseFloat(item[0][0], `${where}[${idx}][0]`, { min: 0, max: 1 }),
-                    parseFloat(item[0][1], `${where}[${idx}][1]`, { min: 0, max: 1 }),
+                    parseFloat(item[0][0], `${where}[${idx}][0]`, { min: 0, max: 1, type: 'f32' }),
+                    parseFloat(item[0][1], `${where}[${idx}][1]`, { min: 0, max: 1, type: 'f32' }),
                 ];
-                offset = parseTime(item[1], `${where}[${idx}]`, { min: 0, max: duration });
+                offset = parseTime(item[1], `${where}[${idx}]`, {
+                    min: 0,
+                    max: duration,
+                    type: 'f32',
+                });
             } else {
                 checkArray(item.phase, `${where}[${idx}]`, { len: 2 });
                 phase = [
-                    parseFloat(item.phase[0], `${where}[${idx}][0]`, { min: 0, max: 1 }),
-                    parseFloat(item.phase[1], `${where}[${idx}][1]`, { min: 0, max: 1 }),
+                    parseFloat(item.phase[0], `${where}[${idx}][0]`, {
+                        min: 0,
+                        max: 1,
+                        type: 'f32',
+                    }),
+                    parseFloat(item.phase[1], `${where}[${idx}][1]`, {
+                        min: 0,
+                        max: 1,
+                        type: 'f32',
+                    }),
                 ];
-                offset = parseTime(item.offset, `${where}[${idx}]`, { min: 0, max: duration });
+                offset = parseTime(item.offset, `${where}[${idx}]`, {
+                    min: 0,
+                    max: duration,
+                    type: 'f32',
+                });
             }
             return { phase, offset };
         });
@@ -178,12 +198,24 @@ export class ActionMoveStop {
         return table.map((item, idx) => {
             let time: float, phase: float, time_where;
             if (Array.isArray(item)) {
-                time = parseTime(item[0], `${where}[${idx}][0]`, { min: 0, max: duration });
-                phase = parseFloat(item[1], `${where}[${idx}][1]`, { min: 0, max: 1 });
+                time = parseTime(item[0], `${where}[${idx}][0]`, {
+                    min: 0,
+                    max: duration,
+                    type: 'f32',
+                });
+                phase = parseFloat(item[1], `${where}[${idx}][1]`, { min: 0, max: 1, type: 'f32' });
                 time_where = `${where}[${idx}][0]`;
             } else {
-                time = parseTime(item.time, `${where}[${idx}].time`, { min: 0, max: duration });
-                phase = parseFloat(item.phase, `${where}[${idx}].phase`, { min: 0, max: 1 });
+                time = parseTime(item.time, `${where}[${idx}].time`, {
+                    min: 0,
+                    max: duration,
+                    type: 'f32',
+                });
+                phase = parseFloat(item.phase, `${where}[${idx}].phase`, {
+                    min: 0,
+                    max: 1,
+                    type: 'f32',
+                });
                 time_where = `${where}[${idx}].time`;
             }
             if (idx === 0 && time !== 0) {
@@ -205,16 +237,16 @@ export type ActionMoveArgs = ActionArgs & {
     /** 进入等级 */
     enter_level?: int;
 
-    /** 通常状态派生等级 */
-    derive_level?: int;
+    /** 通常状态维持等级 */
+    keep_level?: int;
 
     /**
-     * 特殊状态派生等级 包括：
+     * 特殊状态维持等级 包括：
      * - Start [0, turn_in_place_end] 的转身阶段
      * - Stop [0, speed_down_end] 的停止减速阶段
      * - Turn 全部阶段
      **/
-    special_derive_level?: int;
+    keep_level_special?: int;
 
     /** 前向移动动画 */
     anim_move: AnimationArgs;
@@ -259,16 +291,16 @@ export class ActionMove extends Action {
     /** 进入等级 */
     public readonly enter_level: int;
 
-    /** 通常状态派生等级 */
-    public readonly derive_level: int;
+    /** 通常状态维持等级 */
+    public readonly keep_level: int;
 
     /**
-     * 特殊状态派生等级 包括：
+     * 特殊状态维持等级 包括：
      * - Start [0, turn_in_place_end] 的转身阶段
      * - Stop [0, speed_down_end] 的停止减速阶段
      * - Turn [0, turn_in_place_end] 的转身阶段
      **/
-    public readonly special_derive_level: int;
+    public readonly keep_level_special: int;
 
     /** 韧性等级 */
     public readonly poise_level: int;
@@ -317,20 +349,24 @@ export class ActionMove extends Action {
             includes: ['Run', 'Walk', 'Dash'],
         }) as any;
         this.enter_level = parseActionLevel(args.enter_level || LEVEL_MOVE, this.w('enter_level'));
-        this.derive_level = parseActionLevel(
-            args.derive_level || LEVEL_MOVE - 10,
-            this.w('derive_level'),
+        this.keep_level = parseActionLevel(
+            args.keep_level || LEVEL_MOVE - 10,
+            this.w('keep_level'),
         );
-        this.special_derive_level = parseActionLevel(
-            args.special_derive_level || LEVEL_MOVE + 10,
-            this.w('special_derive_level'),
+        this.keep_level_special = parseActionLevel(
+            args.keep_level_special || LEVEL_MOVE + 10,
+            this.w('keep_level_special'),
         );
         this.poise_level = 0;
 
         this.anim_move = new Animation(args.anim_move, this.w('anim_move'), {
             root_motion: true,
         });
-        this.move_speed = parseFloat(args.move_speed, this.w('move_speed'), { min: 0, max: 1000 });
+        this.move_speed = parseFloat(args.move_speed, this.w('move_speed'), {
+            min: 0,
+            max: 1000,
+            type: 'f32',
+        });
         this.speed_ratio = this.anim_move.calcSpeedRatio(this.move_speed, this.w('anim_move'));
 
         this.starts = parseArray(
@@ -348,6 +384,7 @@ export class ActionMove extends Action {
         );
         this.quick_stop_time = parseTime(args.quick_stop_time || 0, this.w('quick_stop_time'), {
             min: 0,
+            type: 'f32',
         });
 
         this.turns =
@@ -356,7 +393,10 @@ export class ActionMove extends Action {
                 : parseArray(args.anim_turns, this.w('anim_turns'), (item, idx) => {
                       return new ActionMoveTurn(item, this.w(`anim_turns[${idx}]`));
                   });
-        this.turn_time = parseTime(args.turn_time || '12F', this.w('turn_time'), { min: 0 });
+        this.turn_time = parseTime(args.turn_time || '12F', this.w('turn_time'), {
+            min: 0,
+            type: 'f32',
+        });
 
         this.derive_keeping =
             args.derive_keeping == null
@@ -370,7 +410,7 @@ export class ActionMove extends Action {
         this.smooth_move_duration = parseTime(
             args.smooth_move_duration || '10F',
             this.w('smooth_move_duration'),
-            { min: 0 },
+            { min: 0, type: 'f32' },
         );
 
         Animation.generateLocalID([
