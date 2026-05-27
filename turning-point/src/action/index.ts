@@ -7,3 +7,4 @@ export * from './idle';
 export * from './move';
 export * from './move_npc';
 export * from './general';
+export * from './general_npc';

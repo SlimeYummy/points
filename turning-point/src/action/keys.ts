@@ -226,7 +226,11 @@ export class VirtualDir {
             } else {
                 throw new Error(where + ': must match dir pattern');
             }
-            const angle = parseFloat(Number.parseFloat(match[2]!), where, { min: 0, max: 180 });
+            const angle = parseFloat(Number.parseFloat(match[2]!), where, {
+                min: 0,
+                max: 180,
+                type: 'f32',
+            });
             this.cos = Math.cos((angle * Math.PI) / 180);
         } else {
             checkArray(args, where, { len: 2 });
@@ -234,7 +238,7 @@ export class VirtualDir {
                 throw new Error(where + ': must be Forward/Backward/Left/Right');
             }
             this.dir = args[0] as VirtualDirType;
-            const angle = parseFloat(args[1], `${where}[1]`, { min: 0, max: 180 });
+            const angle = parseFloat(args[1], `${where}[1]`, { min: 0, max: 180, type: 'f32' });
             this.cos = Math.cos((angle * Math.PI) / 180);
         }
     }

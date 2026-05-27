@@ -63,10 +63,14 @@ export class ActionMoveNpcStop {
             let anim: string, ratio: float;
             if (Array.isArray(item)) {
                 anim = parseString(item[0], `${where}[${idx}][0]`);
-                ratio = parseFloat(item[1], `${where}[${idx}][1]`, { min: 0, max: 1 });
+                ratio = parseFloat(item[1], `${where}[${idx}][1]`, { min: 0, max: 1, type: 'f32' });
             } else {
                 anim = parseString(item.anim, `${where}[${idx}].anim`);
-                ratio = parseFloat(item.ratio, `${where}[${idx}].ratio`, { min: 0, max: 1 });
+                ratio = parseFloat(item.ratio, `${where}[${idx}].ratio`, {
+                    min: 0,
+                    max: 1,
+                    type: 'f32',
+                });
             }
             if (!using_actions.includes(anim)) {
                 throw new Error(`${where}[${idx}]: animation not used`);
@@ -138,11 +142,15 @@ export class ActionMoveNpc extends Action {
         this.poise_level =
             args.poise_level == null
                 ? 0
-                : parseInt(args.poise_level, this.w('poise_level'), { min: 0 });
+                : parseInt(args.poise_level, this.w('poise_level'), { min: 0, type: 'u16' });
         this.anim_move = new Animation(args.anim_move, this.w('anim_move'), {
             root_motion: true,
         });
-        this.move_speed = parseFloat(args.move_speed, this.w('move_speed'), { min: 0, max: 1000 });
+        this.move_speed = parseFloat(args.move_speed, this.w('move_speed'), {
+            min: 0,
+            max: 1000,
+            type: 'f32',
+        });
         this.speed_ratio = this.anim_move.calcSpeedRatio(this.move_speed, this.w('anim_move'));
         this.anim_start = new Animation(args.anim_start, this.w('anim_start'), {
             root_motion: true,
@@ -158,7 +166,10 @@ export class ActionMoveNpc extends Action {
                 ),
             { min_len: 1 },
         );
-        this.turn_time = parseTime(args.turn_time || '12F', this.w('turn_time'), { min: 0 });
+        this.turn_time = parseTime(args.turn_time || '12F', this.w('turn_time'), {
+            min: 0,
+            type: 'f32',
+        });
         [this.min_distance, this.step_length] = this.calcMinDistanceAndStepLength();
 
         Animation.generateLocalID([

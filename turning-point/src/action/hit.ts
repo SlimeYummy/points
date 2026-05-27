@@ -74,8 +74,8 @@ export class ActionHit extends Action {
     /** 进入等级 */
     public readonly enter_level: int;
 
-    /** 派生等级 */
-    public readonly derive_level: int;
+    /** 维持等级 */
+    public readonly keep_level: int;
 
     public constructor(id: ID, args: ActionHitArgs) {
         super(id, args);
@@ -88,15 +88,16 @@ export class ActionHit extends Action {
             : new Animation(args.anim_down, this.w('anim_down'));
         this.max_down_time = !args.max_down_time
             ? undefined
-            : parseTime(args.max_down_time, this.w('max_down_time'), { min: 0 });
+            : parseTime(args.max_down_time, this.w('max_down_time'), { min: 0, type: 'f32' });
         this.anim_recovery = !args.anim_recovery
             ? undefined
             : new Animation(args.anim_recovery, this.w('anim_recovery'));
         this.hit_stun_end = parseTime(args.hit_stun_end || '0s', this.w('hit_stun_end'), {
             min: 0,
+            type: 'f32',
         });
         this.enter_level = key_to_enter_level(this.enter_key);
-        this.derive_level = key_to_derive_level(this.enter_key);
+        this.keep_level = key_to_keep_level(this.enter_key);
 
         Animation.generateLocalID([
             ...this.be_hits.map((anim) => anim.anim),
@@ -117,7 +118,7 @@ function key_to_enter_level(key: 'Hit1' | 'Hit2' | 'Hit3'): int {
     }
 }
 
-function key_to_derive_level(key: 'Hit1' | 'Hit2' | 'Hit3'): int {
+function key_to_keep_level(key: 'Hit1' | 'Hit2' | 'Hit3'): int {
     switch (key) {
         case 'Hit1':
             return 600;

@@ -78,7 +78,9 @@ export class Animation {
 
         this.duration = this.parseDuration(anim, args.duration, `${where}.duration`);
         this.fade_in =
-            args.fade_in == null ? 0.1 : parseTime(args.fade_in, `${where}.fade_in`, { min: 0 });
+            args.fade_in == null
+                ? 0.1
+                : parseTime(args.fade_in, `${where}.fade_in`, { min: 0, type: 'f32' });
         this.fade_in = Math.min(this.fade_in, this.duration);
 
         this.root_motion =
@@ -116,9 +118,9 @@ export class Animation {
         if (duration == null) {
             return anim.duration;
         } else if (typeof duration === 'string' && duration.endsWith('!')) {
-            return parseTime(duration.slice(0, -1), `${where}.duration`, { min: 0 });
+            return parseTime(duration.slice(0, -1), `${where}.duration`, { min: 0, type: 'f32' });
         } else {
-            const dura = parseTime(duration, `${where}.duration`, { min: 0 });
+            const dura = parseTime(duration, `${where}.duration`, { min: 0, type: 'f32' });
             if (Math.abs(dura - anim.duration) > 1e-4) {
                 console.warn(
                     `Warning: ${where}: duration mismatch (${duration} != ${anim.duration}s)`,
@@ -142,7 +144,7 @@ export class Animation {
             }
         }
     }
-    
+
     public calcSpeedRatio(move_speed: float, where: string): float {
         if (!this.root_motion) {
             throw new Error(`${where}: Animation has no root motion`);

@@ -36,12 +36,12 @@ import {
 涉及参数：
 - enter_key: 进入按键，新动作的属性，每个动作固定一个，全局生效。
 - enter_level: 进入等级，新动作的属性，越大越容易进入新动作。
-- derive_level: 派生等级，当前动作的属性，越大越不容易离开当前动作。
+- keep_level: 维持等级，当前动作的属性，越大越不容易离开当前动作。
 - derives: 派生动作列表，当前动作的属性，可以理解为仅在当前动作下生效的enter_key列表。
 简化的逻辑如下：
 玩家按下按键后，先搜索当前动作的derives，再搜索全局所有动作的enter_key。
-若找到匹配按键的动作，则比较该动作的enter_level与当前动作的derive_level。
-若enter_level>derive_level，则进入该动作。
+若找到匹配按键的动作，则比较该动作的enter_level与当前动作的keep_level。
+若enter_level>keep_level，则进入该动作。
 
 事件动作进入 ...
 
@@ -104,14 +104,14 @@ enter_key:
 
 enter_level:
     动作进入等级
-    与*_derive_level配合使用。当enter_level>=*_derive_level时，角色可进入当前动作。
+    与*_keep_level配合使用。当enter_level>=*_keep_level时，角色可进入当前动作。
 
-base_derive_level:
-    前摇&动作中的派生等级
+base_keep_level:
+    前摇&动作中的维持等级
     与enter_level配合使用，默认LevelDoing，即大部分动作不可派生。
 
-derive_level:
-    后摇派生等级
+keep_level:
+    后摇维持等级
     与enter_level配合使用。
 
 derive_start:
@@ -124,7 +124,7 @@ derive_duration:
 
 derives:
     特殊派生动作列表
-    此处的派生不参考enter_level/*_derive_level，仅能是DeriveKey。
+    此处的派生不参考enter_level/*_keep_level，仅能是DeriveKey。
 
 insertion_enabled:
     启用派生插入
@@ -433,6 +433,7 @@ export function parseActionLevel(
         ...opts,
         min: Math.max(LEVEL_IDLE, opts.min ?? LEVEL_IDLE),
         max: Math.min(LEVEL_UNBREAKABLE, opts.max ?? LEVEL_UNBREAKABLE),
+        type: 'u16',
     });
 }
 
@@ -466,6 +467,7 @@ export function parseVarActionLevel(
         ...opts,
         min: Math.max(LEVEL_IDLE, opts.min ?? LEVEL_IDLE),
         max: Math.min(LEVEL_UNBREAKABLE, opts.max ?? LEVEL_UNBREAKABLE),
+        type: 'u16',
     });
 }
 
@@ -514,14 +516,18 @@ export class ActionAttributes {
         } else {
             const args = arguments[0];
             const where = arguments[1];
-            this.damage_rdc = parseVarFloat(args.damage_rdc || 0, `${where}.damage_rdc`);
+            this.damage_rdc = parseVarFloat(args.damage_rdc || 0, `${where}.damage_rdc`, {
+                type: 'f32',
+            });
             this.shield_dmg_rdc = parseVarFloat(
                 args.shield_dmg_rdc || 0,
                 `${where}.shield_dmg_rdc`,
+                { type: 'f32' },
             );
             this.poise_level = parseVarInt(args.poise_level || 0, `${where}.poise_level`, {
                 min: 0,
                 max: 4,
+                type: 'u16',
             });
         }
     }

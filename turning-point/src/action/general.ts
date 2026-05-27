@@ -40,8 +40,8 @@ import {
 //     /** 详细数值时间轴 */
 //     attributes: ReadonlyArray<ReadonlyArray<int | string>>;
 
-//     /** 派生等级时间轴 */
-//     derive_levels: ReadonlyArray<ReadonlyArray<int | string>>;
+//     /** 维持等级时间轴 */
+//     keep_levels: ReadonlyArray<ReadonlyArray<int | string>>;
 
 //     // /** Just判定窗口 */
 //     // just_window?: readonly [int | string, int | string];
@@ -51,8 +51,8 @@ import {
 //     /** 详细数值时间轴 */
 //     public readonly attributes: ReadonlyArray<TimeFragment>;
 
-//     /** 派生等级时间轴 */
-//     public readonly derive_levels: ReadonlyArray<TimeFragment>;
+//     /** 维持等级时间轴 */
+//     public readonly keep_levels: ReadonlyArray<TimeFragment>;
 
 //     // /** Just判定窗口 */
 //     // public readonly just_window?: readonly [int, int];
@@ -62,7 +62,7 @@ import {
 //         this.attributes = TimeFragment.parseArray(args.attributes, `${where}.attributes`, {
 //             duration: this.duration,
 //         });
-//         this.derive_levels = TimeFragment.parseArray(args.derive_levels, `${where}.derive_levels`, {
+//         this.keep_levels = TimeFragment.parseArray(args.keep_levels, `${where}.keep_levels`, {
 //             duration: this.duration,
 //             over_duration: this.duration + 10 * FPS,
 //         });
@@ -76,12 +76,10 @@ import {
 //     }
 // }
 
-export type ActionGeneralMovetionArgs = ActionGeneralRootMotionArgs | ActionGeneralRotationArgs;
-export type ActionGeneralMovetion = ActionGeneralRootMotion | ActionGeneralRotation;
-
 export type ActionGeneralRootMotionArgs = {
     /** 是否启用Move轨道 */
     move?: boolean;
+
     /** 是否启用MoveEx轨道 */
     move_ex?: boolean;
 };
@@ -89,6 +87,7 @@ export type ActionGeneralRootMotionArgs = {
 export class ActionGeneralRootMotion {
     /** 是否启用Move轨道 */
     move: boolean;
+
     /** 是否启用MoveEx轨道 */
     move_ex: boolean;
 
@@ -103,21 +102,23 @@ export class ActionGeneralRootMotion {
 }
 
 export type ActionGeneralRotationArgs = {
-    /** 转身所需时间 */
+    /** 调节旋转方向所需时间 */
     duration: float | string;
-    /** 转身角度范围[-angle, angle] +angle表示前进移动 -angle表示后退移动 负号旋转范围不变 反转输入方向 */
-    angle: float | string;
+
+    /** 最大旋转角度 表示区间[-angle, angle]内角度范围 */
+    max_angle: float | string;
 };
 
 export class ActionGeneralRotation {
-    /** 转身所需时间 */
-    public duration: float;
-    /** 转身角度范围[-angle, angle] +angle表示前进移动 -angle表示后退移动 负号旋转范围不变 反转输入方向 */
-    public angle: float;
+    /** 调节旋转方向所需时间 */
+    public readonly duration: float;
+
+    /** 最大旋转角度 表示区间[-angle, angle]内角度范围 */
+    public readonly max_angle: float;
 
     public constructor(args: ActionGeneralRotationArgs, where: string) {
-        this.duration = parseTime(args.duration, `${where}.duration`, { min: 0, max: 1000 });
-        this.angle = parseAngleXz(args.angle, `${where}.angle`);
+        this.duration = parseTime(args.duration, `${where}.duration`, { min: 0, type: 'f32' });
+        this.max_angle = parseAngleXz(args.max_angle, `${where}.max_angle`);
     }
 
     public toJSON() {
@@ -125,7 +126,11 @@ export class ActionGeneralRotation {
     }
 }
 
+export type ActionGeneralMovetionArgs = ActionGeneralRootMotionArgs | ActionGeneralRotationArgs;
+export type ActionGeneralMovetion = ActionGeneralRootMotion | ActionGeneralRotation;
+
 export type ActionGeneralArgs = ActionArgs & {
+    /** 动画配置 */
     anim_main: AnimationArgs;
 
     /** 进入按键 */
@@ -149,8 +154,8 @@ export type ActionGeneralArgs = ActionArgs & {
     /** 各阶段详细数值配置 */
     attributes: TimelineRangeArgs<ActionAttributesArgs>;
 
-    /** 各阶段派生等级 */
-    derive_levels: TimelineRangeArgs<int | VarValueArgs<int>>;
+    /** 各阶段维持等级 */
+    keep_levels: TimelineRangeArgs<int | VarValueArgs<int>>;
 
     /** 派生列表 */
     derives?: ReadonlyArray<DeriveRuleArgs>;
@@ -201,8 +206,8 @@ export class ActionGeneral extends Action {
     /** 各阶段详细数值配置 */
     public readonly attributes: TimelineRange<ActionAttributes>;
 
-    /** 各阶段派生等级 */
-    public readonly derive_levels: TimelineRange<int | Var<int>>;
+    /** 各阶段维持等级 */
+    public readonly keep_levels: TimelineRange<int | Var<int>>;
 
     /** 派生列表 */
     public readonly derives?: ReadonlyArray<DeriveRule>;
@@ -229,35 +234,38 @@ export class ActionGeneral extends Action {
                 ? undefined
                 : new VirtualKeyDir(args.enter_key, this.w('enter_key'));
         this.enter_level = parseActionLevel(args.enter_level || LEVEL_IDLE, this.w('enter_level'));
-        this.cool_down_time = parseVarTime(args.cool_down_time || 0, this.w('cool_down_time'));
+        this.cool_down_time = parseVarTime(args.cool_down_time || 0, this.w('cool_down_time'), {
+            type: 'f32',
+        });
         this.cool_down_round = parseVarInt(args.cool_down_round || 1, this.w('cool_down_round'), {
             min: 1,
+            type: 'u16',
         });
         this.cool_down_init_round = parseVarInt(
             args.cool_down_init_round || args.cool_down_round || 1,
             this.w('cool_down_init_round'),
-            { min: 1 },
+            { min: 1, type: 'u16' },
         );
         this.input_movements = !args.input_movements
             ? undefined
             : new TimelinePoint(
                   args.input_movements,
                   this.w('input_movements'),
-                  { duration: this.anim_main.duration },
+                  { duration: this.anim_main.duration, type: 'f32' },
                   {},
                   ActionGeneral.parseInputMovement,
               );
         this.attributes = new TimelineRange(
             args.attributes,
             this.w('attributes'),
-            { duration: this.anim_main.duration },
+            { duration: this.anim_main.duration, type: 'f32' },
             {},
             parseActionAttributes,
         );
-        this.derive_levels = new TimelineRange(
-            args.derive_levels,
-            this.w('derive_levels'),
-            { duration: this.anim_main.duration, over_duration: 5 * FPS },
+        this.keep_levels = new TimelineRange(
+            args.keep_levels,
+            this.w('keep_levels'),
+            { duration: this.anim_main.duration, over_duration: 5 * FPS, type: 'f32' },
             {},
             parseActionLevel,
         );
@@ -270,13 +278,13 @@ export class ActionGeneral extends Action {
         this.hits =
             args.hits == null
                 ? undefined
-                : Hit.parseArray(args.hits, this.w('hits'), { files: args.anim_main.files });
+                : Hit.parseArray(args.hits ?? [], this.w('hits'), { files: args.anim_main.files });
         this.custom_events = !args.custom_events
             ? undefined
             : new TimelinePoint(
                   args.custom_events,
                   this.w('custom_events'),
-                  { duration: this.anim_main.duration },
+                  { duration: this.anim_main.duration, type: 'f32' },
                   {},
                   parseString,
               );
@@ -293,32 +301,12 @@ export class ActionGeneral extends Action {
             (args as ActionGeneralRootMotionArgs).move_ex != null
         ) {
             return new ActionGeneralRootMotion(args as ActionGeneralRootMotionArgs, where);
-        } else if ((args as ActionGeneralRotationArgs).angle != null) {
+        } else if ((args as ActionGeneralRotationArgs).max_angle != null) {
             return new ActionGeneralRotation(args as ActionGeneralRotationArgs, where);
         } else {
             throw new Error(`${where}: invalid input movement`);
         }
     }
-
-    // private parseInputRotations(
-    //     input_turns: undefined | ReadonlyArray<ActionGeneralRotationArgs>,
-    //     duration: float,
-    //     where: string,
-    // ) {
-    //     if (input_turns == null) {
-    //         return [];
-    //     }
-
-    //     checkArray(input_turns, where, { max_len: 3 });
-    //     let iter_time = 0;
-    //     return input_turns.map((arg, idx) => {
-    //         const rot = new ActionGeneralRotation(arg, `${where}[${idx}]`, { duration });
-    //         if (rot.input_time < iter_time) {
-    //             throw new Error(`${where}[${idx}].input_time must be ascend`);
-    //         }
-    //         return rot;
-    //     });
-    // }
 
     public override verify(): void {
         super.verify();
