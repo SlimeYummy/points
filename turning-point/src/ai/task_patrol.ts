@@ -1,8 +1,14 @@
-import { checkArray, float, ID, parseID, parseTime, parseVec3 } from '../common';
-import { Action, ActionIdle, ActionMoveNpc } from '../action';
+import { checkArray, float, ID, int, parseID, parseInt, parseTime, parseVec3 } from '../common';
+import { Action, ActionIdle, ActionMoveNpc, LEVEL_MOVE } from '../action';
 import { AiTask, AiTaskArgs } from './task_base';
 
 export type AiTaskPatrolArgs = AiTaskArgs & {
+    /** 进入等级 */
+    enter_level?: int;
+
+    /** 维持等级 */
+    keep_level?: int;
+
     /** 待机动作ID */
     action_idle: ID;
 
@@ -10,17 +16,27 @@ export type AiTaskPatrolArgs = AiTaskArgs & {
     action_move: ID;
 
     /** 巡逻路线 */
-    route: ReadonlyArray<AiTaskPatrolStep>;
+    route: ReadonlyArray<AiTaskPatrolStepArgs>;
 };
+
+export type AiTaskPatrolStepArgs =
+    | readonly ['Move', readonly [float | string, float | string, float | string]]
+    | readonly ['Idle', float | string];
 
 export type AiTaskPatrolStep =
     | readonly ['Move', readonly [float, float, float]]
-    | readonly ['Idle', float | string];
+    | readonly ['Idle', float];
 
 /**
  * AI任务（巡逻）
  */
 export class AiTaskPatrol extends AiTask {
+    /** 进入等级 */
+    public readonly enter_level: int;
+
+    /** 维持等级 */
+    public readonly keep_level: int;
+
     /** 待机动作ID */
     public readonly action_idle: ID;
 
@@ -32,18 +48,24 @@ export class AiTaskPatrol extends AiTask {
 
     public constructor(id: ID, args: AiTaskPatrolArgs) {
         super(id, args);
+        this.enter_level = parseInt(args.enter_level ?? LEVEL_MOVE, this.w('enter_level'), {
+            type: 'u16',
+        });
+        this.keep_level = parseInt(args.keep_level ?? LEVEL_MOVE, this.w('keep_level'), {
+            type: 'u16',
+        });
         this.action_idle = parseID(args.action_idle, 'Action', this.w('action_idle'));
         this.action_move = parseID(args.action_move, 'Action', this.w('action_move'));
         this.route = this.parseRoute(args.route);
     }
 
-    private parseRoute(raw: ReadonlyArray<AiTaskPatrolStep>): ReadonlyArray<AiTaskPatrolStep> {
+    private parseRoute(raw: ReadonlyArray<AiTaskPatrolStepArgs>): ReadonlyArray<AiTaskPatrolStep> {
         const where = this.w('route');
         checkArray(raw, where, { min_len: 1 });
 
         return raw.map((step, idx) => {
             if (!Array.isArray(step)) {
-                throw this.error(`${where}[${idx}]`, 'must be an array');
+                throw this.e(`${where}[${idx}]`, 'must be an array');
             }
 
             if (step[0] === 'Move') {
@@ -51,10 +73,10 @@ export class AiTaskPatrol extends AiTask {
             } else if (step[0] === 'Idle') {
                 return [
                     'Idle',
-                    parseTime(step[1], `${where}[${idx}].duration`, { min: 0 }),
+                    parseTime(step[1], `${where}[${idx}].duration`, { min: 0, type: 'f32' }),
                 ] as const;
             } else {
-                throw this.error(`${where}[${idx}][0]`, 'must be Move|Idle');
+                throw this.e(`${where}[${idx}][0]`, 'must be Move|Idle');
             }
         });
     }
@@ -64,18 +86,18 @@ export class AiTaskPatrol extends AiTask {
 
         const idle = Action.find(this.action_idle, this.w('action_idle'));
         if (!(idle instanceof ActionIdle)) {
-            throw this.error('action_idle', 'must be an ActionIdle');
+            throw this.e('action_idle', 'must be an ActionIdle');
         }
         if (!idle.character_npcs?.includes(this.character_npc)) {
-            throw this.error('action_idle', 'AiTaskIdle and ActionIdle mismatch');
+            throw this.e('action_idle', 'AiTaskPatrol and ActionIdle mismatch');
         }
 
         const move = Action.find(this.action_move, this.w('action_move'));
         if (!(move instanceof ActionMoveNpc)) {
-            throw this.error('action_move', 'must be an ActionMoveNpc');
+            throw this.e('action_move', 'must be an ActionMoveNpc');
         }
         if (!move.character_npcs?.includes(this.character_npc)) {
-            throw this.error('action_move', 'AiTaskPatrol and ActionMoveNpc mismatch');
+            throw this.e('action_move', 'AiTaskPatrol and ActionMoveNpc mismatch');
         }
     }
 }
