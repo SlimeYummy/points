@@ -3,12 +3,18 @@ import { ENABLE_TIME_WARNING, FPS, LOGIC_SPF } from './config';
 
 const RE_TIME = /^(\d+(?:\.\d+)?)(s|m|min|h|hr|ms|F)$/;
 
+const FLOAT_RANGE = {
+    f32: [-3.40282347e38, 3.40282347e38],
+    f64: [-Number.MAX_VALUE, Number.MAX_VALUE],
+} as const;
+
 export function parseTime(
     raw: float | string,
     where: string,
     opts: {
         min?: float;
         max?: float;
+        type?: 'f32' | 'f64';
         ignore_warning?: boolean;
     } = {},
 ): float {
@@ -21,11 +27,23 @@ export function parseTime(
         throw new Error(`${where}: must be a float/time`);
     }
 
-    if (opts.min !== undefined && res < opts.min) {
-        throw new Error(`${where}: must >= ${opts.min}`);
+    let min = opts.min;
+    let max = opts.max;
+    if (opts.type) {
+        const [tMin, tMax] = FLOAT_RANGE[opts.type];
+        if (min == null || tMin > min) {
+            min = tMin;
+        }
+        if (max == null || tMax < max) {
+            max = tMax;
+        }
     }
-    if (opts.max !== undefined && res > opts.max) {
-        throw new Error(`${where}: must <= ${opts.max}`);
+
+    if (min != null && res < min) {
+        throw new Error(`${where}: must >= ${min}`);
+    }
+    if (max != null && res > max) {
+        throw new Error(`${where}: must <= ${max}`);
     }
 
     if (ENABLE_TIME_WARNING && !opts.ignore_warning) {
@@ -73,6 +91,7 @@ export function parseTimeArray(
     opts: {
         min?: float;
         max?: float;
+        type?: 'f32' | 'f64';
         len?: float;
         min_len?: float;
         max_len?: float;
@@ -89,6 +108,7 @@ export function parseTimeArray(
             parseTime(item, `${where}[${idx}]`, {
                 min: opts.min,
                 max: opts.max,
+                type: opts.type,
                 ignore_warning: opts.ignore_warning,
             }),
         );
@@ -106,6 +126,7 @@ export function parseTimeRange(
     opts: {
         min?: float;
         max?: float;
+        type?: 'f32' | 'f64';
         ignore_warning?: boolean;
     } = {},
 ): readonly [float, float] {
@@ -155,6 +176,7 @@ export class TimeFragment {
             duration: float;
             over_duration?: float;
             ignore_warning?: boolean;
+            type?: 'f32' | 'f64';
         },
     ): ReadonlyArray<TimeFragment> {
         checkArray(raw, where, { min_len: 1 });
@@ -166,6 +188,7 @@ export class TimeFragment {
             min: 0,
             max: opts.over_duration || opts.duration,
             ignore_warning: opts.ignore_warning,
+            type: opts.type,
         };
         for (const [idx, item] of raw.entries()) {
             const range = parseTimeRange(item, `${where}[${idx}]`, range_opts);
@@ -254,6 +277,7 @@ export class TimelineRange<V> {
         fragmentOpts: {
             duration: float;
             over_duration?: float;
+            type?: 'f32' | 'f64';
         },
         valueOpts: Record<string, any>,
         parseValue: (raw: any, where: string, opts: Record<string, any>) => V,
@@ -302,6 +326,7 @@ export class TimelinePoint<V> {
         where: string,
         pointOpts: {
             duration: float;
+            type?: 'f32' | 'f64';
         },
         valueOpts: Record<string, any>,
         parseValue: (raw: any, where: string, opts: Record<string, any>) => V,
@@ -318,12 +343,18 @@ export class TimelinePoint<V> {
             let pairs: Array<[float, V]>;
             if (Array.isArray(raw)) {
                 pairs = raw.map((item, idx) => [
-                    parseTime(item.time, `${where}[${idx}].time`, { max: pointOpts.duration }),
+                    parseTime(item.time, `${where}[${idx}].time`, {
+                        max: pointOpts.duration,
+                        type: pointOpts.type,
+                    }),
                     parseValue(item, `${where}[${idx}]`, valueOpts),
                 ]);
             } else if (typeof raw === 'object' && raw) {
                 pairs = Object.entries(raw).map(([time, val]) => [
-                    parseTime(time, `${where}[${time}]`, { max: pointOpts.duration }),
+                    parseTime(time, `${where}[${time}]`, {
+                        max: pointOpts.duration,
+                        type: pointOpts.type,
+                    }),
                     parseValue(val, `${where}[${time}]`, valueOpts),
                 ]);
             } else {

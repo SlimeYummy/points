@@ -1,4 +1,4 @@
-import { checkArray, float, int, parseFloatArray } from './builtin';
+import { checkArray, float, parseFloatArray } from './builtin';
 
 export const EPSILON = 1e-6;
 
@@ -19,10 +19,12 @@ export function parseVec2(
         max?: float;
     } = {},
 ): readonly [number, number] {
-    const res = parseFloatArray(raw, where, { len: 2, min: opts.min, max: opts.max }) as [
-        number,
-        number,
-    ];
+    const res = parseFloatArray(raw, where, {
+        len: 2,
+        min: opts.min,
+        max: opts.max,
+        type: 'f32',
+    }) as [number, number];
     if (opts.normalized) {
         const sqrt = res[0] * res[0] + res[1] * res[1];
         if (absDiffNe(sqrt, 1.0)) {
@@ -40,7 +42,7 @@ export function parseVec3(
         positive?: boolean;
     } = {},
 ): readonly [number, number, number] {
-    const res = parseFloatArray(raw, where, { len: 3 }) as [number, number, number];
+    const res = parseFloatArray(raw, where, { len: 3, type: 'f32' }) as [number, number, number];
     if (opts.normalized) {
         const sqrt = res[0] * res[0] + res[1] * res[1] + res[2] * res[2];
         if (absDiffNe(sqrt, 1.0)) {
@@ -57,7 +59,12 @@ export function parseQuat(
         normalized?: boolean;
     } = {},
 ): readonly [number, number, number, number] {
-    const res = parseFloatArray(raw, where, { len: 4 }) as [number, number, number, number];
+    const res = parseFloatArray(raw, where, { len: 4, type: 'f32' }) as [
+        number,
+        number,
+        number,
+        number,
+    ];
     if (opts.normalized) {
         const sqrt = res[0] * res[0] + res[1] * res[1] + res[2] * res[2] + res[3] * res[3];
         if (absDiffNe(sqrt, 1.0)) {

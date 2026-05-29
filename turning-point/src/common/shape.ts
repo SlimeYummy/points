@@ -25,13 +25,13 @@ export class Box extends Shape {
     public constructor(...args: any[]) {
         super();
         if (args[0] && typeof args[0] === 'object') {
-            this.half_x = parseFloat(args[0].half_x, `${args[1]}.half_x`, { min: 0 });
-            this.half_y = parseFloat(args[0].half_y, `${args[1]}.half_y`, { min: 0 });
-            this.half_z = parseFloat(args[0].half_z, `${args[1]}.half_z`, { min: 0 });
+            this.half_x = parseFloat(args[0].half_x, `${args[1]}.half_x`, { min: 0, type: 'f32' });
+            this.half_y = parseFloat(args[0].half_y, `${args[1]}.half_y`, { min: 0, type: 'f32' });
+            this.half_z = parseFloat(args[0].half_z, `${args[1]}.half_z`, { min: 0, type: 'f32' });
         } else {
-            this.half_x = parseFloat(args[0], 'Box.half_x', { min: 0 });
-            this.half_y = parseFloat(args[1], 'Box.half_y', { min: 0 });
-            this.half_z = parseFloat(args[2], 'Box.half_z', { min: 0 });
+            this.half_x = parseFloat(args[0], 'Box.half_x', { min: 0, type: 'f32' });
+            this.half_y = parseFloat(args[1], 'Box.half_y', { min: 0, type: 'f32' });
+            this.half_z = parseFloat(args[2], 'Box.half_z', { min: 0, type: 'f32' });
         }
     }
 }
@@ -48,9 +48,9 @@ export class Sphere extends Shape {
     public constructor(...args: any[]) {
         super();
         if (args[0] && typeof args[0] === 'object') {
-            this.radius = parseFloat(args[0].radius, `${args[1]}.radius`, { min: 0 });
+            this.radius = parseFloat(args[0].radius, `${args[1]}.radius`, { min: 0, type: 'f32' });
         } else {
-            this.radius = parseFloat(args[0], 'Sphere.radius', { min: 0 });
+            this.radius = parseFloat(args[0], 'Sphere.radius', { min: 0, type: 'f32' });
         }
     }
 }
@@ -71,11 +71,12 @@ export class Capsule extends Shape {
         if (args[0] && typeof args[0] === 'object') {
             this.half_height = parseFloat(args[0].half_height, `${args[1]}.half_height`, {
                 min: 0,
+                type: 'f32',
             });
-            this.radius = parseFloat(args[0].radius, `${args[1]}.radius`, { min: 0 });
+            this.radius = parseFloat(args[0].radius, `${args[1]}.radius`, { min: 0, type: 'f32' });
         } else {
-            this.half_height = parseFloat(args[0], 'Capsule.half_height', { min: 0 });
-            this.radius = parseFloat(args[1], 'Capsule.radius', { min: 0 });
+            this.half_height = parseFloat(args[0], 'Capsule.half_height', { min: 0, type: 'f32' });
+            this.radius = parseFloat(args[1], 'Capsule.radius', { min: 0, type: 'f32' });
         }
     }
 }
@@ -98,15 +99,29 @@ export class TaperedCapsule extends Shape {
         if (args[0] && typeof args[0] === 'object') {
             this.half_height = parseFloat(args[0].half_height, `${args[1]}.half_height`, {
                 min: 0,
+                type: 'f32',
             });
-            this.top_radius = parseFloat(args[0].top_radius, `${args[1]}.top_radius`, { min: 0 });
+            this.top_radius = parseFloat(args[0].top_radius, `${args[1]}.top_radius`, {
+                min: 0,
+                type: 'f32',
+            });
             this.bottom_radius = parseFloat(args[0].bottom_radius, `${args[1]}.bottom_radius`, {
                 min: 0,
+                type: 'f32',
             });
         } else {
-            this.half_height = parseFloat(args[0], 'TaperedCapsule.half_height', { min: 0 });
-            this.top_radius = parseFloat(args[1], 'TaperedCapsule.top_radius', { min: 0 });
-            this.bottom_radius = parseFloat(args[2], 'TaperedCapsule.bottom_radius', { min: 0 });
+            this.half_height = parseFloat(args[0], 'TaperedCapsule.half_height', {
+                min: 0,
+                type: 'f32',
+            });
+            this.top_radius = parseFloat(args[1], 'TaperedCapsule.top_radius', {
+                min: 0,
+                type: 'f32',
+            });
+            this.bottom_radius = parseFloat(args[2], 'TaperedCapsule.bottom_radius', {
+                min: 0,
+                type: 'f32',
+            });
         }
     }
 }
@@ -127,11 +142,12 @@ export class Cylinder extends Shape {
         if (args[0] && typeof args[0] === 'object') {
             this.half_height = parseFloat(args[0].half_height, `${args[1]}.half_height`, {
                 min: 0,
+                type: 'f32',
             });
-            this.radius = parseFloat(args[0].radius, `${args[1]}.radius`, { min: 0 });
+            this.radius = parseFloat(args[0].radius, `${args[1]}.radius`, { min: 0, type: 'f32' });
         } else {
-            this.half_height = parseFloat(args[0], 'Cylinder.half_height', { min: 0 });
-            this.radius = parseFloat(args[1], 'Cylinder.radius', { min: 0 });
+            this.half_height = parseFloat(args[0], 'Cylinder.half_height', { min: 0, type: 'f32' });
+            this.radius = parseFloat(args[1], 'Cylinder.radius', { min: 0, type: 'f32' });
         }
     }
 }
@@ -154,15 +170,29 @@ export class TaperedCylinder extends Shape {
         if (args[0] && typeof args[0] === 'object') {
             this.half_height = parseFloat(args[0].half_height, `${args[1]}.half_height`, {
                 min: 0,
+                type: 'f32',
             });
-            this.top_radius = parseFloat(args[0].top_radius, `${args[1]}.top_radius`, { min: 0 });
+            this.top_radius = parseFloat(args[0].top_radius, `${args[1]}.top_radius`, {
+                min: 0,
+                type: 'f32',
+            });
             this.bottom_radius = parseFloat(args[0].bottom_radius, `${args[1]}.bottom_radius`, {
                 min: 0,
+                type: 'f32',
             });
         } else {
-            this.half_height = parseFloat(args[0], 'TaperedCylinder.half_height', { min: 0 });
-            this.top_radius = parseFloat(args[1], 'TaperedCylinder.top_radius', { min: 0 });
-            this.bottom_radius = parseFloat(args[2], 'TaperedCylinder.bottom_radius', { min: 0 });
+            this.half_height = parseFloat(args[0], 'TaperedCylinder.half_height', {
+                min: 0,
+                type: 'f32',
+            });
+            this.top_radius = parseFloat(args[1], 'TaperedCylinder.top_radius', {
+                min: 0,
+                type: 'f32',
+            });
+            this.bottom_radius = parseFloat(args[2], 'TaperedCylinder.bottom_radius', {
+                min: 0,
+                type: 'f32',
+            });
         }
     }
 }
@@ -181,20 +211,22 @@ export class SphericalCone extends Shape {
     public constructor(...args: any[]) {
         super();
         if (args[0] && typeof args[0] === 'object') {
-            this.radius = parseFloat(args[0].radius, `${args[1]}.radius`, { min: 0 });
+            this.radius = parseFloat(args[0].radius, `${args[1]}.radius`, { min: 0, type: 'f32' });
             this.half_angle =
                 (parseFloat(args[0].half_angle, `${args[1]}.half_angle`, {
                     min: 0,
                     max: 180,
+                    type: 'f32',
                 }) *
                     Math.PI) /
                 180;
         } else {
-            this.radius = parseFloat(args[0], 'SphericalCone.radius', { min: 0 });
+            this.radius = parseFloat(args[0], 'SphericalCone.radius', { min: 0, type: 'f32' });
             this.half_angle =
                 (parseFloat(args[1], 'SphericalCone.half_angle', {
                     min: 0,
                     max: 180,
+                    type: 'f32',
                 }) *
                     Math.PI) /
                 180;
