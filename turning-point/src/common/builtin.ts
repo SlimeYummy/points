@@ -11,12 +11,29 @@ export function parseBool(raw: boolean | int, where: string): boolean {
     return Boolean(raw);
 }
 
+export const INT_RANGE = {
+    u8: [0, 255],
+    u16: [0, 65535],
+    u32: [0, 4294967295],
+    u64: [0, Number.MAX_SAFE_INTEGER],
+    i8: [-128, 127],
+    i16: [-32768, 32767],
+    i32: [-2147483648, 2147483647],
+    i64: [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+} as const;
+
+export const FLOAT_RANGE = {
+    f32: [-3.40282347e38, 3.40282347e38],
+    f64: [-Number.MAX_VALUE, Number.MAX_VALUE],
+} as const;
+
 export function parseInt(
     raw: int | boolean,
     where: string,
     opts: {
         min?: int;
         max?: int;
+        type?: 'u8' | 'u16' | 'u32' | 'u64' | 'i8' | 'i16' | 'i32' | 'i64';
         allow_bool?: boolean;
     } = {},
 ): int {
@@ -30,11 +47,23 @@ export function parseInt(
         }
     }
 
-    if (opts.min !== undefined && (raw as number) < opts.min) {
-        throw new Error(`${where}: must >= ${opts.min}`);
+    let min = opts.min;
+    let max = opts.max;
+    if (opts.type) {
+        const [tMin, tMax] = INT_RANGE[opts.type];
+        if (min == null || tMin > min) {
+            min = tMin;
+        }
+        if (max == null || tMax < max) {
+            max = tMax;
+        }
     }
-    if (opts.max !== undefined && (raw as number) > opts.max) {
-        throw new Error(`${where}: must <= ${opts.max}`);
+
+    if (min != null && (raw as number) < min) {
+        throw new Error(`${where}: must >= ${min}`);
+    }
+    if (max != null && (raw as number) > max) {
+        throw new Error(`${where}: must <= ${max}`);
     }
     return Math.round(raw as number);
 }
@@ -47,6 +76,7 @@ export function parseFloat(
     opts: {
         min?: float;
         max?: float;
+        type?: 'f32' | 'f64';
     } = {},
 ): float {
     let res = 0.0;
@@ -58,11 +88,23 @@ export function parseFloat(
         throw new Error(`${where}: must be a float/percent`);
     }
 
-    if (opts.min !== undefined && res < opts.min) {
-        throw new Error(`${where}: must >= ${opts.min}`);
+    let min = opts.min;
+    let max = opts.max;
+    if (opts.type) {
+        const [tMin, tMax] = FLOAT_RANGE[opts.type];
+        if (min == null || tMin > min) {
+            min = tMin;
+        }
+        if (max == null || tMax < max) {
+            max = tMax;
+        }
     }
-    if (opts.max !== undefined && res > opts.max) {
-        throw new Error(`${where}: must <= ${opts.max}`);
+
+    if (min != null && res < min) {
+        throw new Error(`${where}: must >= ${min}`);
+    }
+    if (max != null && res > max) {
+        throw new Error(`${where}: must <= ${max}`);
     }
     return res;
 }
@@ -164,6 +206,7 @@ export function parseIntArray(
     opts: {
         min?: int;
         max?: int;
+        type?: 'u8' | 'u16' | 'u32' | 'u64' | 'i8' | 'i16' | 'i32' | 'i64';
         len?: int;
         min_len?: int;
         max_len?: int;
@@ -184,6 +227,7 @@ export function parseIntArray(
             parseInt(item, `${where}[${idx}]`, {
                 min: opts.min,
                 max: opts.max,
+                type: opts.type,
                 allow_bool: opts.allow_bool,
             }),
         );
@@ -201,6 +245,7 @@ export function parseIntRange(
     opts: {
         min?: int;
         max?: int;
+        type?: 'u8' | 'u16' | 'u32' | 'u64' | 'i8' | 'i16' | 'i32' | 'i64';
     } = {},
 ): readonly [int, int] {
     const res = parseIntArray(raw, where, { ...opts, len: 2 });
@@ -216,6 +261,7 @@ export function parseFloatArray(
     opts: {
         min?: float;
         max?: float;
+        type?: 'f32' | 'f64';
         len?: int;
         min_len?: int;
         max_len?: int;
@@ -235,6 +281,7 @@ export function parseFloatArray(
             parseFloat(item, `${where}[${idx}]`, {
                 min: opts.min,
                 max: opts.max,
+                type: opts.type,
             }),
         );
     }
@@ -251,6 +298,7 @@ export function parseFloatRange(
     opts: {
         min?: float;
         max?: float;
+        type?: 'f32' | 'f64';
     } = {},
 ): readonly [float, float] {
     const res = parseFloatArray(raw, where, { ...opts, len: 2 });

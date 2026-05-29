@@ -19,11 +19,11 @@ export type IDPrefix =
     | 'Zone';
 
 export const RE_TMPL_ID_EXTRA =
-    /^\.(\#|[\w\-_]{1,64})(?:\.([\w\-_]{1,64}))?(?:\.([\w\-_]{1,64}))?(?:\^([0-9]?[0-9A-Z]|[A-Z][0-9]))?$/;
+    /^\.(\#|[\w]{1,64})(?:\.([\w]{1,64}))?(?:\.([\w]{1,64}))?(?:\^([0-9]?[0-9A-Z]|[A-Z][0-9]))?$/;
 
 export type ID = string;
 
-export function parseID(raw: string, prefix: IDPrefix | IDPrefix[], where: string): string {
+export function parseID(raw: string, prefix: IDPrefix | IDPrefix[], where: string): ID {
     if (typeof raw !== 'string') {
         throw new Error(`${where}: must be a ID`);
     }
@@ -58,10 +58,10 @@ export function parseIDArray(
         max_len?: number;
         allow_conflict?: boolean;
     } = {},
-): ReadonlyArray<string> {
+): ReadonlyArray<ID> {
     checkArray(raw, where, opts);
 
-    const res: Array<string> = [];
+    const res: Array<ID> = [];
     for (const [idx, id] of Array.from(raw.entries())) {
         if (!opts.allow_conflict && res.find((x) => x == id)) {
             throw new Error(`${where}[${idx}]: ID conflict`);
