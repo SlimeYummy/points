@@ -16,6 +16,13 @@ describe('time', () => {
         
         expect(() => parseTime('9hh', '?'))
             .toThrow('?: invalid time');
+
+        expect(() => parseTime(4e38, '?', { type: 'f32' }))
+            .toThrow('?: must <= 3.40282347e+38');
+        expect(() => parseTime(-4e38, '?', { type: 'f32' }))
+            .toThrow('?: must >= -3.40282347e+38');
+
+        assert.equal(parseTime(3.4e38, '?', { type: 'f32' }), 3.4e38);
         
         assert.equal(parseTime(5, '?'), 5);
         assert.equal(parseTime('5s', '?'), 5);
@@ -40,6 +47,9 @@ describe('time', () => {
         
         expect(() => parseTimeArray([5, 5, 5], '?', { max_len: 2 }))
             .toThrow('?: length must <= 2');
+
+        expect(() => parseTimeArray([4e38], '?', { type: 'f32' }))
+            .toThrow('?[0]: must <= 3.40282347e+38');
         
         assert.deepEqual(
             parseTimeArray([5, '5s', '5min', '1h', '1000ms', '7F'], '?'),
@@ -65,6 +75,9 @@ describe('time', () => {
         
         expect(() => parseTimeRange([5, 12], '?', { max: 10 }))
             .toThrow('?[1]: must <= 10');
+
+        expect(() => parseTimeRange(['0s', 4e38], '?', { type: 'f32' }))
+            .toThrow('?[1]: must <= 3.40282347e+38');
         
         assert.deepEqual(parseTimeRange(['5s', '1min'], '?'), [5, 60]);
     });
