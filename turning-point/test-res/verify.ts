@@ -2,8 +2,8 @@ import {
     AiBrain,
     Capsule,
     Character,
-    Equipment,
     CharacterNpc,
+    Equipment,
     Perk,
     Slot1,
     Slot3,
@@ -162,6 +162,6 @@ new AiBrain('AiBrain.Verify^1', {
     character_npc: 'CharacterNpc.Verify^1',
     alert_sphere: { radius: 5 },
     alert_cone: { radius: 10, half_angle: 45 },
-    attack_exit_delay: '30s',
-    idle_nodes: [],
+    aggro_sphere: { radius: 10 },
+    aggro_lost_time: '10s',
 });

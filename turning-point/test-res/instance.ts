@@ -1,20 +1,26 @@
 import {
     ActionGeneral,
+    ActionGeneralNpc,
     ActionHit,
     ActionIdle,
     ActionMove,
+    ActionMoveNpc,
     AiBrain,
+    AiTaskGeneral,
     AiTaskIdle,
     AiTaskPatrol,
+    AiTaskMoveToCharacter,
     Attack1,
     Attack2,
     Capsule,
     Character,
+    CharacterNpc,
     Equipment,
     Hit1,
     LEVEL_ACTION,
     LEVEL_ATTACK,
-    CharacterNpc,
+    LEVEL_MOVE,
+    LEVEL_SKILL,
     Perk,
     Run,
     Slot1,
@@ -22,7 +28,6 @@ import {
     Style,
     TaperedCapsule,
     Var,
-    ActionMoveNpc,
     Walk,
 } from '../src';
 
@@ -258,7 +263,7 @@ new ActionGeneral('Action.Instance.Attack^1A', {
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,
     input_movements: {
-        '0F': { duration: '8F', angle: 60 },
+        '0F': { duration: '8F', max_angle: 60 },
         '24F': { move_ex: true },
     },
     attributes: {
@@ -268,7 +273,7 @@ new ActionGeneral('Action.Instance.Attack^1A', {
             poise_level: 1,
         },
     },
-    derive_levels: {
+    keep_levels: {
         '0-4s': LEVEL_ACTION,
         '2.5s-4.5s': LEVEL_ATTACK,
     },
@@ -316,7 +321,7 @@ new ActionGeneral('Action.Instance.AttackDerive^1A', {
     attributes: {
         '0-5s': {},
     },
-    derive_levels: {
+    keep_levels: {
         '0-5s': LEVEL_ATTACK,
     },
 });
@@ -335,7 +340,7 @@ new ActionGeneral('Action.Instance.AttackUnused^1A', {
     attributes: {
         '0-5s': {},
     },
-    derive_levels: {
+    keep_levels: {
         '0-5s': LEVEL_ATTACK,
     },
 });
@@ -358,6 +363,7 @@ new CharacterNpc('CharacterNpc.InstanceNpc^1', {
     actions: [
         'Action.InstanceNpc.Idle^1A',
         'Action.InstanceNpc.Walk^1A',
+        'Action.InstanceNpc.Attack^1A',
         'Action.InstanceNpc.Hit1^1A',
     ],
     ai_brains: ['AiBrain.InstanceNpc^1'],
@@ -387,8 +393,31 @@ new ActionHit('Action.InstanceNpc.Hit1^1A', {
             files: 'TrainingDummy/Hit1_F.*',
             duration: '30F!',
             root_motion: true,
-        }
+        },
     ],
+});
+
+new ActionGeneralNpc('Action.InstanceNpc.Attack^1A', {
+    character_npcs: ['CharacterNpc.InstanceNpc^1'],
+    tags: ['Attack'],
+    anim_main: {
+        files: 'Slime/Attack1A.*',
+        duration: '206F',
+        root_motion: true,
+        weapon_motion: false,
+        hit_motion: false,
+    },
+    adjust_movements: {
+        '0F': { duration: '8F', max_angle: 45 },
+        '20F': { duration: '20F', fade_ratio: 0.1, distance: [2, 5], speed_ratio: [0.8, 1.5] },
+    },
+    keep_levels: {
+        '0-206F': LEVEL_ACTION,
+        '150F-206F': LEVEL_ATTACK,
+    },
+    custom_events: {
+        '1s': 'CustomEvent',
+    },
 });
 
 const x = new ActionMoveNpc('Action.InstanceNpc.Walk^1A', {
@@ -416,7 +445,7 @@ const x = new ActionMoveNpc('Action.InstanceNpc.Walk^1A', {
                 { anim: 'Slime/WalkLoop.*', ratio: 0.5 },
                 { anim: 'Slime/WalkLoop.*', ratio: 1.0 },
             ],
-        }
+        },
     ],
     turn_time: '12F',
 });
@@ -425,18 +454,20 @@ new AiBrain('AiBrain.InstanceNpc^1', {
     character_npc: 'CharacterNpc.InstanceNpc^1',
     alert_sphere: { radius: 5 },
     alert_cone: { radius: 10, half_angle: 45 },
-    attack_exit_delay: '30s',
-    idle_nodes: [
-        AiBrain.task('AiTask.InstanceNpc.Idle^1', 1),
-        AiBrain.task('AiTask.InstanceNpc.Patrol^1', 1),
-    ],
+    aggro_sphere: { radius: 10 },
+    aggro_lost_time: '10s',
+    tasks_from_script: true,
+    execute: /*rust*/ `
+        out.push((id!("AiTask.InstanceNpc.Idle^1"), 1.0, 1).into());
+        out.push((id!("AiTask.InstanceNpc.Patrol^1"), 1.0, 1).into());
+        out.push((id!("AiTask.InstanceNpc.MoveTo^1"), 1.0, 1).into());
+        out.push((id!("AiTask.InstanceNpc.General^1"), 1.0, 1).into());
+    `,
 });
 
 new AiTaskIdle('AiTask.InstanceNpc.Idle^1', {
     character_npc: 'CharacterNpc.InstanceNpc^1',
-    max_repeat: 1,
     action_idle: 'Action.InstanceNpc.Idle^1A',
-    duration: '3s-5s',
 });
 
 new AiTaskPatrol('AiTask.InstanceNpc.Patrol^1', {
@@ -447,5 +478,18 @@ new AiTaskPatrol('AiTask.InstanceNpc.Patrol^1', {
         ['Move', [-3, 0, 0]],
         ['Idle', '2.5s'],
         ['Move', [0, 0, 3]],
-    ]
+    ],
+});
+
+new AiTaskMoveToCharacter('AiTask.InstanceNpc.MoveTo^1', {
+    character_npc: 'CharacterNpc.InstanceNpc^1',
+    expected_distance: [5, 8],
+    expected_toward: 180,
+    move_action: 'Action.InstanceNpc.Walk^1A',
+    turn_action: 'Action.InstanceNpc.Walk^1A',
+});
+
+new AiTaskGeneral('AiTask.InstanceNpc.General^1', {
+    character_npc: 'CharacterNpc.InstanceNpc^1',
+    actions: ['Action.InstanceNpc.Idle^1A', 'Action.InstanceNpc.Walk^1A'],
 });
