@@ -2,13 +2,22 @@ import {
     Accessory,
     AccessoryPool,
     ActionGeneral,
+    ActionGeneralNpc,
+    ActionHit,
     ActionIdle,
     ActionMove,
+    ActionMoveNpc,
+    AiBrain,
+    AiTaskGeneral,
+    AiTaskIdle,
+    AiTaskPatrol,
+    AiTaskMoveToCharacter,
     Attack,
     Attack1,
     Attack2,
     Capsule,
     Character,
+    CharacterNpc,
     Defense,
     Entry,
     Equipment,
@@ -16,9 +25,9 @@ import {
     Jewel,
     LEVEL_ACTION,
     LEVEL_ATTACK,
+    LEVEL_IDLE,
+    LEVEL_MOVE,
     MAX_ENTRY_PLUS,
-    ActionHit,
-    CharacterNpc,
     Perk,
     Rare1,
     Rare2,
@@ -33,11 +42,8 @@ import {
     Variant1,
     Variant2,
     Variant3,
-    Zone,
-    AiBrain,
-    AiTaskIdle,
-    ActionMoveNpc,
     Walk,
+    Zone,
 } from '../src';
 
 Var.define({
@@ -307,7 +313,7 @@ new ActionGeneral('Action.One.Attack^1', {
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,
     input_movements: {
-        '0F': { duration: '8F', angle: 45 },
+        '0F': { duration: '8F', max_angle: 45 },
         '20F': { move: true },
     },
     attributes: {
@@ -317,7 +323,7 @@ new ActionGeneral('Action.One.Attack^1', {
             poise_level: 1,
         },
     },
-    derive_levels: {
+    keep_levels: {
         '0-4s': LEVEL_ACTION,
         '2.5s-4s': LEVEL_ATTACK,
     },
@@ -365,7 +371,7 @@ new ActionGeneral('Action.One.Attack^2', {
     attributes: {
         '0-5s': {},
     },
-    derive_levels: {
+    keep_levels: {
         '0-5s': LEVEL_ACTION,
         '3s-5s': LEVEL_ATTACK,
     },
@@ -605,14 +611,8 @@ new CharacterNpc('CharacterNpc.Enemy', {
         MaxHealth: [10000, 20000, 30000],
     },
     fixed_attributes,
-    actions: [
-        'Action.Enemy.Idle',
-        'Action.Enemy.Walk',
-        'Action.Enemy.Hit1',
-    ],
-    ai_brains: [
-        'AiBrain.Enemy',
-    ],
+    actions: ['Action.Enemy.Idle', 'Action.Enemy.Walk', 'Action.Enemy.Hit1', 'Action.Enemy.Attack'],
+    ai_brains: ['AiBrain.Enemy'],
     bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'TrainingDummy/TrainingDummy.*',
     skeleton_toward: [0, 1],
@@ -638,7 +638,7 @@ new ActionHit('Action.Enemy.Hit1', {
             files: 'TrainingDummy/Hit1_F.*',
             duration: '20F!',
             root_motion: true,
-        }
+        },
     ],
 });
 
@@ -687,9 +687,44 @@ const x = new ActionMoveNpc('Action.Enemy.Walk', {
                 { anim: 'Slime/WalkLoop.*', ratio: 0.5 },
                 { anim: 'Slime/WalkLoop.*', ratio: 1.0 },
             ],
-        }
+        },
     ],
     turn_time: '12F',
+});
+
+new ActionGeneralNpc('Action.Enemy.Attack', {
+    character_npcs: ['CharacterNpc.Enemy'],
+    tags: ['Attack'],
+    anim_main: {
+        files: 'Slime/Attack1A.*',
+        duration: '206F',
+        root_motion: true,
+        weapon_motion: false,
+        hit_motion: false,
+    },
+    adjust_movements: {
+        '0F': { duration: '8F', max_angle: 45 },
+        '20F': { duration: '20F', fade_ratio: 0.1, distance: [2, 5], speed_ratio: [0.8, 1.5] },
+    },
+    keep_levels: {
+        '0-206F': LEVEL_ACTION,
+        '150F-206F': LEVEL_ATTACK,
+    },
+    // hits: [
+    //     {
+    //         group: 'Body1',
+    //         box_max_times: 1,
+    //         box_min_interval: '2F',
+    //         group_max_times: 2,
+    //     },
+    //     {
+    //         group: 'Body2',
+    //         box_max_times: 1,
+    //     },
+    // ],
+    custom_events: {
+        '1s': 'CustomEvent',
+    },
 });
 
 //
@@ -700,17 +735,53 @@ new AiBrain('AiBrain.Enemy', {
     character_npc: 'CharacterNpc.Enemy',
     alert_sphere: { radius: 5 },
     alert_cone: { radius: 10, half_angle: 45 },
-    attack_exit_delay: '30s',
-    idle_nodes: [
-        AiBrain.task('AiTask.Enemy.Idle', 1)
-    ],
+    aggro_sphere: { radius: 10 },
+    aggro_lost_time: '15s',
+    tasks_from_script: true,
+    execute: /*rust*/ `
+        out.push(WsAiTask {
+            id: id!("AiTask.Enemy.Idle"),
+            weight: 1.0,
+            priority: 1,
+        });
+    `,
 });
 
 new AiTaskIdle('AiTask.Enemy.Idle', {
     character_npc: 'CharacterNpc.Enemy',
-    max_repeat: 1,
+    enter_level: LEVEL_IDLE + 1,
+    keep_level: LEVEL_IDLE + 1,
     action_idle: 'Action.Enemy.Idle',
-    duration: '4s-6s',
+});
+
+new AiTaskPatrol('AiTask.Enemy.Patrol', {
+    character_npc: 'CharacterNpc.Enemy',
+    enter_level: LEVEL_MOVE + 1,
+    keep_level: LEVEL_MOVE + 1,
+    action_idle: 'Action.Enemy.Idle',
+    action_move: 'Action.Enemy.Walk',
+    route: [
+        ['Move', [10, 0, 0]],
+        ['Idle', 1.0],
+        ['Move', [3, -4, -5]],
+    ],
+});
+
+new AiTaskMoveToCharacter('AiTask.Enemy.MoveTo', {
+    character_npc: 'CharacterNpc.Enemy',
+    enter_level: LEVEL_MOVE + 1,
+    keep_level: LEVEL_MOVE + 1,
+    expected_distance: [4, 6],
+    expected_toward: 180,
+    move_action: 'Action.Enemy.Walk',
+    turn_action: 'Action.Enemy.Walk',
+});
+
+new AiTaskGeneral('AiTask.Enemy.Attack', {
+    character_npc: 'CharacterNpc.Enemy',
+    enter_level: LEVEL_ATTACK + 1,
+    keep_level: LEVEL_ATTACK + 1,
+    actions: ['Action.Enemy.Idle', 'Action.Enemy.Walk'],
 });
 
 //
