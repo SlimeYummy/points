@@ -38,6 +38,24 @@ describe('common', () => {
         expect(() => parseInt(11, '?', { max: 10 }))
             .toThrow('?: must <= 10');
 
+        expect(() => parseInt(256, '?', { type: 'u8' }))
+            .toThrow('?: must <= 255');
+        expect(() => parseInt(-1, '?', { type: 'u8' }))
+            .toThrow('?: must >= 0');
+
+        expect(() => parseInt(32768, '?', { type: 'i16' }))
+            .toThrow('?: must <= 32767');
+        expect(() => parseInt(-32769, '?', { type: 'i16' }))
+            .toThrow('?: must >= -32768');
+
+        assert.equal(parseInt(255, '?', { type: 'u8' }), 255);
+        assert.equal(parseInt(-128, '?', { type: 'i8' }), -128);
+
+        expect(() => parseInt(10, '?', { type: 'u8', min: 20 }))
+            .toThrow('?: must >= 20');
+        expect(() => parseInt(100, '?', { type: 'u8', max: 50 }))
+            .toThrow('?: must <= 50');
+
         assert.equal(parseInt(5, '?'), 5);
         assert.equal(parseInt(true, '?', { allow_bool: true }), 1);
     });
@@ -51,6 +69,18 @@ describe('common', () => {
         
         expect(() => parseFloat(11, '?', { max: 9 }))
             .toThrow('?: must <= 9');
+
+        expect(() => parseFloat(4e38, '?', { type: 'f32' }))
+            .toThrow('?: must <= 3.40282347e+38');
+        expect(() => parseFloat(-4e38, '?', { type: 'f32' }))
+            .toThrow('?: must >= -3.40282347e+38');
+
+        assert.equal(parseFloat(3.4e38, '?', { type: 'f32' }), 3.4e38);
+
+        expect(() => parseFloat(10, '?', { type: 'f32', min: 20 }))
+            .toThrow('?: must >= 20');
+        expect(() => parseFloat(100, '?', { type: 'f32', max: 50 }))
+            .toThrow('?: must <= 50');
         
         assert.equal(parseFloat(5.5, '?'), 5.5);
         assert.equal(parseFloat('5.5%', '?'), 0.055);
@@ -116,6 +146,10 @@ describe('common', () => {
         
         expect(() => parseIntArray([1, 2, 3], '?', { max_len: 2 }))
             .toThrow('?: length must <= 2');
+
+        expect(() => parseIntArray([256], '?', { type: 'u8' }))
+            .toThrow('?[0]: must <= 255');
+        assert.deepEqual(parseIntArray([0, 255], '?', { type: 'u8' }), [0, 255]);
         
         assert.deepEqual(parseIntArray([1, 2, 3], '?'), [1, 2, 3]);
     });
@@ -138,8 +172,12 @@ describe('common', () => {
         
         expect(() => parseIntRange([5, 12], '?', { max: 10 }))
             .toThrow('?[1]: must <= 10');
+
+        expect(() => parseIntRange([0, 256], '?', { type: 'u8' }))
+            .toThrow('?[1]: must <= 255');
+        assert.deepEqual(parseIntRange([0, 255], '?', { type: 'u8' }), [0, 255]);
         
-        assert.deepEqual(parseIntRange([1, 2], '?'), [1, 2]);        
+        assert.deepEqual(parseIntRange([1, 2], '?'), [1, 2]);     
     });
 
     it('parseFloatArray', () => {
@@ -163,6 +201,10 @@ describe('common', () => {
         
         expect(() => parseFloatArray([1, 2, 3], '?', { max_len: 2 }))
             .toThrow('?: length must <= 2');
+
+        expect(() => parseFloatArray([4e38], '?', { type: 'f32' }))
+            .toThrow('?[0]: must <= 3.40282347e+38');
+        assert.deepEqual(parseFloatArray([0, 1.1], '?', { type: 'f32' }), [0, 1.1]);
         
         assert.deepEqual(parseFloatArray([-1.0, 2.2, 3.3], '?'), [-1.0, 2.2, 3.3]);
     });
@@ -185,8 +227,12 @@ describe('common', () => {
         
         expect(() => parseFloatRange([5, 12], '?', { max: 10 }))
             .toThrow('?[1]: must <= 10');
+
+            expect(() => parseFloatRange([0, 4e38], '?', { type: 'f32' }))
+                .toThrow('?[1]: must <= 3.40282347e+38');
+        assert.deepEqual(parseFloatRange([0, 1.1], '?', { type: 'f32' }), [0, 1.1]);
         
-        assert.deepEqual(parseFloatRange([1, 2], '?'), [1, 2]);        
+        assert.deepEqual(parseFloatRange([1, 2], '?'), [1, 2]);
     });
 
     it('parseString', () => {
