@@ -1,14 +1,14 @@
 [package]
 edition = "2021"
 name = "turining-point-node"
-version = "0.0.0"
+version = "0.5.0"
 
 [lib]
 path = "native/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-critical-point-core = { path = "../critical-point/core" }
+critical-point-core = { path = "../critical-point/core", features = ["for-turning-point"] }
 glam = { version = "0.30", features = ["libm", "approx"] }
 napi = { version = "3.3", default-features = false, features = ["napi4"] }
 napi-derive = "3.2"
