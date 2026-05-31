@@ -1,4 +1,4 @@
-use critical_point_csgen::{CsIn, CsOut};
+use critical_point_macros::{csharp_in, csharp_out};
 use std::ops::RangeInclusive;
 
 use crate::utils::id::TmplID;
@@ -9,7 +9,8 @@ use crate::utils::symbol::Symbol;
 // TmplIDLevel
 //
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, CsIn)]
+#[csharp_in]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TmplIDLevel {
     pub id: TmplID,
     pub level: u32,
@@ -48,7 +49,8 @@ impl From<TmplIDLevel> for (TmplID, u32) {
 // TmplIDPlus
 //
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, CsIn)]
+#[csharp_in]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TmplIDPlus {
     pub id: TmplID,
     pub plus: u32,
@@ -115,6 +117,11 @@ impl U32Range {
     #[inline]
     pub fn to_range(&self) -> RangeInclusive<u32> {
         self.min..=self.max
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.min >= self.max
     }
 
     #[inline]
@@ -193,8 +200,18 @@ impl F32Range {
     }
 
     #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.min >= self.max
+    }
+
+    #[inline]
     pub fn contains(&self, val: f32) -> bool {
         self.min <= val && val <= self.max
+    }
+
+    #[inline]
+    pub fn middle(&self) -> f32 {
+        (self.min + self.max) / 2.0
     }
 }
 
@@ -362,8 +379,8 @@ impl From<JewelSlots> for [u8; 3] {
 //
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, CsOut)]
-#[cs_attr(Value, Partial)]
+#[csharp_out(Value, Partial)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CustomEvent {
     pub source: TmplID,
     pub name: Symbol,

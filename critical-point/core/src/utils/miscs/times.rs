@@ -1,4 +1,4 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::{csharp_out, wasm_impl, wasm_struct};
 
 use crate::utils::macros::{rkyv_self, serde_by};
 use crate::utils::{XResult, xres};
@@ -8,7 +8,9 @@ use crate::utils::{XResult, xres};
 //
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, Copy, PartialEq, CsOut)]
+#[csharp_out]
+#[wasm_struct(8, 4)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct TimeRange {
     pub begin: f32,
     pub end: f32,
@@ -17,6 +19,7 @@ pub struct TimeRange {
 rkyv_self!(TimeRange);
 serde_by!(TimeRange, (f32, f32), TimeRange::from, TimeRange::to_tuple);
 
+#[wasm_impl]
 impl TimeRange {
     pub const EMPTY: TimeRange = TimeRange { begin: 0.0, end: 0.0 };
 
@@ -86,6 +89,7 @@ impl TimeRange {
     }
 }
 
+#[wasm_impl]
 impl From<(f32, f32)> for TimeRange {
     #[inline]
     fn from((begin, end): (f32, f32)) -> Self {
@@ -93,6 +97,7 @@ impl From<(f32, f32)> for TimeRange {
     }
 }
 
+#[wasm_impl]
 impl From<TimeRange> for (f32, f32) {
     #[inline]
     fn from(val: TimeRange) -> Self {
@@ -100,6 +105,7 @@ impl From<TimeRange> for (f32, f32) {
     }
 }
 
+#[wasm_impl]
 impl From<[f32; 2]> for TimeRange {
     #[inline]
     fn from([begin, end]: [f32; 2]) -> Self {
@@ -107,6 +113,7 @@ impl From<[f32; 2]> for TimeRange {
     }
 }
 
+#[wasm_impl]
 impl From<TimeRange> for [f32; 2] {
     #[inline]
     fn from(val: TimeRange) -> Self {
@@ -114,6 +121,7 @@ impl From<TimeRange> for [f32; 2] {
     }
 }
 
+#[wasm_struct(16, 4)]
 #[derive(Debug)]
 pub struct TimeRangeStep {
     range: TimeRange,
@@ -121,6 +129,7 @@ pub struct TimeRangeStep {
     current: f32,
 }
 
+#[wasm_impl]
 impl Iterator for TimeRangeStep {
     type Item = f32;
 

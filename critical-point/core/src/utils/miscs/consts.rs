@@ -1,4 +1,4 @@
-use critical_point_csgen::CsEnum;
+use critical_point_macros::csharp_enum;
 use enum_iterator::{Sequence, cardinality};
 use std::mem;
 
@@ -45,8 +45,9 @@ unsafe impl Bitsetable for DeriveContinue {
 // ActionType
 //
 
+#[csharp_enum]
 #[repr(u16)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize, CsEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize)]
 pub enum ActionType {
     Empty,
     Idle,
@@ -54,7 +55,7 @@ pub enum ActionType {
     MoveNpc,
     Attack,
     General,
-    AiGeneral,
+    GeneralNpc,
     Dodge,
     Guard,
     Aim,
@@ -105,11 +106,15 @@ impl TryFrom<rkyv::primitive::ArchivedU16> for ActionType {
 // AiTaskType
 //
 
+#[csharp_enum]
 #[repr(u16)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize, CsEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize)]
 pub enum AiTaskType {
     Idle,
+    Patrol,
+    MoveToCharacter,
     General,
+    Sequence,
 }
 
 rkyv_self!(AiTaskType);

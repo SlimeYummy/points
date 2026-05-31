@@ -28,6 +28,11 @@ impl ShapeSphere {
     pub fn new(radius: f32) -> ShapeSphere {
         ShapeSphere { radius }
     }
+
+    #[inline]
+    pub fn radius_sq(&self) -> f32 {
+        self.radius * self.radius
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -42,6 +47,11 @@ impl ShapeCapsule {
     #[inline]
     pub fn new(half_height: f32, radius: f32) -> ShapeCapsule {
         ShapeCapsule { half_height, radius }
+    }
+
+    #[inline]
+    pub fn radius_sq(&self) -> f32 {
+        self.radius * self.radius
     }
 }
 
@@ -78,6 +88,11 @@ impl ShapeCylinder {
     pub fn new(half_height: f32, radius: f32) -> ShapeCylinder {
         ShapeCylinder { half_height, radius }
     }
+
+    #[inline]
+    pub fn radius_sq(&self) -> f32 {
+        self.radius * self.radius
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -112,5 +127,10 @@ impl ShapeSphericalCone {
     #[inline]
     pub fn new(radius: f32, half_angle: f32) -> ShapeSphericalCone {
         ShapeSphericalCone { radius, half_angle }
+    }
+
+    #[inline]
+    pub fn radius_sq(&self) -> f32 {
+        self.radius * self.radius
     }
 }

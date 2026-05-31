@@ -1,8 +1,9 @@
 use approx::abs_diff_eq;
-use critical_point_csgen::{CsEnum, CsIn};
+use critical_point_macros::{csharp_enum, csharp_in};
 use glam::Vec2;
 use std::fmt;
 
+#[csharp_enum]
 #[repr(u8)]
 #[derive(
     Debug,
@@ -16,7 +17,6 @@ use std::fmt;
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsEnum,
 )]
 pub enum RawKey {
     Move,
@@ -116,16 +116,9 @@ impl RawKey {
     }
 }
 
+#[csharp_in]
 #[derive(
-    Clone,
-    Copy,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsIn,
+    Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 pub struct RawInput {
     pub key: RawKey,
