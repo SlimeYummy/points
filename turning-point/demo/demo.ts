@@ -1,26 +1,29 @@
 import {
     ActionGeneral,
+    ActionGeneralNpc,
     ActionHit,
     ActionIdle,
     ActionMove,
     ActionMoveNpc,
     AiBrain,
-    AiTask,
+    AiTaskGeneral,
+    AiTaskIdle,
+    AiTaskMoveToCharacter,
     AiTaskPatrol,
     Attack1,
     Attack2,
     Attack5,
     Capsule,
     Character,
+    CharacterNpc,
     Hit1,
-    Item1,
     LEVEL_ACTION,
     LEVEL_ATTACK,
     LEVEL_IDLE,
     LEVEL_MOVE,
-    CharacterNpc,
     Resource,
     Run,
+    Script,
     Style,
     TaperedCapsule,
     Walk,
@@ -291,8 +294,8 @@ new ActionGeneral('Action.Demo.Attack1', {
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,
     input_movements: [
-        { time: '0F', duration: '12F', angle: 45 },
-        { time: '52F', duration: '16F', angle: 45 },
+        { time: '0F', duration: '12F', max_angle: 45 },
+        { time: '52F', duration: '16F', max_angle: 45 },
         { time: '52F', move: true, move_ex: true },
     ],
     attributes: {
@@ -302,7 +305,7 @@ new ActionGeneral('Action.Demo.Attack1', {
             poise_level: 1,
         },
     },
-    derive_levels: {
+    keep_levels: {
         '0-124F': LEVEL_ACTION,
         '124F-160F': LEVEL_ATTACK,
     },
@@ -336,8 +339,8 @@ new ActionGeneral('Action.Demo.Attack2', {
     enter_key: Attack2,
     enter_level: LEVEL_ATTACK,
     input_movements: [
-        { time: '0F', duration: '12F', angle: 45 },
-        { time: '52F', duration: '16F', angle: 45 },
+        { time: '0F', duration: '12F', max_angle: 45 },
+        { time: '52F', duration: '16F', max_angle: 45 },
         { time: '52F', move: true, move_ex: true },
     ],
     attributes: {
@@ -347,7 +350,7 @@ new ActionGeneral('Action.Demo.Attack2', {
             poise_level: 1,
         },
     },
-    derive_levels: {
+    keep_levels: {
         '0-124F': LEVEL_ACTION,
         '124F-160F': LEVEL_ATTACK,
     },
@@ -380,8 +383,8 @@ new ActionGeneral('Action.Demo.Attack3', {
     tags: ['Attack'],
     enter_level: LEVEL_ATTACK,
     input_movements: [
-        { time: '0F', duration: '12F', angle: 45 },
-        { time: '48F', duration: '16F', angle: 45 },
+        { time: '0F', duration: '12F', max_angle: 45 },
+        { time: '48F', duration: '16F', max_angle: 45 },
         { time: '48F', move: true, move_ex: true },
     ],
     attributes: {
@@ -391,7 +394,7 @@ new ActionGeneral('Action.Demo.Attack3', {
             poise_level: 1,
         },
     },
-    derive_levels: {
+    keep_levels: {
         '0-130F': LEVEL_ACTION,
         '130F-166F': LEVEL_ATTACK,
     },
@@ -424,8 +427,8 @@ new ActionGeneral('Action.Demo.Attack4', {
     tags: ['Attack'],
     enter_level: LEVEL_ATTACK,
     input_movements: [
-        { time: '0F', duration: '12F', angle: 45 },
-        { time: '48F', duration: '16F', angle: 45 },
+        { time: '0F', duration: '12F', max_angle: 45 },
+        { time: '48F', duration: '16F', max_angle: 45 },
         { time: '48F', move: true, move_ex: true },
     ],
     attributes: {
@@ -435,7 +438,7 @@ new ActionGeneral('Action.Demo.Attack4', {
             poise_level: 1,
         },
     },
-    derive_levels: {
+    keep_levels: {
         '0-130F': LEVEL_ACTION,
         '130F-166F': LEVEL_ATTACK,
     },
@@ -469,7 +472,7 @@ new ActionGeneral('Action.Demo.Greet', {
     attributes: {
         '0-350F': { poise_level: 0 },
     },
-    derive_levels: { '0-350F': LEVEL_IDLE },
+    keep_levels: { '0-350F': LEVEL_IDLE },
 });
 
 //
@@ -535,10 +538,11 @@ new ActionHit('Action.TrainingDummy.Hit1', {
 
 new AiBrain('AiBrain.TrainingDummy', {
     character_npc: 'CharacterNpc.TrainingDummy',
-    alert_sphere: { radius: 5 },
-    alert_cone: { radius: 10, half_angle: 45 },
-    attack_exit_delay: '30s',
-    idle_nodes: [],
+    alert_sphere: { radius: 3 },
+    alert_cone: { radius: 5, half_angle: 45 },
+    aggro_sphere: { radius: 5 },
+    aggro_lost_time: '10s',
+    execute: '',
 });
 
 // new AiTaskIdle('AiTask.SlimeBlue.Idle', {
@@ -560,7 +564,7 @@ const SLIME = new CharacterNpc('CharacterNpc.Slime', {
         PhysicalDefense: [3],
     },
     fixed_attributes,
-    actions: ['Action.Slime.Idle', 'Action.Slime.Move'],
+    actions: ['Action.Slime.Idle', 'Action.Slime.Move', 'Action.Slime.Attack1A'],
     ai_brains: ['AiBrain.Slime'],
     bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'Slime/Slime.*',
@@ -574,7 +578,7 @@ new ActionIdle('Action.Slime.Idle', {
     anim_idle: { files: 'Slime/Idle.*' },
 });
 
-const x = new ActionMoveNpc('Action.Slime.Move', {
+new ActionMoveNpc('Action.Slime.Move', {
     character_npcs: [SLIME.id],
     tags: ['Walk'],
     enter_key: Walk,
@@ -599,17 +603,48 @@ const x = new ActionMoveNpc('Action.Slime.Move', {
                 { anim: 'Slime/WalkLoop.*', ratio: 0.5 },
                 { anim: 'Slime/WalkLoop.*', ratio: 1.0 },
             ],
-        }
+        },
     ],
     turn_time: '60F',
 });
 
+new ActionGeneralNpc('Action.Slime.Attack1A', {
+    character_npcs: [SLIME.id],
+    tags: ['Attack'],
+    anim_main: {
+        files: 'Slime/Attack1A.*',
+        duration: '206F',
+        root_motion: true,
+    },
+    adjust_movements: [
+        { time: '0F', duration: '8F', max_angle: 45 },
+        { time: '20F', duration: '20F', distance: [2.0, 5.0], speed_ratio: [0.8, 2.0] },
+    ],
+    keep_levels: {
+        '0-150F': LEVEL_ACTION,
+        '150F-206F': LEVEL_ATTACK,
+    },
+    custom_events: [],
+});
+
 new AiBrain('AiBrain.Slime', {
     character_npc: 'CharacterNpc.Slime',
-    alert_sphere: { radius: 3 },
-    alert_cone: { radius: 5, half_angle: 60 },
-    attack_exit_delay: '10s',
-    idle_nodes: [AiBrain.task('AiTask.Slime.Patrol')],
+    alert_sphere: { radius: 10 },
+    alert_cone: { radius: 15, half_angle: 60 },
+    aggro_sphere: { radius: 15 },
+    aggro_lost_time: '10s',
+    tasks_from_script: true,
+    execute: /*rust*/ `
+        // out.push((id!("AiTask.Slime.Attack"), 1.0, 1).into());
+        // out.push((id!("AiTask.Slime.Idle"), 1.0, 1).into());
+        // out.push((id!("AiTask.Slime.Patrol"), 1.0, 1).into());
+        out.push((id!("AiTask.Slime.MoveTo"), 1.0, 1).into());
+    `,
+});
+
+new AiTaskIdle('AiTask.Slime.Idle', {
+    character_npc: 'CharacterNpc.Slime',
+    action_idle: 'Action.Slime.Idle',
 });
 
 new AiTaskPatrol('AiTask.Slime.Patrol', {
@@ -629,10 +664,24 @@ new AiTaskPatrol('AiTask.Slime.Patrol', {
     ],
 });
 
+new AiTaskGeneral('AiTask.Slime.Attack', {
+    character_npc: 'CharacterNpc.Slime',
+    actions: ['Action.Slime.Attack1A'],
+});
+
+new AiTaskMoveToCharacter('AiTask.Slime.MoveTo', {
+    character_npc: 'CharacterNpc.Slime',
+    expected_distance: [4, 6],
+    expected_toward: 60,
+    move_action: 'Action.Slime.Move',
+    turn_action: 'Action.Slime.Move',
+});
+
 //
 // ...
 //
 
 declare const __dirname: string;
 Resource.write(`${__dirname}/../../test-tmp/demo-template`);
+Script.write(`${__dirname}/../../turning-point-wasm`, `${__dirname}/../../test-tmp/demo-template`);
 console.log('\nGenerate templates done\n');
