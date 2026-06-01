@@ -112,6 +112,16 @@ macro_rules! strict_gt {
 }
 pub use strict_gt;
 
+#[inline(always)]
+pub fn square(x: f32) -> f32 {
+    x * x
+}
+
+#[inline(always)]
+pub fn cube(x: f32) -> f32 {
+    x * x * x
+}
+
 /// Require b > 0
 #[inline]
 pub fn ratio_saturating(a: f32, b: f32) -> f32 {

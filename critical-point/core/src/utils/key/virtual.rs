@@ -1,4 +1,4 @@
-use critical_point_csgen::CsEnum;
+use critical_point_macros::csharp_enum;
 use glam::{Vec3, Vec3A};
 use glam_ext::Vec2xz;
 
@@ -7,8 +7,9 @@ use crate::consts::DEFAULT_VIEW_DIR_3D;
 use crate::utils::macros::rkyv_self;
 use crate::utils::serde_by;
 
+#[csharp_enum]
 #[repr(u8)]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum VirtualKey {
     #[default]
     None,

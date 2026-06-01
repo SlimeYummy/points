@@ -162,7 +162,9 @@ where
         }
 
         let old_layout = Layout::array::<Option<IndexNode<K, V>>>(prime).unwrap();
-        unsafe { alloc::dealloc(self.nodes as *mut u8, old_layout) };
+        if !self.nodes.is_null() {
+            unsafe { alloc::dealloc(self.nodes as *mut u8, old_layout) };
+        }
 
         self.nodes = new_nodes;
         self.prime = new_prime;

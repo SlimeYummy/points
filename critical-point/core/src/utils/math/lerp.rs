@@ -6,8 +6,29 @@ pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
 }
 
 #[inline]
-pub fn lerp_with(a: f32, b: f32, t: f32, ease: fn(f32) -> f32) -> f32 {
+pub fn lerp_with<F>(a: f32, b: f32, t: f32, ease: F) -> f32
+where
+    F: Fn(f32) -> f32,
+{
     a + (b - a) * ease(t)
+}
+
+#[inline]
+pub fn lerp_trapezoid_with<F>(bottom: f32, top: f32, t: f32, ease: F, fade: f32) -> f32
+where
+    F: Fn(f32) -> f32,
+{
+    debug_assert!(fade >= 0.0 && fade <= 0.5);
+    debug_assert!(t >= 0.0 && t <= 1.0);
+    if t < fade {
+        lerp_with(bottom, top, t / fade, ease)
+    }
+    else if t > 1.0 - fade {
+        lerp_with(bottom, top, (1.0 - t) / fade, ease)
+    }
+    else {
+        top
+    }
 }
 
 #[inline]
@@ -274,6 +295,32 @@ pub fn ease_in_out_bounce(x: f32) -> f32 {
 mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_lerp_trapezoid() {
+        let bottom = 10.0;
+        let top = 20.0;
+        let fade = 0.2;
+
+        // Symmetry test
+        for i in 0..=100 {
+            let t = i as f32 / 100.0;
+            let v3 = lerp_trapezoid_with(bottom, top, t, ease_in_quad, fade);
+            let v4 = lerp_trapezoid_with(bottom, top, 1.0 - t, ease_in_quad, fade);
+            assert_abs_diff_eq!(v3, v4, epsilon = 1e-5);
+        }
+
+        // Boundaries
+        assert_abs_diff_eq!(lerp_trapezoid_with(bottom, top, 0.0, |x| x, fade), 10.0);
+        assert_abs_diff_eq!(lerp_trapezoid_with(bottom, top, 0.1, |x| x, fade), 15.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(lerp_trapezoid_with(bottom, top, 0.9, |x| x, fade), 15.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(lerp_trapezoid_with(bottom, top, 1.0, |x| x, fade), 10.0);
+
+        // Middle section (flat top)
+        assert_abs_diff_eq!(lerp_trapezoid_with(bottom, top, 0.25, |x| x, fade), 20.0);
+        assert_abs_diff_eq!(lerp_trapezoid_with(bottom, top, 0.5, |x| x, fade), 20.0);
+        assert_abs_diff_eq!(lerp_trapezoid_with(bottom, top, 0.75, |x| x, fade), 20.0);
+    }
 
     #[test]
     fn test_ease_sine() {
