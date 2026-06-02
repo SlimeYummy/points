@@ -4,19 +4,17 @@ use recastnavigation_rs::RNError;
 use std::error::Error;
 use std::fmt;
 
-use crate::utils::id::{NumID, TmplID};
-
 const EMPTY_STR: &'static str = "";
 
 #[derive(Debug)]
 pub(crate) struct StaticError<T> {
-    src: T,
+    src: T, // source
     pos: &'static &'static str,
 }
 
 #[derive(Debug)]
 pub(crate) struct DynamicError<T> {
-    src: T,
+    src: T, // source
     pos: &'static &'static str,
     msg: String,
 }
@@ -58,29 +56,29 @@ impl<T> MixedError<T> {
         }
     }
 
-    fn init_pos(mut self, pos: &'static &'static str) -> Self {
+    fn set_pos(mut self, pos: &'static &'static str) -> Self {
         match self {
-            MixedError::Static(ref mut e) => {
-                debug_assert!(e.pos.is_empty());
-                e.pos = pos;
-            }
-            MixedError::Dynamic(ref mut e) => {
-                debug_assert!(e.pos.is_empty());
-                e.pos = pos;
-            }
-        };
+            MixedError::Static(ref mut e) => e.pos = pos,
+            MixedError::Dynamic(ref mut e) => e.pos = pos,
+        }
         self
     }
 
-    fn init_msg(mut self, msg: String) -> Self {
+    fn set_msg(mut self, msg: String) -> Self {
         match self {
             MixedError::Static(e) => MixedError::from_dynamic(e.src, e.pos, msg),
             MixedError::Dynamic(ref mut e) => {
-                debug_assert!(e.msg.is_empty());
                 e.msg = msg;
                 self
             }
         }
+    }
+}
+
+fn fmt_pos(s: &str) -> &str {
+    match s {
+        "" => "-",
+        _ => s,
     }
 }
 
@@ -91,39 +89,50 @@ trait ToString {
 impl ToString for MixedError<()> {
     fn to_string(&self, f: &mut fmt::Formatter<'_>, name: &str) -> fmt::Result {
         match self {
-            MixedError::Static(e) => write!(f, "{}  [P]: {}", name, e.pos),
-            MixedError::Dynamic(e) => write!(f, "{}  [P]: {}  [M]: {}", name, e.pos, e.msg),
+            MixedError::Static(e) => write!(f, "{}  [P]: {}", name, fmt_pos(e.pos)),
+            MixedError::Dynamic(e) => write!(f, "{}  [P]: {}  [M]: {}", name, fmt_pos(e.pos), e.msg),
         }
     }
 }
 
-macro_rules! val_to_string {
-    ($typ:path) => {
-        impl ToString for MixedError<$typ> {
-            fn to_string(&self, f: &mut fmt::Formatter<'_>, name: &str) -> fmt::Result {
-                match self {
-                    MixedError::Static(e) => write!(f, "{}({})  [P]: {}", name, e.src, e.pos),
-                    MixedError::Dynamic(e) => write!(f, "{}({})  [P]: {}  [M]: {}", name, e.src, e.pos, e.msg),
-                }
-            }
-        }
-    };
-}
+// macro_rules! val_to_string {
+//     ($typ:path) => {
+//         impl ToString for MixedError<$typ> {
+//             fn to_string(&self, f: &mut fmt::Formatter<'_>, name: &str) -> fmt::Result {
+//                 match self {
+//                     MixedError::Static(e) => write!(f, "{}({})  [P]: {}", name, e.src, fmt_pos(e.pos)),
+//                     MixedError::Dynamic(e) => write!(f, "{}({})  [P]: {}  [M]: {}", name, e.src, fmt_pos(e.pos), e.msg),
+//                 }
+//             }
+//         }
+//     };
+// }
 
-val_to_string!(NumID);
-val_to_string!(TmplID);
+// val_to_string!(NumID);
+// val_to_string!(TmplID);
 
 macro_rules! err_to_string {
     ($err:path, $err_name:expr) => {
         impl ToString for MixedError<$err> {
             fn to_string(&self, f: &mut fmt::Formatter<'_>, name: &str) -> fmt::Result {
                 match self {
-                    MixedError::Static(e) => write!(f, "{}({})  [P]: {}  [S]: {}", name, $err_name, e.pos, e.src),
+                    MixedError::Static(e) => write!(
+                        f,
+                        "{}({})  [P]: {}  [S]: {}",
+                        name,
+                        $err_name,
+                        fmt_pos(e.pos),
+                        e.src
+                    ),
                     MixedError::Dynamic(e) => {
                         write!(
                             f,
                             "{}({})  [P]: {}  [M]: {}  [S]: {}",
-                            name, $err_name, e.pos, e.msg, e.src
+                            name,
+                            $err_name,
+                            fmt_pos(e.pos),
+                            e.msg,
+                            e.src
                         )
                     }
                 }
@@ -135,6 +144,7 @@ macro_rules! err_to_string {
 err_to_string!(std::io::Error, "io::Error");
 err_to_string!(std::str::Utf8Error, "str::Utf8Error");
 err_to_string!(serde_json::Error, "serde_json::Error");
+err_to_string!(wasmtime::Error, "wasmtime::Error");
 err_to_string!(JoltError, "JoltError");
 err_to_string!(OzzError, "OzzError");
 err_to_string!(RNError, "RNError");
@@ -142,34 +152,28 @@ err_to_string!(RNError, "RNError");
 #[derive(Debug)]
 pub enum XError {
     Unexpected(MixedError<()>),
+    OutOfMemory(MixedError<()>),
+    Overflow(MixedError<()>),
+    NotFound(MixedError<()>),
 
     BadArgument(MixedError<()>),
-    NotFound(MixedError<()>),
     BadType(MixedError<()>),
     BadOperation(MixedError<()>),
-    Overflow(MixedError<()>),
 
-    // TODO: remove symbol errors
-    SymbolTooLong(MixedError<()>),
-    SymbolNotFound(MixedError<()>),
-    SymbolNotPreloaded(MixedError<()>),
+    UninitedTmplID(MixedError<()>),
+    InvalidTmplID(MixedError<()>),
+    InvalidSymbol(MixedError<()>),
 
     BadParameter(MixedError<()>),
     BadAttribute(MixedError<()>),
     BadAsset(MixedError<()>),
-    BadScript(MixedError<()>),
     BadAction(MixedError<()>),
 
-    ScriptNoHook(MixedError<()>),
-    ScriptOutOfRange(MixedError<()>),
-    ScriptBadCommand(MixedError<()>),
-    ScriptStackOverflow(MixedError<()>),
+    AssetNotFound(MixedError<()>),
+    TmplNotFound(MixedError<()>),
+    InstNotFound(MixedError<()>),
 
-    TmplNotFound(MixedError<TmplID>),
-
-    InstNotFound(MixedError<TmplID>),
-
-    LogicNotFound(MixedError<NumID>),
+    LogicNotFound(MixedError<()>),
     LogicBadState(MixedError<()>),
     LogicIDMismatch(MixedError<()>),
 
@@ -177,11 +181,13 @@ pub enum XError {
     Utf8(MixedError<std::str::Utf8Error>),
     Json(MixedError<serde_json::Error>),
     Zip(MixedError<std::io::Error>),
+    Wasmtime(MixedError<wasmtime::Error>),
     Jolt(MixedError<JoltError>),
     Ozz(MixedError<OzzError>),
     RcNav(MixedError<RNError>),
     Rkyv(MixedError<()>), // no source here
 
+    Script(MixedError<()>),
     Custom(MixedError<()>),
 }
 
@@ -192,6 +198,7 @@ impl Error for XError {
             XError::Utf8(e) => Some(e.src()),
             XError::Json(e) => Some(e.src()),
             XError::Zip(e) => Some(e.src()),
+            XError::Wasmtime(e) => Some(e.src().as_ref()),
             XError::Jolt(e) => Some(e.src()),
             XError::Ozz(e) => Some(e.src()),
             XError::RcNav(e) => Some(e.src()),
@@ -204,23 +211,20 @@ macro_rules! switch_call {
     ($self:expr, $func:expr) => {
         match $self {
             XError::Unexpected(e) => $func(e),
-            XError::BadArgument(e) => $func(e),
+            XError::OutOfMemory(e) => $func(e),
+            XError::Overflow(e) => $func(e),
             XError::NotFound(e) => $func(e),
+            XError::BadArgument(e) => $func(e),
             XError::BadType(e) => $func(e),
             XError::BadOperation(e) => $func(e),
-            XError::Overflow(e) => $func(e),
-            XError::SymbolTooLong(e) => $func(e),
-            XError::SymbolNotFound(e) => $func(e),
-            XError::SymbolNotPreloaded(e) => $func(e),
+            XError::UninitedTmplID(e) => $func(e),
+            XError::InvalidTmplID(e) => $func(e),
+            XError::InvalidSymbol(e) => $func(e),
             XError::BadParameter(e) => $func(e),
             XError::BadAttribute(e) => $func(e),
             XError::BadAsset(e) => $func(e),
-            XError::BadScript(e) => $func(e),
             XError::BadAction(e) => $func(e),
-            XError::ScriptNoHook(e) => $func(e),
-            XError::ScriptOutOfRange(e) => $func(e),
-            XError::ScriptBadCommand(e) => $func(e),
-            XError::ScriptStackOverflow(e) => $func(e),
+            XError::AssetNotFound(e) => $func(e),
             XError::TmplNotFound(e) => $func(e),
             XError::InstNotFound(e) => $func(e),
             XError::LogicNotFound(e) => $func(e),
@@ -230,10 +234,12 @@ macro_rules! switch_call {
             XError::Utf8(e) => $func(e),
             XError::Json(e) => $func(e),
             XError::Zip(e) => $func(e),
+            XError::Wasmtime(e) => $func(e),
             XError::Jolt(e) => $func(e),
             XError::Ozz(e) => $func(e),
             XError::RcNav(e) => $func(e),
             XError::Rkyv(e) => $func(e),
+            XError::Script(e) => $func(e),
             XError::Custom(e) => $func(e),
         }
     };
@@ -243,23 +249,20 @@ macro_rules! switch_new {
     ($self:expr, $func:expr) => {
         match $self {
             XError::Unexpected(e) => XError::Unexpected($func(e)),
-            XError::BadArgument(e) => XError::BadArgument($func(e)),
+            XError::OutOfMemory(e) => XError::OutOfMemory($func(e)),
+            XError::Overflow(e) => XError::Overflow($func(e)),
             XError::NotFound(e) => XError::NotFound($func(e)),
+            XError::BadArgument(e) => XError::BadArgument($func(e)),
             XError::BadType(e) => XError::BadType($func(e)),
             XError::BadOperation(e) => XError::BadOperation($func(e)),
-            XError::Overflow(e) => XError::Overflow($func(e)),
-            XError::SymbolTooLong(e) => XError::SymbolTooLong($func(e)),
-            XError::SymbolNotFound(e) => XError::SymbolNotFound($func(e)),
-            XError::SymbolNotPreloaded(e) => XError::SymbolNotPreloaded($func(e)),
+            XError::UninitedTmplID(e) => XError::UninitedTmplID($func(e)),
+            XError::InvalidTmplID(e) => XError::InvalidTmplID($func(e)),
+            XError::InvalidSymbol(e) => XError::InvalidSymbol($func(e)),
             XError::BadParameter(e) => XError::BadParameter($func(e)),
             XError::BadAttribute(e) => XError::BadAttribute($func(e)),
             XError::BadAsset(e) => XError::BadAsset($func(e)),
-            XError::BadScript(e) => XError::BadScript($func(e)),
             XError::BadAction(e) => XError::BadAction($func(e)),
-            XError::ScriptNoHook(e) => XError::ScriptNoHook($func(e)),
-            XError::ScriptOutOfRange(e) => XError::ScriptOutOfRange($func(e)),
-            XError::ScriptBadCommand(e) => XError::ScriptBadCommand($func(e)),
-            XError::ScriptStackOverflow(e) => XError::ScriptStackOverflow($func(e)),
+            XError::AssetNotFound(e) => XError::AssetNotFound($func(e)),
             XError::TmplNotFound(e) => XError::TmplNotFound($func(e)),
             XError::InstNotFound(e) => XError::InstNotFound($func(e)),
             XError::LogicNotFound(e) => XError::LogicNotFound($func(e)),
@@ -269,10 +272,12 @@ macro_rules! switch_new {
             XError::Utf8(e) => XError::Utf8($func(e)),
             XError::Json(e) => XError::Json($func(e)),
             XError::Zip(e) => XError::Zip($func(e)),
+            XError::Wasmtime(e) => XError::Wasmtime($func(e)),
             XError::Jolt(e) => XError::Jolt($func(e)),
             XError::Ozz(e) => XError::Ozz($func(e)),
             XError::RcNav(e) => XError::RcNav($func(e)),
             XError::Rkyv(e) => XError::Rkyv($func(e)),
+            XError::Script(e) => XError::Script($func(e)),
             XError::Custom(e) => XError::Custom($func(e)),
         }
     };
@@ -287,12 +292,12 @@ impl XError {
         switch_call!(&self, |e: &'t MixedError<_>| e.msg())
     }
 
-    pub fn init_pos(self, pos: &'static &'static str) -> XError {
-        switch_new!(self, |e: MixedError<_>| e.init_pos(pos))
+    pub fn set_pos(self, pos: &'static &'static str) -> XError {
+        switch_new!(self, |e: MixedError<_>| e.set_pos(pos))
     }
 
-    pub fn init_msg(self, msg: String) -> XError {
-        switch_new!(self, |e: MixedError<_>| e.init_msg(msg))
+    pub fn set_msg(self, msg: String) -> XError {
+        switch_new!(self, |e: MixedError<_>| e.set_msg(msg))
     }
 }
 
@@ -300,23 +305,20 @@ impl fmt::Display for XError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             XError::Unexpected(e) => e.to_string(f, "Unexpected"),
-            XError::BadArgument(e) => e.to_string(f, "BadArgument"),
+            XError::OutOfMemory(e) => e.to_string(f, "OutOfMemory"),
+            XError::Overflow(e) => e.to_string(f, "Overflow"),
             XError::NotFound(e) => e.to_string(f, "NotFound"),
+            XError::BadArgument(e) => e.to_string(f, "BadArgument"),
             XError::BadType(e) => e.to_string(f, "BadType"),
             XError::BadOperation(e) => e.to_string(f, "BadOperation"),
-            XError::Overflow(e) => e.to_string(f, "Overflow"),
-            XError::SymbolTooLong(e) => e.to_string(f, "SymbolTooLong"),
-            XError::SymbolNotFound(e) => e.to_string(f, "SymbolNotFound"),
-            XError::SymbolNotPreloaded(e) => e.to_string(f, "SymbolNotPreloaded"),
+            XError::UninitedTmplID(e) => e.to_string(f, "UninitedTmplID"),
+            XError::InvalidTmplID(e) => e.to_string(f, "InvalidTmplID"),
+            XError::InvalidSymbol(e) => e.to_string(f, "InvalidSymbol"),
             XError::BadParameter(e) => e.to_string(f, "BadParameter"),
             XError::BadAttribute(e) => e.to_string(f, "BadAttribute"),
             XError::BadAsset(e) => e.to_string(f, "BadAsset"),
-            XError::BadScript(e) => e.to_string(f, "BadScript"),
             XError::BadAction(e) => e.to_string(f, "BadAction"),
-            XError::ScriptNoHook(e) => e.to_string(f, "ScriptNoHook"),
-            XError::ScriptOutOfRange(e) => e.to_string(f, "ScriptOutOfRange"),
-            XError::ScriptBadCommand(e) => e.to_string(f, "ScriptBadCommand"),
-            XError::ScriptStackOverflow(e) => e.to_string(f, "ScriptStackOverflow"),
+            XError::AssetNotFound(e) => e.to_string(f, "AssetNotFound"),
             XError::TmplNotFound(e) => e.to_string(f, "TmplNotFound"),
             XError::InstNotFound(e) => e.to_string(f, "InstNotFound"),
             XError::LogicNotFound(e) => e.to_string(f, "LogicNotFound"),
@@ -326,10 +328,12 @@ impl fmt::Display for XError {
             XError::Utf8(e) => e.to_string(f, "Utf8"),
             XError::Json(e) => e.to_string(f, "Json"),
             XError::Zip(e) => e.to_string(f, "Zip"),
+            XError::Wasmtime(e) => e.to_string(f, "Wasmtime"),
             XError::Jolt(e) => e.to_string(f, "Jolt"),
             XError::Ozz(e) => e.to_string(f, "Ozz"),
             XError::RcNav(e) => e.to_string(f, "RcNav"),
             XError::Rkyv(e) => e.to_string(f, "Rkyv"),
+            XError::Script(e) => e.to_string(f, "Script"),
             XError::Custom(e) => e.to_string(f, "Custom"),
         }
     }
@@ -357,6 +361,12 @@ impl From<zip::result::ZipError> for XError {
     fn from(e: zip::result::ZipError) -> Self {
         let io_err: std::io::Error = e.into();
         XError::Zip(MixedError::from_static(io_err, &EMPTY_STR))
+    }
+}
+
+impl From<wasmtime::Error> for XError {
+    fn from(e: wasmtime::Error) -> Self {
+        XError::Wasmtime(MixedError::from_static(e, &EMPTY_STR))
     }
 }
 
@@ -403,6 +413,8 @@ macro_rules! xpos {
 }
 pub use xpos;
 
+// TODO: refactor error formats !!!!!!!!!!
+
 #[macro_export]
 macro_rules! xerr {
     ($variant:ident) => {
@@ -411,9 +423,9 @@ macro_rules! xerr {
             &const_format::formatcp!("{}:{}", file!(), line!()),
         ))
     };
-    ($variant:ident, $source:expr) => {
+    ($variant:ident, $payload:expr) => {
         $crate::utils::XError::$variant($crate::utils::MixedError::from_static(
-            $source,
+            $payload,
             &const_format::formatcp!("{}:{}", file!(), line!()),
         ))
     };
@@ -423,9 +435,9 @@ macro_rules! xerr {
             &const_format::formatcp!("{}:{} ({})", file!(), line!(), $extra),
         ))
     };
-    ($variant:ident, $source:expr; $extra:expr) => {
+    ($variant:ident, $payload:expr; $extra:expr) => {
         $crate::utils::XError::$variant($crate::utils::MixedError::from_static(
-            $source,
+            $payload,
             &const_format::formatcp!("{}:{} ({})", file!(), line!(), $extra),
         ))
     };
@@ -440,15 +452,15 @@ macro_rules! xerrf {
                 (),
                 &const_format::formatcp!("{}:{}", file!(), line!())
             )
-        ).init_msg(format!($($args)*))
+        ).set_msg(format!($($args)*))
     };
-    ($variant:ident, $source:expr; $($args:tt)*) => {
+    ($variant:ident, $payload:expr; $($args:tt)*) => {
         $crate::utils::XError::$variant(
             $crate::utils::MixedError::from_static(
-                $source,
+                $payload,
                 &const_format::formatcp!("{}:{}", file!(), line!())
             )
-        ).init_msg(format!($($args)*))
+        ).set_msg(format!($($args)*))
     };
 }
 pub use xerrf;
@@ -458,14 +470,14 @@ macro_rules! xres {
     ($variant:ident) => {
         Err($crate::utils::xerr!($variant))
     };
-    ($variant:ident, $source:expr) => {
-        Err($crate::utils::xerr!($variant, $source))
+    ($variant:ident, $payload:expr) => {
+        Err($crate::utils::xerr!($variant, $payload))
     };
     ($variant:ident; $extra:expr) => {
         Err($crate::utils::xerr!($variant; $extra))
     };
-    ($variant:ident, $source:expr; $extra:expr) => {
-        Err($crate::utils::xerr!($variant, $source; $extra))
+    ($variant:ident, $payload:expr; $extra:expr) => {
+        Err($crate::utils::xerr!($variant, $payload; $extra))
     };
 }
 pub use xres;
@@ -475,8 +487,8 @@ macro_rules! xresf {
     ($variant:ident; $($args:tt)*) => {
         Err($crate::utils::xerrf!($variant; $($args)*))
     };
-    ($variant:ident, $source:expr; $($args:tt)*) => {
-        Err($crate::utils::xerrf!($variant, $source; $($args)*))
+    ($variant:ident, $payload:expr; $($args:tt)*) => {
+        Err($crate::utils::xerrf!($variant, $payload; $($args)*))
     };
 }
 pub use xresf;
@@ -484,10 +496,10 @@ pub use xresf;
 #[macro_export]
 macro_rules! xfrom {
     () => {
-        |e| $crate::utils::XError::from(e).init_pos($crate::utils::xpos!())
+        |e| $crate::utils::XError::from(e).set_pos(&const_format::formatcp!("{}:{}", file!(), line!()))
     };
     ($extra:expr) => {
-        |e| $crate::utils::XError::from(e).init_pos($crate::utils::xpos!($extra))
+        |e| $crate::utils::XError::from(e).set_pos(&const_format::formatcp!("{}:{}({})"))
     };
 }
 pub use xfrom;
@@ -496,8 +508,8 @@ pub use xfrom;
 macro_rules! xfromf {
     ($($args:tt)*) => {
         |e| $crate::utils::XError::from(e)
-            .init_pos($crate::utils::xpos!())
-            .init_msg(format!($($args)*))
+            .set_pos(&const_format::formatcp!("{}:{}", file!(), line!()))
+            .set_msg(format!($($args)*))
     };
 }
 pub use xfromf;
