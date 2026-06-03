@@ -27,7 +27,7 @@ pub struct TmplActionGeneral {
     #[serde(default)]
     pub input_movements: TmplTimelinePoint<TmplActionGeneralMovement>,
     pub attributes: TmplTimelineRange<TmplActionAttributes>,
-    pub derive_levels: TmplTimelineRange<TmplVar<u16>>,
+    pub keep_levels: TmplTimelineRange<TmplVar<u16>>,
     #[serde(default)]
     pub derives: Vec<TmplDeriveRule>,
     #[serde(default)]
@@ -74,7 +74,6 @@ impl TmplActionGeneralMovement {
 }
 
 #[derive(
-    Default,
     Debug,
     Clone,
     Copy,
@@ -104,7 +103,6 @@ impl TmplActionGeneralRootMotion {
 }
 
 #[derive(
-    Default,
     Debug,
     Clone,
     Copy,
@@ -118,7 +116,7 @@ impl TmplActionGeneralRootMotion {
 #[rkyv(derive(Debug))]
 pub struct TmplActionGeneralRotation {
     pub duration: f32,
-    pub angle: f32,
+    pub max_angle: f32,
 }
 
 impl TmplActionGeneralRotation {
@@ -126,7 +124,7 @@ impl TmplActionGeneralRotation {
     pub fn from_rkyv(archived: &ArchivedTmplActionGeneralRotation) -> XResult<TmplActionGeneralRotation> {
         Ok(TmplActionGeneralRotation {
             duration: archived.duration.into(),
-            angle: archived.angle.into(),
+            max_angle: archived.max_angle.into(),
         })
     }
 }
@@ -174,7 +172,7 @@ mod tests {
             TmplActionGeneralMovement::from_rkyv(&act.input_movements.pairs[0].1).unwrap(),
             TmplActionGeneralMovement::Rotation(TmplActionGeneralRotation {
                 duration: cf2s(8),
-                angle: 45.0 * std::f32::consts::PI / 180.0,
+                max_angle: 45.0 * std::f32::consts::PI / 180.0,
             })
         );
         assert_eq!(act.input_movements.pairs[1].0, cf2s(20));
@@ -192,10 +190,10 @@ mod tests {
         assert_eq!(act.attributes.values[0].shield_dmg_rdc.value().unwrap(), 0.0);
         assert_eq!(act.attributes.values[0].poise_level.value().unwrap(), 1);
 
-        assert_eq!(act.derive_levels.fragments.len(), 2);
-        assert_eq!(act.derive_levels.values.len(), 2);
-        assert_eq!(act.derive_levels.values[0].value().unwrap(), LEVEL_ACTION);
-        assert_eq!(act.derive_levels.values[1].value().unwrap(), LEVEL_ATTACK);
+        assert_eq!(act.keep_levels.fragments.len(), 2);
+        assert_eq!(act.keep_levels.values.len(), 2);
+        assert_eq!(act.keep_levels.values[0].value().unwrap(), LEVEL_ACTION);
+        assert_eq!(act.keep_levels.values[1].value().unwrap(), LEVEL_ATTACK);
         assert_eq!(act.derives.len(), 2);
         assert_eq!(act.derives[0].key.key, VirtualKey::Attack1);
         assert!(act.derives[0].key.dir.is_none());

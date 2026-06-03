@@ -23,7 +23,7 @@ pub struct TmplActionIdle {
     pub auto_idle_delay: f32,
     pub enter_key: VirtualKey,
     pub enter_level: u16,
-    pub derive_level: u16,
+    pub keep_level: u16,
     pub poise_level: u16,
 }
 
@@ -67,7 +67,7 @@ mod tests {
         assert_eq!(act.auto_idle_delay, 10.0);
         assert_eq!(act.enter_key, VirtualKey::Idle);
         assert_eq!(act.enter_level, LEVEL_IDLE);
-        assert_eq!(act.derive_level, LEVEL_IDLE);
+        assert_eq!(act.keep_level, LEVEL_IDLE);
         assert_eq!(act.poise_level, 0);
 
         let act2 = db.find_as::<TmplActionIdle>(id!("Action.One.IdleX")).unwrap();
@@ -99,7 +99,7 @@ mod tests {
         assert_eq!(act.auto_idle_delay, 10.0);
         assert_eq!(act.enter_key, VirtualKey::Idle);
         assert_eq!(act.enter_level, LEVEL_IDLE);
-        assert_eq!(act.derive_level, LEVEL_IDLE);
+        assert_eq!(act.keep_level, LEVEL_IDLE);
         assert_eq!(act.poise_level, 0);
     }
 }

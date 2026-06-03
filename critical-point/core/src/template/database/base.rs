@@ -117,7 +117,6 @@ pub(super) fn load_json_to_rkyv(file: &mut File, id: TmplID, index: TmplIndex) -
         file_buf.set_len(index.len as usize);
     }
     file.read_exact(&mut file_buf).map_err(xfromf!("id={}", id))?;
-    // log::debug!(">>>>>>>>>> {}", str::from_utf8(&file_buf).unwrap_or(""));
     let tmpl: Box<dyn TmplAny> = serde_json::from_slice(&file_buf).map_err(xfromf!("id={}", id))?;
 
     let rkyv_buf = rkyv::to_bytes::<Failure>(&tmpl).map_err(|_| xerrf!(Unexpected; "id={}", id))?;

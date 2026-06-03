@@ -13,8 +13,8 @@ pub struct TmplActionMove {
     pub tags: Vec<String>,
     pub enter_key: VirtualKey,
     pub enter_level: u16,
-    pub derive_level: u16,
-    pub derive_level_special: u16,
+    pub keep_level: u16,
+    pub keep_level_special: u16,
     pub poise_level: u16,
     pub anim_move: TmplAnimation,
     pub move_speed: f32,
@@ -129,8 +129,8 @@ mod tests {
         assert_eq!(act.tags.as_slice(), &["Run"]);
         assert_eq!(act.enter_key, VirtualKey::Run);
         assert_eq!(act.enter_level, LEVEL_MOVE);
-        assert_eq!(act.derive_level, LEVEL_MOVE - 10);
-        assert_eq!(act.derive_level_special, LEVEL_MOVE + 10);
+        assert_eq!(act.keep_level, LEVEL_MOVE - 10);
+        assert_eq!(act.keep_level_special, LEVEL_MOVE + 10);
         assert_eq!(act.poise_level, 0);
 
         assert_eq!(act.anim_move.files, "Girl/Run_Empty.*");
