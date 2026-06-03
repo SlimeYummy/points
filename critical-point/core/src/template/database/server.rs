@@ -37,7 +37,7 @@ fn test_init_database_static() {
     use crate::consts::TEST_TMPL_PATH;
 
     unsafe {
-        crate::utils::init_id_static(TEST_TMPL_PATH, false).unwrap();
+        crate::utils::init_ids_static(TEST_TMPL_PATH, false).unwrap();
         init_database_static(TEST_TMPL_PATH, false).unwrap();
     };
 }

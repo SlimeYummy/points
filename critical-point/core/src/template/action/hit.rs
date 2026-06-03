@@ -17,7 +17,7 @@ pub struct TmplActionHit {
     pub tags: Vec<String>,
     pub enter_key: VirtualKey,
     pub enter_level: u16,
-    pub derive_level: u16,
+    pub keep_level: u16,
     pub be_hits: Vec<TmplActionHitBeHit>,
     pub anim_down: Option<TmplAnimation>,
     #[serde(default)]
@@ -50,7 +50,7 @@ mod tests {
         assert_eq!(act.tags.as_slice(), &["Hit"]);
         assert_eq!(act.enter_key, VirtualKey::Hit1);
         assert_eq!(act.enter_level, 610);
-        assert_eq!(act.derive_level, 600);
+        assert_eq!(act.keep_level, 600);
 
         assert_eq!(act.be_hits.len(), 1);
         assert_eq!(act.be_hits[0].enter_angle, 10f32.to_radians());

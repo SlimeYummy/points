@@ -15,7 +15,7 @@ use std::{alloc, fmt, fs, mem, ptr, slice, u32};
 
 use crate::template::base::{ArchivedTmplAny, TmplAny};
 use crate::template::database::base::{TmplIndexCache, load_json_to_rkyv, load_rkyv_into};
-use crate::utils::{DtHashMap, TmplID, XResult, xerr, xfromf, xresf};
+use crate::utils::{DtHashMap, TmplID, XResult, xerrf, xfromf, xresf};
 
 //
 // Database
@@ -42,9 +42,14 @@ fn test_init_database_static() {
     use crate::consts::TEST_TMPL_PATH;
 
     unsafe {
-        crate::utils::init_id_static(TEST_TMPL_PATH, false).unwrap();
+        crate::utils::init_ids_static(TEST_TMPL_PATH, false).unwrap();
         init_database_static(TEST_TMPL_PATH, false).unwrap();
     };
+}
+
+#[cfg(feature = "for-turning-point")]
+pub fn init_database<P: AsRef<Path>>(path: P) {
+    unsafe { init_database_static(path, false).unwrap() };
 }
 
 struct TmplDatabaseInner {
@@ -102,6 +107,11 @@ impl TmplDatabaseInner {
         Ok(cache)
     }
 
+    #[inline]
+    fn exists(&self, id: TmplID) -> bool {
+        index_cache().find(id).is_some()
+    }
+
     fn find(&mut self, id: TmplID, database: &Rc<UnsafeCell<TmplDatabaseInner>>) -> XResult<At<dyn TmplAny>> {
         debug_assert!(self.is_aliving);
 
@@ -149,7 +159,9 @@ impl TmplDatabaseInner {
         file: &mut File,
         database: &Rc<UnsafeCell<TmplDatabaseInner>>,
     ) -> XResult<At<dyn TmplAny>> {
-        let index = index_cache().find(id).ok_or_else(|| xerr!(TmplNotFound, id))?;
+        let index = index_cache()
+            .find(id)
+            .ok_or_else(|| xerrf!(TmplNotFound; "id={}", id))?;
         let inner = if is_rkyv {
             unsafe { AtInnerReferred::new(index.len as usize, id, |buf| load_rkyv_into(file, id, index, buf))? }
         }
@@ -289,6 +301,11 @@ impl TmplDatabase {
     #[inline]
     pub fn find(&self, id: TmplID) -> XResult<At<dyn TmplAny>> {
         self.inner().find(id, &self.inner)
+    }
+
+    #[inline]
+    pub fn exists(&self, id: TmplID) -> bool {
+        self.inner().exists(id)
     }
 
     #[inline]

@@ -1,11 +1,12 @@
-use critical_point_csgen::CsEnum;
+use critical_point_macros::csharp_enum;
 use glam_ext::Vec2xz;
 
 use crate::template::attribute::TmplAttribute;
 use crate::template::base::impl_tmpl;
 use crate::utils::{JewelSlots, Table, TmplID, U32Range, impl_for, rkyv_self};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
+#[csharp_enum]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[repr(u8)]
 pub enum CharacterType {
     Melee,
