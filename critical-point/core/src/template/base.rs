@@ -1,4 +1,4 @@
-use critical_point_csgen::CsEnum;
+use critical_point_macros::csharp_enum;
 use enum_iterator::{Sequence, cardinality};
 use std::alloc::Layout;
 use std::any::Any;
@@ -10,8 +10,9 @@ use crate::utils::{Castable, TmplID, XError, XResult, rkyv_self, xres};
 // TmplType & TmplAny
 //
 
+#[csharp_enum]
 #[repr(u16)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize, CsEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize)]
 pub enum TmplType {
     Character,
     CharacterNpc,
@@ -29,7 +30,7 @@ pub enum TmplType {
     ActionMove,
     ActionMoveNpc,
     ActionGeneral,
-    ActionAiGeneral,
+    ActionGeneralNpc,
     ActionDodge,
     ActionGuard,
     ActionAim,
@@ -37,8 +38,10 @@ pub enum TmplType {
 
     AiBrain,
     AiTaskIdle,
+    AiTaskPatrol,
     AiTaskGeneral,
-    AiTaskAttack,
+    AiTaskMoveToCharacter,
+    AiTaskSequence,
 }
 
 rkyv_self!(TmplType);
@@ -120,13 +123,15 @@ const _: () = {
 
     use super::accessory::{ArchivedTmplAccessory, ArchivedTmplAccessoryPool, TmplAccessory, TmplAccessoryPool};
     use super::action::{
-        ArchivedTmplActionGeneral, ArchivedTmplActionHit, ArchivedTmplActionIdle, ArchivedTmplActionMove,
-        ArchivedTmplActionMoveNpc, TmplActionGeneral, TmplActionHit, TmplActionIdle, TmplActionMove, TmplActionMoveNpc,
+        ArchivedTmplActionGeneral, ArchivedTmplActionGeneralNpc, ArchivedTmplActionHit, ArchivedTmplActionIdle,
+        ArchivedTmplActionMove, ArchivedTmplActionMoveNpc, TmplActionGeneral, TmplActionGeneralNpc, TmplActionHit,
+        TmplActionIdle, TmplActionMove, TmplActionMoveNpc,
     };
     use super::ai_brain::{ArchivedTmplAiBrain, TmplAiBrain};
     use super::ai_task::{
-        ArchivedTmplAiTaskAttack, ArchivedTmplAiTaskGeneral, ArchivedTmplAiTaskIdle, TmplAiTaskAttack,
-        TmplAiTaskGeneral, TmplAiTaskIdle,
+        ArchivedTmplAiTaskGeneral, ArchivedTmplAiTaskIdle, ArchivedTmplAiTaskMoveToCharacter, ArchivedTmplAiTaskPatrol,
+        ArchivedTmplAiTaskSequence, TmplAiTaskGeneral, TmplAiTaskIdle, TmplAiTaskMoveToCharacter, TmplAiTaskPatrol,
+        TmplAiTaskSequence,
     };
     use super::character::{
         ArchivedTmplCharacter, ArchivedTmplCharacterNpc, ArchivedTmplStyle, TmplCharacter, TmplCharacterNpc, TmplStyle,
@@ -180,11 +185,14 @@ const _: () = {
                     ActionMove => mem::transmute_copy::<usize, &ArchivedTmplActionMove>(&0),
                     ActionMoveNpc => mem::transmute_copy::<usize, &ArchivedTmplActionMoveNpc>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &ArchivedTmplActionGeneral>(&0),
+                    ActionGeneralNpc => mem::transmute_copy::<usize, &ArchivedTmplActionGeneralNpc>(&0),
                     ActionHit => mem::transmute_copy::<usize, &ArchivedTmplActionHit>(&0),
                     AiBrain => mem::transmute_copy::<usize, &ArchivedTmplAiBrain>(&0),
                     AiTaskIdle => mem::transmute_copy::<usize, &ArchivedTmplAiTaskIdle>(&0),
+                    AiTaskPatrol => mem::transmute_copy::<usize, &ArchivedTmplAiTaskPatrol>(&0),
                     AiTaskGeneral => mem::transmute_copy::<usize, &ArchivedTmplAiTaskGeneral>(&0),
-                    AiTaskAttack => mem::transmute_copy::<usize, &ArchivedTmplAiTaskAttack>(&0),
+                    AiTaskMoveToCharacter => mem::transmute_copy::<usize, &ArchivedTmplAiTaskMoveToCharacter>(&0),
+                    AiTaskSequence => mem::transmute_copy::<usize, &ArchivedTmplAiTaskSequence>(&0),
                     _ => unreachable!("pointer_metadata() Invalid TmplType"),
                 }
             };
@@ -235,11 +243,14 @@ const _: () = {
                 ActionMove => serialize::<TmplActionMove, _>(self, serializer),
                 ActionMoveNpc => serialize::<TmplActionMoveNpc, _>(self, serializer),
                 ActionGeneral => serialize::<TmplActionGeneral, _>(self, serializer),
+                ActionGeneralNpc => serialize::<TmplActionGeneralNpc, _>(self, serializer),
                 ActionHit => serialize::<TmplActionHit, _>(self, serializer),
                 AiBrain => serialize::<TmplAiBrain, _>(self, serializer),
                 AiTaskIdle => serialize::<TmplAiTaskIdle, _>(self, serializer),
+                AiTaskPatrol => serialize::<TmplAiTaskPatrol, _>(self, serializer),
                 AiTaskGeneral => serialize::<TmplAiTaskGeneral, _>(self, serializer),
-                AiTaskAttack => serialize::<TmplAiTaskAttack, _>(self, serializer),
+                AiTaskMoveToCharacter => serialize::<TmplAiTaskMoveToCharacter, _>(self, serializer),
+                AiTaskSequence => serialize::<TmplAiTaskSequence, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid TmplType"),
             }
         }
@@ -285,12 +296,15 @@ const _: () = {
                 ActionMove => deserialize::<TmplActionMove, _>(self, deserializer, out),
                 ActionMoveNpc => deserialize::<TmplActionMoveNpc, _>(self, deserializer, out),
                 ActionGeneral => deserialize::<TmplActionGeneral, _>(self, deserializer, out),
+                ActionGeneralNpc => deserialize::<TmplActionGeneralNpc, _>(self, deserializer, out),
                 ActionHit => deserialize::<TmplActionHit, _>(self, deserializer, out),
                 // NpcActionHit => deserialize::<TmplNpcActionHit, _>(self, deserializer, out),
                 AiBrain => deserialize::<TmplAiBrain, _>(self, deserializer, out),
                 AiTaskIdle => deserialize::<TmplAiTaskIdle, _>(self, deserializer, out),
+                AiTaskPatrol => deserialize::<TmplAiTaskPatrol, _>(self, deserializer, out),
                 AiTaskGeneral => deserialize::<TmplAiTaskGeneral, _>(self, deserializer, out),
-                AiTaskAttack => deserialize::<TmplAiTaskAttack, _>(self, deserializer, out),
+                AiTaskMoveToCharacter => deserialize::<TmplAiTaskMoveToCharacter, _>(self, deserializer, out),
+                AiTaskSequence => deserialize::<TmplAiTaskSequence, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid TmplType"),
             }
         }
@@ -313,12 +327,15 @@ const _: () = {
                     ActionMove => mem::transmute_copy::<usize, &TmplActionMove>(&0),
                     ActionMoveNpc => mem::transmute_copy::<usize, &TmplActionMoveNpc>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &TmplActionGeneral>(&0),
+                    ActionGeneralNpc => mem::transmute_copy::<usize, &TmplActionGeneralNpc>(&0),
                     ActionHit => mem::transmute_copy::<usize, &TmplActionHit>(&0),
                     // NpcActionHit => mem::transmute_copy::<usize, &TmplNpcActionHit>(&0),
                     AiBrain => mem::transmute_copy::<usize, &TmplAiBrain>(&0),
                     AiTaskIdle => mem::transmute_copy::<usize, &TmplAiTaskIdle>(&0),
+                    AiTaskPatrol => mem::transmute_copy::<usize, &TmplAiTaskPatrol>(&0),
                     AiTaskGeneral => mem::transmute_copy::<usize, &TmplAiTaskGeneral>(&0),
-                    AiTaskAttack => mem::transmute_copy::<usize, &TmplAiTaskAttack>(&0),
+                    AiTaskMoveToCharacter => mem::transmute_copy::<usize, &TmplAiTaskMoveToCharacter>(&0),
+                    AiTaskSequence => mem::transmute_copy::<usize, &TmplAiTaskSequence>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid TmplType"),
                 }
             };
