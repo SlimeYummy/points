@@ -18,7 +18,7 @@ pub struct InstActionGeneral {
     pub anim_main: InstAnimation,
     pub attributes: InstTimelineRange<InstActionAttributes>,
     pub input_movements: InstTimelinePoint<InstActionGeneralMovement>,
-    pub derive_levels: InstTimelineRange<u16>,
+    pub keep_levels: InstTimelineRange<u16>,
     pub derives: ThinVec<InstDeriveRule>,
     pub derive_continues: EnumBitset<DeriveContinue, { DeriveContinue::LEN }>,
     pub custom_events: InstTimelinePoint<Symbol>,
@@ -60,12 +60,14 @@ impl InstActionGeneral {
             }
         }
 
+        let input_movements =
+            InstTimelinePoint::from_rkyv(&tmpl.input_movements, |t| InstActionGeneralMovement::from_rkyv(t))?;
+
         let attributes = InstTimelineRange::from_rkyv(&tmpl.attributes, |archived| {
             Ok(InstActionAttributes::from_rkyv(ctx, archived))
         })?;
-        let derive_levels = InstTimelineRange::from_rkyv(&tmpl.derive_levels, |level| Ok(ctx.solve_var(level).into()))?;
-        let input_movements =
-            InstTimelinePoint::from_rkyv(&tmpl.input_movements, |t| InstActionGeneralMovement::from_rkyv(t))?;
+
+        let keep_levels = InstTimelineRange::from_rkyv(&tmpl.keep_levels, |level| Ok(ctx.solve_var(level).into()))?;
 
         let mut hits = ThinVec::with_capacity(tmpl.hits.len());
         for hit in tmpl.hits.iter() {
@@ -87,7 +89,7 @@ impl InstActionGeneral {
             anim_main: InstAnimation::from_rkyv(&tmpl.anim_main),
             input_movements,
             attributes,
-            derive_levels,
+            keep_levels,
             derive_continues: tmpl.derive_continues,
             custom_events,
         };
@@ -152,7 +154,7 @@ mod tests {
                 inst_act.input_movements[0].value,
                 InstActionGeneralMovement::Rotation(InstActionGeneralRotation {
                     duration: cf2s(8),
-                    angle: 60.0 * std::f32::consts::PI / 180.0,
+                    max_angle: 60.0 * std::f32::consts::PI / 180.0,
                 })
             );
             assert_eq!(inst_act.input_movements[1].time, cf2s(24));
@@ -169,10 +171,10 @@ mod tests {
             assert_eq!(inst_act.attributes[0].value.shield_dmg_rdc, 0.0);
             assert_eq!(inst_act.attributes[0].value.poise_level, 1);
 
-            assert_eq!(inst_act.derive_levels[0].range, TimeRange::new(0.0, 2.5));
-            assert_eq!(inst_act.derive_levels[0].value, LEVEL_ACTION);
-            assert_eq!(inst_act.derive_levels[1].range, TimeRange::new(2.5, 4.5));
-            assert_eq!(inst_act.derive_levels[1].value, LEVEL_ATTACK);
+            assert_eq!(inst_act.keep_levels[0].range, TimeRange::new(0.0, 2.5));
+            assert_eq!(inst_act.keep_levels[0].value, LEVEL_ACTION);
+            assert_eq!(inst_act.keep_levels[1].range, TimeRange::new(2.5, 4.5));
+            assert_eq!(inst_act.keep_levels[1].value, LEVEL_ATTACK);
 
             assert_eq!(inst_act.derives.len(), 2);
             assert_eq!(inst_act.derives[0].key, VirtualKey::Attack1);

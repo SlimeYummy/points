@@ -45,7 +45,7 @@ pub struct InstActionHit {
     pub anim_down: Option<InstAnimation>,
     pub max_down_time: f32,
     pub anim_recovery: Option<InstAnimation>,
-    pub derive_level: u16,
+    pub keep_level: u16,
 }
 
 extend!(InstActionHit, InstActionBase);
@@ -90,7 +90,7 @@ impl InstActionHit {
                 Some(t) => Some(InstAnimation::from_rkyv(t)),
                 None => None,
             },
-            derive_level: tmpl.derive_level.to_native(),
+            keep_level: tmpl.keep_level.to_native(),
         }))
     }
 
@@ -200,7 +200,7 @@ mod tests {
     //     assert_eq!(anim_ready.fade_in, 0.4);
     //     assert_eq!(inst_act.anim_randoms.len(), 0);
     //     assert_eq!(inst_act.auto_idle_delay, 10.0);
-    //     assert_eq!(inst_act.derive_level, 0);
+    //     assert_eq!(inst_act.keep_level, 0);
     //     assert_eq!(inst_act.poise_level, 0);
     // }
 
@@ -230,6 +230,6 @@ mod tests {
         assert!(inst_act.anim_down.is_none());
         assert_eq!(inst_act.max_down_time, 0.0);
         assert!(inst_act.anim_recovery.is_none());
-        assert_eq!(inst_act.derive_level, 600);
+        assert_eq!(inst_act.keep_level, 600);
     }
 }

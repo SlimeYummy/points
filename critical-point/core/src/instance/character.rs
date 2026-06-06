@@ -4,12 +4,12 @@ use std::collections::hash_map::Entry;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
+use crate::instance::InstAiBrain;
 use crate::instance::action::{
     ContextActionAssemble, InstActionAny, InstDeriveRule, assemble_action, collect_action_keys,
 };
 use crate::instance::base::ContextAssemble;
 use crate::instance::values::{PanelValues, PrimaryValues, SecondaryValues};
-use crate::instance::{InstAiBrain, InstAiNode};
 use crate::parameter::{ParamNpc, ParamPlayer};
 use crate::template::{
     TmplAccessory, TmplAccessoryPool, TmplAiBrain, TmplCharacter, TmplCharacterNpc, TmplEntry, TmplEquipment,
@@ -314,26 +314,26 @@ impl InstCharacter {
         let ai_brain = InstAiBrain::new(ctx.tmpl_db, tmpl_ai_brain)?;
         inst.ai_brain = Some(ai_brain.clone());
 
-        let mut actions = Vec::new();
-        ai_brain.travel_idle(|node| {
-            if let InstAiNode::Task(_, task) = node {
-                task.actions(&mut actions);
-            }
-            Ok(())
-        })?;
+        // let mut actions = Vec::new();
+        // ai_brain.travel_idle(|node| {
+        //     if let InstAiNode::Task(_, task) = node {
+        //         task.actions(&mut actions);
+        //     }
+        //     Ok(())
+        // })?;
 
-        let ctxa = ContextActionAssemble {
-            var_indexes: &inst.var_indexes,
-        };
+        // let ctxa = ContextActionAssemble {
+        //     var_indexes: &inst.var_indexes,
+        // };
 
-        for id in actions {
-            if let Entry::Vacant(v) = inst.actions.entry(id) {
-                let action = ctx.tmpl_db.find(id)?;
-                if let Some(action) = assemble_action(&ctxa, action)? {
-                    v.insert(action);
-                }
-            }
-        }
+        // for id in actions {
+        //     if let Entry::Vacant(v) = inst.actions.entry(id) {
+        //         let action = ctx.tmpl_db.find(id)?;
+        //         if let Some(action) = assemble_action(&ctxa, action)? {
+        //             v.insert(action);
+        //         }
+        //     }
+        // }
         Ok(())
     }
 }

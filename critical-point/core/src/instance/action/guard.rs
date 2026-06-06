@@ -6,7 +6,7 @@ use crate::utils::{extend, Xrc};
 pub struct InstActionGuard {
     _base: InstActionBase,
     pub tmpl: Xrc<TmplActionGuard>,
-    pub derive_level: u16,
+    pub keep_level: u16,
     pub antibreak_level: u16,
     pub guard_start: u32,
     pub perfect_start: u32,
@@ -52,7 +52,7 @@ impl InstActionGuard {
                 enter_level: tmpl.enter_level,
             },
             tmpl: tmpl.clone(),
-            derive_level: tmpl.derive_level,
+            keep_level: tmpl.keep_level,
             antibreak_level: tmpl.antibreak_level(),
             guard_start: tmpl.guard_start,
             perfect_start: tmpl.perfect_start,

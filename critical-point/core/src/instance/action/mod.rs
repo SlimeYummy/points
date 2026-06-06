@@ -3,6 +3,7 @@ mod base;
 // mod dodge;
 mod empty;
 mod general;
+mod general_npc;
 // mod guard;
 mod hit;
 mod idle;
@@ -14,6 +15,7 @@ pub use base::*;
 // pub use dodge::*;
 pub use empty::*;
 pub use general::*;
+pub use general_npc::*;
 // pub use guard::*;
 pub use hit::*;
 pub use idle::*;
@@ -46,6 +48,12 @@ pub(crate) fn assemble_action(
             Some(act) => Rc::new(act),
             None => return Ok(None),
         },
+        TmplType::ActionGeneralNpc => {
+            match InstActionGeneralNpc::new_from_action(ctx, unsafe { tmpl.cast_unchecked() })? {
+                Some(act) => Rc::new(act),
+                None => return Ok(None),
+            }
+        }
         // TmplType::ActionDodge => match InstActionDodge::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
         //     Some(act) => Rc::new(act),
         //     None => return Ok(None),
