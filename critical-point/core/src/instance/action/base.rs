@@ -1,7 +1,7 @@
 use core::f32;
 use std::any::Any;
 use std::fmt::Debug;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use thin_vec::ThinVec;
 
 use crate::animation::AnimationFileMeta;
@@ -146,6 +146,13 @@ impl<T> Deref for InstTimelineRange<T> {
     }
 }
 
+impl<T> DerefMut for InstTimelineRange<T> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl<T> InstTimelineRange<T> {
     pub fn from_rkyv<V, F>(archived: &ArchivedTmplTimelineRange<V>, handle_value: F) -> XResult<Self>
     where
@@ -226,6 +233,13 @@ impl<T> Deref for InstTimelinePoint<T> {
     #[inline]
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl<T> DerefMut for InstTimelinePoint<T> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

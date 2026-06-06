@@ -19,7 +19,7 @@ impl InstZone {
         let tmpl_zone = ctx.tmpl_db.find_as::<TmplZone>(param.zone)?;
         Ok(InstZone {
             tmpl_zone: param.zone.clone(),
-            files: Symbol::new(&tmpl_zone.files),
+            files: Symbol::new(&tmpl_zone.files)?,
         })
     }
 }

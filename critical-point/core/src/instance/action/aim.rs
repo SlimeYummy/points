@@ -6,7 +6,7 @@ use crate::utils::{extend, Xrc};
 pub struct InstActionAim {
     _base: InstActionBase,
     pub tmpl: Xrc<TmplActionAim>,
-    pub derive_level: u16,
+    pub keep_level: u16,
     pub antibreak_level: u16,
     pub aim_start: u32,
 }
@@ -47,7 +47,7 @@ impl InstActionAim {
                 enter_level: tmpl.enter_level,
             },
             tmpl: tmpl.clone(),
-            derive_level: tmpl.derive_level,
+            keep_level: tmpl.keep_level,
             antibreak_level: tmpl.antibreak_level,
             aim_start: tmpl.aim_start,
         };

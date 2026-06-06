@@ -33,8 +33,8 @@ pub struct InstActionMoveStop {
 #[repr(C)]
 pub struct InstActionMove {
     pub _base: InstActionBase,
-    pub derive_level: u16,
-    pub derive_level_special: u16,
+    pub keep_level: u16,
+    pub keep_level_special: u16,
     pub poise_level: u16,
     pub anim_move: InstAnimation,
     pub move_speed: f32,
@@ -135,8 +135,8 @@ impl InstActionMove {
                 enter_level: tmpl.enter_level.to_native(),
                 ..Default::default()
             },
-            derive_level: tmpl.derive_level.to_native(),
-            derive_level_special: tmpl.derive_level_special.to_native(),
+            keep_level: tmpl.keep_level.to_native(),
+            keep_level_special: tmpl.keep_level_special.to_native(),
             poise_level: tmpl.poise_level.to_native(),
             anim_move: InstAnimation::from_rkyv(&tmpl.anim_move),
             move_speed: tmpl.move_speed.to_native(),
@@ -260,8 +260,8 @@ mod tests {
         assert_eq!(inst_act.tags, vec![sb!("Run")]);
         assert_eq!(inst_act.enter_key.unwrap(), VirtualKeyDir::new(VirtualKey::Run, None));
         assert_eq!(inst_act.enter_level, LEVEL_MOVE);
-        assert_eq!(inst_act.derive_level, LEVEL_MOVE - 10);
-        assert_eq!(inst_act.derive_level_special, LEVEL_MOVE + 10);
+        assert_eq!(inst_act.keep_level, LEVEL_MOVE - 10);
+        assert_eq!(inst_act.keep_level_special, LEVEL_MOVE + 10);
         assert_eq!(inst_act.poise_level, 0);
 
         assert_eq!(inst_act.anim_move.files, "Girl/Run_Empty.*");

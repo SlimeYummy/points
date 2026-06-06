@@ -14,7 +14,7 @@ pub struct InstActionIdle {
     pub anim_ready: Option<InstAnimation>,
     pub anim_randoms: ThinVec<InstAnimation>,
     pub auto_idle_delay: f32,
-    pub derive_level: u16,
+    pub keep_level: u16,
     pub poise_level: u16,
 }
 
@@ -54,7 +54,7 @@ impl InstActionIdle {
             },
             anim_randoms: tmpl.anim_randoms.iter().map(InstAnimation::from_rkyv).collect(),
             auto_idle_delay: tmpl.auto_idle_delay.into(),
-            derive_level: tmpl.derive_level.into(),
+            keep_level: tmpl.keep_level.into(),
             poise_level: tmpl.poise_level.into(),
         })
     }
@@ -107,7 +107,7 @@ mod tests {
         assert_eq!(anim_ready.fade_in, 0.4);
         assert_eq!(inst_act.anim_randoms.len(), 0);
         assert_eq!(inst_act.auto_idle_delay, 10.0);
-        assert_eq!(inst_act.derive_level, 0);
+        assert_eq!(inst_act.keep_level, 0);
         assert_eq!(inst_act.poise_level, 0);
     }
 
@@ -133,7 +133,7 @@ mod tests {
         assert!(inst_act.anim_ready.is_none());
         assert_eq!(inst_act.anim_randoms.len(), 0);
         assert_eq!(inst_act.auto_idle_delay, 10.0);
-        assert_eq!(inst_act.derive_level, 0);
+        assert_eq!(inst_act.keep_level, 0);
         assert_eq!(inst_act.poise_level, 0);
     }
 }

@@ -6,7 +6,7 @@ use crate::utils::{extend, Xrc};
 pub struct InstActionDodge {
     _base: InstActionBase,
     pub tmpl: Xrc<TmplActionDodge>,
-    pub derive_level: u16,
+    pub keep_level: u16,
     pub antibreak_level: u16,
     pub perfect_start: u32,
     pub perfect_duration: u32,
@@ -51,7 +51,7 @@ impl InstActionDodge {
                 enter_level: tmpl.enter_level,
             },
             tmpl: tmpl.clone(),
-            derive_level: tmpl.derive_level,
+            keep_level: tmpl.keep_level,
             antibreak_level: tmpl.antibreak_level,
             perfect_start: tmpl.perfect_start,
             perfect_duration: tmpl.perfect_duration,
