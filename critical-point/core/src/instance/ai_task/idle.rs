@@ -1,16 +1,14 @@
 use crate::instance::ai_task::base::{InstAiTaskAny, InstAiTaskBase};
-use crate::template::{At, TmplAiTaskIdle, TmplAiTaskIdleStep};
-use crate::utils::{AiTaskType, TmplID, extend};
-
-pub type InstAiTaskIdleStep = TmplAiTaskIdleStep;
+use crate::template::{At, TmplAiTaskIdle};
+use crate::utils::{AiTaskType, F32Range, TmplID, extend};
 
 #[repr(C)]
 #[derive(Debug)]
 pub struct InstAiTaskIdle {
     pub _base: InstAiTaskBase,
+    pub enter_level: u16,
+    pub keep_level: u16,
     pub action_idle: TmplID,
-    pub action_move: TmplID,
-    pub route: Vec<InstAiTaskIdleStep>,
 }
 
 extend!(InstAiTaskIdle, InstAiTaskBase);
@@ -23,7 +21,7 @@ unsafe impl InstAiTaskAny for InstAiTaskIdle {
 
     #[inline]
     fn actions(&self, actions: &mut Vec<TmplID>) {
-        self.actions().for_each(|anime| actions.push(anime));
+        actions.push(self.action_idle);
     }
 }
 
@@ -31,21 +29,10 @@ impl InstAiTaskIdle {
     pub(crate) fn new(tmpl: At<TmplAiTaskIdle>) -> InstAiTaskIdle {
         InstAiTaskIdle {
             _base: InstAiTaskBase { tmpl_id: tmpl.id },
+            enter_level: tmpl.enter_level.to_native(),
+            keep_level: tmpl.keep_level.to_native(),
             action_idle: tmpl.action_idle,
-            action_move: tmpl.action_move,
-            route: tmpl.route.iter().map(InstAiTaskIdleStep::from_rkyv).collect(),
         }
-    }
-
-    #[inline]
-    fn actions(&self) -> impl Iterator<Item = TmplID> + '_ {
-        std::iter::from_coroutine(
-            #[coroutine]
-            || {
-                yield self.action_idle;
-                yield self.action_move;
-            },
-        )
     }
 }
 
@@ -53,23 +40,17 @@ impl InstAiTaskIdle {
 mod tests {
     use super::*;
     use crate::template::TmplDatabase;
-    use crate::utils::id;
-    use glam::Vec3A;
+    use crate::utils::{LEVEL_IDLE, id};
 
     #[test]
-    fn test_new_inst_ai_task_idle() {
+    fn test_new() {
         let db = TmplDatabase::new(10240, 150).unwrap();
-
         let tmpl = db.find_as::<TmplAiTaskIdle>(id!("AiTask.InstanceNpc.Idle^1")).unwrap();
         let inst = InstAiTaskIdle::new(tmpl);
 
         assert_eq!(inst.tmpl_id, id!("AiTask.InstanceNpc.Idle^1"));
+        assert_eq!(inst.enter_level, LEVEL_IDLE);
+        assert_eq!(inst.keep_level, LEVEL_IDLE);
         assert_eq!(inst.action_idle, id!("Action.InstanceNpc.Idle^1A"));
-        assert_eq!(inst.action_move, id!("Action.InstanceNpc.Walk^1A"));
-
-        assert_eq!(inst.route.len(), 3);
-        assert_eq!(inst.route[0], InstAiTaskIdleStep::Move(Vec3A::new(-3.0, 0.0, 0.0)));
-        assert_eq!(inst.route[1], InstAiTaskIdleStep::Idle(2.5));
-        assert_eq!(inst.route[2], InstAiTaskIdleStep::Move(Vec3A::new(0.0, 0.0, 3.0)));
     }
 }
