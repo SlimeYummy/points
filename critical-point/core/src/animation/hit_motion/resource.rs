@@ -601,10 +601,17 @@ impl HitBoxJoint {
         rot_keys: &[HitKeyRotation],
     ) -> XResult<HitBoxJoint> {
         Ok(HitBoxJoint {
-            _base: HitBoxBase::new(box_index, shape, raw.typ, Symbol::from(&raw.group), pos_keys, rot_keys)?,
-            joint: Symbol::from(&raw.joint),
+            _base: HitBoxBase::new(
+                box_index,
+                shape,
+                raw.typ,
+                Symbol::try_from(&raw.group)?,
+                pos_keys,
+                rot_keys,
+            )?,
+            joint: Symbol::try_from(&raw.joint)?,
             ratio: raw.ratio.into(),
-            joint2: Symbol::from(&raw.joint2),
+            joint2: Symbol::try_from(&raw.joint2)?,
         })
     }
 }
@@ -652,8 +659,15 @@ impl HitBoxWeapon {
         rot_keys: &[HitKeyRotation],
     ) -> XResult<HitBoxWeapon> {
         Ok(HitBoxWeapon {
-            _base: HitBoxBase::new(hit_index, shape, raw.typ, Symbol::from(&raw.group), pos_keys, rot_keys)?,
-            weapon: Symbol::from(&raw.weapon),
+            _base: HitBoxBase::new(
+                hit_index,
+                shape,
+                raw.typ,
+                Symbol::try_from(&raw.group)?,
+                pos_keys,
+                rot_keys,
+            )?,
+            weapon: Symbol::try_from(&raw.weapon)?,
         })
     }
 }

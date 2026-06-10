@@ -14,7 +14,7 @@ use crate::animation::weapon_motion::{WeaponMotion, normalize_weapons_by_weight,
 use crate::asset::AssetLoader;
 use crate::consts::{INVALID_ACTION_ID, INVALID_ANIMATION_ID};
 use crate::logic::{StateActionAnimation, StateActionAny};
-use crate::utils::{HistoryQueue, SmallVec, Symbol, TmplID, XResult, xfrom, xres};
+use crate::utils::{HistoryQueue, SmallVec, Symbol, TmplID, XError, XResult, xfrom, xres};
 
 #[derive(Debug)]
 pub struct Animator {

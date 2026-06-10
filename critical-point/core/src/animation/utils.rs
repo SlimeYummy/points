@@ -1,4 +1,4 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::csharp_out;
 use glam::{Quat, Vec3A};
 use glam_ext::{Mat4, Transform3A};
 use ozz_animation_rs::{LocalToModelJob, LocalToModelJobRef, Skeleton, SoaTransform};
@@ -6,6 +6,7 @@ use ozz_animation_rs::{LocalToModelJob, LocalToModelJobRef, Skeleton, SoaTransfo
 use crate::utils::{Symbol, XResult, xfrom, xres};
 
 #[repr(C)]
+#[csharp_out(Value)]
 #[derive(
     Debug,
     Default,
@@ -17,7 +18,6 @@ use crate::utils::{Symbol, XResult, xfrom, xres};
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsOut,
 )]
 #[rkyv(derive(Debug))]
 pub struct AnimationFileMeta {
@@ -38,6 +38,7 @@ impl AnimationFileMeta {
 }
 
 #[repr(C)]
+#[csharp_out(Value)]
 #[derive(
     Debug,
     Default,
@@ -49,7 +50,6 @@ impl AnimationFileMeta {
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsOut,
 )]
 pub struct WeaponTransform {
     pub name: Symbol,
