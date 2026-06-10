@@ -1,4 +1,4 @@
-use critical_point_csgen::CsEnum;
+use critical_point_macros::csharp_enum;
 use glam::{Quat, Vec3};
 use ozz_animation_rs::{Archive, OzzError, Track, TrackSamplingJobRef};
 use std::io::{ErrorKind, Read};
@@ -6,8 +6,9 @@ use std::path::Path;
 
 use crate::utils::{XResult, rkyv_self, xres, xresf};
 
+#[csharp_enum]
 #[repr(u8)]
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum RootTrackName {
     #[default]
     Default = 0,

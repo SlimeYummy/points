@@ -1,4 +1,4 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::csharp_out;
 use glam::{Vec3, Vec3Swizzles};
 use ozz_animation_rs::{Animation, Archive, Skeleton, Track};
 
@@ -6,8 +6,8 @@ use crate::animation::{HitMotion, RootMotion, RootTrackName, WeaponMotion};
 use crate::utils::XResult;
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, CsOut)]
-#[cs_attr(Ref)]
+#[csharp_out(Ref)]
+#[derive(Debug, Default, Clone)]
 pub struct SkeletonMeta {
     pub version: u32,
     pub num_joints: u32,
@@ -16,8 +16,8 @@ pub struct SkeletonMeta {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, PartialEq, CsOut)]
-#[cs_attr(Ref)]
+#[csharp_out(Ref)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct SkeletonJointMeta {
     pub index: i16,
     pub parent: i16,
@@ -56,8 +56,8 @@ pub fn load_skeleton_meta(path: String, with_joints: bool) -> XResult<SkeletonMe
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, CsOut)]
-#[cs_attr(Ref)]
+#[csharp_out(Ref)]
+#[derive(Debug, Default, Clone)]
 pub struct AnimationMeta {
     pub version: u32,
     pub duration: f32,
@@ -91,8 +91,8 @@ pub fn load_animation_meta(path: String) -> XResult<AnimationMeta> {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, CsOut)]
-#[cs_attr(Ref)]
+#[csharp_out(Ref)]
+#[derive(Debug, Default, Clone)]
 pub struct RootMotionMeta {
     pub version: u32,
     pub position_default: RootMotionPositionMeta,
@@ -109,8 +109,8 @@ impl Drop for RootMotionMeta {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, PartialEq, Clone, CsOut)]
-#[cs_attr(Value)]
+#[csharp_out(Value)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct RootMotionPositionMeta {
     pub enabled: bool,
     pub whole_distance: f32,
@@ -164,8 +164,8 @@ pub fn load_root_motion_meta(path: String) -> XResult<RootMotionMeta> {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, CsOut)]
-#[cs_attr(Ref)]
+#[csharp_out(Ref)]
+#[derive(Debug, Default, Clone)]
 pub struct WeaponMotionMeta {
     pub version: u32,
     pub count: u32,
@@ -195,15 +195,15 @@ pub fn load_weapon_motion_meta(path: String, with_names: bool) -> XResult<Weapon
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, CsOut)]
-#[cs_attr(Ref)]
+#[csharp_out(Ref)]
+#[derive(Debug, Default, Clone)]
 pub struct HitMotionMeta {
     pub track_groups: Vec<HitTrackGroupMeta>,
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, PartialEq, CsOut)]
-#[cs_attr(Ref)]
+#[csharp_out(Ref)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct HitTrackGroupMeta {
     pub group: String,
     pub count: u32,
