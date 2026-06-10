@@ -1,9 +1,6 @@
 use anyhow::Result;
-use quote::ToTokens;
 use std::collections::HashMap;
 use std::ops::AddAssign;
-use syn::punctuated::Punctuated;
-use syn::{Attribute, Meta, Token};
 
 //
 // Types
@@ -202,37 +199,3 @@ macro_rules! f {
     };
 }
 pub(crate) use f;
-
-//
-// helpers
-//
-
-pub fn extract_attr_raw(attrs: &[Attribute], name: &str) -> Result<String> {
-    let mut raw = String::new();
-    if let Some(attr) = attrs.iter().find(|attr| attr.path().is_ident(name)) {
-        attr.parse_nested_meta(|meta| {
-            raw = meta.path.into_token_stream().to_string();
-            Ok(())
-        })?;
-    }
-    Ok(raw)
-}
-
-pub fn extract_attr_args(attrs: &[Attribute], name: &str) -> Result<Vec<String>> {
-    let mut args = Vec::new();
-    if let Some(attr) = attrs.iter().find(|attr| attr.path().is_ident(name)) {
-        let nested = attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-        for meta in nested {
-            args.push(meta.path().to_token_stream().to_string());
-        }
-    }
-    Ok(args)
-}
-
-pub fn parse_int_or_consts(consts: &HashMap<String, u32>, num: &str) -> Result<u32> {
-    let n = match consts.get(num) {
-        Some(c) => *c,
-        None => num.parse()?,
-    };
-    Ok(n)
-}
