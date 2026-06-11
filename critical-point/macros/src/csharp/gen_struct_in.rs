@@ -1,11 +1,13 @@
 use anyhow::{Result, anyhow};
+use proc_macro::TokenStream;
 use quote::ToTokens;
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 use syn::*;
 
-use crate::base::*;
+use crate::csharp::base::*;
+use crate::utils::parse_token_stream_args;
 
 pub struct StructIn {
     pub rs_name: String,
@@ -13,9 +15,9 @@ pub struct StructIn {
     pub type_in: TypeIn,
 }
 
-pub fn parse_struct_in(input: &ItemStruct, _consts: &HashMap<String, u32>) -> Result<StructIn> {
+pub fn parse_struct_in(attr: TokenStream, input: &ItemStruct, _consts: &HashMap<String, u32>) -> Result<StructIn> {
     let rs_name = input.ident.to_string();
-    let args = extract_attr_args(&input.attrs, "cs_attr")?;
+    let args = parse_token_stream_args(attr).unwrap();
     let is_class = args.iter().any(|x| x == "Class");
     let is_struct = args.iter().any(|x| x == "Struct");
     let is_partial = args.iter().any(|x| x == "Partial");

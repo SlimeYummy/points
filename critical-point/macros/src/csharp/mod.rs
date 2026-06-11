@@ -4,21 +4,20 @@ mod gen_struct_in;
 mod gen_struct_out;
 
 use anyhow::{Result, anyhow};
-use gen_enum::parse_enum;
-use gen_struct_in::parse_struct_in;
-use gen_struct_out::parse_struct_out;
 use proc_macro::TokenStream;
-use quote::quote;
+use proc_macro2::TokenStream as TokenStream2;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync::{LazyLock, Mutex, MutexGuard};
 use syn::*;
 
-use crate::base::*;
-use crate::gen_struct_out::LayoutTask;
+use crate::csharp::base::*;
+use crate::csharp::gen_enum::parse_enum;
+use crate::csharp::gen_struct_in::parse_struct_in;
+use crate::csharp::gen_struct_out::{LayoutTask, parse_struct_out};
 
-struct Generator {
+pub(crate) struct CSharpGenerator {
     consts: HashMap<String, u32>,
     types_in: HashMap<String, TypeIn>,
     types_out: HashMap<String, TypeOut>,
@@ -27,9 +26,9 @@ struct Generator {
     bases: HashMap<String, BaseMeta>,
 }
 
-static GENERATOR: LazyLock<Mutex<Generator>> = LazyLock::new(|| Mutex::new(Generator::new()));
+static GENERATOR: LazyLock<Mutex<CSharpGenerator>> = LazyLock::new(|| Mutex::new(CSharpGenerator::new()));
 
-fn lock_generator() -> MutexGuard<'static, Generator> {
+pub(crate) fn lock_csharp_generator() -> MutexGuard<'static, CSharpGenerator> {
     match GENERATOR.lock() {
         Ok(g) => g,
         Err(_) => {
@@ -39,8 +38,8 @@ fn lock_generator() -> MutexGuard<'static, Generator> {
     }
 }
 
-impl Generator {
-    fn new() -> Generator {
+impl CSharpGenerator {
+    fn new() -> CSharpGenerator {
         let mut consts = HashMap::new();
         consts.insert("FPS".into(), 15);
         consts.insert("MAX_ACTION_ANIMATION".into(), 5);
@@ -128,9 +127,7 @@ impl Generator {
             BaseMeta::new("StateAiTaskBase", "DynStateAiTaskAny"),
         );
 
-        unsafe { libc::atexit(Generator::on_exit) };
-
-        Generator {
+        CSharpGenerator {
             consts,
             types_in,
             types_out,
@@ -140,7 +137,7 @@ impl Generator {
         }
     }
 
-    fn parse_enum(&mut self, input: &ItemEnum) -> Result<()> {
+    pub(crate) fn parse_enum(&mut self, input: &ItemEnum) -> Result<()> {
         let er = parse_enum(input)?;
         self.generate_tasks.push(er.task);
         self.types_in.insert(er.rs_name.clone(), er.type_in);
@@ -148,15 +145,15 @@ impl Generator {
         Ok(())
     }
 
-    fn parse_struct_in(&mut self, input: &ItemStruct) -> Result<()> {
-        let si = parse_struct_in(input, &self.consts)?;
+    pub(crate) fn parse_struct_in(&mut self, attr: TokenStream, input: &ItemStruct) -> Result<()> {
+        let si = parse_struct_in(attr, input, &self.consts)?;
         self.generate_tasks.push(si.task);
         self.types_in.insert(si.rs_name.clone(), si.type_in);
         Ok(())
     }
 
-    fn parse_struct_out(&mut self, input: &ItemStruct) -> Result<Vec<proc_macro2::TokenStream>> {
-        let so = parse_struct_out(input, &self.consts)?;
+    pub(crate) fn parse_struct_out(&mut self, attr: TokenStream, input: &ItemStruct) -> Result<Vec<TokenStream2>> {
+        let so = parse_struct_out(attr, input, &self.consts)?;
         self.generate_tasks.push(so.task);
         self.types_out.insert(so.rs_name.clone(), so.type_out);
         if !so.base.is_empty() {
@@ -171,7 +168,7 @@ impl Generator {
         Ok(so.tokens)
     }
 
-    fn generate_file(&mut self) -> Result<()> {
+    pub(crate) fn generate_file(&mut self) -> Result<()> {
         // let crate_name = env::var("CARGO_PKG_NAME")?;
         // let mut file = if crate_name.ends_with("-core") {
         //     File::create("../critical-point-cs/bridge/AutoGenCore.cs")?
@@ -241,48 +238,4 @@ impl Generator {
         file.write_all("}\r\n".as_bytes())?;
         Ok(())
     }
-
-    extern "C" fn on_exit() {
-        let mut generator = lock_generator();
-
-        println!("\r\n════════════════════════════════════════════════════════════");
-        println!("------------------------------------------------------------\r\n");
-        let res = generator.generate_file();
-        match res {
-            Ok(_) => {
-                println!("Critical Point generate C# OK.");
-            }
-            Err(e) => {
-                println!("Critical Point generate C# error:");
-                println!("{:?}", e);
-            }
-        }
-        println!("\r\n------------------------------------------------------------");
-        println!("════════════════════════════════════════════════════════════\r\n");
-    }
-}
-
-#[proc_macro_derive(CsEnum)]
-pub fn csharp_enum_derive(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as ItemEnum);
-    lock_generator().parse_enum(&input).unwrap();
-    TokenStream::from(quote! {})
-}
-
-#[proc_macro_derive(CsIn, attributes(cs_attr))]
-pub fn csharp_struct_in_derive(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as ItemStruct);
-    let res = lock_generator().parse_struct_in(&input);
-    res.unwrap();
-    TokenStream::from(quote! {})
-}
-
-#[proc_macro_derive(CsOut, attributes(cs_attr, cs_hide))]
-pub fn csharp_struct_out_derive(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as ItemStruct);
-    let res = lock_generator().parse_struct_out(&input);
-    let tokens = res.unwrap();
-    TokenStream::from(quote! {
-        #(#tokens)*
-    })
 }

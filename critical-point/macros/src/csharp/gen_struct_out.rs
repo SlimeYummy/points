@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, anyhow};
 use case::CaseExt;
-use proc_macro2::TokenStream;
+use proc_macro::TokenStream as TokenStream1;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 use regex::Regex;
 use std::cell::Cell;
@@ -8,7 +9,8 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 use syn::*;
 
-use crate::base::*;
+use crate::csharp::base::*;
+use crate::utils::{extract_attr_raw, parse_int_or_consts, parse_token_stream_args};
 
 pub struct StructOut {
     pub rs_name: String,
@@ -16,17 +18,17 @@ pub struct StructOut {
     pub task: Box<dyn GenerateTask>,
     pub layout_task: LayoutTask,
     pub type_out: TypeOut,
-    pub tokens: Vec<TokenStream>,
+    pub tokens: Vec<TokenStream2>,
 }
 
-pub fn parse_struct_out(input: &ItemStruct, consts: &HashMap<String, u32>) -> Result<StructOut> {
+pub fn parse_struct_out(attr: TokenStream1, input: &ItemStruct, consts: &HashMap<String, u32>) -> Result<StructOut> {
     let repr = extract_attr_raw(&input.attrs, "repr")?;
     if repr != "C" {
         return Err(anyhow!("CsOut must repr C"));
     }
 
     let rs_name = input.ident.to_string();
-    let args = extract_attr_args(&input.attrs, "cs_attr")?;
+    let args = parse_token_stream_args(attr).unwrap();
     let is_ref = args.iter().any(|x| x == "Ref");
     let is_value = args.iter().any(|x| x == "Value") || !is_ref;
     let is_partial = args.iter().any(|x| x == "Partial");
@@ -204,18 +206,18 @@ fn parse_type_path_out(path: &TypePath) -> Result<ParsedPathOut> {
     }
 }
 
-static RE_CS_HIDE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^cs_hide\s*\((\d+)\s*,\s*(\d+)\)$"#).unwrap());
+static RE_CS_HIDE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^csharp_hide\s*\((\d+)\s*,\s*(\d+)\)$"#).unwrap());
 
 // example:
-//   #[cs_hide(24, 8)]
+//   #[csharp_hide(24, 8)]
 //   24 => size, 8 => align
-fn try_parse_field_attr_hide(fd: &Field, field: &str) -> Result<Option<(FieldOut, TokenStream)>> {
+fn try_parse_field_attr_hide(fd: &Field, field: &str) -> Result<Option<(FieldOut, TokenStream2)>> {
     for attr in &fd.attrs {
-        if attr.meta.path().is_ident("cs_hide") {
+        if attr.meta.path().is_ident("csharp_hide") {
             let code = attr.meta.to_token_stream().to_string();
             let caps = match RE_CS_HIDE.captures(&code) {
                 Some(caps) => caps,
-                None => return Err(anyhow!("Invalid cs_hide on field:{}", field)),
+                None => return Err(anyhow!("Invalid csharp_hide on field:{}", field)),
             };
 
             let size: usize = caps.get(1).unwrap().as_str().parse().unwrap();
