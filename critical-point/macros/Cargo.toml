@@ -1,10 +1,9 @@
 [package]
-name = "critical-point-csgen"
-version = "0.1.0"
+name = "critical-point-macros"
+version = "0.5.0"
 edition = "2024"
 
 [lib]
-path = "src/lib.rs"
 proc-macro = true
 
 [dependencies]
@@ -15,3 +14,7 @@ proc-macro2 = "1"
 quote = "1"
 regex = "1"
 syn = { version = "2", features = ["full"] }
+
+[features]
+csharp = []
+wasm = []

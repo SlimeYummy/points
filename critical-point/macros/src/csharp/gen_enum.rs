@@ -3,7 +3,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::ItemEnum;
 
-use crate::base::*;
+use crate::csharp::base::*;
+use crate::utils::extract_attr_raw;
 
 pub struct EnumResult {
     pub rs_name: String,
