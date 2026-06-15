@@ -19,7 +19,7 @@ use crate::utils::{NumID, XResult, xres};
     rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug, Default))]
-pub struct StateGeneration {
+pub struct StateIdentity {
     pub player_id: NumID,
     pub auto_gen_id: NumID,
     pub action_id: u32,
@@ -27,17 +27,17 @@ pub struct StateGeneration {
 }
 
 #[derive(Debug)]
-pub(crate) struct SystemGeneration {
-    history: VecDeque<(u32, StateGeneration)>,
+pub(crate) struct SystemIdentity {
+    history: VecDeque<(u32, StateIdentity)>,
     player_id: NumID,
     auto_gen_id: NumID,
     action_id: u32,
     ai_task_id: u32,
 }
 
-impl SystemGeneration {
-    pub(crate) fn new() -> SystemGeneration {
-        SystemGeneration {
+impl SystemIdentity {
+    pub(crate) fn new() -> SystemIdentity {
+        SystemIdentity {
             history: VecDeque::with_capacity(2 * FPS_USIZE),
             player_id: NumID::MIN_PLAYER,
             auto_gen_id: NumID::MIN_AUTO_GEN,
@@ -81,7 +81,7 @@ impl SystemGeneration {
         let last_frame = self.history.back().map_or(0, |(fr, _)| *fr);
         debug_assert!(last_frame + 1 == frame || frame == 0);
 
-        self.history.push_back((frame, StateGeneration {
+        self.history.push_back((frame, StateIdentity {
             player_id: self.player_id,
             auto_gen_id: self.auto_gen_id,
             action_id: self.action_id,
@@ -126,8 +126,8 @@ impl SystemGeneration {
     }
 
     #[inline]
-    pub(crate) fn state(&self) -> StateGeneration {
-        StateGeneration {
+    pub(crate) fn state(&self) -> StateIdentity {
+        StateIdentity {
             player_id: self.player_id,
             auto_gen_id: self.auto_gen_id,
             action_id: self.action_id,
@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn test_system_generation_state() {
-        let mut sys_gen = SystemGeneration::new();
+        let mut sys_gen = SystemIdentity::new();
 
         sys_gen.update(1); // [1]
         let id1_action = sys_gen.gen_action_id();

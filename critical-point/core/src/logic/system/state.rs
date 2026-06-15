@@ -1,19 +1,24 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::csharp_out;
+use glam::{Vec3, Vec3A};
+use glam_ext::Vec2xz;
 use std::collections::{VecDeque, vec_deque};
+use std::hint::unlikely;
 use std::ops::{Index, RangeBounds};
 use std::sync::Arc;
 
-use super::super::base::StateAny;
 use crate::consts::FPS_USIZE;
-use crate::utils::{XResult, xres, xresf};
+use crate::logic::base::StateAny;
+use crate::logic::character::StateCharacterUpdate;
+use crate::utils::{Castable, NumID, ShapeSphere, ShapeSphericalCone, XResult, xres, xresf};
 
 #[repr(C)]
-#[derive(Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut)]
-#[cs_attr(Ref)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct StateSet {
     pub frame: u32,
     pub inits: Vec<Arc<dyn StateAny>>,
     pub updates: Vec<Box<dyn StateAny>>,
+    pub chara_updates: Vec<Box<StateCharacterUpdate>>,
 }
 
 #[cfg(feature = "debug-print")]
@@ -25,11 +30,96 @@ impl Drop for StateSet {
 
 impl StateSet {
     #[inline]
-    pub fn new(frame: u32, new_cap: usize, update_cap: usize) -> StateSet {
+    pub fn new(frame: u32) -> StateSet {
         StateSet {
             frame,
-            inits: Vec::with_capacity(new_cap),
-            updates: Vec::with_capacity(update_cap),
+            inits: Vec::default(),
+            updates: Vec::default(),
+            chara_updates: Vec::default(),
+        }
+    }
+
+    #[inline]
+    pub fn find(&self, id: NumID) -> XResult<&dyn StateAny> {
+        for state in self.chara_updates.iter() {
+            if state.id == id {
+                return Ok(state.as_ref());
+            }
+        }
+        for state in self.updates.iter() {
+            if state.id == id {
+                return Ok(state.as_ref());
+            }
+        }
+        xres!(LogicNotFound)
+    }
+
+    #[inline]
+    pub fn find_as<T: StateAny + 'static>(&self, id: NumID) -> XResult<&T> {
+        self.find(id)?.cast()
+    }
+
+    pub fn search_chara_in_sphere<'t>(
+        &'t self,
+        is_player: bool,
+        sphere: &ShapeSphere,
+        center: Vec3A,
+        indexes: &mut Vec<u32>,
+    ) {
+        // TODO: use octree to optimize search
+        // TODO: use team instead of is_player
+
+        for (idx, state) in self.chara_updates.iter().enumerate() {
+            if is_player != NumID::is_player(state.id) {
+                continue;
+            }
+
+            let dist_sq = (state.physics.position - center).length_squared();
+            if dist_sq <= sphere.radius_sq() {
+                indexes.push(idx as u32);
+            }
+        }
+    }
+
+    pub fn search_chara_in_spherical_cone<'t>(
+        &'t self,
+        is_player: bool,
+        cone: &ShapeSphericalCone,
+        center: Vec3A,
+        direction: Vec2xz,
+        indexes: &mut Vec<u32>,
+    ) {
+        const LEN_THRESHOLD_SQ: f32 = 1e-6;
+        // TODO: use octree to optimize search
+        // TODO: use team instead of is_player
+
+        let direction = direction.as_vec3a();
+        if unlikely(direction.length_squared() < LEN_THRESHOLD_SQ) {
+            return;
+        }
+        let dir_len = direction.length();
+
+        let cos_half_angle = cone.half_angle.cos();
+        for (idx, state) in self.chara_updates.iter().enumerate() {
+            if is_player != NumID::is_player(state.id) {
+                continue;
+            }
+
+            let diff = state.physics.position - center;
+            let dist_sq = diff.length_squared();
+            if dist_sq > cone.radius_sq() {
+                continue;
+            }
+
+            if dist_sq < LEN_THRESHOLD_SQ {
+                indexes.push(idx as u32);
+                continue;
+            }
+
+            let dot = diff.dot(direction) / (dist_sq.sqrt() * dir_len);
+            if dot >= cos_half_angle {
+                indexes.push(idx as u32);
+            }
         }
     }
 }
@@ -187,8 +277,8 @@ mod tests {
         assert_eq!(ss.synced_frame(), 0);
         assert_eq!(ss.unsynced_frame(), 1);
 
-        assert!(ss.init(Arc::new(StateSet::new(1, 0, 0))).is_err());
-        ss.init(Arc::new(StateSet::new(0, 0, 0))).unwrap();
+        assert!(ss.init(Arc::new(StateSet::new(1))).is_err());
+        ss.init(Arc::new(StateSet::new(0))).unwrap();
         assert_eq!(ss.current_frame(), 0);
         assert_eq!(ss.synced_frame(), 0);
         assert_eq!(ss.unsynced_frame(), 1);
@@ -200,7 +290,7 @@ mod tests {
         assert!(ss.restore(2).is_err());
 
         // frame=1
-        ss.append(Arc::new(StateSet::new(1, 0, 0))).unwrap();
+        ss.append(Arc::new(StateSet::new(1))).unwrap();
         assert_eq!(ss.current_frame(), 1);
         assert_eq!(ss.synced_frame(), 0);
         assert_eq!(ss.unsynced_frame(), 1);
@@ -222,9 +312,9 @@ mod tests {
         assert_eq!(ss.range(1..=1).unwrap().count(), 1);
 
         //frame=4
-        ss.append(Arc::new(StateSet::new(2, 0, 0))).unwrap();
-        ss.append(Arc::new(StateSet::new(3, 0, 0))).unwrap();
-        ss.append(Arc::new(StateSet::new(4, 0, 0))).unwrap();
+        ss.append(Arc::new(StateSet::new(2))).unwrap();
+        ss.append(Arc::new(StateSet::new(3))).unwrap();
+        ss.append(Arc::new(StateSet::new(4))).unwrap();
         assert_eq!(ss.current_frame(), 4);
         assert_eq!(ss.synced_frame(), 1);
         assert_eq!(ss.unsynced_frame(), 2);
