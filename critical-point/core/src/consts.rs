@@ -14,6 +14,10 @@ pub const STD_FPS_USIZE: u32 = STD_FPS_U32 as u32;
 pub const STD_FPS: f32 = STD_FPS_U32 as f32;
 pub const STD_SPF: f32 = 1.0 / STD_FPS;
 
+pub const KB: usize = 1024;
+pub const MB: usize = 1024 * KB;
+pub const GB: usize = 1024 * MB;
+
 pub const MAX_PLAYER: usize = 8;
 pub const MAX_INPUT_WINDOW: u32 = 1 * FPS_U32;
 
@@ -50,3 +54,5 @@ pub const TEST_TMP_PATH: &str = "../../test-tmp";
 pub const TEST_TMPL_PATH: &str = "../../test-tmp/test-template";
 #[cfg(test)]
 pub const TEST_ASSET_PATH: &str = "../../test-tmp/test-asset";
+#[cfg(test)]
+pub const TEST_WASM_PATH: &str = "../../turning-point-wasm/target/wasm32-unknown-unknown/debug/turning_point.wasm";
