@@ -1,4 +1,4 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::{csharp_out, wasm_struct};
 use glam::Vec3A;
 use jolt_physics_rs::PhysicsSystem;
 use std::ops::{Deref, DerefMut};
@@ -8,23 +8,22 @@ use std::{mem, slice};
 
 use crate::asset::AssetLoader;
 use crate::consts::{FPS, MAX_INPUT_WINDOW, SPF};
+use crate::input::{InputFrameInputs, InputManager, InputPlayerInputs};
 use crate::instance::ContextAssemble;
 use crate::logic::base::{LogicAny, LogicType, StateAny, StateBase, StateType, impl_state};
-use crate::logic::character::LogicCharacter;
+use crate::logic::character::{LogicCharacter, StateCharacterUpdate};
 use crate::logic::physics::{
     PhyBroadPhaseLayerInterface, PhyContactCollector, PhyHitCharacterEvent, PhyObjectLayerPairFilter,
     PhyObjectVsBroadPhaseLayerFilter,
 };
-use crate::logic::system::generation::{StateGeneration, SystemGeneration};
-use crate::logic::system::input::{InputFrameInputs, InputPlayerInputs, SystemInput};
-use crate::logic::system::random::{StateRandom, SystemRandom};
-use crate::logic::system::save::SystemSave;
-use crate::logic::system::state::{StateSet, SystemState};
+use crate::logic::script::LogicScriptEngine;
+use crate::logic::system::{StateIdentity, StateRandom, StateSet, SystemIdentity, SystemRandom, SystemState};
 use crate::logic::zone::LogicZone;
 use crate::parameter::ParamGame;
-// use crate::script::ScriptExecutor;
+use crate::save::SaveManager;
+use crate::script::ScriptEngineConfig;
 use crate::template::TmplDatabase;
-use crate::utils::{Castable, HistoryVec, NumID, Symbol, XResult, bubble_sort_by, extend, force_mut, xres};
+use crate::utils::{Castable, HistoryVec, NumID, Symbol, XResult, extend, force_mut, xres};
 
 //
 // LogicLoop
@@ -123,7 +122,7 @@ impl LogicLoop {
         let ret_state = systems.state[game.frame].clone();
         assert_eq!(self.frame, game.frame);
 
-        systems.gene.update(game.frame);
+        systems.identity.update(game.frame);
 
         systems.input.confirm()?;
         let state_sets = systems.state.confirm(systems.input.synced_frame())?;
@@ -134,53 +133,55 @@ impl LogicLoop {
         Ok(ret_state)
     }
 
-    fn update_online(&mut self, mut player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
-        let systems = &mut self.systems;
-        let game = self.game.as_mut().unwrap();
-        self.frame += 1;
+    fn update_online(&mut self, mut _player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
+        unimplemented!()
 
-        if let Some(save) = systems.save.as_mut() {
-            let player_events = InputFrameInputs::new(self.frame, &player_events);
-            save.save_input(player_events)?;
-        }
+        // let systems = &mut self.systems;
+        // let game = self.game.as_mut().unwrap();
+        // self.frame += 1;
 
-        // Insert new input events
-        bubble_sort_by(&mut player_events, |a, b| {
-            a.player_id < b.player_id && a.frame < b.frame
-        });
-        let base_frame = systems.input.produce(&player_events)?.min(game.frame);
+        // if let Some(save) = systems.save.as_mut() {
+        //     let player_events = InputFrameInputs::new(self.frame, &player_events);
+        //     save.save_input(player_events)?;
+        // }
 
-        // Restore to base_frame
-        if base_frame < game.frame {
-            systems.state.restore(base_frame)?;
-            systems.gene.restore(base_frame);
-            // TODO: restore physics.
+        // // Insert new input events
+        // bubble_sort_by(&mut player_events, |a, b| {
+        //     a.player_id < b.player_id && a.frame < b.frame
+        // });
+        // let base_frame = systems.input.produce(&player_events)?.min(game.frame);
 
-            let ctx = ContextRestore::new(systems.state[base_frame].clone());
-            game.restore(&ctx)?;
-            debug_assert_eq!(game.frame, base_frame);
-        }
+        // // Restore to base_frame
+        // if base_frame < game.frame {
+        //     systems.state.restore(base_frame)?;
+        //     systems.identity.restore(base_frame);
+        //     // TODO: restore physics.
 
-        // Update frame to current
-        while game.frame < self.frame {
-            let frame = game.frame + 1;
-            let synced_frame = systems.input.synced_frame();
-            let mut ctx = ContextUpdate::new(systems, frame, synced_frame);
-            let state_set = game.update(&mut ctx)?;
-            // systems.physics.update(delta);
-            systems.state.append(state_set.clone())?;
+        //     let ctx = ContextRestore::new(systems.state[base_frame].clone());
+        //     game.restore(&ctx)?;
+        //     debug_assert_eq!(game.frame, base_frame);
+        // }
 
-            systems.gene.update(frame);
-        }
-        let ret_state = systems.state[game.frame].clone();
+        // // Update frame to current
+        // while game.frame < self.frame {
+        //     let frame = game.frame + 1;
+        //     let synced_frame = systems.input.synced_frame();
+        //     let mut ctx = ContextUpdate::new(systems, frame, synced_frame);
+        //     let state_set = game.update(&mut ctx)?;
+        //     // systems.physics.update(delta);
+        //     systems.state.append(state_set.clone())?;
 
-        systems.input.confirm()?;
-        let state_sets = systems.state.confirm(systems.input.synced_frame())?;
-        if let Some(save) = self.systems.save.as_mut() {
-            save.save_states(state_sets)?;
-        }
+        //     systems.identity.update(frame);
+        // }
+        // let ret_state = systems.state[game.frame].clone();
 
-        Ok(ret_state)
+        // systems.input.confirm()?;
+        // let state_sets = systems.state.confirm(systems.input.synced_frame())?;
+        // if let Some(save) = self.systems.save.as_mut() {
+        //     save.save_states(state_sets)?;
+        // }
+
+        // Ok(ret_state)
     }
 
     pub fn stop(&mut self) -> XResult<()> {
@@ -212,12 +213,13 @@ pub struct LogicSystems {
     stopped: bool,
     pub(crate) tmpl_db: TmplDatabase,
     pub(crate) asset: AssetLoader,
-    pub(crate) gene: SystemGeneration,
-    pub(crate) input: SystemInput,
+    pub(crate) identity: SystemIdentity,
+    pub(crate) input: InputManager,
     pub(crate) rand: SystemRandom,
     pub(crate) state: SystemState,
-    pub(crate) save: Option<SystemSave>,
+    pub(crate) save: Option<SaveManager>,
     pub(crate) physics: PhysicsSystem,
+    pub(crate) script: LogicScriptEngine,
 }
 
 #[cfg(feature = "debug-print")]
@@ -242,17 +244,21 @@ impl LogicSystems {
         let system = LogicSystems {
             stopped: false,
             tmpl_db,
-            asset: AssetLoader::new(asset_path)?,
+            asset: AssetLoader::new(asset_path.as_ref())?,
             physics,
             // executor: ScriptExecutor::new(),
-            gene: SystemGeneration::new(),
-            input: SystemInput::new(MAX_INPUT_WINDOW),
+            identity: SystemIdentity::new(),
+            input: InputManager::new(MAX_INPUT_WINDOW),
             rand: SystemRandom::new(12345, 98765),
             state: SystemState::new(),
             save: match save_path {
-                Some(save_path) => Some(SystemSave::new(save_path)?),
+                Some(save_path) => Some(SaveManager::new(save_path)?),
                 None => None,
             },
+            script: LogicScriptEngine::new(
+                asset_path.as_ref().join("turning_point.wasm"),
+                ScriptEngineConfig::default(),
+            )?,
         };
         Ok(system)
     }
@@ -297,11 +303,17 @@ impl DerefMut for ContextUpdate<'_> {
 impl<'t> ContextUpdate<'t> {
     #[inline]
     pub(crate) fn new(systems: &'t mut LogicSystems, frame: u32, synced_frame: u32) -> ContextUpdate<'t> {
+        let time = frame as f32 / FPS; // TODO: The error between time and accumulation time
+
+        let ws_game = systems.script.global_mut();
+        ws_game.frame = frame;
+        ws_game.time = time;
+
         ContextUpdate {
             systems,
             frame,
             synced_frame,
-            time: frame as f32 / FPS, // TODO: The error between time and accumulation time
+            time,
             synced_time: synced_frame as f32 / FPS,
             zone: None,
             hit_events: &[],
@@ -315,6 +327,25 @@ impl<'t> ContextUpdate<'t> {
             // executor: &mut self.systems.executor,
         }
     }
+
+    // #[inline]
+    // pub fn alloc(&self) -> Rc<TalcCell<TalcSource>> {
+    //     self.systems.script.alloc()
+    // }
+
+    // #[inline]
+    // pub fn func(&mut self, name: &str) -> Option<Func> {
+    //     self.systems.script.func(name)
+    // }
+
+    // #[inline]
+    // pub fn typed_func<Params, Results>(&mut self, name: &str) -> XResult<TypedFunc<Params, Results>>
+    // where
+    //     Params: WasmParams,
+    //     Results: WasmResults,
+    // {
+    //     self.systems.script.typed_func::<Params, Results>(name)
+    // }
 
     // Safety: steal reference, we will reset those fields after use.
     #[inline]
@@ -349,22 +380,12 @@ impl ContextRestore {
 
     #[inline]
     pub fn find(&self, id: NumID) -> XResult<&dyn StateAny> {
-        for state in self.state_set.updates.iter() {
-            if state.id == id {
-                return Ok(state.as_ref());
-            }
-        }
-        xres!(LogicNotFound, id)
+        self.state_set.find(id)
     }
 
     #[inline]
     pub fn find_as<T: StateAny + 'static>(&self, id: NumID) -> XResult<&T> {
-        for state in self.state_set.updates.iter() {
-            if state.id == id {
-                return state.cast();
-            }
-        }
-        xres!(LogicNotFound, id)
+        self.state_set.find_as(id)
     }
 }
 
@@ -412,11 +433,9 @@ impl<'t, E> ContextHitUpdate<'t, E> {
 //
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateGameInit {
     pub _base: StateBase,
 }
@@ -426,17 +445,15 @@ extend!(StateGameInit, StateBase);
 impl_state!(StateGameInit, Game, GameInit, "GameInit");
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateGameUpdate {
     pub _base: StateBase,
     pub frame: u32,
-    #[cs_hide(16, 4)]
-    pub gene: StateGeneration,
-    #[cs_hide(48, 16)]
+    #[csharp_hide(16, 4)]
+    pub identity: StateIdentity,
+    #[csharp_hide(48, 16)]
     pub rand: StateRandom,
     pub hit_events: Vec<HitCharacterEvent>,
 }
@@ -478,7 +495,8 @@ impl LogicAny for LogicGame {
 
 impl LogicGame {
     fn new(ctx: &mut ContextUpdate, param: ParamGame) -> XResult<(Box<LogicGame>, Arc<StateSet>)> {
-        let mut state_set = StateSet::new(0, 16, 0);
+        let mut state_set = StateSet::new(0);
+        state_set.inits.reserve(16);
 
         let game_init = Arc::new(StateGameInit {
             _base: StateBase::new(NumID::GAME, StateType::GameInit, LogicType::Game),
@@ -516,7 +534,9 @@ impl LogicGame {
             hit_events: Vec::with_capacity(32),
         });
 
-        state_set.updates = game.collect_states_updates(ctx)?;
+        let (updates, chara_updates) = game.collect_states_updates(ctx)?;
+        state_set.updates = updates;
+        state_set.chara_updates = chara_updates;
 
         Ok((game, Arc::new(state_set)))
     }
@@ -569,29 +589,35 @@ impl LogicGame {
         ctx.clear_extras();
 
         // Collect states
-        let mut state_set = StateSet::new(self.frame, 0, 0);
-        state_set.updates = self.collect_states_updates(ctx)?;
+        let mut state_set = StateSet::new(self.frame);
+        let (updates, chara_updates) = self.collect_states_updates(ctx)?;
+        state_set.updates = updates;
+        state_set.chara_updates = chara_updates;
         self.hit_events.clear();
 
         Ok(Arc::new(state_set))
     }
 
-    fn collect_states_updates(&mut self, ctx: &mut ContextUpdate) -> XResult<Vec<Box<dyn StateAny>>> {
-        let mut updates: Vec<Box<dyn StateAny>> = Vec::with_capacity(1 + self.characters.len());
+    fn collect_states_updates(
+        &mut self,
+        ctx: &mut ContextUpdate,
+    ) -> XResult<(Vec<Box<dyn StateAny>>, Vec<Box<StateCharacterUpdate>>)> {
+        let mut updates: Vec<Box<dyn StateAny>> = Vec::with_capacity(2);
         updates.push(Box::new(StateGameUpdate {
             _base: StateBase::new(self.id, StateType::GameUpdate, LogicType::Game),
             frame: self.frame,
-            gene: ctx.gene.state(),
+            identity: ctx.identity.state(),
             rand: ctx.rand.state(),
             hit_events: self.hit_events.drain(..).collect(),
         }));
 
         updates.push(self.zone.state());
 
+        let mut chara_updates = Vec::with_capacity(self.characters.len());
         for chara in self.characters.iter_mut() {
-            updates.push(chara.state()?);
+            chara_updates.push(chara.state()?);
         }
-        Ok(updates)
+        Ok((updates, chara_updates))
     }
 
     pub(crate) fn on_hit_character<'t>(&mut self, phy_event: &PhyHitCharacterEvent<'t>) -> XResult<()> {
@@ -620,6 +646,7 @@ impl LogicGame {
 //
 
 #[repr(C)]
+#[csharp_out(Value)]
 #[derive(
     Debug,
     Default,
@@ -630,10 +657,8 @@ impl LogicGame {
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsOut,
 )]
 #[rkyv(derive(Debug))]
-#[cs_attr(Value)]
 pub struct HitCharacterEvent {
     pub src_chara_id: NumID,
     pub dst_chara_id: NumID,
@@ -679,7 +704,7 @@ mod tests {
                 ai_brain: id!("AiBrain.InstanceNpc^1"),
                 ..Default::default()
             }],
-            local_mode: false,
+            local_mode: true,
         };
         let (mut ll, _) = LogicLoop::new(tmpl_db, TEST_ASSET_PATH, param, None).unwrap();
         ll.update(vec![InputPlayerInputs {
