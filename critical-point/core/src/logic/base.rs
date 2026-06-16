@@ -1,4 +1,4 @@
-use critical_point_csgen::{CsEnum, CsOut};
+use critical_point_macros::{csharp_enum, csharp_out};
 use enum_iterator::{Sequence, cardinality};
 use std::alloc::Layout;
 use std::any::Any;
@@ -11,10 +11,9 @@ use crate::utils::{NumID, XError, XResult, interface, rkyv_self, xres};
 // LogicType & LogicAny
 //
 
+#[csharp_enum]
 #[repr(u16)]
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash, Sequence, serde::Serialize, serde::Deserialize, CsEnum,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash, Sequence, serde::Serialize, serde::Deserialize)]
 pub enum LogicType {
     Game,
     Zone,
@@ -61,10 +60,9 @@ pub trait LogicAny: Debug {
 // StateAny
 //
 
+#[csharp_enum]
 #[repr(u16)]
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash, Sequence, serde::Serialize, serde::Deserialize, CsEnum,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash, Sequence, serde::Serialize, serde::Deserialize)]
 pub enum StateType {
     GameInit,
     GameUpdate,
@@ -134,19 +132,11 @@ pub unsafe trait StateAny: Debug + Any + Send + Sync {
 }
 
 #[repr(C)]
+#[csharp_out(Ref)]
 #[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsOut,
+    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateBase {
     pub id: NumID,
     pub typ: StateType,
@@ -427,8 +417,7 @@ mod tests {
         StateCharacterInit, StateCharacterUpdate,
     };
     use crate::logic::game::{HitCharacterEvent, StateGameInit, StateGameUpdate};
-    use crate::logic::system::generation::StateGeneration;
-    use crate::logic::system::random::StateRandom;
+    use crate::logic::system::{StateIdentity, StateRandom};
     use crate::logic::zone::{StateZoneInit, StateZoneUpdate};
     use crate::utils::{Castable, sb, smallvec};
     use anyhow::Result;
@@ -470,7 +459,7 @@ mod tests {
             Box::new(StateGameUpdate {
                 _base: StateBase::new(NumID(456), StateType::GameUpdate, LogicType::Game),
                 frame: 90,
-                gene: StateGeneration {
+                identity: StateIdentity {
                     player_id: NumID::MAX_PLAYER,
                     auto_gen_id: NumID::MIN_AUTO_GEN,
                     action_id: 0,
@@ -495,10 +484,10 @@ mod tests {
         assert_eq!(state_game_update.id, 456);
         assert_eq!(state_game_update.frame, 90);
 
-        assert_eq!(state_game_update.gene.player_id, NumID::MAX_PLAYER);
-        assert_eq!(state_game_update.gene.auto_gen_id, NumID::MIN_AUTO_GEN);
-        assert_eq!(state_game_update.gene.action_id, 0);
-        assert_eq!(state_game_update.gene.ai_task_id, 0);
+        assert_eq!(state_game_update.identity.player_id, NumID::MAX_PLAYER);
+        assert_eq!(state_game_update.identity.auto_gen_id, NumID::MIN_AUTO_GEN);
+        assert_eq!(state_game_update.identity.action_id, 0);
+        assert_eq!(state_game_update.identity.ai_task_id, 0);
 
         assert_eq!(state_game_update.rand, StateRandom::default());
 
