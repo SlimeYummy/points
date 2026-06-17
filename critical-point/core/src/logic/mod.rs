@@ -4,11 +4,12 @@ mod base;
 mod character;
 mod game;
 mod physics;
-// mod playback;
+mod script;
 mod system;
+mod zone;
+
 #[cfg(test)]
 pub(super) mod test_utils;
-mod zone;
 
 pub use action::*;
 pub use ai_task::*;
@@ -16,8 +17,6 @@ pub use base::*;
 pub use character::*;
 pub use game::*;
 pub use physics::*;
-// pub use playback::*;
-pub use system::generation::*;
-pub use system::input::*;
-pub use system::state::*;
+pub use script::*;
+pub use system::*;
 pub use zone::*;
