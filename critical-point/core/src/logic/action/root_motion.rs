@@ -1,4 +1,4 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::csharp_out;
 use glam::Vec3A;
 use ozz_animation_rs::TrackSamplingJobRef;
 use std::rc::Rc;
@@ -13,19 +13,11 @@ use crate::utils::{XResult, xresf};
 //
 
 #[repr(C)]
+#[csharp_out(Value)]
 #[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsOut,
+    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-#[cs_attr(Value)]
 pub struct StateRootMotion {
     pub pos_track: RootTrackName,
     pub ratio: f32,
@@ -150,19 +142,11 @@ impl LogicRootMotion {
 //
 
 #[repr(C)]
+#[csharp_out(Value)]
 #[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsOut,
+    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-#[cs_attr(Value)]
 pub struct StateMultiRootMotion {
     pub local_id: u16,
     pub pos_track: RootTrackName,

@@ -3,12 +3,12 @@ use glam_ext::Vec2xz;
 use std::rc::Rc;
 
 use crate::consts::{DEFAULT_TOWARD_DIR_2D, TEST_ASSET_PATH};
+use crate::input::InputPlayerInputs;
 use crate::instance::{InstActionEmpty, InstCharacter};
 use crate::logic::LogicActionEmpty;
 use crate::logic::action::base::{ActionStartArgs, ContextAction, StateActionAny};
 use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::{ContextUpdate, LogicSystems};
-use crate::logic::system::input::InputPlayerInputs;
 use crate::parameter::ParamPlayer;
 use crate::template::TmplDatabase;
 use crate::utils::{ActionType, NumID, VirtualKey, XResult, id, ifelse};

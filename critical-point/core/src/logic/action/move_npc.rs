@@ -1,4 +1,4 @@
-use critical_point_csgen::{CsEnum, CsOut};
+use critical_point_macros::{csharp_enum, csharp_out};
 use glam::Vec3Swizzles;
 use glam_ext::Vec2xz;
 use libm;
@@ -18,6 +18,7 @@ use crate::utils::{
     ActionType, Castable, LEVEL_MOVE, XResult, extend, ifelse, loose_ge, loose_le, s2ff_round, xres, xresf,
 };
 
+#[csharp_enum]
 #[repr(u8)]
 #[derive(
     Debug,
@@ -30,7 +31,6 @@ use crate::utils::{
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsEnum,
 )]
 #[rkyv(derive(Debug))]
 pub enum ActionMoveNpcMode {
@@ -40,11 +40,9 @@ pub enum ActionMoveNpcMode {
 }
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, rkyv::Archive, serde::Serialize, serde::Deserialize, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, rkyv::Archive, serde::Serialize, serde::Deserialize, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateActionMoveNpc {
     pub _base: StateActionBase,
 
@@ -99,9 +97,9 @@ impl LogicActionMoveNpc {
 
         Ok(LogicActionMoveNpc {
             _base: LogicActionBase {
-                derive_level: LEVEL_MOVE,
+                keep_level: LEVEL_MOVE,
                 poise_level: inst_act.poise_level,
-                ..LogicActionBase::new(ctx.gene.gen_action_id(), inst_act.clone())
+                ..LogicActionBase::new(ctx.identity.gen_action_id(), inst_act.clone())
             },
             inst: inst_act,
             turn_angle_step,

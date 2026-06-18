@@ -1,6 +1,7 @@
 mod base;
 mod empty;
 mod general;
+mod general_npc;
 mod hit;
 mod idle;
 mod r#move;
@@ -12,6 +13,7 @@ mod test_utils;
 pub use base::*;
 pub use empty::*;
 pub use general::*;
+pub use general_npc::*;
 pub use hit::*;
 pub use idle::*;
 pub use r#move::*;
@@ -50,6 +52,10 @@ pub(crate) fn new_logic_action(
         General => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
             Box::new(LogicActionGeneral::new(ctx, inst_act)?)
+        }
+        GeneralNpc => {
+            let inst_act = unsafe { inst_act.cast_unchecked() };
+            Box::new(LogicActionGeneralNpc::new(ctx, inst_act)?)
         }
         Hit => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
@@ -100,6 +106,13 @@ pub(crate) fn try_reuse_logic_action(
             if let Ok(logic_act) = logic_act.cast::<LogicActionGeneral>() {
                 let inst_act = unsafe { inst_act.cast_unchecked() };
                 *logic_act = LogicActionGeneral::new(ctx, inst_act)?;
+                return Ok(true);
+            }
+        }
+        GeneralNpc => {
+            if let Ok(logic_act) = logic_act.cast::<LogicActionGeneralNpc>() {
+                let inst_act = unsafe { inst_act.cast_unchecked() };
+                *logic_act = LogicActionGeneralNpc::new(ctx, inst_act)?;
                 return Ok(true);
             }
         }
