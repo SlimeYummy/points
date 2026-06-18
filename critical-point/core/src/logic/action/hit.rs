@@ -1,4 +1,4 @@
-use critical_point_csgen::{CsEnum, CsOut};
+use critical_point_macros::{csharp_enum, csharp_out};
 use glam::Vec3Swizzles;
 use glam_ext::Vec2xz;
 use std::fmt::Debug;
@@ -13,6 +13,7 @@ use crate::logic::action::root_motion::{LogicMultiRootMotion, StateMultiRootMoti
 use crate::logic::game::ContextUpdate;
 use crate::utils::{ActionType, Castable, XResult, extend, loose_ge, ratio_warpping, xresf};
 
+#[csharp_enum]
 #[repr(u8)]
 #[derive(
     Debug,
@@ -25,7 +26,6 @@ use crate::utils::{ActionType, Castable, XResult, extend, loose_ge, ratio_warppi
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsEnum,
 )]
 #[rkyv(derive(Debug))]
 pub enum ActionHitMode {
@@ -35,11 +35,9 @@ pub enum ActionHitMode {
 }
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateActionHit {
     pub _base: StateActionBase,
     pub mode: ActionHitMode,
@@ -80,9 +78,9 @@ impl LogicActionHit {
 
         Ok(LogicActionHit {
             _base: LogicActionBase {
-                derive_level: inst_act.derive_level,
+                keep_level: inst_act.keep_level,
                 poise_level: u16::MAX,
-                ..LogicActionBase::new(ctx.gene.gen_action_id(), inst_act.clone())
+                ..LogicActionBase::new(ctx.identity.gen_action_id(), inst_act.clone())
             },
             inst: inst_act,
 

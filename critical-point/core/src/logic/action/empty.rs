@@ -1,4 +1,4 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::csharp_out;
 use std::fmt::Debug;
 use std::rc::Rc;
 
@@ -11,11 +11,9 @@ use crate::logic::game::ContextUpdate;
 use crate::utils::{ActionType, XResult, extend};
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateActionEmpty {
     pub _base: StateActionBase,
 }
@@ -43,7 +41,7 @@ extend!(LogicActionEmpty, LogicActionBase);
 impl LogicActionEmpty {
     pub fn new(ctx: &mut ContextUpdate, inst: Rc<InstActionEmpty>) -> LogicActionEmpty {
         LogicActionEmpty {
-            _base: LogicActionBase::new(ctx.gene.gen_action_id(), inst),
+            _base: LogicActionBase::new(ctx.identity.gen_action_id(), inst),
         }
     }
 

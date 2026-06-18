@@ -1,4 +1,4 @@
-use critical_point_csgen::{CsEnum, CsOut};
+use critical_point_macros::{csharp_enum, csharp_out};
 use glam::Vec3Swizzles;
 use glam_ext::Vec2xz;
 use libm;
@@ -9,6 +9,7 @@ use std::u16;
 
 use crate::animation::RootTrackName;
 use crate::consts::{CFG_SPF, MAX_ACTION_ANIMATION};
+use crate::input::{RefInputEventQueue, WorldMoveState};
 use crate::instance::{InstActionMove, InstAnimation};
 use crate::logic::action::base::{
     ActionStartArgs, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
@@ -16,12 +17,12 @@ use crate::logic::action::base::{
 };
 use crate::logic::action::root_motion::{LogicMultiRootMotion, StateMultiRootMotion};
 use crate::logic::game::ContextUpdate;
-use crate::logic::system::input::{RefInputEventQueue, WorldMoveState};
 use crate::utils::{
     ActionType, Castable, XResult, calc_fade_in, extend, ifelse, lerp, loose_ge, loose_le, ok_or, ratio_warpping,
     s2ff_round, strict_gt, xres, xresf,
 };
 
+#[csharp_enum]
 #[repr(u8)]
 #[derive(
     Debug,
@@ -34,7 +35,6 @@ use crate::utils::{
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsEnum,
 )]
 #[rkyv(derive(Debug))]
 pub enum ActionMoveMode {
@@ -45,11 +45,9 @@ pub enum ActionMoveMode {
 }
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, rkyv::Archive, serde::Serialize, serde::Deserialize, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, rkyv::Archive, serde::Serialize, serde::Deserialize, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateActionMove {
     pub _base: StateActionBase,
 
@@ -114,9 +112,9 @@ impl LogicActionMove {
 
         Ok(LogicActionMove {
             _base: LogicActionBase {
-                derive_level: inst_act.derive_level,
+                keep_level: inst_act.keep_level,
                 poise_level: inst_act.poise_level,
-                ..LogicActionBase::new(ctx.gene.gen_action_id(), inst_act.clone())
+                ..LogicActionBase::new(ctx.identity.gen_action_id(), inst_act.clone())
             },
             inst: inst_act.clone(),
             player_inputs: None,
@@ -380,7 +378,7 @@ impl LogicActionMove {
         self.current_time = 0.0;
         self.anim_offset_time = 0.0;
         self.local_fade_in_weight = 1.0;
-        self.derive_level = self.inst.derive_level;
+        self.keep_level = self.inst.keep_level;
     }
 
     fn prepare_start(&mut self, ctxa: &mut ContextAction, world_move: WorldMoveState) -> XResult<ActionStartReturn> {
@@ -391,7 +389,7 @@ impl LogicActionMove {
 
         if let Some((start_idx, start)) = inst_act.find_start_by_angle(angle) {
             self.init_anim(ActionMoveMode::Start, start_idx as u16);
-            self.derive_level = inst_act.derive_level_special;
+            self.keep_level = inst_act.keep_level_special;
             self.start_turn_angle_step = Vec2xz::from_angle(angle / s2ff_round(start.turn_in_place_end + CFG_SPF));
             self.root_motion.set_local_id(start.anim.local_id, 0.0)?;
         }
@@ -412,7 +410,7 @@ impl LogicActionMove {
         let adjusted_time = self.current_time + self.anim_offset_time;
 
         if strict_gt!(adjusted_time, start.turn_in_place_end) {
-            self.derive_level = inst_act.derive_level;
+            self.keep_level = inst_act.keep_level;
         }
 
         self.handle_fade_in(&start.anim, ctxa.time_step);
@@ -587,9 +585,9 @@ impl LogicActionMove {
         self.current_time += ctxa.time_step;
         let adjusted_time = self.current_time + self.anim_offset_time;
 
-        // self.derive_level = match loose_le!(adjusted_time, stop.speed_down_end) {
-        //     true => self.inst.derive_level_special,
-        //     false => self.inst.derive_level,
+        // self.keep_level = match loose_le!(adjusted_time, stop.speed_down_end) {
+        //     true => self.inst.keep_level_special,
+        //     false => self.inst.keep_level,
         // };
 
         self.handle_fade_in(&stop.anim, ctxa.time_step);
@@ -629,7 +627,7 @@ impl LogicActionMove {
             zelf.init_anim(mode, anim_idx);
             zelf.smooth_move_switch = true;
             zelf.fade_in_weight = 0.0;
-            zelf.derive_level = prev_mov.derive_level;
+            zelf.keep_level = prev_mov.keep_level;
         }
 
         let prev_act = ok_or!(args.prev_action; return Ok(false));
@@ -775,7 +773,7 @@ impl LogicActionMove {
 //         raw_state.status = LogicActionStatus::Activing;
 //         raw_state.first_frame = 15;
 //         raw_state.last_frame = 99;
-//         raw_state.derive_level = 1;
+//         raw_state.keep_level = 1;
 //         raw_state.poise_level = 2;
 //         raw_state.animations[0] = StateActionAnimation::new(sb!("move"), 1, 0.5, 0.5);
 
@@ -787,7 +785,7 @@ impl LogicActionMove {
 //         assert_eq!(state.status, LogicActionStatus::Activing);
 //         assert_eq!(state.first_frame, 15);
 //         assert_eq!(state.last_frame, 99);
-//         assert_eq!(state.derive_level, 1);
+//         assert_eq!(state.keep_level, 1);
 //         assert_eq!(state.poise_level, 2);
 //         assert_eq!(state.animations[0], StateActionAnimation::new(sb!("move"), 1, 0.5, 0.5));
 //         assert_eq!(state.animations[1], StateActionAnimation::default());

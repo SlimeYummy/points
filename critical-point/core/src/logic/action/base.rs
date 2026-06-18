@@ -1,5 +1,5 @@
 use approx::abs_diff_eq;
-use critical_point_csgen::{CsEnum, CsOut};
+use critical_point_macros::{csharp_enum, csharp_out};
 use glam::Vec3A;
 use glam_ext::Vec2xz;
 use std::alloc::Layout;
@@ -18,6 +18,7 @@ use crate::utils::{
 };
 
 #[repr(C)]
+#[csharp_out]
 #[derive(
     Debug,
     Clone,
@@ -28,7 +29,6 @@ use crate::utils::{
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsOut,
 )]
 #[rkyv(derive(Debug))]
 pub struct StateActionAnimation {
@@ -113,19 +113,11 @@ impl StateActionAnimation {
 const SA_FLAG_PREVIOUS_FRAME: u8 = 0x1;
 
 #[repr(C)]
+#[csharp_out(Ref)]
 #[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsOut,
+    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateActionBase {
     pub tmpl_id: TmplID,
     pub id: u32,
@@ -135,7 +127,7 @@ pub struct StateActionBase {
     pub first_frame: u32,
     pub last_frame: u32,
     pub fade_in_weight: f32,
-    pub derive_level: u16,
+    pub keep_level: u16,
     pub poise_level: u16,
     pub animations: ArrayVec<StateActionAnimation, MAX_ACTION_ANIMATION>,
 }
@@ -160,7 +152,7 @@ impl StateActionBase {
             first_frame: 0,
             last_frame: 0,
             fade_in_weight: 1.0,
-            derive_level: 0,
+            keep_level: 0,
             poise_level: 0,
             animations: Default::default(),
         }
@@ -224,6 +216,7 @@ const _: () = {
 
     use crate::logic::action::empty::{ArchivedStateActionEmpty, StateActionEmpty};
     use crate::logic::action::general::{ArchivedStateActionGeneral, StateActionGeneral};
+    use crate::logic::action::general_npc::{ArchivedStateActionGeneralNpc, StateActionGeneralNpc};
     use crate::logic::action::hit::{ArchivedStateActionHit, StateActionHit};
     use crate::logic::action::idle::{ArchivedStateActionIdle, StateActionIdle};
     use crate::logic::action::r#move::{ArchivedStateActionMove, StateActionMove};
@@ -248,6 +241,9 @@ const _: () = {
                 },
                 (General, General) => unsafe {
                     self.cast_unchecked::<StateActionGeneral>() == other.cast_unchecked::<StateActionGeneral>()
+                },
+                (GeneralNpc, GeneralNpc) => unsafe {
+                    self.cast_unchecked::<StateActionGeneralNpc>() == other.cast_unchecked::<StateActionGeneralNpc>()
                 },
                 (Hit, Hit) => unsafe {
                     self.cast_unchecked::<StateActionHit>() == other.cast_unchecked::<StateActionHit>()
@@ -290,6 +286,7 @@ const _: () = {
                     Move => mem::transmute_copy::<usize, &ArchivedStateActionMove>(&0),
                     MoveNpc => mem::transmute_copy::<usize, &ArchivedStateActionMoveNpc>(&0),
                     General => mem::transmute_copy::<usize, &ArchivedStateActionGeneral>(&0),
+                    GeneralNpc => mem::transmute_copy::<usize, &ArchivedStateActionGeneralNpc>(&0),
                     Hit => mem::transmute_copy::<usize, &ArchivedStateActionHit>(&0),
                     _ => unreachable!("pointer_metadata() Invalid ActionType"),
                 }
@@ -335,6 +332,7 @@ const _: () = {
                 Move => serialize::<StateActionMove, _>(self, serializer),
                 MoveNpc => serialize::<StateActionMoveNpc, _>(self, serializer),
                 General => serialize::<StateActionGeneral, _>(self, serializer),
+                GeneralNpc => serialize::<StateActionGeneralNpc, _>(self, serializer),
                 Hit => serialize::<StateActionHit, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid ActionType"),
             }
@@ -375,6 +373,7 @@ const _: () = {
                 Move => deserialize::<StateActionMove, _>(self, deserializer, out),
                 MoveNpc => deserialize::<StateActionMoveNpc, _>(self, deserializer, out),
                 General => deserialize::<StateActionGeneral, _>(self, deserializer, out),
+                GeneralNpc => deserialize::<StateActionGeneralNpc, _>(self, deserializer, out),
                 Hit => deserialize::<StateActionHit, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid ActionType"),
             }
@@ -388,6 +387,7 @@ const _: () = {
                     Move => mem::transmute_copy::<usize, &StateActionMove>(&0),
                     MoveNpc => mem::transmute_copy::<usize, &StateActionMoveNpc>(&0),
                     General => mem::transmute_copy::<usize, &StateActionGeneral>(&0),
+                    GeneralNpc => mem::transmute_copy::<usize, &StateActionGeneralNpc>(&0),
                     Hit => mem::transmute_copy::<usize, &StateActionHit>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid ActionType"),
                 }
@@ -616,6 +616,19 @@ impl ActionUpdateReturn {
     }
 }
 
+#[repr(u8)]
+#[csharp_enum]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+pub enum LogicActionStatus {
+    Starting,
+    Running,
+    Fading,
+    Stopping,
+    Finalized,
+}
+
+rkyv_self!(LogicActionStatus);
+
 const LA_FLAG_DERIVE_SELF: u8 = 0x1;
 
 #[derive(Debug)]
@@ -627,7 +640,7 @@ pub struct LogicActionBase {
     pub first_frame: u32,
     pub last_frame: u32,
     pub fade_in_weight: f32,
-    pub derive_level: u16,
+    pub keep_level: u16,
     pub poise_level: u16,
 }
 
@@ -643,7 +656,7 @@ impl LogicActionBase {
             first_frame: 0,
             last_frame: u32::MAX,
             fade_in_weight: 0.0,
-            derive_level: 0,
+            keep_level: 0,
             poise_level: 0,
         }
     }
@@ -678,7 +691,7 @@ impl LogicActionBase {
             first_frame: self.first_frame,
             last_frame: self.last_frame,
             fade_in_weight: self.fade_in_weight,
-            derive_level: self.derive_level,
+            keep_level: self.keep_level,
             poise_level: self.poise_level,
             animations: Default::default(),
         }
@@ -689,7 +702,7 @@ impl LogicActionBase {
         self.first_frame = state.first_frame;
         self.last_frame = state.last_frame;
         self.fade_in_weight = state.fade_in_weight;
-        self.derive_level = state.derive_level;
+        self.keep_level = state.keep_level;
         self.poise_level = state.poise_level;
     }
 
@@ -804,18 +817,6 @@ impl LogicActionBase {
 // Others
 //
 
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
-pub enum LogicActionStatus {
-    Starting,
-    Running,
-    Fading,
-    Stopping,
-    Finalized,
-}
-
-rkyv_self!(LogicActionStatus);
-
 impl LogicActionStatus {
     #[inline]
     pub fn is_starting(&self) -> bool {
@@ -857,10 +858,11 @@ impl LogicActionStatus {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, CsOut)]
+#[csharp_out(Value)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DeriveKeeping {
     pub action_id: TmplID,
-    pub derive_level: u16,
+    pub keep_level: u16,
     pub end_time: f32,
 }
 

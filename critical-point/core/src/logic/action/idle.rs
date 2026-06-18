@@ -1,4 +1,4 @@
-use critical_point_csgen::{CsEnum, CsOut};
+use critical_point_macros::{csharp_enum, csharp_out};
 use std::fmt::Debug;
 use std::rc::Rc;
 
@@ -10,6 +10,7 @@ use crate::logic::action::base::{
 use crate::logic::game::ContextUpdate;
 use crate::utils::{ActionType, Castable, XResult, extend, loose_ge, ratio_saturating, ratio_warpping, xresf};
 
+#[csharp_enum]
 #[repr(u8)]
 #[derive(
     Debug,
@@ -22,7 +23,6 @@ use crate::utils::{ActionType, Castable, XResult, extend, loose_ge, ratio_satura
     rkyv::Archive,
     rkyv::Serialize,
     rkyv::Deserialize,
-    CsEnum,
 )]
 #[rkyv(derive(Debug))]
 pub enum ActionIdleMode {
@@ -34,11 +34,9 @@ pub enum ActionIdleMode {
 }
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateActionIdle {
     pub _base: StateActionBase,
     pub mode: ActionIdleMode,
@@ -70,9 +68,9 @@ impl LogicActionIdle {
     pub fn new(ctx: &mut ContextUpdate, inst_act: Rc<InstActionIdle>) -> XResult<LogicActionIdle> {
         Ok(LogicActionIdle {
             _base: LogicActionBase {
-                derive_level: inst_act.derive_level,
+                keep_level: inst_act.keep_level,
                 poise_level: inst_act.poise_level,
-                ..LogicActionBase::new(ctx.gene.gen_action_id(), inst_act.clone())
+                ..LogicActionBase::new(ctx.identity.gen_action_id(), inst_act.clone())
             },
             inst: inst_act,
 
@@ -296,7 +294,7 @@ mod tests {
         raw_state.status = LogicActionStatus::Running;
         raw_state.first_frame = 15;
         raw_state.last_frame = 99;
-        raw_state.derive_level = 1;
+        raw_state.keep_level = 1;
         raw_state.poise_level = 2;
         raw_state
             .animations
@@ -310,7 +308,7 @@ mod tests {
         assert_eq!(state.status, LogicActionStatus::Running);
         assert_eq!(state.first_frame, 15);
         assert_eq!(state.last_frame, 99);
-        assert_eq!(state.derive_level, 1);
+        assert_eq!(state.keep_level, 1);
         assert_eq!(state.poise_level, 2);
         assert_eq!(state.animations.len(), 1);
         assert_eq!(
