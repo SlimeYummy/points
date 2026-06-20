@@ -1,10 +1,11 @@
 use core::f32;
-use critical_point_csgen::CsOut;
+use critical_point_macros::csharp_out;
 use glam_ext::Vec2xz;
 use std::fmt::Debug;
 use std::rc::Rc;
 
 use crate::animation::RootTrackName;
+use crate::input::{InputMoveSpeed, RefInputEventQueue};
 use crate::instance::{InstActionGeneral, InstActionGeneralMovement};
 use crate::logic::action::base::{
     ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase, StateActionAnimation,
@@ -13,7 +14,6 @@ use crate::logic::action::base::{
 use crate::logic::action::root_motion::{LogicRootMotion, StateRootMotion};
 use crate::logic::action::{ActionStartArgs, DeriveKeeping};
 use crate::logic::game::ContextUpdate;
-use crate::logic::system::input::{InputMoveSpeed, RefInputEventQueue};
 use crate::ok_or;
 use crate::utils::{
     ActionType, Castable, CustomEvent, LEVEL_IDLE, TimeRange, XResult, ease_in_out_quad, extend, lerp_with,
@@ -21,11 +21,9 @@ use crate::utils::{
 };
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateActionGeneral {
     pub _base: StateActionBase,
     pub current_time: f32,
@@ -59,12 +57,12 @@ impl LogicActionGeneral {
     pub fn new(ctx: &mut ContextUpdate, inst_act: Rc<InstActionGeneral>) -> XResult<LogicActionGeneral> {
         Ok(LogicActionGeneral {
             _base: LogicActionBase {
-                derive_level: *inst_act.derive_levels.find_value(0.0).unwrap_or(&LEVEL_IDLE),
+                keep_level: *inst_act.keep_levels.find_value(0.0).unwrap_or(&LEVEL_IDLE),
                 poise_level: match inst_act.attributes.find_value(0.0) {
                     Some(v) => v.poise_level,
                     None => 0,
                 },
-                ..LogicActionBase::new(ctx.gene.gen_action_id(), inst_act.clone())
+                ..LogicActionBase::new(ctx.identity.gen_action_id(), inst_act.clone())
             },
             inst: inst_act.clone(),
             player_inputs: None,
@@ -137,9 +135,9 @@ unsafe impl LogicActionAny for LogicActionGeneral {
 
         let prev_time = self.current_time;
         self.current_time = (self.current_time + ctxa.time_step).clamp(0.0, self.inst.anim_main.duration);
-        self.derive_level = *self
+        self.keep_level = *self
             .inst
-            .derive_levels
+            .keep_levels
             .find_value(self.current_time)
             .unwrap_or(&LEVEL_IDLE);
         self.poise_level = match self.inst.attributes.find_value(self.current_time) {
@@ -173,17 +171,17 @@ unsafe impl LogicActionAny for LogicActionGeneral {
             self.stop(ctx, ctxa)?;
             ret = ActionUpdateReturn::new();
 
-            if self.inst.derive_levels.end_time() > self.current_time {
+            if self.inst.keep_levels.end_time() > self.current_time {
                 println!(
                     "----- {} {} {}",
                     ctx.time,
                     self.current_time,
-                    (self.inst.derive_levels.end_time() - self.current_time)
+                    (self.inst.keep_levels.end_time() - self.current_time)
                 );
                 ret.derive_keeping = DeriveKeeping {
                     action_id: self.tmpl_id(),
-                    derive_level: *self.inst.derive_levels.end_value().unwrap_or(&LEVEL_IDLE),
-                    end_time: ctx.time + (self.inst.derive_levels.end_time() - self.current_time),
+                    keep_level: *self.inst.keep_levels.end_value().unwrap_or(&LEVEL_IDLE),
+                    end_time: ctx.time + (self.inst.keep_levels.end_time() - self.current_time),
                 }
             }
         }
@@ -251,9 +249,9 @@ impl LogicActionGeneral {
                     let chara_dir = ctxa.chara_phy.direction_xz();
                     self.from_rotation = chara_dir.to_angle();
 
-                    let (turn_angle, input_dir) = match rot.angle >= 0.0 {
-                        true => (rot.angle, world_move.direction),
-                        false => (-rot.angle, -world_move.direction),
+                    let (turn_angle, input_dir) = match rot.max_angle >= 0.0 {
+                        true => (rot.max_angle, world_move.direction),
+                        false => (-rot.max_angle, -world_move.direction),
                     };
                     let diff = chara_dir.angle_to(input_dir);
                     if diff.abs() <= turn_angle {
@@ -263,19 +261,19 @@ impl LogicActionGeneral {
                         self.to_rotation = self.from_rotation + diff.signum() * turn_angle;
                     }
                     clear_preinput = true;
-                    log::info!(
-                        "chara_dir: {} input_dir: {} world_move: {:?}",
-                        chara_dir,
-                        input_dir,
-                        world_move.direction
-                    );
-                    log::info!(
-                        "diff: {} turn_angle: {} from: {} to: {}",
-                        diff,
-                        turn_angle,
-                        self.from_rotation,
-                        self.to_rotation
-                    );
+                    // log::info!(
+                    //     "chara_dir: {} input_dir: {} world_move: {:?}",
+                    //     chara_dir,
+                    //     input_dir,
+                    //     world_move.direction
+                    // );
+                    // log::info!(
+                    //     "diff: {} turn_angle: {} from: {} to: {}",
+                    //     diff,
+                    //     turn_angle,
+                    //     self.from_rotation,
+                    //     self.to_rotation
+                    // );
                 }
             }
         }
@@ -332,7 +330,7 @@ mod tests {
         raw_state.status = LogicActionStatus::Running;
         raw_state.first_frame = 15;
         raw_state.last_frame = 99;
-        raw_state.derive_level = 1;
+        raw_state.keep_level = 1;
         raw_state.poise_level = 2;
         raw_state
             .animations
@@ -346,7 +344,7 @@ mod tests {
         assert_eq!(state.status, LogicActionStatus::Running);
         assert_eq!(state.first_frame, 15);
         assert_eq!(state.last_frame, 99);
-        assert_eq!(state.derive_level, 1);
+        assert_eq!(state.keep_level, 1);
         assert_eq!(state.poise_level, 2);
         assert_eq!(state.animations.len(), 1);
         assert_eq!(
@@ -400,7 +398,7 @@ mod tests {
             else {
                 assert!(logic_gen.is_stopping());
                 assert_eq!(ret.derive_keeping.action_id, inst_gen.tmpl_id);
-                assert_eq!(ret.derive_keeping.derive_level, LEVEL_ATTACK);
+                assert_eq!(ret.derive_keeping.keep_level, LEVEL_ATTACK);
                 assert_eq!(ret.derive_keeping.end_time, 4.5);
             }
             assert_eq!(logic_gen.current_time, ft.time);
@@ -409,10 +407,10 @@ mod tests {
             let fade_in_weight = ratio_saturating(logic_gen.current_time, inst_gen.anim_main.fade_in);
             assert_ulps_eq!(state.fade_in_weight, fade_in_weight);
             if logic_gen.current_time < 2.5 {
-                assert_eq!(state.derive_level, LEVEL_ACTION);
+                assert_eq!(state.keep_level, LEVEL_ACTION);
             }
             else {
-                assert_eq!(state.derive_level, LEVEL_ATTACK);
+                assert_eq!(state.keep_level, LEVEL_ATTACK);
             }
             assert_eq!(state.poise_level, 1);
 
