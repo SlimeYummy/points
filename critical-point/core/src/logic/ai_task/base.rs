@@ -1,5 +1,5 @@
 use approx::abs_diff_eq;
-use critical_point_csgen::{CsEnum, CsOut};
+use critical_point_macros::{csharp_enum, csharp_out, wasm_impl, wasm_struct};
 use glam::Vec3A;
 use glam_ext::Vec2xz;
 use std::alloc::Layout;
@@ -19,19 +19,11 @@ use crate::utils::{AiTaskType, NumID, TmplID, XResult, interface, rkyv_self};
 //
 
 #[repr(C)]
+#[csharp_out(Ref)]
 #[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsOut,
+    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateAiTaskBase {
     pub tmpl_id: TmplID,
     pub id: u32,
@@ -108,6 +100,8 @@ const _: () = {
 
     use crate::logic::ai_task::general::{ArchivedStateAiTaskGeneral, StateAiTaskGeneral};
     use crate::logic::ai_task::idle::{ArchivedStateAiTaskIdle, StateAiTaskIdle};
+    use crate::logic::ai_task::move_to_character::{ArchivedStateAiTaskMoveToCharacter, StateAiTaskMoveToCharacter};
+    use crate::logic::ai_task::patrol::{ArchivedStateAiTaskPatrol, StateAiTaskPatrol};
     use crate::utils::Castable;
     use AiTaskType::*;
 
@@ -116,6 +110,13 @@ const _: () = {
             match (self.typ(), other.typ()) {
                 (Idle, Idle) => unsafe {
                     self.cast_unchecked::<StateAiTaskIdle>() == other.cast_unchecked::<StateAiTaskIdle>()
+                },
+                (Patrol, Patrol) => unsafe {
+                    self.cast_unchecked::<StateAiTaskPatrol>() == other.cast_unchecked::<StateAiTaskPatrol>()
+                },
+                (MoveToCharacter, MoveToCharacter) => unsafe {
+                    self.cast_unchecked::<StateAiTaskMoveToCharacter>()
+                        == other.cast_unchecked::<StateAiTaskMoveToCharacter>()
                 },
                 (General, General) => unsafe {
                     self.cast_unchecked::<StateAiTaskGeneral>() == other.cast_unchecked::<StateAiTaskGeneral>()
@@ -154,6 +155,8 @@ const _: () = {
             let archived_ref: &Self = unsafe {
                 match typ {
                     Idle => mem::transmute_copy::<usize, &ArchivedStateAiTaskIdle>(&0),
+                    Patrol => mem::transmute_copy::<usize, &ArchivedStateAiTaskPatrol>(&0),
+                    MoveToCharacter => mem::transmute_copy::<usize, &ArchivedStateAiTaskMoveToCharacter>(&0),
                     General => mem::transmute_copy::<usize, &ArchivedStateAiTaskGeneral>(&0),
                     _ => unreachable!("pointer_metadata() Invalid AiTaskType"),
                 }
@@ -195,6 +198,8 @@ const _: () = {
 
             match self.typ() {
                 Idle => serialize::<StateAiTaskIdle, _>(self, serializer),
+                Patrol => serialize::<StateAiTaskPatrol, _>(self, serializer),
+                MoveToCharacter => serialize::<StateAiTaskMoveToCharacter, _>(self, serializer),
                 General => serialize::<StateAiTaskGeneral, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid AiTaskType"),
             }
@@ -231,6 +236,8 @@ const _: () = {
 
             match self.typ() {
                 Idle => deserialize::<StateAiTaskIdle, _>(self, deserializer, out),
+                Patrol => deserialize::<StateAiTaskPatrol, _>(self, deserializer, out),
+                MoveToCharacter => deserialize::<StateAiTaskMoveToCharacter, _>(self, deserializer, out),
                 General => deserialize::<StateAiTaskGeneral, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid AiTaskType"),
             }
@@ -240,6 +247,8 @@ const _: () = {
             let value_ref: &dyn StateAiTaskAny = unsafe {
                 match self.typ() {
                     Idle => mem::transmute_copy::<usize, &StateAiTaskIdle>(&0),
+                    Patrol => mem::transmute_copy::<usize, &StateAiTaskPatrol>(&0),
+                    MoveToCharacter => mem::transmute_copy::<usize, &StateAiTaskMoveToCharacter>(&0),
                     General => mem::transmute_copy::<usize, &StateAiTaskGeneral>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid AiTaskType"),
                 }
@@ -329,7 +338,6 @@ pub struct ContextAiTask<'a> {
     pub(crate) inst_chara: Rc<InstCharacter>,
     pub(crate) chara_ctrl: &'a LogicCharaControl,
     pub(crate) chara_phy: &'a LogicCharaPhysics,
-    pub(crate) tgt_chara_phy: Option<&'a LogicCharaPhysics>,
     pub(crate) zone: &'a LogicZone,
     pub(crate) time_speed: f32,
     pub(crate) time_step: f32,
@@ -341,14 +349,12 @@ impl<'a> ContextAiTask<'a> {
         inst_chara: Rc<InstCharacter>,
         chara_ctrl: &'a LogicCharaControl,
         chara_phy: &'a LogicCharaPhysics,
-        tgt_chara_phy: Option<&'a LogicCharaPhysics>,
         zone: &'a LogicZone,
     ) -> ContextAiTask<'a> {
         ContextAiTask {
             inst_chara,
             chara_ctrl,
             chara_phy,
-            tgt_chara_phy,
             zone,
 
             time_speed: 1.0,
@@ -375,20 +381,34 @@ impl<'a> ContextAiTask<'a> {
         self.chara_phy.id()
     }
 
-    #[inline]
-    pub(crate) fn tgt_chara_id(&self) -> NumID {
-        match self.tgt_chara_phy {
-            Some(tgt_chara_phy) => tgt_chara_phy.id(),
-            None => NumID::INVALID,
-        }
-    }
+    // #[inline]
+    // pub(crate) fn tgt_chara_id(&self) -> NumID {
+    //     match self.tgt_chara_phy {
+    //         Some(tgt_chara_phy) => tgt_chara_phy.id(),
+    //         None => NumID::INVALID,
+    //     }
+    // }
 }
 
 #[derive(Debug, Default)]
 pub struct AiTaskReturn {
     pub next_action: Option<Rc<dyn InstActionAny>>,
-    pub thinking: AiBrainThinking,
+    pub ai_purpose: AiBrainPurpose,
+    pub ai_move_dst_pos: Vec3A,
+    pub ai_move_dir: Vec2xz,
 }
+
+#[repr(u8)]
+#[csharp_enum]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+pub enum LogicAiTaskStatus {
+    Starting,
+    Running,
+    Stopping,
+    Finalized,
+}
+
+rkyv_self!(LogicAiTaskStatus);
 
 #[derive(Debug)]
 pub struct LogicAiTaskBase {
@@ -475,19 +495,65 @@ impl LogicAiTaskBase {
 }
 
 //
-// Others
+// Wasm Shared
 //
 
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize, CsEnum)]
-pub enum LogicAiTaskStatus {
-    Starting,
-    Running,
-    Stopping,
-    Finalized,
+#[repr(C)]
+#[wasm_struct(20, 4)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct WsAiTask {
+    pub id: TmplID,
+    pub weight: f32,
+    pub priority: u32,
 }
 
-rkyv_self!(LogicAiTaskStatus);
+#[wasm_impl]
+impl WsAiTask {
+    #[inline]
+    pub fn new(id: TmplID, weight: f32, priority: u32) -> Self {
+        Self { id, weight, priority }
+    }
+}
+
+#[wasm_impl]
+impl From<TmplID> for WsAiTask {
+    #[inline]
+    fn from(id: TmplID) -> WsAiTask {
+        WsAiTask {
+            id,
+            weight: 1.0,
+            priority: 1,
+        }
+    }
+}
+
+#[wasm_impl]
+impl From<(TmplID, f32)> for WsAiTask {
+    #[inline]
+    fn from(val: (TmplID, f32)) -> WsAiTask {
+        WsAiTask {
+            id: val.0,
+            weight: val.1,
+            priority: 1,
+        }
+    }
+}
+
+#[wasm_impl]
+impl From<(TmplID, f32, u32)> for WsAiTask {
+    #[inline]
+    fn from(val: (TmplID, f32, u32)) -> WsAiTask {
+        WsAiTask {
+            id: val.0,
+            weight: val.1,
+            priority: val.2,
+        }
+    }
+}
+
+//
+// Others
+//
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum AiBrainPurpose {
@@ -502,18 +568,39 @@ pub(crate) enum AiBrainPurpose {
 pub(crate) struct AiBrainThinking {
     pub(crate) purpose: AiBrainPurpose,
 
-    /// Destination point in world space.
-    pub(crate) dst_point: Vec3A,
+    /// Destination position in world space.
+    pub(crate) move_dst_pos: Vec3A,
 
     /// Move direction in world space.
     pub(crate) move_dir: Vec2xz,
+
+    /// Target character ID (possible NumID::INVALID).
+    pub(crate) target_chara: NumID,
+
+    /// Target character's position, if target_chara != INVALID.
+    /// Self position, if target_chara == INVALID.
+    pub(crate) target_chara_pos: Vec3A,
+
+    // This field may be invalid, inner use only.
+    pub(crate) target_chara_idx: u32,
 }
 
 impl AiBrainThinking {
     #[inline]
     pub(crate) fn reset(&mut self) {
         self.purpose = AiBrainPurpose::None;
-        self.dst_point = Vec3A::ZERO;
+        self.move_dst_pos = Vec3A::ZERO;
         self.move_dir = Vec2xz::ZERO;
+        self.target_chara = NumID::INVALID;
+        self.target_chara_pos = Vec3A::ZERO;
+        self.target_chara_idx = u32::MAX;
+    }
+
+    #[inline]
+    pub fn target_chara_pos(&self) -> Option<Vec3A> {
+        match self.target_chara {
+            NumID::INVALID => None,
+            _ => Some(self.target_chara_pos),
+        }
     }
 }

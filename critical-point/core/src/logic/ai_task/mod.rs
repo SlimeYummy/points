@@ -1,10 +1,14 @@
 mod base;
 mod general;
 mod idle;
+mod move_to_character;
+mod patrol;
 
 pub use base::*;
 pub use general::*;
 pub use idle::*;
+pub use move_to_character::*;
+pub use patrol::*;
 
 use std::rc::Rc;
 
@@ -23,6 +27,14 @@ pub(crate) fn new_logic_ai_task(
         Idle => {
             let inst_task = unsafe { inst_task.cast_unchecked() };
             Box::new(LogicAiTaskIdle::new(ctx, inst_task, inst_chara)?)
+        }
+        Patrol => {
+            let inst_task = unsafe { inst_task.cast_unchecked() };
+            Box::new(LogicAiTaskPatrol::new(ctx, inst_task, inst_chara)?)
+        }
+        MoveToCharacter => {
+            let inst_task = unsafe { inst_task.cast_unchecked() };
+            Box::new(LogicAiTaskMoveToCharacter::new(ctx, inst_task, inst_chara)?)
         }
         General => {
             let inst_task = unsafe { inst_task.cast_unchecked() };
@@ -46,6 +58,20 @@ pub(crate) fn try_reuse_logic_ai_task(
             if let Ok(logic_task) = logic_task.cast::<LogicAiTaskIdle>() {
                 let inst_task = unsafe { inst_task.cast_unchecked() };
                 *logic_task = LogicAiTaskIdle::new(ctx, inst_task, inst_chara)?;
+                return Ok(true);
+            }
+        }
+        Patrol => {
+            if let Ok(logic_task) = logic_task.cast::<LogicAiTaskPatrol>() {
+                let inst_task = unsafe { inst_task.cast_unchecked() };
+                *logic_task = LogicAiTaskPatrol::new(ctx, inst_task, inst_chara)?;
+                return Ok(true);
+            }
+        }
+        MoveToCharacter => {
+            if let Ok(logic_task) = logic_task.cast::<LogicAiTaskMoveToCharacter>() {
+                let inst_task = unsafe { inst_task.cast_unchecked() };
+                *logic_task = LogicAiTaskMoveToCharacter::new(ctx, inst_task, inst_chara)?;
                 return Ok(true);
             }
         }
