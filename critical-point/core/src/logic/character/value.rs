@@ -1,25 +1,19 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::{csharp_out, wasm_struct};
+use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use crate::instance::InstCharacter;
 use crate::logic::game::{ContextHitUpdate, ContextRestore, ContextUpdate, HitCharacterEvent};
 use crate::logic::physics::PhyHitCharacterEvent;
+use crate::script::WsBox;
 use crate::utils::{NumID, TimeRange, XResult, cf2s, ifelse};
 
 #[repr(C)]
+#[csharp_out(Value)]
 #[derive(
-    Debug,
-    Default,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsOut,
+    Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-#[cs_attr(Value)]
 pub struct StateCharaValue {
     pub time_speed: f32,
     pub hit_lag_time: TimeRange,
@@ -30,8 +24,34 @@ pub(crate) struct LogicCharaValue {
     chara_id: NumID,
     inst_chara: Rc<InstCharacter>,
 
-    time_speed: f32,
-    hit_lag_time: TimeRange,
+    pub(crate) ws: WsBox<WsCharaValue>,
+}
+
+#[repr(C)]
+#[wasm_struct(20, 4)]
+#[derive(Debug)]
+pub(crate) struct WsCharaValue {
+    pub chara_id: NumID,
+    pub time_speed: f32,
+    pub hit_lag_time: TimeRange,
+    pub is_player: bool,
+    pub is_ai_idle: bool,
+}
+
+impl Deref for LogicCharaValue {
+    type Target = WsCharaValue;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.ws.as_ref()
+    }
+}
+
+impl DerefMut for LogicCharaValue {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.ws.as_mut()
+    }
 }
 
 impl LogicCharaValue {
@@ -39,8 +59,16 @@ impl LogicCharaValue {
         LogicCharaValue {
             chara_id,
             inst_chara,
-            time_speed: 1.0,
-            hit_lag_time: TimeRange::EMPTY,
+            ws: WsBox::new_in(
+                WsCharaValue {
+                    chara_id,
+                    time_speed: 1.0,
+                    hit_lag_time: TimeRange::EMPTY,
+                    is_player: false,
+                    is_ai_idle: false,
+                },
+                ctx.script.alloc(),
+            ),
         }
     }
 
