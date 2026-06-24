@@ -1,4 +1,4 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::csharp_out;
 use glam::Vec3A;
 use glam_ext::Vec2xz;
 use std::rc::Rc;
@@ -19,11 +19,9 @@ use crate::template::{TmplCharacterNpc, TmplStyle};
 use crate::utils::{CustomEvent, NumID, Symbol, XResult, extend};
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateCharacterInit {
     pub _base: StateBase,
     pub is_player: bool,
@@ -39,11 +37,9 @@ extend!(StateCharacterInit, StateBase);
 impl_state!(StateCharacterInit, Character, CharacterInit, "CharacterInit");
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateCharacterUpdate {
     pub _base: StateBase,
     pub control: StateCharaControl,
@@ -129,10 +125,10 @@ impl LogicCharacter {
         init_direction: Vec2xz,
     ) -> XResult<(Box<LogicCharacter>, Arc<StateCharacterInit>)> {
         let id = if inst_chara.is_player {
-            ctx.gene.gen_player_id()?
+            ctx.identity.gen_player_id()?
         }
         else {
-            ctx.gene.gen_num_id()
+            ctx.identity.gen_num_id()
         };
         let mut chara = Box::new(LogicCharacter {
             id: id,
