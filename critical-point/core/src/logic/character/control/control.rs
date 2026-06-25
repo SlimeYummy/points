@@ -1,4 +1,4 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::csharp_out;
 use glam::Vec3A;
 use glam_ext::{Transform3A, Vec2xz};
 use std::collections::hash_map::Entry;
@@ -7,31 +7,24 @@ use std::rc::Rc;
 
 use crate::animation::{AnimationFileMeta, Animator, HitMotionSampler};
 use crate::consts::{DEFAULT_TOWARD_DIR_2D, MAX_ACTION_ANIMATION};
+use crate::input::RefInputEventQueue;
 use crate::instance::{InstActionAny, InstActionIdle, InstAiBrain, InstCharacter};
+use crate::logic::WsFuncAiBrainExecute;
 use crate::logic::action::{DeriveKeeping, LogicActionAny, StateActionAny};
 use crate::logic::ai_task::{AiBrainThinking, AiTaskReturn, LogicAiTaskAny};
 use crate::logic::character::physics::LogicCharaPhysics;
 use crate::logic::character::value::LogicCharaValue;
 use crate::logic::game::{ContextRestore, ContextUpdate};
-use crate::logic::system::input::RefInputEventQueue;
 use crate::utils::{CustomEvent, DtHashMap, HistoryQueue, NumID, VirtualInput, VirtualKey, XResult, xerr, xres};
 
 const DEFAULT_ACTION_QUEUE_CAP: usize = 8;
 
 #[repr(C)]
+#[csharp_out(Value)]
 #[derive(
-    Debug,
-    Default,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsOut,
+    Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-#[cs_attr(Value)]
 pub struct StateCharaControl {
     pub input_cursor_id: u64,
     pub derive_keeping: DeriveKeeping,
@@ -39,7 +32,8 @@ pub struct StateCharaControl {
     pub animation_changed: bool,
 }
 
-#[derive(Debug)]
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub(crate) struct LogicCharaControl {
     pub(super) chara_id: NumID,
     pub(super) inst_chara: Rc<InstCharacter>,
@@ -53,8 +47,13 @@ pub(crate) struct LogicCharaControl {
     pub(super) action_changed: bool,
     pub(super) animation_changed: bool,
 
+    #[educe(Debug(ignore))]
+    pub(super) ai_brain_execute: Option<WsFuncAiBrainExecute>,
     pub(super) current_task: Option<Box<dyn LogicAiTaskAny>>,
+    pub(super) target_chara_id: NumID,
+    pub(super) aggro_last_time: f32,
     pub(super) ai_thinking: AiBrainThinking,
+    pub(super) tmp_state_indexes: Vec<u32>,
 
     pub(super) new_velocity: Vec3A,
     pub(super) new_direction: Vec2xz,
@@ -77,6 +76,11 @@ impl LogicCharaControl {
             .find_first_primary_action(&VirtualKey::Idle)
             .ok_or_else(|| xerr!(NotFound; "No idle action"))?;
 
+        let ai_brain_execute = match inst_ai_brain.as_ref() {
+            Some(brain) if brain.execute => Some(ctx.script.get_ai_brain_execute(brain.tmpl_id)?),
+            _ => None,
+        };
+
         Ok(LogicCharaControl {
             chara_id,
             inst_chara,
@@ -90,8 +94,12 @@ impl LogicCharaControl {
             action_changed: false,
             animation_changed: false,
 
+            ai_brain_execute,
             current_task: None,
+            target_chara_id: NumID::INVALID,
+            aggro_last_time: 0.0,
             ai_thinking: AiBrainThinking::default(),
+            tmp_state_indexes: Vec::with_capacity(16),
 
             new_velocity: Vec3A::ZERO,
             new_direction: DEFAULT_TOWARD_DIR_2D,
@@ -319,6 +327,11 @@ impl LogicCharaControl {
             }
         }
     }
+
+    #[inline]
+    pub(crate) fn ai_thinking(&self) -> &AiBrainThinking {
+        &self.ai_thinking
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -357,7 +370,7 @@ impl NextAction {
             Some(action) => Some(NextAction {
                 action: action.clone(),
                 input_key: VirtualKey::None,
-                input_world_move_dir: ai_ret.thinking.move_dir,
+                input_world_move_dir: ai_ret.ai_move_dir,
             }),
             None => None,
         }

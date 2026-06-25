@@ -1,4 +1,4 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::csharp_out;
 use educe::Educe;
 use glam::{Quat, Vec3A, Vec3Swizzles};
 use glam_ext::{Isometry3A, Vec2xz};
@@ -13,29 +13,21 @@ use crate::logic::game::{ContextRestore, ContextUpdate};
 use crate::utils::{NumID, SmallVec, Symbol, XResult, quat_from_dir_xz};
 
 #[repr(C)]
+#[csharp_out(Value)]
 #[derive(
-    Debug,
-    Default,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    rkyv::Archive,
-    rkyv::Serialize,
-    rkyv::Deserialize,
-    CsOut,
+    Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-#[cs_attr(Value)]
 pub struct StateCharaPhysics {
     pub velocity: Vec3A,
     pub position: Vec3A,
     pub direction: Vec2xz,
 
-    #[cs_hide(32, 8)]
+    #[csharp_hide(24, 8)]
     pub body_ids: SmallVec<[BodyID; 4]>,
-    #[cs_hide(64, 8)]
+    #[csharp_hide(56, 8)]
     pub box_pairs: SmallVec<[StateCharaHitBoxPair; 4]>,
-    #[cs_hide(64, 8)]
+    #[csharp_hide(56, 8)]
     pub group_pairs: SmallVec<[StateCharaHitGroupPair; 3]>,
 }
 
