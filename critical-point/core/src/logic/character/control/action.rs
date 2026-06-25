@@ -4,6 +4,7 @@ use glam_ext::Vec2xz;
 use std::rc::Rc;
 
 use crate::consts::DEFAULT_TOWARD_DIR_2D;
+use crate::input::InputVariables;
 use crate::instance::InstActionAny;
 use crate::logic::action::{
     ActionStartArgs, ContextAction, DeriveKeeping, LogicActionAny, StateActionAny, new_logic_action,
@@ -12,7 +13,6 @@ use crate::logic::action::{
 use crate::logic::character::physics::LogicCharaPhysics;
 use crate::logic::character::value::LogicCharaValue;
 use crate::logic::game::ContextUpdate;
-use crate::logic::system::input::InputVariables;
 use crate::utils::{InputDir, VirtualInput, VirtualKey, XResult, ok_or};
 
 use super::control::*;
@@ -132,7 +132,7 @@ impl LogicCharaControl {
         input_key: VirtualKey,
         input_dir: Vec2xz,
     ) -> Option<Rc<dyn InstActionAny>> {
-        let check_enter_action = |cur_derive_level: u16,
+        let check_enter_action = |cur_keep_level: u16,
                                   new_inst_act: &dyn InstActionAny,
                                   new_enter_level: u16,
                                   new_enter_dir: Option<InputDir>| {
@@ -142,7 +142,7 @@ impl LogicCharaControl {
             }
 
             // Check derive level
-            if new_enter_level <= cur_derive_level {
+            if new_enter_level <= cur_keep_level {
                 return false;
             }
 
@@ -176,23 +176,21 @@ impl LogicCharaControl {
         if self.derive_keeping.is_valid() {
             debug_assert!(current_act.inst.derive_keeping || current_act.tmpl_id() == self.derive_keeping.action_id);
             let DeriveKeeping {
-                action_id,
-                derive_level,
-                ..
+                action_id, keep_level, ..
             } = self.derive_keeping;
             for (rule, inst_act) in self.inst_chara.filter_derive_actions(&(action_id, input_key)) {
-                if check_enter_action(derive_level, inst_act.as_ref(), rule.level, rule.dir) {
+                if check_enter_action(keep_level, inst_act.as_ref(), rule.level, rule.dir) {
                     return compare_with_candidate(inst_act, rule.level);
                 }
             }
         }
 
-        let derive_level;
+        let keep_level;
         if current_act.is_running() {
-            derive_level = current_act.derive_level;
+            keep_level = current_act.keep_level;
         }
         else {
-            derive_level = 0;
+            keep_level = 0;
             log::warn!(
                 "LogicCharaControl::find_next_action() not running, chara_id={}, chara_tmpl_id={}, act_id={}, act_tmpl_id={}",
                 self.chara_id,
@@ -206,7 +204,7 @@ impl LogicCharaControl {
             .inst_chara
             .filter_derive_actions(&(current_act.tmpl_id(), input_key))
         {
-            if check_enter_action(derive_level, inst_act.as_ref(), rule.level, rule.dir) {
+            if check_enter_action(keep_level, inst_act.as_ref(), rule.level, rule.dir) {
                 return compare_with_candidate(inst_act, rule.level);
             }
         }
@@ -214,7 +212,7 @@ impl LogicCharaControl {
         for inst_act in self.inst_chara.filter_primary_actions(&input_key) {
             let enter_level = inst_act.enter_level;
             let enter_dir = inst_act.enter_key.and_then(|k| k.dir);
-            if check_enter_action(derive_level, inst_act.as_ref(), enter_level, enter_dir) {
+            if check_enter_action(keep_level, inst_act.as_ref(), enter_level, enter_dir) {
                 return compare_with_candidate(inst_act, enter_level);
             }
         }
