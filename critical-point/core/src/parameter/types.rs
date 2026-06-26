@@ -1,12 +1,12 @@
-use critical_point_csgen::CsIn;
+use critical_point_macros::csharp_in;
 use glam::Vec3A;
 
 use crate::utils::{TmplID, TmplIDLevel, TmplIDPlus};
 
+#[csharp_in(Class)]
 #[derive(
-    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, CsIn,
+    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
-#[cs_attr(Class)]
 pub struct ParamGame {
     pub zone: ParamZone,
     pub players: Vec<ParamPlayer>,
@@ -16,10 +16,10 @@ pub struct ParamGame {
     pub local_mode: bool,
 }
 
+#[csharp_in(Class)]
 #[derive(
-    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, CsIn,
+    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
-#[cs_attr(Class)]
 pub struct ParamPlayer {
     pub character: TmplID,
     pub style: TmplID,
@@ -37,20 +37,20 @@ pub struct ParamPlayer {
     pub position: Vec3A,
 }
 
+#[csharp_in(Class)]
 #[derive(
-    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, CsIn,
+    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
-#[cs_attr(Class)]
 pub struct ParamAccessory {
     pub id: TmplID,
     pub level: u32,
     pub entries: Vec<TmplID>,
 }
 
+#[csharp_in(Class)]
 #[derive(
-    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, CsIn,
+    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
-#[cs_attr(Class)]
 pub struct ParamNpc {
     pub character: TmplID,
     #[serde(default)]
@@ -60,10 +60,10 @@ pub struct ParamNpc {
     pub position: Vec3A,
 }
 
+#[csharp_in(Class)]
 #[derive(
-    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize, CsIn,
+    Debug, Default, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize,
 )]
-#[cs_attr(Class)]
 pub struct ParamZone {
     pub zone: TmplID,
 }

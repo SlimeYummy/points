@@ -1,11 +1,12 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::csharp_out;
 use jolt_physics_rs::{self, PhysicsSystem};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::input::InputPlayerInputs;
 use crate::instance::{ContextAssemble, InstCharacter};
-use crate::logic::{InputPlayerInputs, LogicLoop, StateSet};
+use crate::logic::{LogicLoop, StateSet};
 use crate::parameter::{ContextVerify, ParamGame, ParamNpc, ParamPlayer, verify_npc, verify_player};
 use crate::template::TmplDatabase;
 use crate::utils::{XResult, xerr, xres};
@@ -46,7 +47,7 @@ impl LogicEngine {
         }
 
         unsafe {
-            crate::utils::init_id_static(&tmpl_path, true)?;
+            crate::utils::init_ids_static(&tmpl_path, true)?;
             crate::template::init_database_static(&tmpl_path, true)?;
         };
 
@@ -173,7 +174,8 @@ impl LogicEngine {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, CsOut)]
+#[csharp_out]
+#[derive(Debug, Default)]
 pub struct LogicEngineStatus {
     pub is_game_running: bool,
     pub current_frame: u32,

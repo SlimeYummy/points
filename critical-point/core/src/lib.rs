@@ -1,9 +1,9 @@
-#![feature(thread_id_value)]
+#![feature(try_blocks)]
 #![feature(ptr_metadata)]
 #![feature(allocator_api)]
 #![feature(likely_unlikely)]
-#![feature(try_blocks)]
-#![feature(coroutines, coroutine_trait, stmt_expr_attributes, iter_from_coroutine)]
+#![feature(stmt_expr_attributes)]
+#![feature(coroutines, iter_from_coroutine)]
 #![feature(test)]
 extern crate test;
 
@@ -17,11 +17,18 @@ static GLOBAL: MiMalloc = MiMalloc;
 pub mod animation;
 pub mod asset;
 pub mod consts;
-pub mod engine;
 pub mod instance;
-pub mod logic;
 pub mod parameter;
-// pub mod script;
 pub mod template;
-// pub mod template3;
 pub mod utils;
+
+#[cfg(not(feature = "for-turning-point"))]
+pub mod engine;
+#[cfg(not(feature = "for-turning-point"))]
+pub mod input;
+#[cfg(not(feature = "for-turning-point"))]
+pub mod logic;
+#[cfg(not(feature = "for-turning-point"))]
+pub mod save;
+#[cfg(not(feature = "for-turning-point"))]
+pub mod script;
