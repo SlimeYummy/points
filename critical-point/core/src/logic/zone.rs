@@ -1,4 +1,4 @@
-use critical_point_csgen::CsOut;
+use critical_point_macros::csharp_out;
 use glam::{Vec3, Vec3A};
 use jolt_physics_rs::{BodyCreationSettings, BodyID};
 use recastnavigation_rs::detour::{DtNavMesh, DtNavMeshQuery, DtPolyRef, DtQueryFilter};
@@ -34,11 +34,9 @@ impl NavMeshCache {
 }
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateZoneInit {
     pub _base: StateBase,
     pub view_file: String,
@@ -49,11 +47,9 @@ extend!(StateZoneInit, StateBase);
 impl_state!(StateZoneInit, Zone, ZoneInit, "ZoneInit");
 
 #[repr(C)]
-#[derive(
-    Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, CsOut,
-)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-#[cs_attr(Ref)]
 pub struct StateZoneUpdate {
     pub _base: StateBase,
 }
@@ -170,7 +166,7 @@ impl LogicZone {
         let NavMeshCache { query, polys, path } = &mut *cache;
 
         // Find nearest polygons for start and end positions
-        let extents = [2.0, 4.0, 2.0];
+        let extents = [2.0, 10.0, 2.0];
         let filter = DtQueryFilter::default();
 
         let start_pos = start_point.to_array();
@@ -219,6 +215,23 @@ impl LogicZone {
             out_path.push(path[i].into());
         }
         Ok(())
+    }
+
+    #[inline]
+    pub fn find_point(&self, point: Vec3A) -> XResult<Option<Vec3A>> {
+        let mut cache = self.cache.borrow_mut();
+        let NavMeshCache { query, .. } = &mut *cache;
+        let extents = [2.0, 10.0, 2.0];
+        let filter = DtQueryFilter::default();
+        let pos = point.to_array();
+
+        let (poly_ref, _) = query.find_nearest_poly_1(&pos, &extents, &filter)?;
+        if poly_ref.is_null() {
+            return Ok(None);
+        }
+
+        let (closest, _) = query.closest_point_on_poly(poly_ref, &pos)?;
+        Ok(Some(Vec3A::from_array(closest)))
     }
 }
 

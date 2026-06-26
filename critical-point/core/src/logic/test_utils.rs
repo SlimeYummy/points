@@ -4,9 +4,8 @@ use crate::consts::TEST_ASSET_PATH;
 use crate::instance::InstCharacter;
 use crate::logic::game::{ContextUpdate, LogicSystems};
 use crate::logic::physics::{PhyBroadPhaseLayerInterface, PhyObjectLayerPairFilter, PhyObjectVsBroadPhaseLayerFilter};
-use crate::parameter::ParamPlayer;
 use crate::template::TmplDatabase;
-use crate::utils::{NumID, XResult, id};
+use crate::utils::{NumID, XResult};
 
 pub(super) struct TestEnv {
     pub systems: LogicSystems,
@@ -17,7 +16,7 @@ impl TestEnv {
 
     pub fn new() -> XResult<TestEnv> {
         let db = TmplDatabase::new(10240, 150)?;
-        let mut systems = LogicSystems::new(db, TEST_ASSET_PATH, None)?;
+        let systems = LogicSystems::new(db, TEST_ASSET_PATH, None)?;
         Ok(TestEnv { systems })
     }
 
