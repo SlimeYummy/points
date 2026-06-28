@@ -3,7 +3,9 @@ mod input;
 use chrono::Local;
 use critical_point_core::consts::{DEFAULT_VIEW_DIR_3D, FPS};
 use critical_point_core::engine::LogicEngine;
-use critical_point_core::logic::{InputPlayerInputs, StateCharacterUpdate, StateSet};
+use critical_point_core::logic::StateCharacterUpdate;
+use critical_point_core::input::InputPlayerInputs;
+use critical_point_core::logic::StateSet;
 use critical_point_core::parameter::ParamGame;
 use critical_point_core::utils::{Castable, NumID};
 use glam::{Vec2, Vec3A};
@@ -98,13 +100,13 @@ impl DebugApp for Testbed {
     fn get_camera_pivot(&mut self, heading: f32, pitch: f32) -> Vec3A {
         self.view_rads = Vec2::new(-heading, pitch);
 
-        if self.state_set.updates.len() == 0 {
+        if self.state_set.chara_updates.len() == 0 {
             return Vec3A::ZERO;
         }
 
         let player = self
             .state_set
-            .updates
+            .chara_updates
             .iter()
             .find(|x| x.id == PLAYER_ID)
             .unwrap()
@@ -128,7 +130,9 @@ fn main() {
                 message
             ))
         })
-        .level(log::LevelFilter::Debug)
+        .level(log::LevelFilter::Warn)
+        .level_for("critical_point_core", log::LevelFilter::Debug)
+        .level_for("critical_point_demo", log::LevelFilter::Debug)
         .chain(std::io::stdout())
         .apply()
         .unwrap();
