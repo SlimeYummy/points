@@ -1,0 +1,12 @@
+[package]
+name = "critical-point-wasm-types"
+version = "0.5.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+const_format = "0.2"
+critical-point-wasm-macros = { path = "../wasm-macros" }
+glam = { version = "0.30", features = ["libm", "approx"] }
+glam-ext = { path = "../../../glam-ext", features = ["libm", "approx"] }
+static_assertions = "1"
