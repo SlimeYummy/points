@@ -1,8 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
+    "macros",
     "core",
-    "csgen",
-    "csbridge",
     "demo",
+    "c-apis",
+    "wasm-macros",
+    "wasm-types",
 ]
