@@ -63,6 +63,7 @@ x64/
 *.exe
 *.dll
 
+.agents/
 res/
 output/
 test-templates/
@@ -76,3 +77,7 @@ test-save-state.zip
 
 save/
 test-tmp/
+
+docs/
+unused/
+c-apis/
