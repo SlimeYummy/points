@@ -1,0 +1,20 @@
+[build]
+target = "wasm32-unknown-unknown"
+
+[target.wasm32-unknown-unknown]
+rustflags = [
+    # Expected Memory Layout:
+    #   0 - 512K => stack
+    #   512K - 32M => host reserved
+    #   32M - 64M => static & heap
+
+    "-C", "link-arg=--global-base=33554432", # 32M
+    "-C", "link-arg=--max-memory=67108864", # 64M
+    "-C", "link-arg=--initial-memory=34078720", # 32M + 512K
+    "-C", "link-arg=-zstack-size=524288", # 512K
+    "-C", "link-arg=--stack-first",
+    "-C", "link-arg=--export-memory",
+]
+
+[env]
+TMPL_KEYS_PATH = "D:/project/points/test-tmp/demo-template/key.json"
