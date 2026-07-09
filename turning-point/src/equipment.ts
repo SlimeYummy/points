@@ -26,10 +26,6 @@ import { parseJevelSlotsArray } from './jewel';
 
 const EQUIPMENT_SLOTS = ['Slot1', 'Slot2', 'Slot3'] as const;
 
-export const Slot1 = 'Slot1';
-export const Slot2 = 'Slot2';
-export const Slot3 = 'Slot3';
-
 export type EquipmentSlot = (typeof EQUIPMENT_SLOTS)[number];
 
 export function isEquipmentSlot(raw: string): raw is EquipmentSlot {

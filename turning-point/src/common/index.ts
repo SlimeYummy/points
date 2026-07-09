@@ -4,3 +4,4 @@ export * from './base';
 export * from './math';
 export * from './shape';
 export * from './time';
+export * from './word';
