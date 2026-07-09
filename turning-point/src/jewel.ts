@@ -16,10 +16,6 @@ export const JEWEL_SLOTS = ['Attack', 'Defense', 'Special'] as const;
 
 export type JewelSlot = (typeof JEWEL_SLOTS)[number];
 
-export const Attack = 'Attack' as const;
-export const Defense = 'Defense' as const;
-export const Special = 'Special' as const;
-
 export function isJewelSlot(raw: string): raw is JewelSlot {
     return JEWEL_SLOTS.includes(raw as JewelSlot);
 }

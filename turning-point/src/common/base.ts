@@ -13,8 +13,8 @@ export type IDPrefix =
     | 'Jewel'
     | 'Action'
     | 'AiBrain'
+    | 'AiRoutine'
     | 'AiTask'
-    | 'AiPlan'
     | 'Material'
     | 'Zone';
 
@@ -71,18 +71,9 @@ export function parseIDArray(
     return res;
 }
 
-export const Variant1 = 'Variant1' as const;
-export const Variant2 = 'Variant2' as const;
-export const Variant3 = 'Variant3' as const;
-export const VariantX = 'VariantX' as const;
-
 export const RARE_LEVELS = ['Rare1', 'Rare2', 'Rare3'] as const;
 
 export type RareLevel = (typeof RARE_LEVELS)[number];
-
-export const Rare1 = 'Rare1' as const;
-export const Rare2 = 'Rare2' as const;
-export const Rare3 = 'Rare3' as const;
 
 export function isRareLevel(raw: string): raw is RareLevel {
     return RARE_LEVELS.includes(raw as RareLevel);
