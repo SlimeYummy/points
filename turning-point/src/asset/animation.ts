@@ -55,6 +55,11 @@ export function gltf2ozz(
                     json,
                     filename: path.posix.join(dstDir, json.replace('.rm-json', '.rm-ozz')),
                 });
+            } else if (json.endsWith('.sk-json')) {
+                jsonTracks.push({
+                    json,
+                    filename: path.posix.join(dstDir, json.replace('.sk-json', '.sk-ozz')),
+                });
             }
         }
     }

@@ -13,7 +13,7 @@ class FileMeta {
     public constructor(json: any);
     public constructor() {
         if (typeof arguments[0] === 'string') {
-            this.path = path.normalize(arguments[0]);
+            this.path = path.posix.normalize(arguments[0]);
             const stat = fs.statSync(this.path);
             this.time = stat.mtime.getTime();
             this.size = stat.size;
@@ -154,7 +154,7 @@ export class Asset {
         fs.mkdirSync(OUTPUT_ASSET, { recursive: true });
 
         function copyFile(src: string, dst: string) {
-            const dstDir = path.dirname(dst);
+            const dstDir = path.posix.dirname(dst);
             if (!dstDirs.has(dstDir)) {
                 fs.mkdirSync(dstDir, { recursive: true });
             }
@@ -163,16 +163,18 @@ export class Asset {
         }
 
         function travelDir(dir: string) {
-            for (const entry of fs.readdirSync(path.join(srcDir, dir), { withFileTypes: true })) {
+            for (const entry of fs.readdirSync(path.posix.join(srcDir, dir), {
+                withFileTypes: true,
+            })) {
                 if (entry.isDirectory()) {
-                    travelDir(path.join(dir, entry.name));
+                    travelDir(path.posix.join(dir, entry.name));
                 } else if (entry.isFile()) {
                     let dst = filterMap(dir, entry.name);
                     if (!dst) {
                         continue;
                     }
-                    const src = path.join(srcDir, dir, entry.name);
-                    dst = path.join(OUTPUT_ASSET, dst);
+                    const src = path.posix.join(srcDir, dir, entry.name);
+                    dst = path.posix.join(OUTPUT_ASSET, dst);
                     // Asset.incrementUpdate(`copy: ${dst}`, [src], () => copyFile(src, dst));
                     copyFile(src, dst);
                 }
@@ -190,10 +192,10 @@ export class Asset {
         dstDir: string,
     ) {
         function joinPath(root: string, subPath: string) {
-            if (path.isAbsolute(subPath)) {
+            if (path.posix.isAbsolute(subPath)) {
                 throw new Error(`subPath must be a relative path: ${subPath}`);
             }
-            return path.join(root, subPath);
+            return path.posix.join(root, subPath);
         }
 
         fs.mkdirSync(joinPath(OUTPUT_ASSET, dstDir), { recursive: true });

@@ -8,6 +8,7 @@ export type AnimationArgs = {
      * - xxx.va-ozz 视图动画
      * - xxx.rm-ozz 根运动RootMotion
      * - xxx.wm-ozz 武器轨迹
+     * - xxx.sk-ozz 形态键
      * - xxx.hm-rkyv/xxx.hm-json 攻击判定盒
      */
     files: FilePath;
@@ -26,6 +27,9 @@ export type AnimationArgs = {
 
     /** 是否启用命中判定盒 */
     hit_motion?: boolean;
+
+    /** 是否启用形态键 */
+    shape_key?: boolean;
 };
 
 export class Animation {
@@ -60,6 +64,9 @@ export class Animation {
     /** 是否启用命中判定盒 */
     public readonly hit_motion: boolean;
 
+    /** 是否启用形态键 */
+    public readonly shape_key: boolean;
+
     public constructor(
         args: AnimationArgs,
         where: string,
@@ -77,14 +84,10 @@ export class Animation {
         );
 
         this.duration = this.parseDuration(anim, args.duration, `${where}.duration`);
-        this.fade_in =
-            args.fade_in == null
-                ? 0.1
-                : parseTime(args.fade_in, `${where}.fade_in`, { min: 0, type: 'f32' });
+        this.fade_in = parseTime(args.fade_in ?? 0.1, `${where}.fade_in`, { min: 0, type: 'f32' });
         this.fade_in = Math.min(this.fade_in, this.duration);
 
-        this.root_motion =
-            args.root_motion == null ? false : parseBool(args.root_motion, `${where}.root_motion`);
+        this.root_motion = parseBool(args.root_motion ?? false, `${where}.root_motion`);
         if (opts.root_motion !== undefined && this.root_motion !== opts.root_motion) {
             throw new Error(`${where}.root_motion: must be ${!!opts.root_motion}`);
         }
@@ -93,19 +96,17 @@ export class Animation {
             native.loadRootMotionMeta(this.files, `${where}.files: file not found (${this.files})`);
         }
 
-        this.weapon_motion =
-            args.weapon_motion == null
-                ? false
-                : parseBool(args.weapon_motion, `${where}.weapon_motion`);
+        this.weapon_motion = parseBool(args.weapon_motion ?? false, `${where}.weapon_motion`);
         if (opts.weapon_motion !== undefined && this.weapon_motion !== opts.weapon_motion) {
             throw new Error(`${where}.weapon_motion: must be ${!!opts.weapon_motion}`);
         }
 
-        this.hit_motion =
-            args.hit_motion == null ? false : parseBool(args.hit_motion, `${where}.hit_motion`);
+        this.hit_motion = parseBool(args.hit_motion ?? false, `${where}.hit_motion`);
         if (opts.hit_motion !== undefined && this.hit_motion !== opts.hit_motion) {
             throw new Error(`${where}.hit_motion: must be ${!!opts.hit_motion}`);
         }
+
+        this.shape_key = parseBool(args.shape_key ?? false, `${where}.shape_key`);
 
         this.local_id = 65535;
     }
