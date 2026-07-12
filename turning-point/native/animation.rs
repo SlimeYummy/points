@@ -1,4 +1,4 @@
-use critical_point_core::animation::{HitMotion, RootMotion, RootTrackName, WeaponMotion};
+use critical_point_core::animation::{HitMotion, RootMotion, RootTrackName, ShapeKey, WeaponMotion};
 use glam::{Vec3, Vec3Swizzles};
 use napi::bindgen_prelude::*;
 use napi::{Error, Status};
@@ -238,4 +238,27 @@ pub fn load_hit_motion_meta(path: String) -> Result<HitMotionMeta> {
     }
 
     Ok(HitMotionMeta { groups })
+}
+
+#[napi(object)]
+pub struct ShapeKeyMeta {
+    pub version: u32,
+    pub count: u32,
+    pub names: Vec<String>,
+}
+
+#[napi]
+pub fn load_shape_key_meta(path: String) -> Result<ShapeKeyMeta> {
+    let shape_anim = match ShapeKey::from_path(&path) {
+        Ok(shape_anim) => shape_anim,
+        Err(err) => return Err(cp_err_msg(err, &path)),
+    };
+    Ok(ShapeKeyMeta {
+        version: Track::<f32>::version(),
+        count: shape_anim.len() as u32,
+        names: shape_anim
+            .iter()
+            .map(|shape_key| shape_key.name().to_string())
+            .collect(),
+    })
 }

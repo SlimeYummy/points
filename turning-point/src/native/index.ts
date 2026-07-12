@@ -77,6 +77,21 @@ export function loadWeaponMotionMeta(path: string, err?: string): native.WeaponM
     }
 }
 
+const loadShapeKeyMetaMemoize = memoize(native.loadShapeKeyMeta);
+
+export function loadShapeKeyMeta(path: string, err?: string): native.ShapeKeyMeta {
+    try {
+        const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.sk-ozz')}`;
+        return loadShapeKeyMetaMemoize(realPath);
+    } catch (e) {
+        if (err) {
+            throw new (Error as any)(err, { cause: e });
+        } else {
+            throw e;
+        }
+    }
+}
+
 const loadHitMotionMetaMemoize = memoize(native.loadHitMotionMeta);
 
 export function loadHitMotionMeta(path: string, err?: string): native.HitMotionMeta {

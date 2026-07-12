@@ -347,9 +347,6 @@ export const DERIVE_CONTINUE = ['Dodge', 'PerfectDodge', 'Guard', 'PerfectGuard'
 
 export type DeriveContinue = (typeof DERIVE_CONTINUE)[number];
 
-export const PerfectDodge = 'PerfectDodge' as const;
-export const PerfectGuard = 'PerfectGuard' as const;
-
 export function isDeriveContinue(raw: string): raw is DeriveContinue {
     return DERIVE_CONTINUE.includes(raw as DeriveContinue);
 }
