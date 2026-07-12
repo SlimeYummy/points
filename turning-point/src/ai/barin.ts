@@ -3,6 +3,7 @@ import { Resource } from '../resource';
 import { CharacterNpc } from '../character';
 import { Sphere, SphereArgs, SphericalCone, SphericalConeArgs } from '../common/shape';
 import { Script } from '../script';
+import { AiRoutine } from './routine';
 import { AiTask } from './task_base';
 
 export type AiBrainArgs = {
@@ -83,7 +84,8 @@ export class AiBrain extends Resource {
     private parseTasks(tasks: ID[], tasks_from_script: boolean): ReadonlyArray<ID> {
         const res_tasks = [...tasks];
         if (tasks_from_script && this.execute.code) {
-            const matches = this.execute.code.matchAll(/id!\("(AiTask\.[^"]+)"\)/g);
+            // Extract AiTask and AiRoutine IDs
+            const matches = this.execute.code.matchAll(/id!\("(Ai(?:Task|Routine)\.[^"]+)"\)/g);
             for (const match of matches) {
                 const id = match[1];
                 if (id && !res_tasks.includes(id)) {
@@ -91,16 +93,23 @@ export class AiBrain extends Resource {
                 }
             }
         }
-        return parseIDArray(res_tasks, 'AiTask', this.w('tasks'));
+        return parseIDArray(res_tasks, ['AiTask', 'AiRoutine'], this.w('tasks'));
     }
 
     public override verify() {
         CharacterNpc.find(this.character_npc, this.w('character_npc'));
 
         for (const [idx, id] of this.tasks.entries()) {
-            const task = AiTask.find(id, this.w(`tasks[${idx}]`));
-            if (task.character_npc !== this.character_npc) {
-                throw this.error(`tasks[${idx}]`, 'character_npc mismatch');
+            if (id.startsWith('AiTask.')) {
+                const task = AiTask.find(id, this.w(`tasks[${idx}]`));
+                if (task.character_npc !== this.character_npc) {
+                    throw this.error(`tasks[${idx}]`, 'character_npc mismatch');
+                }
+            } else if (id.startsWith('AiRoutine.')) {
+                const routine = AiRoutine.find(id, this.w(`tasks[${idx}]`));
+                if (routine.character_npc !== this.character_npc) {
+                    throw this.error(`tasks[${idx}]`, 'character_npc mismatch');
+                }
             }
         }
     }
