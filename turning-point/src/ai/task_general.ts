@@ -1,13 +1,13 @@
-import { ID, int, parseArray, parseID, parseInt } from '../common';
-import { Action, LEVEL_ATTACK } from '../action';
-import { AiTask, AiTaskArgs } from './task_base';
+import { ID, parseArray, parseID } from '../common';
+import { Action } from '../action';
+import { AiIntention, AiTask, AiTaskArgs, parseAiIntention } from './task_base';
 
 export type AiTaskGeneralArgs = AiTaskArgs & {
-    /** 进入等级 */
-    enter_level?: int;
+    /** AI意图 */
+    intention?: AiIntention;
 
-    /** 维持等级 */
-    keep_level?: int;
+    /** AI意图（动作完成后） */
+    next_intention?: AiIntention;
 
     /** 顺序执行的动作列表 */
     actions: ReadonlyArray<ID>;
@@ -17,23 +17,22 @@ export type AiTaskGeneralArgs = AiTaskArgs & {
  * AI任务（顺序执行动作）
  */
 export class AiTaskGeneral extends AiTask {
-    /** 进入等级 */
-    public readonly enter_level: int;
+    /** AI意图 */
+    public readonly intention: AiIntention;
 
-    /** 维持等级 */
-    public readonly keep_level: int;
+    /** AI意图（动作完成后） */
+    public readonly next_intention: AiIntention;
 
     /** 顺序执行的动作列表 */
     public readonly actions: ReadonlyArray<ID>;
 
     public constructor(id: ID, args: AiTaskGeneralArgs) {
         super(id, args);
-        this.enter_level = parseInt(args.enter_level ?? LEVEL_ATTACK, this.w('enter_level'), {
-            type: 'u16',
-        });
-        this.keep_level = parseInt(args.keep_level ?? LEVEL_ATTACK, this.w('keep_level'), {
-            type: 'u16',
-        });
+        this.intention = parseAiIntention(args.intention ?? 'Attack', this.w('intention'));
+        this.next_intention = parseAiIntention(
+            args.next_intention ?? 'SquareOff',
+            this.w('next_intention'),
+        );
         this.actions = parseArray(
             args.actions,
             this.w('actions'),

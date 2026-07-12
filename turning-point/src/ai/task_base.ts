@@ -2,6 +2,21 @@ import { ID, IDPrefix } from '../common';
 import { Resource } from '../resource';
 import { CharacterNpc } from '../character';
 
+export const AI_INTENTION = ['Idle', 'Move', 'Attack', 'SquareOff'] as const;
+
+export type AiIntention = (typeof AI_INTENTION)[number];
+
+export function isAiIntention(raw: string): raw is AiIntention {
+    return AI_INTENTION.includes(raw as AiIntention);
+}
+
+export function parseAiIntention(raw: string, where: string): AiIntention {
+    if (!AI_INTENTION.includes(raw as AiIntention)) {
+        throw new Error(where + ': must be a AiIntention ');
+    }
+    return raw as AiIntention;
+}
+
 export type AiTaskArgs = {
     /** 角色ID（仅CharacterNpc） */
     character_npc: ID;
