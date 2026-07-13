@@ -1,21 +1,13 @@
-import {
-    float,
-    ID,
-    int,
-    parseAngleXz,
-    parseFloatRange,
-    parseID,
-    parseInt,
-} from '../common';
-import { Action, ActionMoveNpc, LEVEL_MOVE } from '../action';
-import { AiTask, AiTaskArgs } from './task_base';
+import { float, ID, parseAngleXz, parseBool, parseFloatRange, parseID } from '../common';
+import { Action, ActionMoveNpc } from '../action';
+import { AiIntention, AiTask, AiTaskArgs, parseAiIntention } from './task_base';
 
 export type AiTaskMoveToCharacterArgs = AiTaskArgs & {
-    /** 进入等级 */
-    enter_level?: int;
+    /** AI意图 */
+    intention?: AiIntention;
 
-    /** 维持等级 */
-    keep_level?: int;
+    /** AI意图（动作完成后） */
+    next_intention?: AiIntention;
 
     /** 移动动作 */
     move_action: ID;
@@ -28,17 +20,20 @@ export type AiTaskMoveToCharacterArgs = AiTaskArgs & {
 
     /** 与目标的理想朝向（XZ平面上 角色朝向与向量(目标-角色)的夹角半角） */
     expected_toward: float | string;
+
+    /** 在目标改变时退出动作 */
+    target_exit?: boolean;
 };
 
 /**
  * AI任务（移动到角色）
  */
 export class AiTaskMoveToCharacter extends AiTask {
-    /** 进入等级 */
-    public readonly enter_level: int;
+    /** AI意图 */
+    public readonly intention: AiIntention;
 
-    /** 维持等级 */
-    public readonly keep_level: int;
+    /** AI意图（动作完成后） */
+    public readonly next_intention: AiIntention;
 
     /** 移动动作 */
     public readonly move_action: ID;
@@ -52,14 +47,16 @@ export class AiTaskMoveToCharacter extends AiTask {
     /** 与目标的理想朝向（XZ平面上 角色朝向与向量(目标-角色)的夹角半角） */
     public readonly expected_toward: float;
 
+    /** 在目标改变时退出动作 */
+    public readonly target_exit: boolean;
+
     public constructor(id: ID, args: AiTaskMoveToCharacterArgs) {
         super(id, args);
-        this.enter_level = parseInt(args.enter_level ?? LEVEL_MOVE, this.w('enter_level'), {
-            type: 'u16',
-        });
-        this.keep_level = parseInt(args.keep_level ?? LEVEL_MOVE, this.w('keep_level'), {
-            type: 'u16',
-        });
+        this.intention = parseAiIntention(args.intention ?? 'Move', this.w('intention'));
+        this.next_intention = parseAiIntention(
+            args.next_intention ?? 'Idle',
+            this.w('next_intention'),
+        );
         this.move_action = parseID(args.move_action, 'Action', this.w('move_action'));
         this.turn_action = parseID(args.turn_action, 'Action', this.w('turn_action'));
         this.expected_distance = parseFloatRange(
@@ -73,6 +70,7 @@ export class AiTaskMoveToCharacter extends AiTask {
         this.expected_toward = parseAngleXz(args.expected_toward, this.w('expected_toward'), {
             min: 0,
         });
+        this.target_exit = parseBool(args.target_exit ?? false, this.w('target_exit'));
     }
 
     public override verify() {

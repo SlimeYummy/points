@@ -1,13 +1,13 @@
-import { checkArray, float, ID, int, parseID, parseInt, parseTime, parseVec3 } from '../common';
-import { Action, ActionIdle, ActionMoveNpc, LEVEL_MOVE } from '../action';
-import { AiTask, AiTaskArgs } from './task_base';
+import { checkArray, float, ID, parseBool, parseID, parseTime, parseVec3 } from '../common';
+import { Action, ActionIdle, ActionMoveNpc } from '../action';
+import { AiIntention, AiTask, AiTaskArgs, parseAiIntention } from './task_base';
 
 export type AiTaskPatrolArgs = AiTaskArgs & {
-    /** 进入等级 */
-    enter_level?: int;
+    /** AI意图 */
+    intention?: AiIntention;
 
-    /** 维持等级 */
-    keep_level?: int;
+    /** AI意图（动作完成后） */
+    next_intention?: AiIntention;
 
     /** 待机动作ID */
     action_idle: ID;
@@ -17,6 +17,9 @@ export type AiTaskPatrolArgs = AiTaskArgs & {
 
     /** 巡逻路线 */
     route: ReadonlyArray<AiTaskPatrolStepArgs>;
+
+    /** 在目标改变时退出动作 */
+    target_exit?: boolean;
 };
 
 export type AiTaskPatrolStepArgs =
@@ -31,11 +34,11 @@ export type AiTaskPatrolStep =
  * AI任务（巡逻）
  */
 export class AiTaskPatrol extends AiTask {
-    /** 进入等级 */
-    public readonly enter_level: int;
+    /** AI意图 */
+    public readonly intention: AiIntention;
 
-    /** 维持等级 */
-    public readonly keep_level: int;
+    /** AI意图（动作完成后） */
+    public readonly next_intention: AiIntention;
 
     /** 待机动作ID */
     public readonly action_idle: ID;
@@ -46,17 +49,20 @@ export class AiTaskPatrol extends AiTask {
     /** 巡逻路线 */
     public readonly route: ReadonlyArray<AiTaskPatrolStep>;
 
+    /** 在目标改变时退出动作 */
+    public readonly target_exit: boolean;
+
     public constructor(id: ID, args: AiTaskPatrolArgs) {
         super(id, args);
-        this.enter_level = parseInt(args.enter_level ?? LEVEL_MOVE, this.w('enter_level'), {
-            type: 'u16',
-        });
-        this.keep_level = parseInt(args.keep_level ?? LEVEL_MOVE, this.w('keep_level'), {
-            type: 'u16',
-        });
+        this.intention = parseAiIntention(args.intention ?? 'Move', this.w('intention'));
+        this.next_intention = parseAiIntention(
+            args.next_intention ?? 'Idle',
+            this.w('next_intention'),
+        );
         this.action_idle = parseID(args.action_idle, 'Action', this.w('action_idle'));
         this.action_move = parseID(args.action_move, 'Action', this.w('action_move'));
         this.route = this.parseRoute(args.route);
+        this.target_exit = parseBool(args.target_exit ?? false, this.w('target_exit'));
     }
 
     private parseRoute(raw: ReadonlyArray<AiTaskPatrolStepArgs>): ReadonlyArray<AiTaskPatrolStep> {

@@ -1,40 +1,56 @@
-import { ID, int, parseID, parseInt } from '../common';
-import { Action, ActionIdle, LEVEL_IDLE } from '../action';
-import { AiTask, AiTaskArgs } from './task_base';
+import { float, ID, parseBool, parseID, parseTimeRange } from '../common';
+import { Action, ActionIdle } from '../action';
+import { AiIntention, AiTask, AiTaskArgs, parseAiIntention } from './task_base';
 
 export type AiTaskIdleArgs = AiTaskArgs & {
-    /** 进入等级 */
-    enter_level?: int;
+    /** AI意图 */
+    intention?: AiIntention;
 
-    /** 维持等级 */
-    keep_level?: int;
+    /** AI意图（动作完成后） */
+    next_intention?: AiIntention;
 
     /** 待机动作ID */
     action_idle: ID;
+
+    /** 待机持续时间（秒）（随机范围） */
+    duration?: string | ReadonlyArray<float | string>;
+
+    /** 在目标改变时退出动作 */
+    target_exit?: boolean;
 };
 
 /**
  * AI任务（待机）
  */
 export class AiTaskIdle extends AiTask {
-    /** 进入等级 */
-    public readonly enter_level: int;
+    /** AI意图 */
+    public readonly intention: AiIntention;
 
-    /** 维持等级 */
-    public readonly keep_level: int;
+    /** AI意图（动作完成后） */
+    public readonly next_intention: AiIntention;
 
     /** 待机动作ID */
     public readonly action_idle: ID;
 
+    /** 待机持续时间（秒）（随机范围） */
+    public readonly duration?: readonly [float, float];
+
+    /** 在目标改变时退出动作 */
+    public readonly target_exit: boolean;
+
     public constructor(id: ID, args: AiTaskIdleArgs) {
         super(id, args);
-        this.enter_level = parseInt(args.enter_level ?? LEVEL_IDLE, this.w('enter_level'), {
-            type: 'u16',
-        });
-        this.keep_level = parseInt(args.keep_level ?? LEVEL_IDLE, this.w('keep_level'), {
-            type: 'u16',
-        });
+        this.intention = parseAiIntention(args.intention ?? 'Idle', this.w('intention'));
+        this.next_intention = parseAiIntention(
+            args.next_intention ?? 'Idle',
+            this.w('next_intention'),
+        );
         this.action_idle = parseID(args.action_idle, 'Action', this.w('action_idle'));
+        this.duration =
+            args.duration == null
+                ? undefined
+                : parseTimeRange(args.duration, this.w('duration'), { min: 0, type: 'f32' });
+        this.target_exit = parseBool(args.target_exit ?? false, this.w('target_exit'));
     }
 
     public override verify() {
