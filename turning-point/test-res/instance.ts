@@ -6,10 +6,11 @@ import {
     ActionMove,
     ActionMoveNpc,
     AiBrain,
+    AiRoutine,
     AiTaskGeneral,
     AiTaskIdle,
-    AiTaskPatrol,
     AiTaskMoveToCharacter,
+    AiTaskPatrol,
     Attack1,
     Attack2,
     Capsule,
@@ -317,7 +318,6 @@ new ActionGeneral('Action.Instance.AttackDerive^1A', {
         duration: '5s!',
         root_motion: true,
     },
-    enter_level: LEVEL_ATTACK,
     attributes: {
         '0-5s': {},
     },
@@ -336,7 +336,6 @@ new ActionGeneral('Action.Instance.AttackUnused^1A', {
         duration: '5s!',
         root_motion: true,
     },
-    enter_level: LEVEL_ATTACK,
     attributes: {
         '0-5s': {},
     },
@@ -492,4 +491,13 @@ new AiTaskMoveToCharacter('AiTask.InstanceNpc.MoveTo^1', {
 new AiTaskGeneral('AiTask.InstanceNpc.General^1', {
     character_npc: 'CharacterNpc.InstanceNpc^1',
     actions: ['Action.InstanceNpc.Idle^1A', 'Action.InstanceNpc.Walk^1A'],
+});
+
+new AiRoutine('AiRoutine.InstanceNpc.Sequence^1', {
+    character_npc: 'CharacterNpc.InstanceNpc^1',
+    tasks: [
+        'AiTask.InstanceNpc.Idle^1',
+        'AiTask.InstanceNpc.Patrol^1',
+        'AiTask.InstanceNpc.MoveTo^1',
+    ],
 });

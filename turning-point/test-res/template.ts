@@ -8,10 +8,11 @@ import {
     ActionMove,
     ActionMoveNpc,
     AiBrain,
+    AiRoutine,
     AiTaskGeneral,
     AiTaskIdle,
-    AiTaskPatrol,
     AiTaskMoveToCharacter,
+    AiTaskPatrol,
     Attack,
     Attack1,
     Attack2,
@@ -739,7 +740,7 @@ new AiBrain('AiBrain.Enemy', {
     aggro_lost_time: '15s',
     tasks_from_script: true,
     execute: /*rust*/ `
-        out.push(WsAiTask {
+        out.push(WsAiDo {
             id: id!("AiTask.Enemy.Idle"),
             weight: 1.0,
             priority: 1,
@@ -749,15 +750,17 @@ new AiBrain('AiBrain.Enemy', {
 
 new AiTaskIdle('AiTask.Enemy.Idle', {
     character_npc: 'CharacterNpc.Enemy',
-    enter_level: LEVEL_IDLE + 1,
-    keep_level: LEVEL_IDLE + 1,
+    intention: 'Idle',
+    next_intention: 'Move',
     action_idle: 'Action.Enemy.Idle',
+    duration: [5, 10],
+    target_exit: true,
 });
 
 new AiTaskPatrol('AiTask.Enemy.Patrol', {
     character_npc: 'CharacterNpc.Enemy',
-    enter_level: LEVEL_MOVE + 1,
-    keep_level: LEVEL_MOVE + 1,
+    intention: 'Move',
+    next_intention: 'Idle',
     action_idle: 'Action.Enemy.Idle',
     action_move: 'Action.Enemy.Walk',
     route: [
@@ -765,12 +768,13 @@ new AiTaskPatrol('AiTask.Enemy.Patrol', {
         ['Idle', 1.0],
         ['Move', [3, -4, -5]],
     ],
+    target_exit: true,
 });
 
 new AiTaskMoveToCharacter('AiTask.Enemy.MoveTo', {
     character_npc: 'CharacterNpc.Enemy',
-    enter_level: LEVEL_MOVE + 1,
-    keep_level: LEVEL_MOVE + 1,
+    intention: 'Move',
+    next_intention: 'Idle',
     expected_distance: [4, 6],
     expected_toward: 180,
     move_action: 'Action.Enemy.Walk',
@@ -779,9 +783,14 @@ new AiTaskMoveToCharacter('AiTask.Enemy.MoveTo', {
 
 new AiTaskGeneral('AiTask.Enemy.Attack', {
     character_npc: 'CharacterNpc.Enemy',
-    enter_level: LEVEL_ATTACK + 1,
-    keep_level: LEVEL_ATTACK + 1,
+    intention: 'Attack',
+    next_intention: 'SquareOff',
     actions: ['Action.Enemy.Idle', 'Action.Enemy.Walk'],
+});
+
+new AiRoutine('AiRoutine.Enemy.Sequence', {
+    character_npc: 'CharacterNpc.Enemy',
+    tasks: ['AiTask.Enemy.Idle', 'AiTask.Enemy.Patrol', 'AiTask.Enemy.MoveTo'],
 });
 
 //
