@@ -1,18 +1,19 @@
 use glam::Vec3A;
 
 use crate::template::base::impl_tmpl;
-use crate::utils::TmplID;
+use crate::utils::{AiIntention, TmplID};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
 pub struct TmplAiTaskPatrol {
     pub id: TmplID,
     pub character_npc: TmplID,
-    pub enter_level: u16,
-    pub keep_level: u16,
+    pub intention: AiIntention,
+    pub next_intention: AiIntention,
     pub action_idle: TmplID,
     pub action_move: TmplID,
     pub route: Vec<TmplAiTaskPatrolStep>,
+    pub target_exit: bool,
 }
 
 impl_tmpl!(TmplAiTaskPatrol, AiTaskPatrol, "AiTaskPatrol");
@@ -104,7 +105,7 @@ const _: () = {
 mod tests {
     use super::*;
     use crate::template::database::TmplDatabase;
-    use crate::utils::{LEVEL_MOVE, id};
+    use crate::utils::id;
     use glam::vec3a;
 
     #[test]
@@ -114,8 +115,8 @@ mod tests {
         let task = db.find_as::<TmplAiTaskPatrol>(id!("AiTask.Enemy.Patrol")).unwrap();
         assert_eq!(task.id, id!("AiTask.Enemy.Patrol"));
         assert_eq!(task.character_npc, id!("CharacterNpc.Enemy"));
-        assert_eq!(task.enter_level, LEVEL_MOVE + 1);
-        assert_eq!(task.keep_level, LEVEL_MOVE + 1);
+        assert_eq!(task.intention, AiIntention::Move);
+        assert_eq!(task.next_intention, AiIntention::Idle);
         assert_eq!(task.action_idle, id!("Action.Enemy.Idle"));
         assert_eq!(task.action_move, id!("Action.Enemy.Walk"));
 
@@ -132,5 +133,6 @@ mod tests {
             TmplAiTaskPatrolStep::from_rkyv(&task.route[2]),
             TmplAiTaskPatrolStep::Move(vec3a(3.0, -4.0, -5.0))
         );
+        assert_eq!(task.target_exit, true);
     }
 }

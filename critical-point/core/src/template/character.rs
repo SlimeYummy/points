@@ -217,7 +217,8 @@ mod tests {
         assert_eq!(npc.actions.as_slice(), &[
             id!("Action.Enemy.Idle"),
             id!("Action.Enemy.Walk"),
-            id!("Action.Enemy.Hit1")
+            id!("Action.Enemy.Hit1"),
+            id!("Action.Enemy.Attack"),
         ]);
 
         assert_eq!(npc.ai_brains.as_slice(), &[id!("AiBrain.Enemy")]);
