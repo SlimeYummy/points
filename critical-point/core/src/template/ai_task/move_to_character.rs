@@ -1,18 +1,19 @@
 use crate::template::base::impl_tmpl;
-use crate::utils::{F32Range, TmplID};
+use crate::utils::{AiIntention, F32Range, TmplID};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
 pub struct TmplAiTaskMoveToCharacter {
     pub id: TmplID,
     pub character_npc: TmplID,
-    pub enter_level: u16,
-    pub keep_level: u16,
+    pub intention: AiIntention,
+    pub next_intention: AiIntention,
     pub move_action: TmplID,
     pub turn_action: TmplID,
     pub expected_distance: F32Range,
     /// Half angle (in XZ plane) between character's forward and vector from character to target.
     pub expected_toward: f32,
+    pub target_exit: bool,
 }
 
 impl_tmpl!(
@@ -25,7 +26,7 @@ impl_tmpl!(
 mod tests {
     use super::*;
     use crate::template::database::TmplDatabase;
-    use crate::utils::{LEVEL_MOVE, id};
+    use crate::utils::id;
 
     #[test]
     fn test_load_ai_task_reposition() {
@@ -36,11 +37,12 @@ mod tests {
             .unwrap();
         assert_eq!(task.id, id!("AiTask.Enemy.MoveTo"));
         assert_eq!(task.character_npc, id!("CharacterNpc.Enemy"));
-        assert_eq!(task.enter_level, LEVEL_MOVE + 1);
-        assert_eq!(task.keep_level, LEVEL_MOVE + 1);
+        assert_eq!(task.intention, AiIntention::Move);
+        assert_eq!(task.next_intention, AiIntention::Idle);
         assert_eq!(task.expected_distance, F32Range::new(4.0, 6.0));
         assert_eq!(task.expected_toward.to_native(), 180.0_f32.to_radians());
         assert_eq!(task.move_action, id!("Action.Enemy.Walk"));
         assert_eq!(task.turn_action, id!("Action.Enemy.Walk"));
+        assert_eq!(task.target_exit, false);
     }
 }

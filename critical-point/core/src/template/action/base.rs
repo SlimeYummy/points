@@ -13,6 +13,7 @@ pub struct TmplAnimation {
     pub root_motion: bool,
     pub weapon_motion: bool,
     pub hit_motion: bool,
+    pub shape_key: bool,
 }
 
 #[derive(
