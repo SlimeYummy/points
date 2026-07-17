@@ -1,4 +1,5 @@
 use enum_iterator::Sequence;
+use std::iter::FusedIterator;
 use std::marker::PhantomData;
 
 pub unsafe trait Bitsetable
@@ -90,6 +91,8 @@ pub struct EnumBitsetIter<E: Bitsetable, const L: usize> {
     bitset: EnumBitset<E, L>,
     cursor: Option<E>,
 }
+
+impl<E: Bitsetable, const L: usize> FusedIterator for EnumBitsetIter<E, L> {}
 
 impl<E: Bitsetable, const L: usize> Iterator for EnumBitsetIter<E, L> {
     type Item = E;

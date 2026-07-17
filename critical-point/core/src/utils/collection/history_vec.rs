@@ -1,3 +1,5 @@
+use std::hint::unlikely;
+use std::iter::FusedIterator;
 use std::ops::{Index, IndexMut};
 use std::{fmt, slice};
 
@@ -5,19 +7,19 @@ use crate::utils::XResult;
 
 pub struct HistoryVec<T> {
     vec: Vec<T>,
-    current_end: u32,
+    current_end: usize,
 }
 
 impl<T> Default for HistoryVec<T> {
     #[inline]
-    fn default() -> Self {
+    fn default() -> HistoryVec<T> {
         Self::new()
     }
 }
 
 impl<T> HistoryVec<T> {
     #[inline]
-    pub fn new() -> HistoryVec<T> {
+    pub const fn new() -> HistoryVec<T> {
         HistoryVec {
             vec: Vec::new(),
             current_end: 0,
@@ -39,7 +41,7 @@ impl<T> HistoryVec<T> {
 
     #[inline]
     pub fn len(&self) -> usize {
-        self.current_end as usize
+        self.current_end
     }
 
     #[inline]
@@ -49,7 +51,7 @@ impl<T> HistoryVec<T> {
 
     #[inline]
     pub fn future_len(&self) -> usize {
-        self.vec.len() - self.current_end as usize
+        self.vec.len() - self.current_end
     }
 
     #[inline]
@@ -59,7 +61,7 @@ impl<T> HistoryVec<T> {
 
     #[inline]
     pub fn get(&self, index: usize) -> Option<&T> {
-        if index < (self.current_end as usize) {
+        if index < (self.current_end) {
             return Some(&self.vec[index]);
         }
         None
@@ -67,7 +69,7 @@ impl<T> HistoryVec<T> {
 
     #[inline]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
-        if index < (self.current_end as usize) {
+        if index < (self.current_end) {
             return Some(&mut self.vec[index]);
         }
         None
@@ -75,34 +77,12 @@ impl<T> HistoryVec<T> {
 
     #[inline]
     pub fn iter(&self) -> slice::Iter<'_, T> {
-        return self.vec[..self.current_end as usize].iter();
+        return self.vec[..self.current_end].iter();
     }
 
     #[inline]
     pub fn iter_mut(&mut self) -> slice::IterMut<'_, T> {
-        return self.vec[..self.current_end as usize].iter_mut();
-    }
-
-    #[inline]
-    pub fn iter_by<F>(&self, func: F) -> HistoryVecIter<'_, T, F>
-    where
-        F: Fn(&T) -> bool,
-    {
-        HistoryVecIter {
-            slice: Some(&self.vec[..self.current_end as usize]),
-            func,
-        }
-    }
-
-    #[inline]
-    pub fn iter_mut_by<F>(&mut self, func: F) -> HistoryVecIterMut<'_, T, F>
-    where
-        F: Fn(&T) -> bool,
-    {
-        HistoryVecIterMut {
-            slice: Some(&mut self.vec[..self.current_end as usize]),
-            func,
-        }
+        return self.vec[..self.current_end].iter_mut();
     }
 
     #[inline]
@@ -110,7 +90,7 @@ impl<T> HistoryVec<T> {
     where
         R: FnOnce(&mut T) -> XResult<bool>,
     {
-        let end = self.current_end as usize;
+        let end = self.current_end;
         if end < self.vec.len() && reuse(&mut self.vec[end])? {
             self.current_end += 1;
             return Ok(Some(&mut self.vec[end]));
@@ -120,10 +100,7 @@ impl<T> HistoryVec<T> {
 
     #[inline]
     pub fn append_new(&mut self, item: T) {
-        let end = self.current_end as usize;
-        while end < self.vec.len() {
-            self.vec.pop();
-        }
+        self.vec.truncate(self.current_end as usize);
         self.current_end += 1;
         self.vec.push(item);
     }
@@ -134,15 +111,13 @@ impl<T> HistoryVec<T> {
         R: FnOnce(&mut T) -> XResult<bool>,
         N: FnOnce() -> XResult<T>,
     {
-        let end = self.current_end as usize;
+        let end = self.current_end;
         if end < self.vec.len() && reuse(&mut self.vec[end])? {
             self.current_end += 1;
             return Ok(&mut self.vec[end]);
         }
 
-        while end < self.vec.len() {
-            self.vec.pop();
-        }
+        self.vec.truncate(end);
         self.current_end += 1;
         self.vec.push(new()?);
         Ok(&mut self.vec[end])
@@ -166,11 +141,10 @@ impl<T> HistoryVec<T> {
         F: FnMut(&mut T) -> XResult<i32>,
     {
         let mut new_end = 0;
-        for idx in 0..(self.current_end as usize) {
+        for idx in 0..(self.current_end) {
             let res = func(&mut self.vec[idx])?;
             if res < 0 {
                 new_end += 1;
-                continue;
             }
             else if res == 0 {
                 new_end += 1;
@@ -199,16 +173,64 @@ impl<T> HistoryVec<T> {
     where
         F: FnMut(&mut T) -> XResult<bool>,
     {
-        let mut new_end: u32 = 0;
-        for idx in 0..(self.current_end as usize) {
-            if !func(&mut self.vec[idx])? {
-                self.vec.swap(new_end as usize, idx);
-                new_end += 1;
+        let mut idx = 0;
+        let mut new_end = 0;
+
+        let mut res: XResult<()> = Ok(());
+        self.vec.retain_mut(|item| {
+            idx += 1;
+            if idx > self.current_end {
+                return true;
             }
-        }
-        self.vec.drain((new_end as usize)..(self.current_end as usize));
+
+            match func(item) {
+                Ok(true) => false,
+                Ok(false) => {
+                    new_end += 1;
+                    true
+                }
+                Err(e) => {
+                    if res.is_ok() {
+                        res = Err(e);
+                    }
+                    true
+                }
+            }
+        });
         self.current_end = new_end;
         Ok(())
+    }
+
+    /// Take a element and return it with a rest vec.
+    pub fn taken_rest<'t>(&'t mut self, idx: usize) -> (Option<&'t mut T>, HistoryVecRest<'t, T>) {
+        let item_mut = match self.get_mut(idx) {
+            Some(item) => {
+                let item_ptr = item as *mut T;
+                // SAFETY:
+                // We split self.vec into two parts. A mutable reference, and the other immutable parts.
+                // HistoryVecRest will ensure that mutable references are not accessed.
+                // This is similar to slice::split_at_mut, partitioned access to non-overlapping regions.
+                unsafe { Some(&mut *item_ptr) }
+            }
+            None => None,
+        };
+
+        let rest = HistoryVecRest {
+            vec: &*self,
+            taken_idx: idx,
+        };
+
+        (item_mut, rest)
+    }
+
+    /// Iterate over each element and return it with a rest view.
+    #[inline]
+    pub fn taken_rest_iter<'t>(&'t mut self) -> HistoryVecTakenRestIter<'t, T> {
+        HistoryVecTakenRestIter {
+            len: self.len(),
+            vec: self,
+            current: 0,
+        }
     }
 }
 
@@ -217,14 +239,14 @@ impl<T> Index<usize> for HistoryVec<T> {
 
     #[inline]
     fn index(&self, index: usize) -> &T {
-        return self.get(index).unwrap();
+        return self.get(index).expect("HistoryVec out of index");
     }
 }
 
 impl<T> IndexMut<usize> for HistoryVec<T> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut T {
-        return self.get_mut(index).unwrap();
+        return self.get_mut(index).expect("HistoryVec out of index");
     }
 }
 
@@ -238,61 +260,91 @@ impl<T: fmt::Debug> fmt::Debug for HistoryVec<T> {
     }
 }
 
-pub struct HistoryVecIter<'t, T, F> {
-    slice: Option<&'t [T]>,
-    func: F,
+pub struct HistoryVecRest<'t, T> {
+    vec: &'t HistoryVec<T>,
+    taken_idx: usize,
 }
 
-impl<'t, T, F> Iterator for HistoryVecIter<'t, T, F>
-where
-    F: Fn(&T) -> bool,
-{
-    type Item = &'t T;
+impl<'t, T> HistoryVecRest<'t, T> {
+    #[inline]
+    pub(crate) const unsafe fn new(vec: &'static HistoryVec<T>, taken_idx: usize) -> HistoryVecRest<'static, T> {
+        HistoryVecRest { vec, taken_idx }
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match self.slice.take() {
-                Some([]) | None => return None,
-                Some([item, rest @ ..]) => {
-                    self.slice = Some(rest);
-                    if (self.func)(item) {
-                        return Some(item);
-                    }
-                    else {
-                        continue;
-                    }
-                }
-            }
+    #[inline]
+    pub fn get(&self, index: usize) -> Option<&'t T> {
+        if unlikely(index == self.taken_idx) {
+            return None;
         }
+        self.vec.get(index)
+    }
+
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = &'t T> {
+        self.index_iter().map(|(_, item)| item)
+    }
+
+    #[inline]
+    pub fn index_iter(&self) -> impl Iterator<Item = (usize, &'t T)> {
+        let taken_idx = self.taken_idx;
+        self.vec
+            .iter()
+            .enumerate()
+            .filter_map(move |(idx, item)| if idx == taken_idx { None } else { Some((idx, item)) })
     }
 }
 
-pub struct HistoryVecIterMut<'t, T, F> {
-    slice: Option<&'t mut [T]>,
-    func: F,
+impl<T> Index<usize> for HistoryVecRest<'_, T> {
+    type Output = T;
+
+    #[inline]
+    fn index(&self, index: usize) -> &T {
+        return self.get(index).expect("HistoryVecRest out of index");
+    }
 }
 
-impl<'t, T, F> Iterator for HistoryVecIterMut<'t, T, F>
-where
-    F: Fn(&T) -> bool,
-{
-    type Item = &'t mut T;
+pub struct HistoryVecTakenRestIter<'t, T> {
+    vec: &'t mut HistoryVec<T>,
+    current: usize,
+    len: usize,
+}
 
+impl<'t, T> ExactSizeIterator for HistoryVecTakenRestIter<'t, T> {}
+impl<'t, T> FusedIterator for HistoryVecTakenRestIter<'t, T> {}
+
+impl<'t, T> Iterator for HistoryVecTakenRestIter<'t, T> {
+    type Item = (&'t mut T, HistoryVecRest<'t, T>);
+
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match self.slice.take() {
-                Some([]) | None => return None,
-                Some([item, rest @ ..]) => {
-                    self.slice = Some(rest);
-                    if (self.func)(item) {
-                        return Some(item);
-                    }
-                    else {
-                        continue;
-                    }
-                }
-            }
+        if self.current >= self.len {
+            return None;
         }
+
+        let idx = self.current;
+        self.current += 1;
+
+        // SAFETY:
+        // We split self.vec into two parts. A mutable reference, and the other immutable parts.
+        // HistoryVecRest will ensure that mutable references are not accessed.
+        // This is similar to slice::split_at_mut, partitioned access to non-overlapping regions.
+        unsafe {
+            let vec_ptr = self.vec as *mut HistoryVec<T>;
+            let item_ptr = (*vec_ptr).get_mut(idx).unwrap() as *mut T;
+
+            let rest = HistoryVecRest {
+                vec: &*vec_ptr,
+                taken_idx: idx,
+            };
+
+            Some((&mut *item_ptr, rest))
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.len - self.current;
+        return (remaining, Some(remaining));
     }
 }
 
@@ -440,5 +492,40 @@ mod tests {
         let mut hv = new_history_vec();
         hv.discard(|_| true);
         assert_eq!(hv.current_end, 0);
+    }
+
+    #[test]
+    fn test_history_vec_taken_rest() {
+        let mut hv = new_history_vec();
+        let (chara_mut, rest) = hv.taken_rest(2);
+
+        // 1. Check mutable element
+        let chara = chara_mut.unwrap();
+        assert_eq!(chara.key, 3);
+        chara.value = "taken".into();
+
+        // 2. Check rest view
+        assert_eq!(rest.get(1).unwrap().key, 2);
+        assert_eq!(rest.get(2), None); // Taken index
+        assert_eq!(rest.get(3).unwrap().key, 4);
+
+        // 3. Check rest iterator
+        let keys: Vec<_> = rest.iter().map(|p| p.key).collect();
+        assert_eq!(keys, vec![1, 2, 4, 5]);
+
+        // 4. Index trait
+        assert_eq!(rest[1].key, 2);
+    }
+
+    #[test]
+    fn test_history_vec_taken_rest_iter() {
+        let mut hv = new_history_vec();
+        for (idx, (item, rest)) in hv.taken_rest_iter().enumerate() {
+            assert_eq!(item.key, (idx + 1) as i32);
+            assert_eq!(rest.iter().count(), 4);
+            for r in rest.iter() {
+                assert_ne!(r.key, item.key);
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
 use rkyv::Archive;
 use std::fmt::{self, Debug};
+use std::iter::{ExactSizeIterator, FusedIterator};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::slice;
@@ -253,6 +254,9 @@ impl<K, V> Table<K, V> {
 
 pub struct TableKeysIter<'t, K, V>(slice::Iter<'t, TableKv<K, V>>);
 
+impl<'t, K, V> ExactSizeIterator for TableKeysIter<'t, K, V> {}
+impl<'t, K, V> FusedIterator for TableKeysIter<'t, K, V> {}
+
 impl<'t, K, V> Iterator for TableKeysIter<'t, K, V> {
     type Item = &'t K;
 
@@ -260,9 +264,17 @@ impl<'t, K, V> Iterator for TableKeysIter<'t, K, V> {
     fn next(&mut self) -> Option<&'t K> {
         self.0.next().map(|kv| &kv.k)
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
 }
 
 pub struct TableKeysIterMut<'t, K, V>(slice::IterMut<'t, TableKv<K, V>>);
+
+impl<'t, K, V> ExactSizeIterator for TableKeysIterMut<'t, K, V> {}
+impl<'t, K, V> FusedIterator for TableKeysIterMut<'t, K, V> {}
 
 impl<'t, K, V> Iterator for TableKeysIterMut<'t, K, V> {
     type Item = &'t mut K;
@@ -271,9 +283,17 @@ impl<'t, K, V> Iterator for TableKeysIterMut<'t, K, V> {
     fn next(&mut self) -> Option<&'t mut K> {
         self.0.next().map(|kv| &mut kv.k)
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
 }
 
 pub struct TableValuesIter<'t, K, V>(slice::Iter<'t, TableKv<K, V>>);
+
+impl<'t, K, V> ExactSizeIterator for TableValuesIter<'t, K, V> {}
+impl<'t, K, V> FusedIterator for TableValuesIter<'t, K, V> {}
 
 impl<'t, K, V> Iterator for TableValuesIter<'t, K, V> {
     type Item = &'t V;
@@ -282,9 +302,17 @@ impl<'t, K, V> Iterator for TableValuesIter<'t, K, V> {
     fn next(&mut self) -> Option<&'t V> {
         self.0.next().map(|kv| &kv.v)
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
 }
 
 pub struct TableValuesIterMut<'t, K, V>(slice::IterMut<'t, TableKv<K, V>>);
+
+impl<'t, K, V> ExactSizeIterator for TableValuesIterMut<'t, K, V> {}
+impl<'t, K, V> FusedIterator for TableValuesIterMut<'t, K, V> {}
 
 impl<'t, K, V> Iterator for TableValuesIterMut<'t, K, V> {
     type Item = &'t mut V;
@@ -292,6 +320,11 @@ impl<'t, K, V> Iterator for TableValuesIterMut<'t, K, V> {
     #[inline]
     fn next(&mut self) -> Option<&'t mut V> {
         self.0.next().map(|kv| &mut kv.v)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
     }
 }
 
@@ -446,6 +479,9 @@ impl<K: Archive, V: Archive> ArchivedTable<K, V> {
 
 pub struct ArchivedTableKeysIter<'t, K: Archive, V: Archive>(slice::Iter<'t, ArchivedTableKv<K, V>>);
 
+impl<'t, K: Archive, V: Archive> ExactSizeIterator for ArchivedTableKeysIter<'t, K, V> {}
+impl<'t, K: Archive, V: Archive> FusedIterator for ArchivedTableKeysIter<'t, K, V> {}
+
 impl<'t, K: Archive, V: Archive> Iterator for ArchivedTableKeysIter<'t, K, V> {
     type Item = &'t K::Archived;
 
@@ -453,9 +489,17 @@ impl<'t, K: Archive, V: Archive> Iterator for ArchivedTableKeysIter<'t, K, V> {
     fn next(&mut self) -> Option<&'t K::Archived> {
         self.0.next().map(|kv| &kv.k)
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
 }
 
 pub struct ArchivedTableValuesIter<'t, K: Archive, V: Archive>(slice::Iter<'t, ArchivedTableKv<K, V>>);
+
+impl<'t, K: Archive, V: Archive> ExactSizeIterator for ArchivedTableValuesIter<'t, K, V> {}
+impl<'t, K: Archive, V: Archive> FusedIterator for ArchivedTableValuesIter<'t, K, V> {}
 
 impl<'t, K: Archive, V: Archive> Iterator for ArchivedTableValuesIter<'t, K, V> {
     type Item = &'t V::Archived;
@@ -463,6 +507,11 @@ impl<'t, K: Archive, V: Archive> Iterator for ArchivedTableValuesIter<'t, K, V> 
     #[inline]
     fn next(&mut self) -> Option<&'t V::Archived> {
         self.0.next().map(|kv| &kv.v)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
     }
 }
 
