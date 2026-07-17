@@ -2,6 +2,7 @@ use rustc_hash::FxBuildHasher;
 use std::alloc::Layout;
 use std::fmt::Debug;
 use std::hash::{BuildHasher, Hash};
+use std::iter::FusedIterator;
 use std::{alloc, fmt, ptr};
 
 use super::prime_table::PRIME_TABLE;
@@ -287,6 +288,7 @@ pub struct IndexValueIter<'a, 'b, K, V, S> {
     key: &'b K,
     pos: usize,
 }
+impl<'a, 'b, K: PartialEq, V, S> FusedIterator for IndexValueIter<'a, 'b, K, V, S> {}
 
 impl<'a, 'b, K: PartialEq, V, S> Iterator for IndexValueIter<'a, 'b, K, V, S> {
     type Item = &'a V;
@@ -309,6 +311,8 @@ pub struct HashIndexIter<'a, K, V, S> {
     map: &'a HashIndex<K, V, S>,
     pos: usize,
 }
+
+impl<'a, K, V, S> FusedIterator for HashIndexIter<'a, K, V, S> {}
 
 impl<'a, K, V, S> Iterator for HashIndexIter<'a, K, V, S> {
     type Item = (&'a K, &'a V);
