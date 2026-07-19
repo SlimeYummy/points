@@ -8,7 +8,7 @@ use crate::utils::{XResult, xres};
 //
 
 #[repr(C)]
-#[csharp_out]
+#[csharp_out(Value)]
 #[wasm_struct(8, 4)]
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct TimeRange {
