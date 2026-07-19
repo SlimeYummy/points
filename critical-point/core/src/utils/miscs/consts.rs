@@ -1,4 +1,4 @@
-use critical_point_macros::csharp_enum;
+use critical_point_macros::{csharp_enum, wasm_enum};
 use enum_iterator::{Sequence, cardinality};
 use std::mem;
 
@@ -103,6 +103,21 @@ impl TryFrom<rkyv::primitive::ArchivedU16> for ActionType {
 }
 
 //
+// HitType
+//
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize)]
+pub enum HitType {
+    Attack = 1,
+    Health = 2,
+    Guard = 3,
+    Counter = 4,
+}
+
+rkyv_self!(HitType);
+
+//
 // AiTaskType
 //
 
@@ -114,7 +129,6 @@ pub enum AiTaskType {
     Patrol,
     MoveToCharacter,
     General,
-    Sequence,
 }
 
 rkyv_self!(AiTaskType);
@@ -158,16 +172,19 @@ impl TryFrom<rkyv::primitive::ArchivedU16> for AiTaskType {
 }
 
 //
-// HitType
+// AiIntention
 //
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize)]
-pub enum HitType {
-    Attack = 1,
-    Health = 2,
-    Guard = 3,
-    Counter = 4,
+#[csharp_enum]
+#[wasm_enum]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize)]
+pub enum AiIntention {
+    #[default]
+    Idle,
+    Move,
+    Attack,
+    SquareOff,
 }
 
-rkyv_self!(HitType);
+rkyv_self!(AiIntention);

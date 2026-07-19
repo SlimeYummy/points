@@ -96,13 +96,23 @@ impl Sub<u32> for NumID {
 #[wasm_impl]
 impl fmt::Debug for NumID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        if self.is_valid() {
+            write!(f, "{}", self.0)
+        }
+        else {
+            write!(f, "-1")
+        }
     }
 }
 
 #[wasm_impl]
 impl fmt::Display for NumID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        if self.is_valid() {
+            write!(f, "{}", self.0)
+        }
+        else {
+            write!(f, "-1")
+        }
     }
 }
