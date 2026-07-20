@@ -197,6 +197,39 @@ pub fn load_weapon_motion_meta(path: String, with_names: bool) -> XResult<Weapon
 #[repr(C)]
 #[csharp_out(Ref)]
 #[derive(Debug, Default, Clone)]
+pub struct ShapeKeyMeta {
+    pub version: u32,
+    pub count: u32,
+    pub names: Vec<String>,
+}
+
+#[cfg(feature = "debug-print")]
+impl Drop for ShapeKeyMeta {
+    fn drop(&mut self) {
+        log::debug!("ShapeKeyMeta::drop()");
+    }
+}
+
+pub fn load_shape_key_meta(path: String, with_names: bool) -> XResult<ShapeKeyMeta> {
+    use crate::animation::ShapeKey;
+    let shape_keys = ShapeKey::from_path(&path)?;
+
+    let mut meta = ShapeKeyMeta {
+        version: Track::<f32>::version(),
+        count: shape_keys.len() as u32,
+        names: Vec::new(),
+    };
+
+    if with_names {
+        meta.names = shape_keys.iter().map(|w| w.name().to_string()).collect();
+    }
+    Ok(meta)
+}
+
+
+#[repr(C)]
+#[csharp_out(Ref)]
+#[derive(Debug, Default, Clone)]
 pub struct HitMotionMeta {
     pub track_groups: Vec<HitTrackGroupMeta>,
 }
