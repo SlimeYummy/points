@@ -19,15 +19,15 @@ impl WeaponMotion {
     pub fn from_archive(archive: &mut Archive<impl Read>) -> XResult<WeaponMotion> {
         let mut tracks = Vec::with_capacity(2);
         loop {
-            let position = match Track::<Vec3>::from_archive(archive) {
+            let pos_track = match Track::<Vec3>::from_archive(archive) {
                 Ok(track) => track,
                 Err(OzzError::IO(ErrorKind::UnexpectedEof)) => break,
                 Err(err) => return Err(err.into()),
             };
-            let pos_name = Self::parse_name(position.name(), "Pos")?;
+            let pos_name = Self::parse_name(pos_track.name(), "Pos")?;
 
-            let rotation: Track<Quat> = Track::<Quat>::from_archive(archive)?;
-            let dir_name = Self::parse_name(rotation.name(), "Rot")?;
+            let rot_track: Track<Quat> = Track::<Quat>::from_archive(archive)?;
+            let dir_name = Self::parse_name(rot_track.name(), "Rot")?;
 
             if pos_name != dir_name {
                 return xres!(BadAsset; "name missmatch");
@@ -35,8 +35,8 @@ impl WeaponMotion {
 
             tracks.push(WeaponTrack {
                 name: sb!(pos_name),
-                position,
-                rotation,
+                pos_track,
+                rot_track,
             });
         }
         Ok(WeaponMotion { tracks })
@@ -104,8 +104,8 @@ impl Index<usize> for WeaponMotion {
 #[derive(Debug, Default)]
 pub struct WeaponTrack {
     name: Symbol,
-    position: Track<Vec3>,
-    rotation: Track<Quat>,
+    pos_track: Track<Vec3>,
+    rot_track: Track<Quat>,
 }
 
 impl WeaponTrack {
@@ -117,13 +117,13 @@ impl WeaponTrack {
     /// All croodinates are in model space
     pub fn sample(&self, ratio: f32) -> XResult<(Vec3A, Quat)> {
         let mut pos_job = TrackSamplingJobRef::<Vec3>::default();
-        pos_job.set_track(&self.position);
+        pos_job.set_track(&self.pos_track);
         pos_job.set_ratio(ratio);
         pos_job.run()?;
         let pos: Vec3A = pos_job.result().into();
 
         let mut dir_job = TrackSamplingJobRef::<Quat>::default();
-        dir_job.set_track(&self.rotation);
+        dir_job.set_track(&self.rot_track);
         dir_job.set_ratio(ratio);
         dir_job.run()?;
         let rot = dir_job.result();
@@ -132,7 +132,7 @@ impl WeaponTrack {
     }
 }
 
-pub fn sample_weapons_by_name_with_weight(
+pub fn sample_weapons_by_name_weight(
     weapon_motion: &WeaponMotion,
     ratio: f32,
     weight: f32,
@@ -187,11 +187,11 @@ mod tests {
     }
 
     #[test]
-    fn test_sample_weapons_by_name_with_weight() {
+    fn test_sample_weapons_by_name_weight() {
         let tracks = WeaponMotion::from_path(format!("{}/Girl/Attack_01A.wm-ozz", TEST_ASSET_PATH)).unwrap();
         let mut transform = Vec::new();
 
-        sample_weapons_by_name_with_weight(&tracks, 0.3, 0.5, &mut transform).unwrap();
+        sample_weapons_by_name_weight(&tracks, 0.3, 0.5, &mut transform).unwrap();
         assert_eq!(transform.len(), 1);
         assert_eq!(transform[0].name, "Axe");
         assert_eq!(transform[0].weight, 0.5);
@@ -199,7 +199,7 @@ mod tests {
         assert_eq!(transform[0].position, pos1 * 0.5);
         assert_eq!(transform[0].rotation, rot1 * 0.5);
 
-        sample_weapons_by_name_with_weight(&tracks, 0.6, 0.7, &mut transform).unwrap();
+        sample_weapons_by_name_weight(&tracks, 0.6, 0.7, &mut transform).unwrap();
         assert_eq!(transform.len(), 1);
         assert_eq!(transform[0].name, "Axe");
         assert_eq!(transform[0].weight, 1.2);

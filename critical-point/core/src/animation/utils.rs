@@ -24,15 +24,17 @@ pub struct AnimationFileMeta {
     pub files: Symbol,
     pub root_motion: bool,
     pub weapon_motion: bool,
+    pub shape_key: bool,
 }
 
 impl AnimationFileMeta {
     #[inline]
-    pub fn new(files: Symbol, root_motion: bool, weapon_motion: bool) -> Self {
+    pub fn new(files: Symbol, root_motion: bool, weapon_motion: bool, shape_key: bool) -> Self {
         Self {
             files,
             root_motion,
             weapon_motion,
+            shape_key,
         }
     }
 }
@@ -55,6 +57,26 @@ pub struct WeaponTransform {
     pub name: Symbol,
     pub position: Vec3A,
     pub rotation: Quat,
+    pub weight: f32,
+}
+
+#[repr(C)]
+#[csharp_out(Value)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+pub struct ShapeKeyValue {
+    pub name: Symbol,
+    pub value: f32,
     pub weight: f32,
 }
 

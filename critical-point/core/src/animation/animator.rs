@@ -10,7 +10,7 @@ use std::rc::Rc;
 use crate::animation::hit_motion::{HitMotion, HitMotionSampler};
 use crate::animation::rest_poses_to_model_transforms;
 use crate::animation::utils::{WeaponTransform, matrices_to_transforms};
-use crate::animation::weapon_motion::{WeaponMotion, normalize_weapons_by_weight, sample_weapons_by_name_with_weight};
+use crate::animation::weapon_motion::{WeaponMotion, normalize_weapons_by_weight, sample_weapons_by_name_weight};
 use crate::asset::AssetLoader;
 use crate::consts::{INVALID_ACTION_ID, INVALID_ANIMATION_ID};
 use crate::logic::{StateActionAnimation, StateActionAny};
@@ -296,11 +296,11 @@ impl ActionData {
         anim_state: &StateActionAnimation,
     ) -> XResult<(Rc<Animation>, Option<Rc<WeaponMotion>>, Option<Rc<HitMotion>>)> {
         let animation = loader.load_animation(anim_state.files)?;
-        let weapon_motion = match anim_state.weapon_motion {
+        let weapon_motion = match anim_state.weapon_motion() {
             true => Some(loader.load_weapon_motion(anim_state.files)?),
             false => None,
         };
-        let hit_motion = match anim_state.hit_motion {
+        let hit_motion = match anim_state.hit_motion() {
             true => Some(loader.load_hit_motion(anim_state.files)?),
             false => None,
         };
@@ -523,12 +523,7 @@ impl ActionData {
             ));
 
             if let Some(weapon_motion) = &sd.weapon_motion {
-                sample_weapons_by_name_with_weight(
-                    weapon_motion,
-                    sd.sampling_job.ratio(),
-                    sd.weight,
-                    weapon_transforms,
-                )?;
+                sample_weapons_by_name_weight(weapon_motion, sd.sampling_job.ratio(), sd.weight, weapon_transforms)?;
             }
         }
         Ok(())
