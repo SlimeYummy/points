@@ -1,9 +1,10 @@
 use rustc_hash::FxBuildHasher;
 use std::rc::Rc;
 
+use crate::instance::ai_routine::InstAiRoutine;
 use crate::instance::ai_task::{InstAiTaskAny, assemble_ai_task};
-use crate::template::{At, TmplAiBrain, TmplAiTaskSequence, TmplDatabase, TmplType};
-use crate::utils::{DtHashMap, DtHashSet, ShapeSphere, ShapeSphericalCone, TmplID, XResult, xresf};
+use crate::template::{At, TmplAiBrain, TmplAiRoutine, TmplDatabase, TmplType};
+use crate::utils::{DtHashMap, DtHashSet, ShapeSphere, ShapeSphericalCone, TmplID, TmplPrefix, XResult, xresf};
 
 #[derive(Debug)]
 pub struct InstAiBrain {
@@ -14,12 +15,13 @@ pub struct InstAiBrain {
     pub aggro_sphere: ShapeSphere,
     pub aggro_lost_time: f32,
     pub tasks: DtHashMap<TmplID, Rc<dyn InstAiTaskAny>>,
+    pub routines: DtHashMap<TmplID, Rc<InstAiRoutine>>,
     pub execute: bool,
 }
 
 impl InstAiBrain {
     pub(crate) fn new(db: &TmplDatabase, tmpl: At<TmplAiBrain>) -> XResult<Rc<InstAiBrain>> {
-        let tasks = Self::collect_tasks(db, tmpl.clone())?;
+        let (tasks, routines) = Self::collect_tasks_and_routines(db, tmpl.clone())?;
 
         Ok(Rc::new(InstAiBrain {
             tmpl_id: tmpl.id,
@@ -29,33 +31,45 @@ impl InstAiBrain {
             aggro_sphere: tmpl.aggro_sphere,
             aggro_lost_time: tmpl.aggro_lost_time.to_native(),
             tasks,
+            routines,
             execute: tmpl.execute,
         }))
     }
 
-    fn collect_tasks(db: &TmplDatabase, tmpl: At<TmplAiBrain>) -> XResult<DtHashMap<TmplID, Rc<dyn InstAiTaskAny>>> {
-        let mut task_ids = DtHashSet::with_capacity_and_hasher(tmpl.tasks.len() * 2, FxBuildHasher);
+    fn collect_tasks_and_routines(
+        db: &TmplDatabase,
+        tmpl: At<TmplAiBrain>,
+    ) -> XResult<(
+        DtHashMap<TmplID, Rc<dyn InstAiTaskAny>>,
+        DtHashMap<TmplID, Rc<InstAiRoutine>>,
+    )> {
+        let mut ids = DtHashSet::with_capacity_and_hasher(tmpl.tasks.len() * 2, FxBuildHasher);
         for &id in tmpl.tasks.iter() {
-            if !task_ids.insert(id) {
+            if !ids.insert(id) {
                 continue;
             }
 
             let task_tmpl = db.find(id)?;
-            if let Ok(sequence) = task_tmpl.cast::<TmplAiTaskSequence>() {
-                for &sub_id in sequence.tasks.iter() {
-                    if !task_ids.insert(sub_id) {
-                        continue;
-                    }
-                    debug_assert!(db.find(sub_id)?.typ() != TmplType::AiTaskSequence);
+            if let Ok(routine) = task_tmpl.cast::<TmplAiRoutine>() {
+                for &sub_id in routine.iter_tasks() {
+                    debug_assert!(db.find(sub_id)?.typ() != TmplType::AiRoutine);
+                    ids.insert(sub_id);
                 }
             }
         }
 
-        let mut tasks = DtHashMap::with_capacity_and_hasher(task_ids.len(), FxBuildHasher);
-        for id in task_ids {
-            tasks.insert(id, assemble_ai_task(db.find(id)?)?);
+        let mut tasks = DtHashMap::with_capacity_and_hasher(ids.len(), FxBuildHasher);
+        let mut routines = DtHashMap::with_capacity_and_hasher(ids.len(), FxBuildHasher);
+        for id in ids {
+            if id.prefix == TmplPrefix::AiRoutine {
+                let tmpl = db.find_as::<TmplAiRoutine>(id)?;
+                routines.insert(id, Rc::new(InstAiRoutine::new(tmpl)));
+            }
+            else {
+                tasks.insert(id, assemble_ai_task(db.find(id)?)?);
+            }
         }
-        Ok(tasks)
+        Ok((tasks, routines))
     }
 }
 
