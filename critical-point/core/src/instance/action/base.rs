@@ -68,6 +68,7 @@ pub struct InstAnimation {
     pub root_motion: bool,
     pub weapon_motion: bool,
     pub hit_motion: bool,
+    pub shape_key: bool,
 }
 
 impl InstAnimation {
@@ -81,6 +82,7 @@ impl InstAnimation {
             root_motion: archived.root_motion,
             weapon_motion: archived.weapon_motion,
             hit_motion: archived.hit_motion,
+            shape_key: archived.shape_key,
         }
     }
 
@@ -110,6 +112,7 @@ impl InstAnimation {
             files: self.files,
             root_motion: self.root_motion,
             weapon_motion: self.weapon_motion,
+            shape_key: self.shape_key,
         }
     }
 }

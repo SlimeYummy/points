@@ -758,10 +758,11 @@ mod tests {
         let mut inst = InstCharacter::default();
         InstCharacter::collect_npc_actions(&mut ctx, &param, &mut inst).unwrap();
 
-        assert_eq!(inst.actions.len(), 3);
+        assert_eq!(inst.actions.len(), 4);
         assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Idle^1A")));
         assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Walk^1A")));
         assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Hit1^1A")));
+        assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Attack^1A")));
 
         assert_eq!(inst.primary_keys.len(), 3);
         assert_eq!(
@@ -791,7 +792,7 @@ mod tests {
         };
         let inst = InstCharacter::new_npc(&mut ctx, &param).unwrap();
 
-        assert_eq!(inst.actions.len(), 3);
+        assert_eq!(inst.actions.len(), 4);
 
         assert_eq!(inst.primary.max_health, 1000.0);
         assert_eq!(inst.primary.max_posture, 160.0);

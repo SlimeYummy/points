@@ -1,5 +1,6 @@
 mod action;
 mod ai_brain;
+mod ai_routine;
 mod ai_task;
 mod base;
 mod character;
@@ -9,6 +10,7 @@ mod zone;
 
 pub use action::*;
 pub use ai_brain::*;
+pub use ai_routine::*;
 pub use ai_task::*;
 pub use base::*;
 pub use character::*;
