@@ -419,7 +419,7 @@ mod tests {
     use crate::logic::game::{HitCharacterEvent, StateGameInit, StateGameUpdate};
     use crate::logic::system::{StateIdentity, StateRandom};
     use crate::logic::zone::{StateZoneInit, StateZoneUpdate};
-    use crate::utils::{Castable, sb, smallvec};
+    use crate::utils::{Castable, TmplID, sb, smallvec};
     use anyhow::Result;
     use glam::Vec3A;
     use glam_ext::Vec2xz;
@@ -541,8 +541,8 @@ mod tests {
                 is_player: true,
                 skeleton_files: sb!("skeleton_file.ozz"),
                 animation_metas: vec![
-                    AnimationFileMeta::new(sb!("animation_file_1.ozz"), false, false),
-                    AnimationFileMeta::new(sb!("animation_file_2.ozz"), true, true),
+                    AnimationFileMeta::new(sb!("animation_file_1.ozz"), false, false, false),
+                    AnimationFileMeta::new(sb!("animation_file_2.ozz"), true, true, false),
                 ],
                 view_model: "model.vrm".to_string(),
                 init_position: Vec3A::new(1.0, 2.0, 3.0).into(),
@@ -560,8 +560,8 @@ mod tests {
         assert_eq!(state_player_new.is_player, true);
         assert_eq!(state_player_new.skeleton_files, "skeleton_file.ozz");
         assert_eq!(state_player_new.animation_metas, vec![
-            AnimationFileMeta::new(sb!("animation_file_1.ozz"), false, false),
-            AnimationFileMeta::new(sb!("animation_file_2.ozz"), true, true),
+            AnimationFileMeta::new(sb!("animation_file_1.ozz"), false, false, false),
+            AnimationFileMeta::new(sb!("animation_file_2.ozz"), true, true, false),
         ]);
         assert_eq!(state_player_new.view_model, "model.vrm");
 
@@ -573,6 +573,9 @@ mod tests {
                     derive_keeping: DeriveKeeping::default(),
                     action_changed: false,
                     animation_changed: true,
+                    current_routine: TmplID::INVALID,
+                    current_routine_exec: 0,
+                    target_chara: NumID::INVALID,
                 },
                 physics: StateCharaPhysics {
                     velocity: Vec3A::ONE.into(),
@@ -629,6 +632,9 @@ mod tests {
             derive_keeping: DeriveKeeping::default(),
             action_changed: false,
             animation_changed: true,
+            current_routine: TmplID::INVALID,
+            current_routine_exec: 0,
+            target_chara: NumID::INVALID,
         });
         assert_eq!(state_player_update.value, StateCharaValue::default());
         assert_eq!(state_player_update.actions.len(), 0);
