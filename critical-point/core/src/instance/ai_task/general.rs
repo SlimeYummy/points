@@ -1,14 +1,13 @@
 use crate::instance::ai_task::base::{InstAiTaskAny, InstAiTaskBase};
 use crate::template::{At, TmplAiTaskGeneral};
-use crate::utils::{AiTaskType, SmallVec, TmplID, extend};
+use crate::utils::{AiIntention, AiTaskType, SmallVec, TmplID, extend};
 
 #[repr(C)]
 #[derive(Debug)]
 pub struct InstAiTaskGeneral {
     pub _base: InstAiTaskBase,
-    pub character_npc: TmplID,
-    pub enter_level: u16,
-    pub keep_level: u16,
+    pub intention: AiIntention,
+    pub next_intention: AiIntention,
     pub actions: SmallVec<[TmplID; 4]>,
 }
 
@@ -32,9 +31,8 @@ impl InstAiTaskGeneral {
     pub(crate) fn new(tmpl: At<TmplAiTaskGeneral>) -> InstAiTaskGeneral {
         InstAiTaskGeneral {
             _base: InstAiTaskBase { tmpl_id: tmpl.id },
-            character_npc: tmpl.character_npc,
-            enter_level: tmpl.enter_level.to_native(),
-            keep_level: tmpl.keep_level.to_native(),
+            intention: tmpl.intention,
+            next_intention: tmpl.next_intention,
             actions: tmpl.actions.iter().map(|id| (*id).into()).collect(),
         }
     }
@@ -44,7 +42,7 @@ impl InstAiTaskGeneral {
 mod tests {
     use super::*;
     use crate::template::TmplDatabase;
-    use crate::utils::{LEVEL_ATTACK, id};
+    use crate::utils::id;
 
     #[test]
     fn test_new_ai_task_general() {
@@ -55,9 +53,8 @@ mod tests {
         let inst = InstAiTaskGeneral::new(tmpl);
 
         assert_eq!(inst.tmpl_id, id!("AiTask.InstanceNpc.General^1"));
-        assert_eq!(inst.character_npc, id!("CharacterNpc.InstanceNpc^1"));
-        assert_eq!(inst.enter_level, LEVEL_ATTACK);
-        assert_eq!(inst.keep_level, LEVEL_ATTACK);
+        assert_eq!(inst.intention, AiIntention::Attack);
+        assert_eq!(inst.next_intention, AiIntention::SquareOff);
         assert_eq!(inst.actions.len(), 2);
         assert_eq!(inst.actions[0], id!("Action.InstanceNpc.Idle^1A"));
         assert_eq!(inst.actions[1], id!("Action.InstanceNpc.Walk^1A"));

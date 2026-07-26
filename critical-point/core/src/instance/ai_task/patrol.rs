@@ -1,6 +1,6 @@
 use crate::instance::ai_task::base::{InstAiTaskAny, InstAiTaskBase};
 use crate::template::{At, TmplAiTaskPatrol, TmplAiTaskPatrolStep};
-use crate::utils::{AiTaskType, TmplID, extend};
+use crate::utils::{AiIntention, AiTaskType, TmplID, extend};
 
 pub type InstAiTaskPatrolStep = TmplAiTaskPatrolStep;
 
@@ -8,9 +8,12 @@ pub type InstAiTaskPatrolStep = TmplAiTaskPatrolStep;
 #[derive(Debug)]
 pub struct InstAiTaskPatrol {
     pub _base: InstAiTaskBase,
+    pub intention: AiIntention,
+    pub next_intention: AiIntention,
     pub action_idle: TmplID,
     pub action_move: TmplID,
     pub route: Vec<InstAiTaskPatrolStep>,
+    pub target_exit: bool,
 }
 
 extend!(InstAiTaskPatrol, InstAiTaskBase);
@@ -31,9 +34,12 @@ impl InstAiTaskPatrol {
     pub(crate) fn new(tmpl: At<TmplAiTaskPatrol>) -> InstAiTaskPatrol {
         InstAiTaskPatrol {
             _base: InstAiTaskBase { tmpl_id: tmpl.id },
+            intention: tmpl.intention,
+            next_intention: tmpl.next_intention,
             action_idle: tmpl.action_idle,
             action_move: tmpl.action_move,
             route: tmpl.route.iter().map(InstAiTaskPatrolStep::from_rkyv).collect(),
+            target_exit: tmpl.target_exit,
         }
     }
 
@@ -65,6 +71,8 @@ mod tests {
         let inst = InstAiTaskPatrol::new(tmpl);
 
         assert_eq!(inst.tmpl_id, id!("AiTask.InstanceNpc.Patrol^1"));
+        assert_eq!(inst.intention, AiIntention::Move);
+        assert_eq!(inst.next_intention, AiIntention::Idle);
         assert_eq!(inst.action_idle, id!("Action.InstanceNpc.Idle^1A"));
         assert_eq!(inst.action_move, id!("Action.InstanceNpc.Walk^1A"));
 
@@ -72,5 +80,6 @@ mod tests {
         assert_eq!(inst.route[0], InstAiTaskPatrolStep::Move(Vec3A::new(-3.0, 0.0, 0.0)));
         assert_eq!(inst.route[1], InstAiTaskPatrolStep::Idle(2.5));
         assert_eq!(inst.route[2], InstAiTaskPatrolStep::Move(Vec3A::new(0.0, 0.0, 3.0)));
+        assert_eq!(inst.target_exit, false);
     }
 }
