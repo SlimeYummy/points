@@ -13,7 +13,7 @@ use crate::logic::action::base::{
 };
 use crate::logic::action::root_motion::{LogicRootMotion, StateRootMotion};
 use crate::logic::action::{ActionStartArgs, DeriveKeeping};
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::ok_or;
 use crate::utils::{
     ActionType, Castable, CustomEvent, LEVEL_IDLE, TimeRange, XResult, ease_in_out_quad, extend, lerp_with,
@@ -54,7 +54,7 @@ pub(crate) struct LogicActionGeneral {
 extend!(LogicActionGeneral, LogicActionBase);
 
 impl LogicActionGeneral {
-    pub fn new(ctx: &mut ContextUpdate, inst_act: Rc<InstActionGeneral>) -> XResult<LogicActionGeneral> {
+    pub fn new(ctx: &mut ContextUpdateEx, inst_act: Rc<InstActionGeneral>) -> XResult<LogicActionGeneral> {
         Ok(LogicActionGeneral {
             _base: LogicActionBase {
                 keep_level: *inst_act.keep_levels.find_value(0.0).unwrap_or(&LEVEL_IDLE),
@@ -100,7 +100,7 @@ unsafe impl LogicActionAny for LogicActionGeneral {
 
     fn start(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         ctxa: &mut ContextAction,
         args: &ActionStartArgs,
     ) -> XResult<ActionStartReturn> {
@@ -130,7 +130,7 @@ unsafe impl LogicActionAny for LogicActionGeneral {
         Ok(ret)
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
 
         let prev_time = self.current_time;
@@ -174,14 +174,14 @@ unsafe impl LogicActionAny for LogicActionGeneral {
             if self.inst.keep_levels.end_time() > self.current_time {
                 println!(
                     "----- {} {} {}",
-                    ctx.time,
+                    ctx.time.time,
                     self.current_time,
                     (self.inst.keep_levels.end_time() - self.current_time)
                 );
                 ret.derive_keeping = DeriveKeeping {
                     action_id: self.tmpl_id(),
                     keep_level: *self.inst.keep_levels.end_value().unwrap_or(&LEVEL_IDLE),
-                    end_time: ctx.time + (self.inst.keep_levels.end_time() - self.current_time),
+                    end_time: ctx.time.time + (self.inst.keep_levels.end_time() - self.current_time),
                 }
             }
         }
@@ -334,7 +334,7 @@ mod tests {
         raw_state.poise_level = 2;
         raw_state
             .animations
-            .push(StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, 0.5, 0.5));
+            .push(StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, false, 0.5, 0.5));
 
         let state = test_state_action_rkyv(raw_state, ActionType::General).unwrap();
         let state = state.cast::<StateActionGeneral>().unwrap();
@@ -349,7 +349,7 @@ mod tests {
         assert_eq!(state.animations.len(), 1);
         assert_eq!(
             state.animations[0],
-            StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, 0.5, 0.5)
+            StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, false, 0.5, 0.5)
         );
         assert_eq!(state.current_time, 4.0);
         assert_eq!(state.root_motion, StateRootMotion::default());
@@ -389,7 +389,7 @@ mod tests {
 
         logic_gen.start(&mut ctx, &mut ctxa, &sargs).unwrap();
         for ft in FrameTicker::new(1..s2f(4.0) + 1) {
-            ctx.time = ft.time;
+            ctx.time_mut().time = ft.time;
             let ret = logic_gen.update(&mut ctx, &mut ctxa).unwrap();
             if !ft.last {
                 assert!(logic_gen.is_running());

@@ -11,7 +11,7 @@ use crate::logic::action::base::{
     StateActionAny, StateActionBase, impl_state_action,
 };
 use crate::logic::action::root_motion::{LogicRootMotion, StateRootMotion};
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::utils::{
     ActionType, Castable, CustomEvent, F32Range, LEVEL_IDLE, TimeRange, XResult, ease_in_out_quad, ease_in_quad,
     extend, lerp, lerp_trapezoid_with, lerp_with, ok_or, quat_from_dir_xz, strict_lt, xresf,
@@ -61,7 +61,7 @@ pub(crate) struct LogicActionGeneralNpc {
 extend!(LogicActionGeneralNpc, LogicActionBase);
 
 impl LogicActionGeneralNpc {
-    pub fn new(ctx: &mut ContextUpdate, inst_act: Rc<InstActionGeneralNpc>) -> XResult<LogicActionGeneralNpc> {
+    pub fn new(ctx: &mut ContextUpdateEx, inst_act: Rc<InstActionGeneralNpc>) -> XResult<LogicActionGeneralNpc> {
         Ok(LogicActionGeneralNpc {
             _base: LogicActionBase {
                 keep_level: *inst_act.keep_levels.find_value(0.0).unwrap_or(&LEVEL_IDLE),
@@ -118,7 +118,7 @@ unsafe impl LogicActionAny for LogicActionGeneralNpc {
 
     fn start(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         ctxa: &mut ContextAction,
         args: &ActionStartArgs,
     ) -> XResult<ActionStartReturn> {
@@ -147,7 +147,7 @@ unsafe impl LogicActionAny for LogicActionGeneralNpc {
         Ok(ret)
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
 
         let prev_time = self.current_time;
@@ -224,7 +224,7 @@ unsafe impl LogicActionAny for LogicActionGeneralNpc {
 }
 
 impl LogicActionGeneralNpc {
-    fn handle_ai_movement(&mut self, _ctx: &mut ContextUpdate, ctxa: &ContextAction, prev_time: f32) -> XResult<()> {
+    fn handle_ai_movement(&mut self, _ctx: &mut ContextUpdateEx, ctxa: &ContextAction, prev_time: f32) -> XResult<()> {
         let ai_thinking = match ctxa.ai_thinking {
             Some(ai_thinking) => ai_thinking,
             None => return Ok(()),

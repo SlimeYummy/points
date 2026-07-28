@@ -23,11 +23,11 @@ pub use root_motion::*;
 use std::rc::Rc;
 
 use crate::instance::InstActionAny;
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::utils::{ActionType, Castable, XResult, xres};
 
 pub(crate) fn new_logic_action(
-    ctx: &mut ContextUpdate,
+    ctx: &mut ContextUpdateEx,
     inst_act: Rc<dyn InstActionAny + 'static>,
 ) -> XResult<Box<dyn LogicActionAny + 'static>> {
     use ActionType::*;
@@ -68,7 +68,7 @@ pub(crate) fn new_logic_action(
 
 pub(crate) fn try_reuse_logic_action(
     logic_act: &mut Box<dyn LogicActionAny>,
-    ctx: &mut ContextUpdate,
+    ctx: &mut ContextUpdateEx,
     inst_act: Rc<dyn InstActionAny>,
 ) -> XResult<bool> {
     use ActionType::*;

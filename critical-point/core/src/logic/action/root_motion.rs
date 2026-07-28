@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use crate::animation::{RootMotion, RootTrackName};
 use crate::instance::InstAnimation;
-use crate::logic::ContextUpdate;
+use crate::logic::ContextUpdateEx;
 use crate::utils::{XResult, xresf};
 
 //
@@ -49,7 +49,7 @@ pub(crate) struct LogicRootMotion {
 
 #[allow(dead_code)]
 impl LogicRootMotion {
-    pub fn new(ctx: &mut ContextUpdate, inst_anim: &InstAnimation, start_ratio: f32) -> XResult<LogicRootMotion> {
+    pub fn new(ctx: &mut ContextUpdateEx, inst_anim: &InstAnimation, start_ratio: f32) -> XResult<LogicRootMotion> {
         let root_motion = ctx.asset.load_root_motion(inst_anim.files)?;
         let mut zelf = LogicRootMotion {
             root_motion,
@@ -182,7 +182,7 @@ pub(crate) struct LogicMultiRootMotion {
 impl LogicMultiRootMotion {
     #[inline]
     pub fn new<'t, I: Iterator<Item = &'t InstAnimation>>(
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         inst_anims: I,
     ) -> XResult<LogicMultiRootMotion> {
         let size_hint = inst_anims.size_hint().0;
@@ -190,7 +190,7 @@ impl LogicMultiRootMotion {
     }
 
     pub fn new_with_capacity<'t, I: Iterator<Item = &'t InstAnimation>>(
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         inst_anims: I,
         capacity: usize,
     ) -> XResult<LogicMultiRootMotion> {
