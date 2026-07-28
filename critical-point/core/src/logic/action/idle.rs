@@ -7,7 +7,7 @@ use crate::logic::action::base::{
     ActionStartArgs, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
     StateActionAnimation, StateActionAny, StateActionBase, impl_state_action,
 };
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::utils::{ActionType, Castable, XResult, extend, loose_ge, ratio_saturating, ratio_warpping, xresf};
 
 #[csharp_enum]
@@ -65,7 +65,7 @@ pub(crate) struct LogicActionIdle {
 extend!(LogicActionIdle, LogicActionBase);
 
 impl LogicActionIdle {
-    pub fn new(ctx: &mut ContextUpdate, inst_act: Rc<InstActionIdle>) -> XResult<LogicActionIdle> {
+    pub fn new(ctx: &mut ContextUpdateEx, inst_act: Rc<InstActionIdle>) -> XResult<LogicActionIdle> {
         Ok(LogicActionIdle {
             _base: LogicActionBase {
                 keep_level: inst_act.keep_level,
@@ -106,7 +106,7 @@ unsafe impl LogicActionAny for LogicActionIdle {
 
     fn start(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         ctxa: &mut ContextAction,
         args: &ActionStartArgs,
     ) -> XResult<ActionStartReturn> {
@@ -125,7 +125,7 @@ unsafe impl LogicActionAny for LogicActionIdle {
         Ok(ActionStartReturn::new())
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
 
         let anim_idle = &self.inst.anim_idle;
@@ -298,7 +298,7 @@ mod tests {
         raw_state.poise_level = 2;
         raw_state
             .animations
-            .push(StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, 0.5, 0.5));
+            .push(StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, false, 0.5, 0.5));
 
         let state = test_state_action_rkyv(raw_state, ActionType::Idle).unwrap();
         let state = state.cast::<StateActionIdle>().unwrap();
@@ -313,7 +313,7 @@ mod tests {
         assert_eq!(state.animations.len(), 1);
         assert_eq!(
             state.animations[0],
-            StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, 0.5, 0.5)
+            StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, false, 0.5, 0.5)
         );
         assert_eq!(state.mode, ActionIdleMode::IdleToReady);
         assert_eq!(state.idle_time, 10.0);

@@ -7,7 +7,7 @@ use crate::logic::action::base::{
     ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase, StateActionAny, StateActionBase,
     impl_state_action,
 };
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::utils::{ActionType, XResult, extend};
 
 #[repr(C)]
@@ -39,7 +39,7 @@ pub struct LogicActionEmpty {
 extend!(LogicActionEmpty, LogicActionBase);
 
 impl LogicActionEmpty {
-    pub fn new(ctx: &mut ContextUpdate, inst: Rc<InstActionEmpty>) -> LogicActionEmpty {
+    pub fn new(ctx: &mut ContextUpdateEx, inst: Rc<InstActionEmpty>) -> LogicActionEmpty {
         LogicActionEmpty {
             _base: LogicActionBase::new(ctx.identity.gen_action_id(), inst),
         }
@@ -68,7 +68,7 @@ unsafe impl LogicActionAny for LogicActionEmpty {
         Ok(())
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
         Ok(ActionUpdateReturn::new())
     }

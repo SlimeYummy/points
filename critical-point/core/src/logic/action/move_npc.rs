@@ -13,7 +13,7 @@ use crate::logic::action::base::{
     StateActionAnimation, StateActionAny, StateActionBase, impl_state_action,
 };
 use crate::logic::action::root_motion::{LogicMultiRootMotion, StateMultiRootMotion};
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::utils::{
     ActionType, Castable, LEVEL_MOVE, XResult, extend, ifelse, loose_ge, loose_le, s2ff_round, xres, xresf,
 };
@@ -88,7 +88,7 @@ pub(crate) struct LogicActionMoveNpc {
 extend!(LogicActionMoveNpc, LogicActionBase);
 
 impl LogicActionMoveNpc {
-    pub fn new(ctx: &mut ContextUpdate, inst_act: Rc<InstActionMoveNpc>) -> XResult<LogicActionMoveNpc> {
+    pub fn new(ctx: &mut ContextUpdateEx, inst_act: Rc<InstActionMoveNpc>) -> XResult<LogicActionMoveNpc> {
         let root_motion =
             LogicMultiRootMotion::new_with_capacity(ctx, inst_act.animations(), inst_act.animations_count())?;
 
@@ -165,7 +165,7 @@ unsafe impl LogicActionAny for LogicActionMoveNpc {
 
     fn start(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         ctxa: &mut ContextAction,
         args: &ActionStartArgs,
     ) -> XResult<ActionStartReturn> {
@@ -173,7 +173,7 @@ unsafe impl LogicActionAny for LogicActionMoveNpc {
         self.prepare_start(ctxa)
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
 
         let res = match self.mode {

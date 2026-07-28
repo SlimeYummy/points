@@ -16,7 +16,7 @@ use crate::logic::action::base::{
     StateActionAnimation, StateActionAny, StateActionBase, impl_state_action,
 };
 use crate::logic::action::root_motion::{LogicMultiRootMotion, StateMultiRootMotion};
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::utils::{
     ActionType, Castable, XResult, calc_fade_in, extend, ifelse, lerp, loose_ge, loose_le, ok_or, ratio_warpping,
     s2ff_round, strict_gt, xres, xresf,
@@ -103,7 +103,7 @@ pub(crate) struct LogicActionMove {
 extend!(LogicActionMove, LogicActionBase);
 
 impl LogicActionMove {
-    pub fn new(ctx: &mut ContextUpdate, inst_act: Rc<InstActionMove>) -> XResult<LogicActionMove> {
+    pub fn new(ctx: &mut ContextUpdateEx, inst_act: Rc<InstActionMove>) -> XResult<LogicActionMove> {
         let root_motion =
             LogicMultiRootMotion::new_with_capacity(ctx, inst_act.animations(), inst_act.animations_count())?;
 
@@ -200,7 +200,7 @@ unsafe impl LogicActionAny for LogicActionMove {
 
     fn start(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         ctxa: &mut ContextAction,
         args: &ActionStartArgs,
     ) -> XResult<ActionStartReturn> {
@@ -233,7 +233,7 @@ unsafe impl LogicActionAny for LogicActionMove {
         Ok(ret)
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
 
         let world_move = match &self.player_inputs {
@@ -286,12 +286,12 @@ unsafe impl LogicActionAny for LogicActionMove {
         Ok(ret)
     }
 
-    fn fade_start(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<bool> {
+    fn fade_start(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<bool> {
         self._base.fade_start(ctx, ctxa)?;
         Ok(self.mode == ActionMoveMode::Move)
     }
 
-    fn fade_update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<()> {
+    fn fade_update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<()> {
         self._base.fade_update(ctx, ctxa)?;
         self.fade_update_impl(ctxa)
     }
@@ -775,7 +775,7 @@ impl LogicActionMove {
 //         raw_state.last_frame = 99;
 //         raw_state.keep_level = 1;
 //         raw_state.poise_level = 2;
-//         raw_state.animations[0] = StateActionAnimation::new(sb!("move"), 1, 0.5, 0.5);
+//         raw_state.animations[0] = StateActionAnimation::new(sb!("move"), 1, false, false, false, 0.5, 0.5);
 
 //         let state = test_state_action_rkyv(raw_state, ActionType::Move, TmplType::ActionMove).unwrap();
 //         let state = state.cast::<StateActionMove>().unwrap();
@@ -787,7 +787,7 @@ impl LogicActionMove {
 //         assert_eq!(state.last_frame, 99);
 //         assert_eq!(state.keep_level, 1);
 //         assert_eq!(state.poise_level, 2);
-//         assert_eq!(state.animations[0], StateActionAnimation::new(sb!("move"), 1, 0.5, 0.5));
+//         assert_eq!(state.animations[0], StateActionAnimation::new(sb!("move"), 1, false, false, false, 0.5, 0.5));
 //         assert_eq!(state.animations[1], StateActionAnimation::default());
 //         assert_eq!(state.animations[2], StateActionAnimation::default());
 //         assert_eq!(state.animations[3], StateActionAnimation::default());

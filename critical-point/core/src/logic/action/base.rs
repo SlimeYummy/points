@@ -12,13 +12,21 @@ use crate::consts::{INVALID_ACTION_ID, MAX_ACTION_ANIMATION, SPF};
 use crate::instance::{InstActionAny, InstAnimation, InstCharacter};
 use crate::logic::ai_task::AiBrainThinking;
 use crate::logic::character::LogicCharaPhysics;
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::utils::{
     ActionType, ArrayVec, CustomEvent, NumID, Symbol, TmplID, VirtualKey, XResult, interface, rkyv_self, xres,
 };
 
+//
+// StateActionAnimation
+//
+
+const SAA_FLAG_WEAPON_MOTION: u8 = 0x1;
+const SAA_FLAG_HIT_MOTION: u8 = 0x2;
+const SAA_FLAG_SHAPE_KEY: u8 = 0x4;
+
 #[repr(C)]
-#[csharp_out]
+#[csharp_out(Value, Partial)]
 #[derive(
     Debug,
     Clone,
@@ -34,8 +42,7 @@ use crate::utils::{
 pub struct StateActionAnimation {
     pub files: Symbol,
     pub animation_id: u16,
-    pub weapon_motion: bool,
-    pub hit_motion: bool,
+    pub flags: u8,
     pub ratio: f32,
     pub weight: f32,
 }
@@ -46,8 +53,7 @@ impl Default for StateActionAnimation {
         Self {
             files: Symbol::default(),
             animation_id: u16::MAX,
-            weapon_motion: false,
-            hit_motion: false,
+            flags: 0,
             ratio: 0.0,
             weight: 1.0,
         }
@@ -61,14 +67,24 @@ impl StateActionAnimation {
         animation_id: u16,
         weapon_motion: bool,
         hit_motion: bool,
+        shape_key: bool,
         ratio: f32,
         weight: f32,
     ) -> Self {
+        let mut flags = 0;
+        if weapon_motion {
+            flags |= SAA_FLAG_WEAPON_MOTION;
+        }
+        if hit_motion {
+            flags |= SAA_FLAG_HIT_MOTION;
+        }
+        if shape_key {
+            flags |= SAA_FLAG_SHAPE_KEY;
+        }
         StateActionAnimation {
             files,
             animation_id,
-            weapon_motion,
-            hit_motion,
+            flags,
             ratio,
             weight,
         }
@@ -79,8 +95,7 @@ impl StateActionAnimation {
         StateActionAnimation {
             files,
             animation_id,
-            weapon_motion: false,
-            hit_motion: false,
+            flags: 0,
             ratio,
             weight,
         }
@@ -88,11 +103,20 @@ impl StateActionAnimation {
 
     #[inline]
     pub fn new_with_anim(inst: &InstAnimation, ratio: f32, weight: f32) -> Self {
+        let mut flags = 0;
+        if inst.weapon_motion {
+            flags |= SAA_FLAG_WEAPON_MOTION;
+        }
+        if inst.hit_motion {
+            flags |= SAA_FLAG_HIT_MOTION;
+        }
+        if inst.shape_key {
+            flags |= SAA_FLAG_SHAPE_KEY;
+        }
         StateActionAnimation {
             files: inst.files,
             animation_id: inst.local_id,
-            weapon_motion: inst.weapon_motion,
-            hit_motion: inst.hit_motion,
+            flags,
             ratio,
             weight,
         }
@@ -101,6 +125,51 @@ impl StateActionAnimation {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.files.is_empty()
+    }
+
+    #[inline]
+    pub fn weapon_motion(&self) -> bool {
+        self.flags & SAA_FLAG_WEAPON_MOTION != 0
+    }
+
+    #[inline]
+    pub fn set_weapon_motion(&mut self, enabled: bool) {
+        if enabled {
+            self.flags |= SAA_FLAG_WEAPON_MOTION;
+        }
+        else {
+            self.flags &= !SAA_FLAG_WEAPON_MOTION;
+        }
+    }
+
+    #[inline]
+    pub fn hit_motion(&self) -> bool {
+        self.flags & SAA_FLAG_HIT_MOTION != 0
+    }
+
+    #[inline]
+    pub fn set_hit_motion(&mut self, enabled: bool) {
+        if enabled {
+            self.flags |= SAA_FLAG_HIT_MOTION;
+        }
+        else {
+            self.flags &= !SAA_FLAG_HIT_MOTION;
+        }
+    }
+
+    #[inline]
+    pub fn shape_key(&self) -> bool {
+        self.flags & SAA_FLAG_SHAPE_KEY != 0
+    }
+
+    #[inline]
+    pub fn set_shape_key(&mut self, enabled: bool) {
+        if enabled {
+            self.flags |= SAA_FLAG_SHAPE_KEY;
+        }
+        else {
+            self.flags &= !SAA_FLAG_SHAPE_KEY;
+        }
     }
 }
 
@@ -137,7 +206,7 @@ interface!(StateActionAny, StateActionBase);
 #[cfg(feature = "debug-print")]
 impl Drop for StateActionBase {
     fn drop(&mut self) {
-        log::debug!("StateActionBase::drop() id={} tmpl_id={}", self.id, self.tmpl_id);
+        log::debug!("StateActionBase::drop() id={} tmpl={}", self.id, self.tmpl_id);
     }
 }
 
@@ -453,7 +522,7 @@ pub unsafe trait LogicActionAny: Debug + Any {
 
     fn start(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         ctxa: &mut ContextAction,
         args: &ActionStartArgs,
     ) -> XResult<ActionStartReturn> {
@@ -463,28 +532,28 @@ pub unsafe trait LogicActionAny: Debug + Any {
         Ok(ActionStartReturn::new())
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn>;
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn>;
 
-    fn fade_start(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<bool> {
+    fn fade_start(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<bool> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.fade_start(ctx, ctxa)?;
         Ok(false)
     }
 
-    fn fade_update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<()> {
+    fn fade_update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<()> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.fade_update(ctx, ctxa)
     }
 
-    fn stop(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<()> {
+    fn stop(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<()> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.stop(ctx, ctxa)
     }
 
-    fn finalize(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<()> {
+    fn finalize(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<()> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicActionBase) };
         base.finalize(ctx, ctxa)
@@ -706,69 +775,61 @@ impl LogicActionBase {
         self.poise_level = state.poise_level;
     }
 
-    pub fn start(&mut self, ctx: &ContextUpdate, _ctxa: &mut ContextAction, args: &ActionStartArgs) -> XResult<()> {
+    pub fn start(&mut self, ctx: &ContextUpdateEx, _ctxa: &mut ContextAction, args: &ActionStartArgs) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Starting) {
             return xres!(Unexpected; "status != Starting");
         }
-        log::info!("LogicActionAny::start() id={} tmpl_id={}", self.id, self.inst.tmpl_id);
+        log::info!("LogicActionAny::start() id={} tmpl={}", self.id, self.inst.tmpl_id);
         self.status = LogicActionStatus::Running;
-        self.first_frame = ctx.frame;
+        self.first_frame = ctx.time.frame;
         if args.prev_action.is_none() {
             self.fade_in_weight = 1.0;
         }
         Ok(())
     }
 
-    pub fn update(&mut self, _ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
+    pub fn update(&mut self, _ctx: &ContextUpdateEx, _ctxa: &mut ContextAction) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Running) {
             return xres!(Unexpected; "status != Running");
         }
         Ok(())
     }
 
-    pub fn fade_start(&mut self, _ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
+    pub fn fade_start(&mut self, _ctx: &ContextUpdateEx, _ctxa: &mut ContextAction) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Running) {
             return xres!(Unexpected; "status != Running");
         }
-        log::info!(
-            "LogicActionAny::fade_start() id={} tmpl_id={}",
-            self.id,
-            self.inst.tmpl_id
-        );
+        log::info!("LogicActionAny::fade_start() id={} tmpl={}", self.id, self.inst.tmpl_id);
         self.status = LogicActionStatus::Fading;
         Ok(())
     }
 
-    pub fn fade_update(&mut self, _ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
+    pub fn fade_update(&mut self, _ctx: &ContextUpdateEx, _ctxa: &mut ContextAction) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Fading) {
             return xres!(Unexpected; "status != Fading");
         }
         Ok(())
     }
 
-    pub fn stop(&mut self, _ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
+    pub fn stop(&mut self, _ctx: &ContextUpdateEx, _ctxa: &mut ContextAction) -> XResult<()> {
         if unlikely(matches!(
             self.status,
             LogicActionStatus::Stopping | LogicActionStatus::Finalized
         )) {
             return xres!(Unexpected; "status != Starting/Running/Fading");
         }
-        log::info!("LogicActionAny::stop() id={} tmpl_id={}", self.id, self.inst.tmpl_id);
+        log::info!("LogicActionAny::stop() id={} tmpl={}", self.id, self.inst.tmpl_id);
         self.status = LogicActionStatus::Stopping;
         Ok(())
     }
 
-    pub fn finalize(&mut self, ctx: &ContextUpdate, _ctxa: &mut ContextAction) -> XResult<()> {
+    pub fn finalize(&mut self, ctx: &ContextUpdateEx, _ctxa: &mut ContextAction) -> XResult<()> {
         if unlikely(self.status != LogicActionStatus::Stopping) {
             return xres!(Unexpected; "status != Stopping");
         }
-        log::info!(
-            "LogicActionAny::finalize() id={} tmpl_id={}",
-            self.id,
-            self.inst.tmpl_id
-        );
+        log::info!("LogicActionAny::finalize() id={} tmpl={}", self.id, self.inst.tmpl_id);
         self.status = LogicActionStatus::Finalized;
-        self.last_frame = ctx.frame;
+        self.last_frame = ctx.time.frame;
         Ok(())
     }
 

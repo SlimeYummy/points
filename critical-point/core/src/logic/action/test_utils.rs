@@ -8,8 +8,9 @@ use crate::instance::{InstActionEmpty, InstCharacter};
 use crate::logic::LogicActionEmpty;
 use crate::logic::action::base::{ActionStartArgs, ContextAction, StateActionAny};
 use crate::logic::character::LogicCharaPhysics;
-use crate::logic::game::{ContextUpdate, LogicSystems};
-use crate::parameter::ParamPlayer;
+use crate::logic::game::{ContextUpdate, ContextUpdateEx, GameTime, LogicSystems};
+use crate::logic::zone::LogicZone;
+use crate::parameter::{ParamPlayer, ParamZone};
 use crate::template::TmplDatabase;
 use crate::utils::{ActionType, NumID, VirtualKey, XResult, id, ifelse};
 
@@ -30,6 +31,8 @@ pub(super) fn test_state_action_rkyv(
 
 pub(super) struct TestEnv {
     pub systems: LogicSystems,
+    pub zone: Box<LogicZone>,
+    pub time: GameTime,
     pub inst_chara: Rc<InstCharacter>,
     pub chara_phy: LogicCharaPhysics,
     pub inst_empty: Rc<InstActionEmpty>,
@@ -45,7 +48,13 @@ impl TestEnv {
         let mut systems = LogicSystems::new(db, TEST_ASSET_PATH, None)?;
         systems.input.init(1)?;
 
-        let mut ctx = ContextUpdate::new(&mut systems, Self::FRAME, 95);
+        let time_init = GameTime::new(Self::FRAME, 0);
+        let (zone, _) = LogicZone::new(&mut ContextUpdate::new(&mut systems, &time_init), &ParamZone {
+            zone: id!("Zone.Demo"),
+        })?;
+
+        let time = GameTime::new(Self::FRAME, 95);
+        let mut ctx = ContextUpdateEx::new(&mut systems, &time, &zone);
         let param_player = ParamPlayer {
             character: id!("Character.Instance^1"),
             style: id!("Style.Instance^1A"),
@@ -72,6 +81,8 @@ impl TestEnv {
 
         Ok(TestEnv {
             systems,
+            zone,
+            time,
             inst_chara,
             chara_phy,
             inst_empty,
@@ -79,12 +90,12 @@ impl TestEnv {
         })
     }
 
-    pub fn context_update(&mut self) -> ContextUpdate<'_> {
-        ContextUpdate::new(&mut self.systems, Self::FRAME, 95)
+    pub fn context_update(&mut self) -> ContextUpdateEx<'_> {
+        ContextUpdateEx::new(&mut self.systems, &self.time, &self.zone)
     }
 
-    pub fn contexts(&mut self, prev_action: bool) -> (ContextUpdate<'_>, ContextAction<'_>, ActionStartArgs<'_>) {
-        let ctx = ContextUpdate::new(&mut self.systems, 100, 95);
+    pub fn contexts(&mut self, prev_action: bool) -> (ContextUpdateEx<'_>, ContextAction<'_>, ActionStartArgs<'_>) {
+        let ctx = ContextUpdateEx::new(&mut self.systems, &self.time, &self.zone);
         let mut ctxa = ContextAction::new(Self::PLAYER_ID, self.inst_chara.clone(), &self.chara_phy, None);
         ctxa.set_time_normalized(1.0);
         let sargs = ActionStartArgs::new(

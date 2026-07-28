@@ -10,7 +10,7 @@ use crate::logic::action::base::{
     StateActionAnimation, StateActionAny, StateActionBase, impl_state_action,
 };
 use crate::logic::action::root_motion::{LogicMultiRootMotion, StateMultiRootMotion};
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::utils::{ActionType, Castable, XResult, extend, loose_ge, ratio_warpping, xresf};
 
 #[csharp_enum]
@@ -72,7 +72,7 @@ pub(crate) struct LogicActionHit {
 extend!(LogicActionHit, LogicActionBase);
 
 impl LogicActionHit {
-    pub fn new(ctx: &mut ContextUpdate, inst_act: Rc<InstActionHit>) -> XResult<LogicActionHit> {
+    pub fn new(ctx: &mut ContextUpdateEx, inst_act: Rc<InstActionHit>) -> XResult<LogicActionHit> {
         let root_motion =
             LogicMultiRootMotion::new_with_capacity(ctx, inst_act.animations(), inst_act.animations_count())?;
 
@@ -122,7 +122,7 @@ unsafe impl LogicActionAny for LogicActionHit {
 
     fn start(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         ctxa: &mut ContextAction,
         args: &ActionStartArgs,
     ) -> XResult<ActionStartReturn> {
@@ -147,7 +147,7 @@ unsafe impl LogicActionAny for LogicActionHit {
         Ok(ActionStartReturn::new())
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
         self.current_time += ctxa.time_step;
 
