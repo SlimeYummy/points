@@ -11,11 +11,10 @@ use std::sync::Arc;
 use crate::consts::SPF;
 use crate::instance::{InstActionMoveNpc, InstAiTaskMoveToCharacter, InstCharacter};
 use crate::logic::ai_task::base::{
-    AiBrainPurpose, AiTaskReturn, ContextAiTask, LogicAiTaskAny, LogicAiTaskBase, StateAiTaskAny, StateAiTaskBase,
-    impl_state_ai_task,
+    AiTaskReturn, ContextAiTask, LogicAiTaskAny, LogicAiTaskBase, StateAiTaskAny, StateAiTaskBase, impl_state_ai_task,
 };
 use crate::logic::character::LogicCharaPhysics;
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::loose_ge;
 use crate::utils::{AiTaskType, Castable, NumID, TmplID, XResult, extend, loose_le, square, xresf};
 
@@ -78,7 +77,7 @@ extend!(LogicAiTaskMoveToCharacter, LogicAiTaskBase);
 
 impl LogicAiTaskMoveToCharacter {
     pub fn new(
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         inst_task: Rc<InstAiTaskMoveToCharacter>,
         inst_chara: Rc<InstCharacter>,
     ) -> XResult<LogicAiTaskMoveToCharacter> {
@@ -132,21 +131,29 @@ unsafe impl LogicAiTaskAny for LogicAiTaskMoveToCharacter {
         Ok(())
     }
 
-    fn start(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn start(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         self._base.start(ctx, ctxt)?;
+        self.intention = self.inst.intention;
         self.try_enter_move(ctx, ctxt)
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         self._base.update(ctx, ctxt)?;
 
-        // Action externally changed, stop task.
+        // Action externally changed.
         let current_action = match ctxt.chara_ctrl.current_action() {
             Some(act) => act.inst.tmpl_id,
             None => TmplID::INVALID,
         };
         if self.current_action != current_action {
             self.stop(ctx, ctxt)?;
+            return Ok(AiTaskReturn::default());
+        }
+
+        // Handle target changed: if task configured to exit on target change, stop.
+        if self.inst.target_exit && ctxt.ai_thinking.target_changed {
+            self.stop(ctx, ctxt)?;
+            self.intention = self.inst.next_intention;
             return Ok(AiTaskReturn::default());
         }
 
@@ -178,13 +185,12 @@ impl LogicAiTaskMoveToCharacter {
         }
     }
 
-    fn try_enter_move(&mut self, _ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn try_enter_move(&mut self, _ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         self.target_chara = ctxt.chara_ctrl.ai_thinking().target_chara;
         self.current_action = self.inst_move.tmpl_id;
 
         let mut ret = AiTaskReturn::default();
         ret.next_action = Some(self.inst_move.clone());
-        ret.ai_purpose = AiBrainPurpose::ToCharacter;
 
         let Some(tgt_chara_pos) = ctxt.chara_ctrl.ai_thinking().target_chara_pos()
         else {
@@ -226,7 +232,7 @@ impl LogicAiTaskMoveToCharacter {
 
     /// Some() => keep current mode.
     /// None => switch mode.
-    fn update_move(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
+    fn update_move(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
         let ai_thinking = ctxt.chara_ctrl.ai_thinking();
 
         // No target or target changed.
@@ -271,18 +277,16 @@ impl LogicAiTaskMoveToCharacter {
         };
 
         let mut ret = AiTaskReturn::default();
-        ret.ai_purpose = AiBrainPurpose::ToCharacter;
         ret.ai_move_dst_pos = real_dst_pos;
         ret.ai_move_dir = self.calc_move_dir(ctxt.chara_phy.position(), ctxt.chara_phy.direction_xz());
         Ok(Some(ret))
     }
 
     #[inline]
-    fn enter_stop(&mut self, _ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn enter_stop(&mut self, _ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         self.mode = AiTaskMoveToCharacterMode::Stop;
 
         let mut ret = AiTaskReturn::default();
-        ret.ai_purpose = AiBrainPurpose::ToCharacter;
 
         // During stop stage, we want character to face target character.
         Self::fill_face_character(&mut ret, ctxt);
@@ -291,7 +295,7 @@ impl LogicAiTaskMoveToCharacter {
 
     /// Some() => keep current mode.
     /// None => switch mode.
-    fn update_stop(&mut self, _ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
+    fn update_stop(&mut self, _ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
         let is_inactive = match ctxt.chara_ctrl.current_action() {
             Some(act) => act.is_inactive(),
             None => true,
@@ -303,25 +307,25 @@ impl LogicAiTaskMoveToCharacter {
         }
 
         let mut ret = AiTaskReturn::default();
-        ret.ai_purpose = AiBrainPurpose::ToCharacter;
 
         // During stop stage, we want character to face target character.
         Self::fill_face_character(&mut ret, ctxt);
         Ok(Some(ret))
     }
 
-    fn enter_turn(&mut self, _ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn enter_turn(&mut self, _ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         self.mode = AiTaskMoveToCharacterMode::Turn;
 
         let mut ret = AiTaskReturn::default();
-        ret.ai_purpose = AiBrainPurpose::ToCharacter;
 
         // During turn stage, we want character to face target character.
         Self::fill_face_character(&mut ret, ctxt);
         Ok(ret)
     }
 
-    fn update_turn(&mut self, _ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
+    fn update_turn(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
+        self.stop(ctx, ctxt)?;
+        self.intention = self.inst.next_intention;
         Ok(None)
     }
 

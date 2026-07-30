@@ -7,10 +7,9 @@ use std::sync::Arc;
 
 use crate::instance::{InstActionIdle, InstActionMoveNpc, InstAiTaskPatrol, InstAiTaskPatrolStep, InstCharacter};
 use crate::logic::ai_task::base::{
-    AiBrainPurpose, AiTaskReturn, ContextAiTask, LogicAiTaskAny, LogicAiTaskBase, StateAiTaskAny, StateAiTaskBase,
-    impl_state_ai_task,
+    AiTaskReturn, ContextAiTask, LogicAiTaskAny, LogicAiTaskBase, StateAiTaskAny, StateAiTaskBase, impl_state_ai_task,
 };
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::utils::{AiTaskType, Castable, TmplID, XResult, extend, loose_le, strict_lt, xresf};
 
 const THRESHOLD_XZ_RATIO_MOVE: f32 = 0.25;
@@ -74,7 +73,7 @@ extend!(LogicAiTaskPatrol, LogicAiTaskBase);
 
 impl LogicAiTaskPatrol {
     pub fn new(
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         inst_task: Rc<InstAiTaskPatrol>,
         inst_chara: Rc<InstCharacter>,
     ) -> XResult<LogicAiTaskPatrol> {
@@ -132,22 +131,30 @@ unsafe impl LogicAiTaskAny for LogicAiTaskPatrol {
         Ok(())
     }
 
-    fn start(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn start(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         self._base.start(ctx, ctxt)?;
+        self.intention = self.inst.intention;
         self.step_idx = self.inst.route.len() as u32 - 1;
         self.enter_next(ctx, ctxt)
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         self._base.update(ctx, ctxt)?;
 
-        // Action externally changed, stop task.
+        // Action externally changed.
         let current_action = match ctxt.chara_ctrl.current_action() {
             Some(act) => act.inst.tmpl_id,
             None => TmplID::INVALID,
         };
         if self.current_action != current_action {
             self.stop(ctx, ctxt)?;
+            return Ok(AiTaskReturn::default());
+        }
+
+        // Handle target changed.
+        if self.inst.target_exit && ctxt.ai_thinking.target_changed {
+            self.stop(ctx, ctxt)?;
+            self.intention = self.inst.next_intention;
             return Ok(AiTaskReturn::default());
         }
 
@@ -176,7 +183,7 @@ impl LogicAiTaskPatrol {
 
     /// Some() => keep current mode.
     /// None => switch mode.
-    fn update_idle(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
+    fn update_idle(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
         let mut ret = AiTaskReturn::default();
 
         let duration = match self.inst.route[self.step_idx as usize] {
@@ -198,7 +205,7 @@ impl LogicAiTaskPatrol {
 
     /// Some() => keep current mode.
     /// None => switch mode.
-    fn update_move(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
+    fn update_move(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
         let mut ret = AiTaskReturn::default();
 
         let dst_pos = match self.inst.route[self.step_idx as usize] {
@@ -213,7 +220,6 @@ impl LogicAiTaskPatrol {
 
         let threshold_xz = self.guess_threshold_xz();
         if !Self::is_reached(ctxt.chara_phy.position(), real_dst_pos, threshold_xz) {
-            ret.ai_purpose = AiBrainPurpose::ToLocation;
             ret.ai_move_dst_pos = real_dst_pos;
             ret.ai_move_dir = self.calc_move_dir(ctxt.chara_phy.position());
             if self.current_action != self.inst_move.tmpl_id {
@@ -222,12 +228,11 @@ impl LogicAiTaskPatrol {
             Ok(Some(ret))
         }
         else {
-            println!("reached");
             Ok(None)
         }
     }
 
-    fn update_move_stop(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn update_move_stop(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         let mut ret = AiTaskReturn::default();
 
         let is_inactive = match ctxt.chara_ctrl.current_action() {
@@ -244,7 +249,7 @@ impl LogicAiTaskPatrol {
         Ok(ret)
     }
 
-    fn enter_next(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn enter_next(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         let mut ret = AiTaskReturn::default();
 
         for _ in 0..self.inst.route.len() {
@@ -263,7 +268,6 @@ impl LogicAiTaskPatrol {
                             self.current_action = self.inst_move.tmpl_id;
                             ret.next_action = Some(self.inst_move.clone());
                         }
-                        ret.ai_purpose = AiBrainPurpose::ToLocation;
                         ret.ai_move_dst_pos = point;
                         ret.ai_move_dir = self.calc_move_dir(ctxt.chara_phy.position());
                         return Ok(ret);
@@ -293,6 +297,7 @@ impl LogicAiTaskPatrol {
         }
 
         self.stop(ctx, ctxt)?;
+        self.intention = self.inst.next_intention;
         return Ok(AiTaskReturn::default());
     }
 
