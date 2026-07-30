@@ -10,9 +10,9 @@ use std::rc::Rc;
 use crate::consts::{INVALID_AI_TASK_ID, SPF};
 use crate::instance::{InstActionAny, InstAiTaskAny, InstCharacter};
 use crate::logic::character::{LogicCharaControl, LogicCharaPhysics};
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::logic::zone::LogicZone;
-use crate::utils::{AiTaskType, NumID, TmplID, XResult, interface, rkyv_self};
+use crate::utils::{AiIntention, AiTaskType, NumID, TmplID, XResult, interface, rkyv_self};
 
 //
 // StateAiTaskAny & StateAiTaskBase
@@ -32,6 +32,7 @@ pub struct StateAiTaskBase {
     pub first_frame: u32,
     pub last_frame: u32,
     pub current_action: TmplID,
+    pub intention: AiIntention,
 }
 
 interface!(StateAiTaskAny, StateAiTaskBase);
@@ -53,6 +54,7 @@ impl StateAiTaskBase {
             first_frame: 0,
             last_frame: 0,
             current_action: TmplID::INVALID,
+            intention: AiIntention::Idle,
         }
     }
 }
@@ -312,22 +314,22 @@ pub unsafe trait LogicAiTaskAny: Debug + Any {
     fn save(&self) -> Box<dyn StateAiTaskAny>;
     fn restore(&mut self, state: &(dyn StateAiTaskAny + 'static)) -> XResult<()>;
 
-    fn start(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn start(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicAiTaskBase) };
         base.start(ctx, ctxt)?;
         Ok(AiTaskReturn::default())
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn>;
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn>;
 
-    fn stop(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<()> {
+    fn stop(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<()> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicAiTaskBase) };
         base.stop(ctx, ctxt)
     }
 
-    fn finalize(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<()> {
+    fn finalize(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<()> {
         let (ptr, _) = (self as *mut Self).to_raw_parts();
         let base = unsafe { &mut *(ptr as *mut LogicAiTaskBase) };
         base.finalize(ctx, ctxt)
@@ -338,7 +340,9 @@ pub struct ContextAiTask<'a> {
     pub(crate) inst_chara: Rc<InstCharacter>,
     pub(crate) chara_ctrl: &'a LogicCharaControl,
     pub(crate) chara_phy: &'a LogicCharaPhysics,
+    pub(crate) ai_thinking: &'a AiBrainThinking,
     pub(crate) zone: &'a LogicZone,
+
     pub(crate) time_speed: f32,
     pub(crate) time_step: f32,
     pub(crate) frac_1_time_step: f32,
@@ -349,12 +353,14 @@ impl<'a> ContextAiTask<'a> {
         inst_chara: Rc<InstCharacter>,
         chara_ctrl: &'a LogicCharaControl,
         chara_phy: &'a LogicCharaPhysics,
+        ai_thinking: &'a AiBrainThinking,
         zone: &'a LogicZone,
     ) -> ContextAiTask<'a> {
         ContextAiTask {
             inst_chara,
             chara_ctrl,
             chara_phy,
+            ai_thinking,
             zone,
 
             time_speed: 1.0,
@@ -393,7 +399,6 @@ impl<'a> ContextAiTask<'a> {
 #[derive(Debug, Default)]
 pub struct AiTaskReturn {
     pub next_action: Option<Rc<dyn InstActionAny>>,
-    pub ai_purpose: AiBrainPurpose,
     pub ai_move_dst_pos: Vec3A,
     pub ai_move_dir: Vec2xz,
 }
@@ -418,6 +423,7 @@ pub struct LogicAiTaskBase {
     pub first_frame: u32,
     pub last_frame: u32,
     pub current_action: TmplID,
+    pub intention: AiIntention,
 }
 
 interface!(LogicAiTaskAny, LogicAiTaskBase);
@@ -431,6 +437,7 @@ impl LogicAiTaskBase {
             first_frame: 0,
             last_frame: u32::MAX,
             current_action: TmplID::INVALID,
+            intention: AiIntention::Idle,
         }
     }
 
@@ -443,6 +450,7 @@ impl LogicAiTaskBase {
             first_frame: self.first_frame,
             last_frame: self.last_frame,
             current_action: self.current_action,
+            intention: self.intention,
         }
     }
 
@@ -450,26 +458,31 @@ impl LogicAiTaskBase {
         self.status = state.status;
         self.first_frame = state.first_frame;
         self.last_frame = state.last_frame;
+        self.current_action = state.current_action;
+        self.intention = state.intention;
     }
 
-    pub fn start(&mut self, ctx: &ContextUpdate, _ctxt: &mut ContextAiTask) -> XResult<()> {
+    pub fn start(&mut self, ctx: &ContextUpdateEx, _ctxt: &mut ContextAiTask) -> XResult<()> {
+        log::info!("LogicAiTaskAny::start() id={} tmpl={}", self.id, self.inst.tmpl_id);
         self.status = LogicAiTaskStatus::Running;
-        self.first_frame = ctx.frame;
+        self.first_frame = ctx.time.frame;
         Ok(())
     }
 
-    pub fn update(&mut self, _ctx: &ContextUpdate, _ctxt: &mut ContextAiTask) -> XResult<()> {
+    pub fn update(&mut self, _ctx: &ContextUpdateEx, _ctxt: &mut ContextAiTask) -> XResult<()> {
         Ok(())
     }
 
-    pub fn stop(&mut self, _ctx: &ContextUpdate, _ctxt: &mut ContextAiTask) -> XResult<()> {
+    pub fn stop(&mut self, _ctx: &ContextUpdateEx, _ctxt: &mut ContextAiTask) -> XResult<()> {
+        log::info!("LogicAiTaskAny::stop() id={} tmpl={}", self.id, self.inst.tmpl_id);
         self.status = LogicAiTaskStatus::Stopping;
         Ok(())
     }
 
-    pub fn finalize(&mut self, ctx: &ContextUpdate, _ctxt: &mut ContextAiTask) -> XResult<()> {
+    pub fn finalize(&mut self, ctx: &ContextUpdateEx, _ctxt: &mut ContextAiTask) -> XResult<()> {
+        log::info!("LogicAiTaskAny::finalize() id={} tmpl={}", self.id, self.inst.tmpl_id);
         self.status = LogicAiTaskStatus::Finalized;
-        self.last_frame = ctx.frame;
+        self.last_frame = ctx.time.frame;
         Ok(())
     }
 
@@ -501,14 +514,14 @@ impl LogicAiTaskBase {
 #[repr(C)]
 #[wasm_struct(20, 4)]
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
-pub struct WsAiTask {
+pub struct WsAiDo {
     pub id: TmplID,
     pub weight: f32,
     pub priority: u32,
 }
 
 #[wasm_impl]
-impl WsAiTask {
+impl WsAiDo {
     #[inline]
     pub fn new(id: TmplID, weight: f32, priority: u32) -> Self {
         Self { id, weight, priority }
@@ -516,10 +529,10 @@ impl WsAiTask {
 }
 
 #[wasm_impl]
-impl From<TmplID> for WsAiTask {
+impl From<TmplID> for WsAiDo {
     #[inline]
-    fn from(id: TmplID) -> WsAiTask {
-        WsAiTask {
+    fn from(id: TmplID) -> WsAiDo {
+        WsAiDo {
             id,
             weight: 1.0,
             priority: 1,
@@ -528,10 +541,10 @@ impl From<TmplID> for WsAiTask {
 }
 
 #[wasm_impl]
-impl From<(TmplID, f32)> for WsAiTask {
+impl From<(TmplID, f32)> for WsAiDo {
     #[inline]
-    fn from(val: (TmplID, f32)) -> WsAiTask {
-        WsAiTask {
+    fn from(val: (TmplID, f32)) -> WsAiDo {
+        WsAiDo {
             id: val.0,
             weight: val.1,
             priority: 1,
@@ -540,10 +553,10 @@ impl From<(TmplID, f32)> for WsAiTask {
 }
 
 #[wasm_impl]
-impl From<(TmplID, f32, u32)> for WsAiTask {
+impl From<(TmplID, f32, u32)> for WsAiDo {
     #[inline]
-    fn from(val: (TmplID, f32, u32)) -> WsAiTask {
-        WsAiTask {
+    fn from(val: (TmplID, f32, u32)) -> WsAiDo {
+        WsAiDo {
             id: val.0,
             weight: val.1,
             priority: val.2,
@@ -555,19 +568,8 @@ impl From<(TmplID, f32, u32)> for WsAiTask {
 // Others
 //
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum AiBrainPurpose {
-    #[default]
-    None,
-    ToLocation,
-    ToCharacter,
-    Attack,
-}
-
 #[derive(Debug, Default, Clone)]
 pub(crate) struct AiBrainThinking {
-    pub(crate) purpose: AiBrainPurpose,
-
     /// Destination position in world space.
     pub(crate) move_dst_pos: Vec3A,
 
@@ -576,6 +578,8 @@ pub(crate) struct AiBrainThinking {
 
     /// Target character ID (possible NumID::INVALID).
     pub(crate) target_chara: NumID,
+
+    pub(crate) target_changed: bool,
 
     /// Target character's position, if target_chara != INVALID.
     /// Self position, if target_chara == INVALID.
@@ -588,7 +592,7 @@ pub(crate) struct AiBrainThinking {
 impl AiBrainThinking {
     #[inline]
     pub(crate) fn reset(&mut self) {
-        self.purpose = AiBrainPurpose::None;
+        self.target_changed = false;
         self.move_dst_pos = Vec3A::ZERO;
         self.move_dir = Vec2xz::ZERO;
         self.target_chara = NumID::INVALID;

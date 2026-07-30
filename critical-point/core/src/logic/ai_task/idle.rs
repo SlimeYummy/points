@@ -4,11 +4,10 @@ use std::rc::Rc;
 
 use crate::instance::{InstActionIdle, InstAiTaskIdle, InstCharacter};
 use crate::logic::ai_task::base::{
-    AiBrainPurpose, AiBrainThinking, AiTaskReturn, ContextAiTask, LogicAiTaskAny, LogicAiTaskBase, StateAiTaskAny,
-    StateAiTaskBase, impl_state_ai_task,
+    AiTaskReturn, ContextAiTask, LogicAiTaskAny, LogicAiTaskBase, StateAiTaskAny, StateAiTaskBase, impl_state_ai_task,
 };
-use crate::logic::game::ContextUpdate;
-use crate::utils::{AiTaskType, Castable, XResult, extend, xres};
+use crate::logic::game::ContextUpdateEx;
+use crate::utils::{AiTaskType, Castable, TmplID, XResult, extend, lerp, xres};
 
 #[repr(C)]
 #[csharp_out(Ref)]
@@ -16,6 +15,8 @@ use crate::utils::{AiTaskType, Castable, XResult, extend, xres};
 #[rkyv(derive(Debug))]
 pub struct StateAiTaskIdle {
     pub _base: StateAiTaskBase,
+    pub duration: f32,
+    pub timer: f32,
 }
 
 extend!(StateAiTaskIdle, StateAiTaskBase);
@@ -27,13 +28,15 @@ pub(crate) struct LogicAiTaskIdle {
     _base: LogicAiTaskBase,
     inst: Rc<InstAiTaskIdle>,
     inst_idle: Rc<InstActionIdle>,
+    duration: f32,
+    timer: f32,
 }
 
 extend!(LogicAiTaskIdle, LogicAiTaskBase);
 
 impl LogicAiTaskIdle {
     pub fn new(
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         inst_task: Rc<InstAiTaskIdle>,
         inst_chara: Rc<InstCharacter>,
     ) -> XResult<LogicAiTaskIdle> {
@@ -46,6 +49,8 @@ impl LogicAiTaskIdle {
             _base: LogicAiTaskBase::new(ctx.identity.gen_ai_task_id(), inst_task.clone()),
             inst: inst_task,
             inst_idle,
+            duration: f32::INFINITY,
+            timer: 0.0,
         })
     }
 }
@@ -59,6 +64,8 @@ unsafe impl LogicAiTaskAny for LogicAiTaskIdle {
     fn save(&self) -> Box<dyn StateAiTaskAny> {
         Box::new(StateAiTaskIdle {
             _base: self._base.save(self.typ()),
+            duration: self.duration,
+            timer: self.timer,
         })
     }
 
@@ -68,27 +75,63 @@ unsafe impl LogicAiTaskAny for LogicAiTaskIdle {
         }
         let state = state.cast::<StateAiTaskIdle>()?;
         self._base.restore(&state._base);
+        self.duration = state.duration;
+        self.timer = state.timer;
         Ok(())
     }
 
-    fn start(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn start(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         self._base.start(ctx, ctxt)?;
+        self.intention = self.inst.intention;
+
+        self.current_action = self.inst_idle.tmpl_id;
+
         let mut ret = AiTaskReturn::default();
-        ret.next_action = Some(self.inst_idle.clone());
-        ret.ai_purpose = AiBrainPurpose::None;
+
+        if self.current_action != self.inst_idle.tmpl_id {
+            ret.next_action = Some(self.inst_idle.clone());
+        }
+        // decide duration randomly from inst.duration; None => infinite
+        match &self.inst.duration {
+            Some(range) => {
+                self.duration = lerp(range.min, range.max, ctx.rand.rand_f32());
+                self.timer = 0.0;
+            }
+            None => {
+                self.duration = f32::INFINITY;
+                self.timer = 0.0;
+            }
+        }
         Ok(ret)
     }
 
-    fn update(&mut self, ctx: &mut ContextUpdate, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    fn update(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         self._base.update(ctx, ctxt)?;
 
-        if self.current_action != self.inst_idle.tmpl_id {
+        // Action externally changed.
+        let current_action = match ctxt.chara_ctrl.current_action() {
+            Some(act) => act.inst.tmpl_id,
+            None => TmplID::INVALID,
+        };
+        if self.current_action != current_action {
             self.stop(ctx, ctxt)?;
             return Ok(AiTaskReturn::default());
         }
 
-        let mut ret = AiTaskReturn::default();
-        ret.ai_purpose = AiBrainPurpose::None;
-        Ok(ret)
+        // Handle target changed.
+        if self.inst.target_exit && ctxt.ai_thinking.target_changed {
+            self.stop(ctx, ctxt)?;
+            self.intention = self.inst.next_intention;
+            return Ok(AiTaskReturn::default());
+        }
+
+        self.timer += ctxt.time_step;
+        if self.timer >= self.duration {
+            self.stop(ctx, ctxt)?;
+            self.intention = self.inst.next_intention;
+            return Ok(AiTaskReturn::default());
+        }
+
+        Ok(AiTaskReturn::default())
     }
 }

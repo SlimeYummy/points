@@ -13,11 +13,11 @@ pub use patrol::*;
 use std::rc::Rc;
 
 use crate::instance::{InstAiTaskAny, InstCharacter};
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::utils::{AiTaskType, Castable, XResult, xres};
 
 pub(crate) fn new_logic_ai_task(
-    ctx: &mut ContextUpdate,
+    ctx: &mut ContextUpdateEx,
     inst_task: Rc<dyn InstAiTaskAny>,
     inst_chara: Rc<InstCharacter>,
 ) -> XResult<Box<dyn LogicAiTaskAny>> {
@@ -47,7 +47,7 @@ pub(crate) fn new_logic_ai_task(
 
 pub(crate) fn try_reuse_logic_ai_task(
     logic_task: &mut Box<dyn LogicAiTaskAny>,
-    ctx: &mut ContextUpdate,
+    ctx: &mut ContextUpdateEx,
     inst_task: Rc<dyn InstAiTaskAny>,
     inst_chara: Rc<InstCharacter>,
 ) -> XResult<bool> {
