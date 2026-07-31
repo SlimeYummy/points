@@ -1,21 +1,25 @@
-use critical_point_macros::csharp_out;
+use critical_point_macros::{csharp_out, wasm_struct};
 use glam::Vec3A;
 use glam_ext::{Transform3A, Vec2xz};
 use std::collections::hash_map::Entry;
 use std::mem;
+use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use crate::animation::{AnimationFileMeta, Animator, HitMotionSampler};
 use crate::consts::{DEFAULT_TOWARD_DIR_2D, MAX_ACTION_ANIMATION};
 use crate::input::RefInputEventQueue;
-use crate::instance::{InstActionAny, InstActionIdle, InstAiBrain, InstCharacter};
-use crate::logic::WsFuncAiBrainExecute;
+use crate::instance::{InstActionAny, InstActionIdle, InstAiBrain, InstAiRoutine, InstCharacter};
 use crate::logic::action::{DeriveKeeping, LogicActionAny, StateActionAny};
-use crate::logic::ai_task::{AiBrainThinking, AiTaskReturn, LogicAiTaskAny};
+use crate::logic::ai_task::{AiBrainThinking, AiTaskReturn, LogicAiTaskAny, WsAiDo};
 use crate::logic::character::physics::LogicCharaPhysics;
 use crate::logic::character::value::LogicCharaValue;
-use crate::logic::game::{ContextRestore, ContextUpdate};
-use crate::utils::{CustomEvent, DtHashMap, HistoryQueue, NumID, VirtualInput, VirtualKey, XResult, xerr, xres};
+use crate::logic::game::{ContextRestore, ContextUpdateEx};
+use crate::logic::script::WsFuncAiBrainExecute;
+use crate::script::{WsBox, WsVec};
+use crate::utils::{
+    AiIntention, CustomEvent, DtHashMap, HistoryQueue, NumID, TmplID, VirtualInput, VirtualKey, XResult, xerr, xres,
+};
 
 const DEFAULT_ACTION_QUEUE_CAP: usize = 8;
 
@@ -30,6 +34,20 @@ pub struct StateCharaControl {
     pub derive_keeping: DeriveKeeping,
     pub action_changed: bool,
     pub animation_changed: bool,
+    pub current_routine: TmplID,
+    pub current_routine_exec: u32,
+    pub target_chara: NumID,
+}
+
+#[repr(C)]
+#[wasm_struct(40, 4)]
+#[derive(Debug, Default)]
+pub(crate) struct WsCharaControl {
+    pub current_action: TmplID,
+    pub current_task: TmplID,
+    pub current_routine: TmplID,
+    pub action_keep_level: u16,
+    pub ai_intention: AiIntention,
 }
 
 #[derive(educe::Educe)]
@@ -50,22 +68,42 @@ pub(crate) struct LogicCharaControl {
     #[educe(Debug(ignore))]
     pub(super) ai_brain_execute: Option<WsFuncAiBrainExecute>,
     pub(super) current_task: Option<Box<dyn LogicAiTaskAny>>,
-    pub(super) target_chara_id: NumID,
+    pub(super) current_routine: Option<Rc<InstAiRoutine>>,
+    pub(super) current_routine_exec: u32,
+    pub(super) target_chara: NumID,
     pub(super) aggro_last_time: f32,
     pub(super) ai_thinking: AiBrainThinking,
-    pub(super) tmp_state_indexes: Vec<u32>,
+    pub(super) tmp_target_indexes: Vec<u32>,
+    pub(super) tmp_ai_do_list: WsVec<WsAiDo>,
 
+    pub(super) ws: WsBox<WsCharaControl>,
     pub(super) new_velocity: Vec3A,
     pub(super) new_direction: Vec2xz,
-    pub(super) cache_states: Vec<Box<dyn StateActionAny>>,
+    pub(super) cache_action_states: Vec<Box<dyn StateActionAny>>,
     pub(super) action_events: Vec<CustomEvent>,
 
     pub(super) animator: Animator,
 }
 
+impl Deref for LogicCharaControl {
+    type Target = WsCharaControl;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.ws.as_ref()
+    }
+}
+
+impl DerefMut for LogicCharaControl {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.ws.as_mut()
+    }
+}
+
 impl LogicCharaControl {
     pub(crate) fn new(
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_id: NumID,
         inst_chara: Rc<InstCharacter>,
         inst_ai_brain: Option<Rc<InstAiBrain>>,
@@ -96,14 +134,18 @@ impl LogicCharaControl {
 
             ai_brain_execute,
             current_task: None,
-            target_chara_id: NumID::INVALID,
+            current_routine: None,
+            current_routine_exec: 0,
+            target_chara: NumID::INVALID,
             aggro_last_time: 0.0,
             ai_thinking: AiBrainThinking::default(),
-            tmp_state_indexes: Vec::with_capacity(16),
+            tmp_target_indexes: Vec::with_capacity(16),
+            tmp_ai_do_list: WsVec::with_capacity_in(64, ctx.script.alloc()),
 
+            ws: WsBox::new_in(WsCharaControl::default(), ctx.script.alloc()),
             new_velocity: Vec3A::ZERO,
             new_direction: DEFAULT_TOWARD_DIR_2D,
-            cache_states: Vec::with_capacity(16),
+            cache_action_states: Vec::with_capacity(16),
             action_events: Vec::new(),
 
             animator: Animator::new(skeleton, DEFAULT_ACTION_QUEUE_CAP, MAX_ACTION_ANIMATION * 3)?,
@@ -111,7 +153,7 @@ impl LogicCharaControl {
     }
 
     #[inline]
-    pub fn preload_assets(&self, ctx: &mut ContextUpdate) -> XResult<Vec<AnimationFileMeta>> {
+    pub fn preload_assets(&self, ctx: &mut ContextUpdateEx) -> XResult<Vec<AnimationFileMeta>> {
         let mut animations = Vec::with_capacity(16);
         let mut animation_files = DtHashMap::default();
 
@@ -143,7 +185,7 @@ impl LogicCharaControl {
     #[inline]
     pub(crate) fn init(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_phy: &LogicCharaPhysics,
         chara_val: &LogicCharaValue,
     ) -> XResult<()> {
@@ -165,7 +207,7 @@ impl LogicCharaControl {
     #[inline]
     pub(crate) fn update(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_phy: &LogicCharaPhysics,
         chara_val: &LogicCharaValue,
     ) -> XResult<()> {
@@ -178,6 +220,7 @@ impl LogicCharaControl {
             next_action = self.handle_player_inputs(ctx, chara_phy, next_action)?;
         }
         else {
+            self.update_ai_target(ctx, chara_phy);
             let ai_ret = self.handle_ai_all(ctx, chara_phy, chara_val)?;
             next_action = NextAction::try_from_ai_return(&ai_ret).or(next_action);
         }
@@ -217,18 +260,64 @@ impl LogicCharaControl {
                 return xres!(LogicBadState; "states order");
             }
         })?;
-        self.cache_states.clear();
+        self.cache_action_states.clear();
+
+        self.target_chara = state.target_chara;
+
+        if state.current_routine.is_valid() {
+            if self.current_routine.is_none() || self.current_routine.as_ref().unwrap().tmpl_id != state.current_routine
+            {
+                self.current_routine = self
+                    .inst_ai_brain
+                    .as_ref()
+                    .and_then(|brain| brain.routines.get(&state.current_routine).cloned());
+                if self.current_routine.is_none() {
+                    log::warn!(
+                        "chara_id={}, chara={}, style={}, routine={}, not found",
+                        self.chara_id,
+                        self.inst_chara.tmpl_character,
+                        self.inst_chara.tmpl_style,
+                        state.current_routine
+                    );
+                }
+            }
+        }
+        else {
+            self.current_routine = None;
+        }
+        self.current_routine_exec = state.current_routine_exec;
+
+        if let Some(action) = self.action_queue.last() {
+            self.ws.current_task = action.tmpl_id();
+            self.ws.action_keep_level = action.keep_level;
+        }
+        else {
+            self.ws.current_task = TmplID::INVALID;
+            self.ws.action_keep_level = 0;
+        }
+
+        if let Some(task) = self.current_task.as_ref() {
+            self.ws.current_action = task.inst.tmpl_id;
+            self.ws.ai_intention = task.intention;
+        }
+        else {
+            self.ws.current_action = TmplID::INVALID;
+            self.ws.ai_intention = AiIntention::Idle;
+        }
+
+        self.ws.current_routine = state.current_routine;
 
         self.new_velocity = Vec3A::ZERO;
         self.new_direction = DEFAULT_TOWARD_DIR_2D;
         Ok(())
     }
 
-    pub(crate) fn apply_animations(&mut self, ctx: &mut ContextUpdate) -> XResult<()> {
+    pub(crate) fn apply_animations(&mut self, ctx: &mut ContextUpdateEx) -> XResult<()> {
         let prev_ids = self.animator.action_animation_id();
 
-        self.animator.discard(ctx.synced_frame);
-        self.animator.update(ctx.frame, &self.cache_states, &mut ctx.asset)?;
+        self.animator.discard(ctx.time.synced_frame);
+        self.animator
+            .update(ctx.time.frame, &self.cache_action_states, &mut ctx.asset)?;
         self.animator.animate()?;
 
         let current_ids = self.animator.action_animation_id();
@@ -237,29 +326,41 @@ impl LogicCharaControl {
         Ok(())
     }
 
-    pub(crate) fn states(&self) -> XResult<&[Box<dyn StateActionAny>]> {
-        if self.cache_states.is_empty() {
+    pub(crate) fn action_states(&self) -> XResult<&[Box<dyn StateActionAny>]> {
+        if self.cache_action_states.is_empty() {
             return xres!(LogicBadState; "states already taken");
         }
-        Ok(&self.cache_states)
+        Ok(&self.cache_action_states)
     }
 
     pub(crate) fn take_states(
         &mut self,
     ) -> XResult<(StateCharaControl, Vec<Box<dyn StateActionAny>>, Vec<CustomEvent>)> {
-        if self.cache_states.is_empty() {
+        if self.cache_action_states.is_empty() {
             return xres!(LogicBadState; "states already taken");
         }
         Ok((
             StateCharaControl {
                 input_cursor_id: self.input_cursor_id,
+                current_routine: self
+                    .current_routine
+                    .as_ref()
+                    .map(|r| r.tmpl_id)
+                    .unwrap_or(TmplID::INVALID),
+                current_routine_exec: self.current_routine_exec,
                 derive_keeping: self.derive_keeping,
                 action_changed: self.action_changed,
                 animation_changed: self.animation_changed,
+                target_chara: self.target_chara,
             },
-            mem::take(&mut self.cache_states),
+            mem::take(&mut self.cache_action_states),
             mem::take(&mut self.action_events),
         ))
+    }
+
+    #[inline]
+    pub(crate) fn id(&self) -> NumID {
+        self.chara_id
     }
 
     #[inline]
@@ -297,7 +398,7 @@ impl LogicCharaControl {
             Some(act) => Some(act),
             None => {
                 log::warn!(
-                    "character_id={}, character={}, style={}, current action is none",
+                    "chara_id={}, chara={}, style={}, current action is none",
                     self.chara_id,
                     self.inst_chara.tmpl_character,
                     self.inst_chara.tmpl_style,
@@ -317,7 +418,7 @@ impl LogicCharaControl {
             Some(sampler) => Some(sampler),
             None => {
                 log::warn!(
-                    "character_id={}, character={}, style={}, action={:?}, HitMotionSampler is none",
+                    "chara_id={}, chara={}, style={}, action={:?}, HitMotionSampler is none",
                     self.chara_id,
                     self.inst_chara.tmpl_character,
                     self.inst_chara.tmpl_style,
