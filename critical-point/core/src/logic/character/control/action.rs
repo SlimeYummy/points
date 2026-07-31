@@ -12,7 +12,7 @@ use crate::logic::action::{
 };
 use crate::logic::character::physics::LogicCharaPhysics;
 use crate::logic::character::value::LogicCharaValue;
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::utils::{InputDir, VirtualInput, VirtualKey, XResult, ok_or};
 
 use super::control::*;
@@ -20,7 +20,7 @@ use super::control::*;
 impl LogicCharaControl {
     pub(super) fn handle_hit_events(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_phy: &LogicCharaPhysics,
     ) -> XResult<Option<NextAction>> {
         let current_act = self.action_queue.last().unwrap(); // verified
@@ -44,16 +44,16 @@ impl LogicCharaControl {
 
     pub(super) fn handle_player_inputs(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_phy: &LogicCharaPhysics,
         mut next_act: Option<NextAction>,
     ) -> XResult<Option<NextAction>> {
         let player_inputs = ok_or!(self.player_inputs.as_ref(); return Ok(None)).borrow();
         let current_act = self.action_queue.last().unwrap(); // verified
-        let frame = ctx.frame;
+        let frame = ctx.time.frame;
         let player_dir = chara_phy.direction_xz();
 
-        if self.derive_keeping.is_valid() && self.derive_keeping.end_time > ctx.time {
+        if self.derive_keeping.is_valid() && self.derive_keeping.end_time > ctx.time.time {
             self.derive_keeping.clear();
         }
 
@@ -222,7 +222,7 @@ impl LogicCharaControl {
 
     pub(super) fn update_current_actions(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_phy: &LogicCharaPhysics,
         chara_val: &LogicCharaValue,
     ) -> XResult<()> {
@@ -272,7 +272,7 @@ impl LogicCharaControl {
 
     pub(super) fn handle_next_action(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_phy: &LogicCharaPhysics,
         chara_val: &LogicCharaValue,
         next_act: Option<NextAction>,
@@ -360,12 +360,12 @@ impl LogicCharaControl {
 
     pub(super) fn collect_states_and_cleanup(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_phy: &LogicCharaPhysics,
         previous_frame_state: Option<Box<dyn StateActionAny>>,
     ) -> XResult<()> {
-        self.cache_states.clear();
-        self.cache_states.reserve(self.action_queue.len());
+        self.cache_action_states.clear();
+        self.cache_action_states.reserve(self.action_queue.len());
 
         // Collect states
         let mut unused_weight = 1.0;
@@ -403,15 +403,15 @@ impl LogicCharaControl {
 
             act_state.fade_in_weight = (unused_weight * act_state.fade_in_weight).clamp(0.0, 1.0);
             unused_weight = (unused_weight - act_state.fade_in_weight).max(0.0);
-            self.cache_states.push(act_state);
+            self.cache_action_states.push(act_state);
         }
-        self.cache_states.reverse();
+        self.cache_action_states.reverse();
 
         if let Some(previous_frame_state) = previous_frame_state {
             // Insert previous frame state before current frame state.
-            self.cache_states.push(previous_frame_state);
-            let len = self.cache_states.len();
-            self.cache_states.swap(len - 1, len - 2);
+            self.cache_action_states.push(previous_frame_state);
+            let len = self.cache_action_states.len();
+            self.cache_action_states.swap(len - 1, len - 2);
         }
 
         // Finalize actions
@@ -430,7 +430,7 @@ impl LogicCharaControl {
 
         // Clear unused actions
         self.action_queue.dequeue(|act| act.is_finalized());
-        self.action_queue.discard(|act| act.last_frame <= ctx.synced_frame);
+        self.action_queue.discard(|act| act.last_frame <= ctx.time.synced_frame);
         Ok(())
     }
 }
