@@ -5,14 +5,14 @@ use crate::animation::{HitMotion, HitSampler};
 use crate::consts::MAX_HIT_TIMES_PER_FRAME;
 use crate::logic::character::control::LogicCharaControl;
 use crate::logic::character::physics::physics::{LogicCharaPhysics, StateCharaHitBoxPair, StateCharaHitGroupPair};
-use crate::logic::game::{ContextHitGenerate, ContextUpdate, HitCharacterEvent};
+use crate::logic::game::{ContextHitGenerate, ContextUpdateEx, HitCharacterEvent};
 use crate::logic::physics::{PhyBodyUserData, PhyHitCharacterEvent, phy_layer};
 use crate::utils::{XResult, find_offset_by, ok_or, strict_lt, xfrom};
 
 impl LogicCharaPhysics {
     pub(super) fn handle_action_changed(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_act: &LogicCharaControl,
     ) -> XResult<()> {
         let body_itf = ctx.physics.body_itf();
@@ -35,7 +35,7 @@ impl LogicCharaPhysics {
 
     pub(super) fn update_boxes_and_groups(
         &mut self,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_act: &LogicCharaControl,
     ) -> XResult<()> {
         let sampler = ok_or!(chara_act.hit_motion_sampler(); return Ok(()));
@@ -227,7 +227,7 @@ impl LogicCharaPhysics {
                 group_hit_times: group_pair.hit_times,
                 collision_normal: phy_event.world_space_normal,
                 collision_point_average: phy_event.collision_point_average,
-                character_vector: dst_chara_phy.position - self.position,
+                character_vector: dst_chara_phy.position - self.ws.position,
                 ..Default::default()
             });
 

@@ -15,7 +15,7 @@ use crate::consts::SPF;
 use crate::instance::InstCharacter;
 use crate::logic::character::control::LogicCharaControl;
 use crate::logic::character::physics::physics::{CharacterHandle, CharacterLocation, JointBinding, LogicCharaPhysics};
-use crate::logic::game::ContextUpdate;
+use crate::logic::game::ContextUpdateEx;
 use crate::logic::physics::{PhyBodyUserData, phy_layer};
 use crate::utils::{NumID, XResult, quat_from_dir_xz, xerrf, xfrom};
 
@@ -23,7 +23,7 @@ const CHARACTER_RADIUS_STANDING: f32 = -0.3;
 
 impl LogicCharaPhysics {
     pub(super) fn init_bounding(
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         inst_chara: &InstCharacter,
         position: Vec3A,
         rotation: Quat,
@@ -59,7 +59,7 @@ impl LogicCharaPhysics {
         }
     }
 
-    pub(super) fn update_bounding(&mut self, ctx: &mut ContextUpdate, chara_ctrl: &LogicCharaControl) -> XResult<()> {
+    pub(super) fn update_bounding(&mut self, ctx: &mut ContextUpdateEx, chara_ctrl: &LogicCharaControl) -> XResult<()> {
         let location = match &mut self.character {
             CharacterHandle::Player(character) => Self::update_player_character(character, ctx, chara_ctrl)?,
             CharacterHandle::Npc(character) => Self::update_npc_character(character, ctx, chara_ctrl)?,
@@ -83,7 +83,7 @@ impl LogicCharaPhysics {
 
     pub(super) fn update_player_character(
         character: &mut JMut<CharacterVirtual<CharacterContactListenerImpl>>,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_ctrl: &LogicCharaControl,
     ) -> XResult<CharacterLocation> {
         let new_rotation = quat_from_dir_xz(chara_ctrl.new_direction());
@@ -139,7 +139,7 @@ impl LogicCharaPhysics {
 
     pub(super) fn update_npc_character(
         character: &mut JMut<Character>,
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_ctrl: &LogicCharaControl,
     ) -> XResult<CharacterLocation> {
         character.set_linear_velocity(chara_ctrl.new_velocity(), false);
@@ -152,7 +152,7 @@ impl LogicCharaPhysics {
     }
 
     pub(super) fn init_bodies(
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_id: NumID,
         inst_chara: &InstCharacter,
         position: Vec3A,
@@ -224,7 +224,7 @@ impl LogicCharaPhysics {
         Ok((target_body, target_shape, joint_bindings))
     }
 
-    pub(super) fn update_bodies(&mut self, ctx: &mut ContextUpdate, chara_ctrl: &LogicCharaControl) -> XResult<()> {
+    pub(super) fn update_bodies(&mut self, ctx: &mut ContextUpdateEx, chara_ctrl: &LogicCharaControl) -> XResult<()> {
         let model_transforms = chara_ctrl.model_transforms();
         for binding in &self.joint_bindings {
             let transform = model_transforms[binding.joint as usize];

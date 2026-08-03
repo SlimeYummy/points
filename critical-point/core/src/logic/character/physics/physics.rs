@@ -1,34 +1,24 @@
-use critical_point_macros::csharp_out;
+use critical_point_macros::{csharp_out, wasm_impl, wasm_struct};
 use educe::Educe;
 use glam::{Quat, Vec3A, Vec3Swizzles};
 use glam_ext::{Isometry3A, Vec2xz};
 use jolt_physics_rs::{BodyID, Character, CharacterVirtual, JMut, MutableCompoundShape};
 use std::cell::Cell;
+use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use crate::instance::InstCharacter;
 use crate::logic::character::control::LogicCharaControl;
 use crate::logic::character::physics::body::CharacterContactListenerImpl;
-use crate::logic::game::{ContextRestore, ContextUpdate};
+use crate::logic::game::{ContextRestore, ContextUpdateEx};
+use crate::script::WsBox;
 use crate::utils::{NumID, SmallVec, Symbol, XResult, quat_from_dir_xz};
 
-#[repr(C)]
-#[csharp_out(Value)]
-#[derive(
-    Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
-#[rkyv(derive(Debug))]
-pub struct StateCharaPhysics {
-    pub velocity: Vec3A,
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct CharacterLocation {
     pub position: Vec3A,
-    pub direction: Vec2xz,
-
-    #[csharp_hide(24, 8)]
-    pub body_ids: SmallVec<[BodyID; 4]>,
-    #[csharp_hide(56, 8)]
-    pub box_pairs: SmallVec<[StateCharaHitBoxPair; 4]>,
-    #[csharp_hide(56, 8)]
-    pub group_pairs: SmallVec<[StateCharaHitGroupPair; 3]>,
+    pub rotation: Quat,
+    pub velocity: Vec3A,
 }
 
 #[derive(
@@ -69,15 +59,70 @@ pub struct StateCharaHitGroupPair {
     pub hit_times: u16,
 }
 
+#[repr(C)]
+#[csharp_out(Value)]
+#[derive(
+    Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
+)]
+#[rkyv(derive(Debug))]
+pub struct StateCharaPhysics {
+    pub velocity: Vec3A,
+    pub position: Vec3A,
+    pub direction: Vec2xz,
+
+    #[csharp_hide(24, 8)]
+    pub body_ids: SmallVec<[BodyID; 4]>,
+    #[csharp_hide(56, 8)]
+    pub box_pairs: SmallVec<[StateCharaHitBoxPair; 4]>,
+    #[csharp_hide(56, 8)]
+    pub group_pairs: SmallVec<[StateCharaHitGroupPair; 3]>,
+}
+
+#[repr(C)]
+#[wasm_struct(80, 16)]
+#[derive(Debug)]
+pub(crate) struct WsCharaPhysics {
+    pub chara_id: NumID,
+    pub velocity: Vec3A,
+    pub position: Vec3A,
+    pub direction: Vec2xz,
+    pub rotation: Quat,
+}
+
+#[wasm_impl]
+impl WsCharaPhysics {
+    #[inline]
+    pub fn velocity_xz(&self) -> Vec2xz {
+        Vec2xz::from_vec3a(self.velocity)
+    }
+
+    #[inline]
+    pub fn position_xz(&self) -> Vec2xz {
+        Vec2xz::from_vec3a(self.position)
+    }
+}
+
+pub(super) enum CharacterHandle {
+    Npc(JMut<Character>),
+    Player(JMut<CharacterVirtual<CharacterContactListenerImpl>>),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct JointBinding {
+    pub(super) position: Vec3A,
+    pub(super) rotation: Quat,
+    pub(super) part: Symbol,
+    pub(super) joint: i16,
+    pub(super) ratio: f32,
+    pub(super) joint2: i16,
+}
+
 #[derive(Educe)]
 #[educe(Debug)]
 pub(crate) struct LogicCharaPhysics {
     pub(super) chara_id: NumID,
     pub(super) inst_chara: Rc<InstCharacter>,
-    pub(super) velocity: Vec3A,
-    pub(super) position: Vec3A,
-    pub(super) direction: Vec2xz,
-    pub(super) rotation: Quat,
+    pub(super) ws: WsBox<WsCharaPhysics>,
     pub(super) idle: Cell<bool>,
 
     #[educe(Debug(ignore))]
@@ -96,31 +141,25 @@ pub(crate) struct LogicCharaPhysics {
     pub(super) be_hit_events: Vec<usize>,
 }
 
-pub(super) enum CharacterHandle {
-    Npc(JMut<Character>),
-    Player(JMut<CharacterVirtual<CharacterContactListenerImpl>>),
+impl Deref for LogicCharaPhysics {
+    type Target = WsCharaPhysics;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.ws.as_ref()
+    }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(super) struct JointBinding {
-    pub(super) position: Vec3A,
-    pub(super) rotation: Quat,
-    pub(super) part: Symbol,
-    pub(super) joint: i16,
-    pub(super) ratio: f32,
-    pub(super) joint2: i16,
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-pub struct CharacterLocation {
-    pub position: Vec3A,
-    pub rotation: Quat,
-    pub velocity: Vec3A,
+impl DerefMut for LogicCharaPhysics {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.ws.as_mut()
+    }
 }
 
 impl LogicCharaPhysics {
     pub(crate) fn new(
-        ctx: &mut ContextUpdate,
+        ctx: &mut ContextUpdateEx,
         chara_id: NumID,
         inst_chara: Rc<InstCharacter>,
         position: Vec3A,
@@ -135,10 +174,16 @@ impl LogicCharaPhysics {
         Ok(LogicCharaPhysics {
             chara_id,
             inst_chara,
-            velocity: Vec3A::ZERO,
-            position,
-            direction,
-            rotation,
+            ws: WsBox::new_in(
+                WsCharaPhysics {
+                    chara_id,
+                    velocity: Vec3A::ZERO,
+                    position,
+                    direction,
+                    rotation,
+                },
+                ctx.script.alloc(),
+            ),
             idle: Cell::new(true),
 
             character,
@@ -156,11 +201,11 @@ impl LogicCharaPhysics {
         })
     }
 
-    pub(crate) fn init(&mut self, ctx: &mut ContextUpdate, chara_ctrl: &LogicCharaControl) -> XResult<()> {
+    pub(crate) fn init(&mut self, ctx: &mut ContextUpdateEx, chara_ctrl: &LogicCharaControl) -> XResult<()> {
         self.update(ctx, chara_ctrl)
     }
 
-    pub(crate) fn update(&mut self, ctx: &mut ContextUpdate, chara_ctrl: &LogicCharaControl) -> XResult<()> {
+    pub(crate) fn update(&mut self, ctx: &mut ContextUpdateEx, chara_ctrl: &LogicCharaControl) -> XResult<()> {
         self.cache_isometries.clear();
         self.update_bounding(ctx, chara_ctrl)?;
         self.update_bodies(ctx, chara_ctrl)?;
@@ -209,58 +254,63 @@ impl LogicCharaPhysics {
     }
 
     #[inline]
-    pub fn id(&self) -> NumID {
+    pub(crate) fn id(&self) -> NumID {
         self.chara_id
     }
 
     #[inline]
-    pub fn position(&self) -> Vec3A {
+    pub(crate) fn ws(&self) -> &WsBox<WsCharaPhysics> {
+        &self.ws
+    }
+
+    #[inline]
+    pub(crate) fn position(&self) -> Vec3A {
         self.position
     }
 
     #[inline]
-    pub fn position_xz_3d(&self) -> Vec3A {
+    pub(crate) fn position_xz_3d(&self) -> Vec3A {
         Vec3A::new(self.position.x, 0.0, self.position.z)
     }
 
     #[inline]
-    pub fn position_xz(&self) -> Vec2xz {
+    pub(crate) fn position_xz(&self) -> Vec2xz {
         Vec2xz::from_vec2(self.position.xz())
     }
 
     #[cfg(test)]
-    pub fn set_position(&mut self, position: Vec3A) {
+    pub(crate) fn set_position(&mut self, position: Vec3A) {
         self.position = position;
     }
 
     #[inline]
-    pub fn direction(&self) -> Vec3A {
+    pub(crate) fn direction(&self) -> Vec3A {
         self.direction.as_vec3a()
     }
 
     #[inline]
-    pub fn direction_xz(&self) -> Vec2xz {
+    pub(crate) fn direction_xz(&self) -> Vec2xz {
         self.direction
     }
 
     #[cfg(test)]
-    pub fn set_direction(&mut self, direction: Vec2xz) {
+    pub(crate) fn set_direction(&mut self, direction: Vec2xz) {
         self.direction = direction;
         self.rotation = quat_from_dir_xz(self.direction);
     }
 
     #[inline]
-    pub fn rotation(&self) -> Quat {
+    pub(crate) fn rotation(&self) -> Quat {
         self.rotation
     }
 
     #[inline]
-    pub fn rotation_y(&self) -> Quat {
+    pub(crate) fn rotation_y(&self) -> Quat {
         self.rotation
     }
 
     #[inline]
-    pub fn is_idle(&self) -> bool {
+    pub(crate) fn is_idle(&self) -> bool {
         self.idle.get()
     }
 
