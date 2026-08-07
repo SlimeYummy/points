@@ -174,7 +174,7 @@ impl LogicEngine {
 }
 
 #[repr(C)]
-#[csharp_out]
+#[csharp_out(Value)]
 #[derive(Debug, Default)]
 pub struct LogicEngineStatus {
     pub is_game_running: bool,

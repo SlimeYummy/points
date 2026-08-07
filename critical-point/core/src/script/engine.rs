@@ -161,6 +161,9 @@ impl ScriptEngine {
         )?;
 
         let mut config = Config::new();
+        config.cranelift_nan_canonicalization(true);
+        config.relaxed_simd_deterministic(true);
+        config.wasm_relaxed_simd(false);
         config.with_host_memory(Arc::new(wasm_creator));
 
         let engine = Engine::new(&config)?;
@@ -238,6 +241,11 @@ impl ScriptEngine {
     #[inline]
     pub fn to_wasm_addr<T, S: WsShared<T>>(&self, p: &S) -> u32 {
         p.to_wasm_addr(self.store.data().base_ptr)
+    }
+
+    #[inline]
+    pub fn to_wasm_addr_opt<T, S: WsShared<T>>(&self, p: Option<&S>) -> u32 {
+        p.map(|p| p.to_wasm_addr(self.store.data().base_ptr)).unwrap_or(0)
     }
 }
 
