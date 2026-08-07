@@ -1,0 +1,557 @@
+use critical_point_macros::csharp_out;
+use jolt_physics_rs::PhysicsSystem;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use crate::asset::AssetLoader;
+use crate::consts::{MAX_INPUT_WINDOW, SPF};
+use crate::input::{InputFrameInputs, InputManager, InputPlayerInputs};
+use crate::logic::base::{LogicAny, LogicType, StateAny, StateBase, StateType, impl_state};
+use crate::logic::character::{LogicCharacter, StateCharacterUpdate};
+use crate::logic::game::context::{
+    ContextHitGenerate, ContextRestore, ContextUpdate, ContextUpdateEx, GameTime, HitCharacterEvent,
+};
+use crate::logic::physics::{
+    PhyBroadPhaseLayerInterface, PhyContactCollector, PhyHitCharacterEvent, PhyObjectLayerPairFilter,
+    PhyObjectVsBroadPhaseLayerFilter,
+};
+use crate::logic::script::LogicScriptEngine;
+use crate::logic::system::{StateIdentity, StateRandom, StateSet, SystemIdentity, SystemRandom, SystemState};
+use crate::logic::zone::LogicZone;
+use crate::parameter::ParamGame;
+use crate::save::SaveManager;
+use crate::script::ScriptEngineConfig;
+use crate::template::TmplDatabase;
+use crate::utils::{HistoryVec, NumID, XResult, extend, force_mut, xres};
+
+pub struct LogicSystems {
+    stopped: bool,
+    pub(crate) tmpl_db: TmplDatabase,
+    pub(crate) asset: AssetLoader,
+    pub(crate) identity: SystemIdentity,
+    pub(crate) input: InputManager,
+    pub(crate) rand: SystemRandom,
+    pub(crate) state: SystemState,
+    pub(crate) save: Option<SaveManager>,
+    pub(crate) physics: PhysicsSystem,
+    pub(crate) script: LogicScriptEngine,
+}
+
+#[cfg(feature = "debug-print")]
+impl Drop for LogicSystems {
+    fn drop(&mut self) {
+        log::debug!("LogicSystems::drop()");
+    }
+}
+
+impl LogicSystems {
+    pub(crate) fn new<P: AsRef<Path>>(
+        tmpl_db: TmplDatabase,
+        asset_path: P,
+        save_path: Option<PathBuf>,
+    ) -> XResult<LogicSystems> {
+        let physics = PhysicsSystem::new(
+            PhyBroadPhaseLayerInterface::new_vbox(PhyBroadPhaseLayerInterface),
+            PhyObjectVsBroadPhaseLayerFilter::new_vbox(PhyObjectVsBroadPhaseLayerFilter),
+            PhyObjectLayerPairFilter::new_vbox(PhyObjectLayerPairFilter),
+        );
+
+        let system = LogicSystems {
+            stopped: false,
+            tmpl_db,
+            asset: AssetLoader::new(asset_path.as_ref())?,
+            physics,
+            // executor: ScriptExecutor::new(),
+            identity: SystemIdentity::new(),
+            input: InputManager::new(MAX_INPUT_WINDOW),
+            rand: SystemRandom::new(12345, 98765),
+            state: SystemState::new(),
+            save: match save_path {
+                Some(save_path) => Some(SaveManager::new(save_path)?),
+                None => None,
+            },
+            script: LogicScriptEngine::new(
+                asset_path.as_ref().join("turning_point.wasm"),
+                ScriptEngineConfig::default(),
+            )?,
+        };
+        Ok(system)
+    }
+
+    fn stop(&mut self) -> XResult<()> {
+        if self.stopped {
+            return xres!(Unexpected; "system stopped");
+        }
+        self.stopped = true;
+        Ok(())
+    }
+}
+
+//
+// LogicLoop
+//
+
+pub struct LogicLoop {
+    systems: LogicSystems,
+    game: Option<Box<LogicGame>>,
+    frame: u32, // The current game frame for library user's side
+    local_mode: bool,
+}
+
+impl Drop for LogicLoop {
+    fn drop(&mut self) {
+        self.game = None; // Ensure game is dropped before systems (especially PhysicsSystem)
+
+        #[cfg(feature = "debug-print")]
+        log::debug!("LogicLoop::drop()");
+    }
+}
+
+impl LogicLoop {
+    pub fn new<P: AsRef<Path>>(
+        tmpl_db: TmplDatabase,
+        asset_path: P,
+        param: ParamGame,
+        save_path: Option<PathBuf>,
+    ) -> XResult<(LogicLoop, Arc<StateSet>)> {
+        let local_mode = param.local_mode;
+        if local_mode && param.players.len() != 1 {
+            return xres!(BadArgument; "local mode only supports one player");
+        }
+
+        let mut systems = LogicSystems::new(tmpl_db, asset_path, save_path)?;
+        systems.input.init(param.players.len())?;
+
+        let time = GameTime::new(0, 0);
+        systems.script.update_global(&time);
+
+        let (game, state_set) = LogicGame::new(&mut systems, &time, param)?;
+        systems.state.init(state_set.clone())?;
+
+        systems.physics.optimize_broad_phase();
+
+        let logic_loop = LogicLoop {
+            systems,
+            game: Some(game),
+            frame: 0,
+            local_mode,
+        };
+        Ok((logic_loop, state_set))
+    }
+
+    pub fn update(&mut self, player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
+        if self.systems.stopped {
+            return xres!(Unexpected; "system stopped");
+        }
+
+        println!("--------------------{}--------------------", self.frame);
+
+        if self.local_mode {
+            self.update_local(player_events)
+        }
+        else {
+            self.update_online(player_events)
+        }
+    }
+
+    fn update_local(&mut self, player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
+        if player_events.len() != 1 {
+            return xres!(BadArgument; "local mode must have one InputPlayerInputs per frame");
+        }
+
+        let systems = &mut self.systems;
+        let game = self.game.as_mut().unwrap();
+        self.frame += 1;
+
+        // Save inputs.
+
+        if let Some(save) = systems.save.as_mut() {
+            let player_events = InputFrameInputs::new(self.frame, &player_events);
+            save.save_input(player_events)?;
+        }
+
+        // Handle new inputs.
+
+        let base_frame = systems.input.produce(&player_events)?;
+        debug_assert_eq!(base_frame, game.frame);
+
+        let synced_frame = systems.input.synced_frame();
+        debug_assert_eq!(synced_frame, self.frame);
+
+        // Update game logic.
+
+        let mut cl = PhyContactCollector::new_vpair(PhyContactCollector::new(game));
+        systems
+            .physics
+            .update_with_listeners::<_, ()>(SPF, 1, Some(&mut cl), None)?;
+
+        let time = GameTime::new(game.frame + 1, synced_frame);
+        systems.script.update_global(&time);
+
+        let state_set = game.update(systems, &time)?;
+        debug_assert_eq!(self.frame, game.frame);
+
+        // Handle states.
+
+        systems.state.append(state_set.clone())?;
+        let ret_state = systems.state[game.frame].clone();
+
+        systems.identity.update(game.frame);
+
+        systems.input.confirm()?;
+        let state_sets = systems.state.confirm(systems.input.synced_frame())?;
+        if let Some(save) = self.systems.save.as_mut() {
+            save.save_states(state_sets)?;
+        }
+
+        Ok(ret_state)
+    }
+
+    fn update_online(&mut self, mut _player_events: Vec<InputPlayerInputs>) -> XResult<Arc<StateSet>> {
+        unimplemented!()
+
+        // let systems = &mut self.systems;
+        // let game = self.game.as_mut().unwrap();
+        // self.frame += 1;
+
+        // if let Some(save) = systems.save.as_mut() {
+        //     let player_events = InputFrameInputs::new(self.frame, &player_events);
+        //     save.save_input(player_events)?;
+        // }
+
+        // // Insert new input events
+        // bubble_sort_by(&mut player_events, |a, b| {
+        //     a.player_id < b.player_id && a.frame < b.frame
+        // });
+        // let base_frame = systems.input.produce(&player_events)?.min(game.frame);
+
+        // // Restore to base_frame
+        // if base_frame < game.frame {
+        //     systems.state.restore(base_frame)?;
+        //     systems.identity.restore(base_frame);
+        //     // TODO: restore physics.
+
+        //     let ctx = ContextRestore::new(systems.state[base_frame].clone());
+        //     game.restore(&ctx)?;
+        //     debug_assert_eq!(game.frame, base_frame);
+        // }
+
+        // // Update frame to current
+        // while game.frame < self.frame {
+        //     let frame = game.frame + 1;
+        //     let synced_frame = systems.input.synced_frame();
+        //     let mut ctx = ContextUpdate::new(systems, frame, synced_frame);
+        //     let state_set = game.update(&mut ctx)?;
+        //     // systems.physics.update(delta);
+        //     systems.state.append(state_set.clone())?;
+
+        //     systems.identity.update(frame);
+        // }
+        // let ret_state = systems.state[game.frame].clone();
+
+        // systems.input.confirm()?;
+        // let state_sets = systems.state.confirm(systems.input.synced_frame())?;
+        // if let Some(save) = self.systems.save.as_mut() {
+        //     save.save_states(state_sets)?;
+        // }
+
+        // Ok(ret_state)
+    }
+
+    pub fn stop(&mut self) -> XResult<()> {
+        self.systems.stop()?;
+        Ok(())
+    }
+
+    #[inline]
+    pub fn current_frame(&self) -> u32 {
+        self.frame
+    }
+
+    #[inline]
+    pub fn next_frame(&self) -> u32 {
+        self.frame + 1
+    }
+
+    #[inline]
+    pub fn phy_system(&self) -> &PhysicsSystem {
+        &self.systems.physics
+    }
+}
+
+//
+// LogicGame
+//
+
+#[repr(C)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[rkyv(derive(Debug))]
+pub struct StateGameInit {
+    pub _base: StateBase,
+}
+
+extend!(StateGameInit, StateBase);
+
+impl_state!(StateGameInit, Game, GameInit, "GameInit");
+
+#[repr(C)]
+#[csharp_out(Ref)]
+#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[rkyv(derive(Debug))]
+pub struct StateGameUpdate {
+    pub _base: StateBase,
+    pub frame: u32,
+    #[csharp_hide(16, 4)]
+    pub identity: StateIdentity,
+    #[csharp_hide(48, 16)]
+    pub rand: StateRandom,
+    pub hit_events: Vec<HitCharacterEvent>,
+}
+
+extend!(StateGameUpdate, StateBase);
+
+impl_state!(StateGameUpdate, Game, GameUpdate, "GameUpdate");
+
+#[derive(Debug)]
+pub struct LogicGame {
+    id: NumID,
+    frame: u32, // Internal logical restorable frame, always equal to ctx.time.frame
+    zone: Box<LogicZone>,
+    characters: HistoryVec<Box<LogicCharacter>>,
+    hit_events: Vec<HitCharacterEvent>,
+}
+
+impl LogicAny for LogicGame {
+    #[inline]
+    fn id(&self) -> NumID {
+        self.id
+    }
+
+    #[inline]
+    fn typ(&self) -> LogicType {
+        LogicType::Game
+    }
+
+    #[inline]
+    fn spawn_frame(&self) -> u32 {
+        0
+    }
+
+    #[inline]
+    fn death_frame(&self) -> u32 {
+        u32::MAX
+    }
+}
+
+impl LogicGame {
+    fn new(systems: &mut LogicSystems, time: &GameTime, param: ParamGame) -> XResult<(Box<LogicGame>, Arc<StateSet>)> {
+        let mut state_set = StateSet::new(0);
+        state_set.inits.reserve(16);
+
+        let game_init = Arc::new(StateGameInit {
+            _base: StateBase::new(NumID::GAME, StateType::GameInit, LogicType::Game),
+        });
+        state_set.inits.push(game_init);
+
+        // new zone
+        let (zone, zone_init) = LogicZone::new(&mut ContextUpdate::new(systems, time), &param.zone)?;
+        state_set.inits.push(zone_init);
+
+        // new players & npcs
+        // unsafe { ctx.set_extras(&zone, &mut vec![]) };
+
+        let mut logic_characters = HistoryVec::with_capacity(param.players.len() + param.npcs.len());
+
+        for param_player in param.players {
+            let mut ctx_ex = ContextUpdateEx::new(systems, time, &zone);
+            let (logic_player, player_init) = LogicCharacter::new_player(&mut ctx_ex, &param_player)?;
+            logic_characters.append_new(logic_player);
+            state_set.inits.push(player_init);
+        }
+
+        for param_npc in param.npcs {
+            let mut ctx_ex = ContextUpdateEx::new(systems, time, &zone);
+            let (logic_npc, npc_init) = LogicCharacter::new_npc(&mut ctx_ex, &param_npc)?;
+            logic_characters.append_new(logic_npc);
+            state_set.inits.push(npc_init);
+        }
+
+        let mut game = Box::new(LogicGame {
+            id: NumID::GAME,
+            frame: 0,
+            zone,
+            characters: logic_characters,
+            hit_events: Vec::with_capacity(32),
+        });
+
+        let (updates, chara_updates) = game.collect_states_updates(systems)?;
+        state_set.updates = updates;
+        state_set.chara_updates = chara_updates;
+
+        Ok((game, Arc::new(state_set)))
+    }
+
+    fn restore(&mut self, ctx: &ContextRestore) -> XResult<()> {
+        self.frame = ctx.frame;
+        self.zone.restore(ctx)?;
+
+        self.characters.restore_when(|chara| {
+            if chara.death_frame() < self.frame {
+                Ok(-1)
+            }
+            else if chara.spawn_frame() > self.frame {
+                return Ok(1);
+            }
+            else {
+                chara.restore(ctx)?;
+                return Ok(0);
+            }
+        })?;
+        Ok(())
+    }
+
+    fn update(&mut self, systems: &mut LogicSystems, time: &GameTime) -> XResult<Arc<StateSet>> {
+        self.frame = time.frame;
+
+        self.zone.update(&mut ContextUpdate::new(systems, time))?;
+
+        // Update value
+        for idx in 0..self.characters.len() {
+            if !self.characters[idx].is_alive() {
+                continue;
+            }
+            let (chara, rest) = self.characters.taken_rest(idx);
+            let chara = unsafe { chara.unwrap_unchecked() };
+            let mut ctx_ex = ContextUpdateEx::new(systems, time, &self.zone);
+            ctx_ex.hit_events = &self.hit_events;
+            ctx_ex.characters = rest;
+            chara.update_value(&mut ctx_ex)?;
+        }
+
+        // TODO: Create new objects
+        // TODO: Clear dead objects
+
+        // Update character control
+        for idx in 0..self.characters.len() {
+            if !self.characters[idx].is_alive() {
+                continue;
+            }
+            let (chara, rest) = self.characters.taken_rest(idx);
+            let chara = unsafe { chara.unwrap_unchecked() };
+            let mut ctx_ex = ContextUpdateEx::new(systems, time, &self.zone);
+            ctx_ex.hit_events = &self.hit_events;
+            ctx_ex.characters = rest;
+            chara.update_control(&mut ctx_ex)?;
+        }
+
+        // Update character control
+        for idx in 0..self.characters.len() {
+            if !self.characters[idx].is_alive() {
+                continue;
+            }
+            let (chara, rest) = self.characters.taken_rest(idx);
+            let chara = unsafe { chara.unwrap_unchecked() };
+            let mut ctx_ex = ContextUpdateEx::new(systems, time, &self.zone);
+            ctx_ex.hit_events = &self.hit_events;
+            ctx_ex.characters = rest;
+            chara.update_physics(&mut ctx_ex)?;
+        }
+
+        // Collect states
+        let mut state_set = StateSet::new(self.frame);
+        let (updates, chara_updates) = self.collect_states_updates(systems)?;
+        state_set.updates = updates;
+        state_set.chara_updates = chara_updates;
+        self.hit_events.clear();
+
+        Ok(Arc::new(state_set))
+    }
+
+    fn collect_states_updates(
+        &mut self,
+        systems: &mut LogicSystems,
+    ) -> XResult<(Vec<Box<dyn StateAny>>, Vec<Box<StateCharacterUpdate>>)> {
+        let mut updates: Vec<Box<dyn StateAny>> = Vec::with_capacity(2);
+        updates.push(Box::new(StateGameUpdate {
+            _base: StateBase::new(self.id, StateType::GameUpdate, LogicType::Game),
+            frame: self.frame,
+            identity: systems.identity.state(),
+            rand: systems.rand.state(),
+            hit_events: self.hit_events.drain(..).collect(),
+        }));
+
+        updates.push(self.zone.state());
+
+        let mut chara_updates = Vec::with_capacity(self.characters.len());
+        for chara in self.characters.iter_mut() {
+            chara_updates.push(chara.state()?);
+        }
+        Ok((updates, chara_updates))
+    }
+
+    pub(crate) fn on_hit_character<'t>(&mut self, phy_event: &PhyHitCharacterEvent<'t>) -> XResult<()> {
+        let Some(src) = self.characters.iter().position(|c| c.id() == phy_event.src_chara_id)
+        else {
+            log::warn!("Src Character not found ({})", phy_event.src_chara_id);
+            return Ok(());
+        };
+        let Some(dst) = self.characters.iter().position(|c| c.id() == phy_event.dst_chara_id)
+        else {
+            log::warn!("Dst Character not found ({})", phy_event.dst_chara_id);
+            return Ok(());
+        };
+
+        let mut ctx = ContextHitGenerate::new(self.frame, &mut self.hit_events);
+        let src_chara = unsafe { force_mut(&self.characters[src]) };
+        let dst_chara = unsafe { force_mut(&self.characters[dst]) };
+        src_chara.before_hit(dst_chara, &mut ctx, phy_event)?;
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::consts::TEST_ASSET_PATH;
+    use crate::parameter::{ParamNpc, ParamPlayer, ParamZone};
+    use crate::utils::{RawInput, RawKey, id};
+
+    #[ctor::ctor]
+    fn test_init_jolt_physics() {
+        jolt_physics_rs::global_initialize();
+    }
+
+    #[test]
+    fn test_logic_loop_common() {
+        let tmpl_db = TmplDatabase::new(10240, 150).unwrap();
+        let param = ParamGame {
+            zone: ParamZone { zone: id!("Zone.Demo") },
+            players: vec![ParamPlayer {
+                character: id!("Character.One"),
+                style: id!("Style.One^1"),
+                level: 4,
+                ..Default::default()
+            }],
+            npcs: vec![ParamNpc {
+                character: id!("CharacterNpc.InstanceNpc^1"),
+                level: 2,
+                ai_brain: id!("AiBrain.InstanceNpc^1"),
+                ..Default::default()
+            }],
+            local_mode: true,
+        };
+        let (mut ll, _) = LogicLoop::new(tmpl_db, TEST_ASSET_PATH, param, None).unwrap();
+        ll.update(vec![InputPlayerInputs {
+            frame: 1,
+            player_id: NumID::MIN_PLAYER,
+            inputs: vec![RawInput::new_button(RawKey::Attack1, true)],
+        }])
+        .unwrap();
+        // ll.update(vec![]).unwrap();
+        // ll.update(vec![]).unwrap();
+        // // ll.update(vec![]).unwrap();
+        // ll.stop().unwrap();
+    }
+}
