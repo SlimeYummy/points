@@ -1,15 +1,12 @@
 use critical_point_macros::csharp_out;
-use glam::{Vec3, Vec3A};
-use glam_ext::Vec2xz;
 use std::collections::{VecDeque, vec_deque};
-use std::hint::unlikely;
 use std::ops::{Index, RangeBounds};
 use std::sync::Arc;
 
 use crate::consts::FPS_USIZE;
 use crate::logic::base::StateAny;
 use crate::logic::character::StateCharacterUpdate;
-use crate::utils::{Castable, NumID, ShapeSphere, ShapeSphericalCone, XResult, xres, xresf};
+use crate::utils::{Castable, NumID, XResult, xres, xresf};
 
 #[repr(C)]
 #[csharp_out(Ref)]
@@ -57,70 +54,6 @@ impl StateSet {
     #[inline]
     pub fn find_as<T: StateAny + 'static>(&self, id: NumID) -> XResult<&T> {
         self.find(id)?.cast()
-    }
-
-    pub fn search_chara_in_sphere<'t>(
-        &'t self,
-        is_player: bool,
-        sphere: &ShapeSphere,
-        center: Vec3A,
-        indexes: &mut Vec<u32>,
-    ) {
-        // TODO: use octree to optimize search
-        // TODO: use team instead of is_player
-
-        for (idx, state) in self.chara_updates.iter().enumerate() {
-            if is_player != NumID::is_player(state.id) {
-                continue;
-            }
-
-            let dist_sq = (state.physics.position - center).length_squared();
-            if dist_sq <= sphere.radius_sq() {
-                indexes.push(idx as u32);
-            }
-        }
-    }
-
-    pub fn search_chara_in_spherical_cone<'t>(
-        &'t self,
-        is_player: bool,
-        cone: &ShapeSphericalCone,
-        center: Vec3A,
-        direction: Vec2xz,
-        indexes: &mut Vec<u32>,
-    ) {
-        const LEN_THRESHOLD_SQ: f32 = 1e-6;
-        // TODO: use octree to optimize search
-        // TODO: use team instead of is_player
-
-        let direction = direction.as_vec3a();
-        if unlikely(direction.length_squared() < LEN_THRESHOLD_SQ) {
-            return;
-        }
-        let dir_len = direction.length();
-
-        let cos_half_angle = cone.half_angle.cos();
-        for (idx, state) in self.chara_updates.iter().enumerate() {
-            if is_player != NumID::is_player(state.id) {
-                continue;
-            }
-
-            let diff = state.physics.position - center;
-            let dist_sq = diff.length_squared();
-            if dist_sq > cone.radius_sq() {
-                continue;
-            }
-
-            if dist_sq < LEN_THRESHOLD_SQ {
-                indexes.push(idx as u32);
-                continue;
-            }
-
-            let dot = diff.dot(direction) / (dist_sq.sqrt() * dir_len);
-            if dot >= cos_half_angle {
-                indexes.push(idx as u32);
-            }
-        }
     }
 }
 
