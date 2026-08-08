@@ -621,7 +621,7 @@ impl TaskStructOut {
         ls += f!("");
         for derive in &meta.rs_derives {
             let snake_derive = derive.to_snake();
-            ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+            ls += f!("    [DllImport(\"critical_point_c_apis.dll\")]");
             ls += f!("    private static extern unsafe Rs{}* {}_box_ref(RsBoxDyn<Rs{}>* pbox);", derive, snake_derive, rs_name);
             ls += f!("    public Ref{0} AsRef{0}() {{", derive);
             ls += f!("      var dyn = _dyn;");
@@ -640,7 +640,7 @@ impl TaskStructOut {
         ls += f!("    internal Box{}(RsBoxDyn<Rs{}> dyn) => _dyn = dyn;", trait_name, rs_name);
         ls += f!("    public Ref{0} Ref() => new Ref{0}(_dyn);", trait_name);
         ls += f!("");
-        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    [DllImport(\"critical_point_c_apis.dll\")]");
         ls += f!("    private static extern unsafe void {}_box_drop(RsBoxDyn<Rs{}> box);", snake_case, rs_name);
         ls += f!("    public void Dispose() {{");
         ls += f!("      if (!_dyn.IsNull) {{");
@@ -669,7 +669,7 @@ impl TaskStructOut {
         ls += f!("");
         ls += f!("    internal Weak{}(RsArcDyn<Rs{}> dyn) => _dyn = dyn;", trait_name, rs_name);
         ls += f!("    public Weak{0} Weak() => new Weak{0}(_dyn);", trait_name);
-        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    [DllImport(\"critical_point_c_apis.dll\")]");
         ls += f!("    private static extern unsafe RsArcDyn<Rs{0}> {1}_arc_clone(RsArcDyn<Rs{0}>* parc);", rs_name, snake_case);
         ls += f!("    public Arc{0} Arc() {{", trait_name);
         ls += f!("      var dyn = _dyn;");
@@ -678,7 +678,7 @@ impl TaskStructOut {
         ls += f!("");
         for derive in &meta.rs_derives {
             let snake_derive = derive.to_snake();
-            ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+            ls += f!("    [DllImport(\"critical_point_c_apis.dll\")]");
             ls += f!("    private static extern unsafe RsArcInner<Rs{}>* {}_arc_ref(RsArcDyn<Rs{}>* dyn);", derive, snake_derive, rs_name);
             ls += f!("    public Weak{0} AsWeak{0}() {{", derive);
             ls += f!("      var dyn = _dyn;");
@@ -686,7 +686,7 @@ impl TaskStructOut {
             ls += f!("      if (ptr == null) throw new NullReferenceException(\"Invalid {}\");", derive);
             ls += f!("      return new Weak{}(ptr);", derive);
             ls += f!("    }}");
-            ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+            ls += f!("    [DllImport(\"critical_point_c_apis.dll\")]");
             ls += f!("    private static extern unsafe RsArcInner<Rs{}>* {}_arc_arc(RsArcDyn<Rs{}>* dyn);", derive, snake_derive, rs_name);
             ls += f!("    public Arc{0} AsArc{0}() {{", derive);
             ls += f!("      var dyn = _dyn;");
@@ -708,7 +708,7 @@ impl TaskStructOut {
         ls += f!("    public IntPtr StrongCount => _dyn.ptr->strong;");
         ls += f!("    public IntPtr WeakCount => _dyn.ptr->weak;");
         ls += f!("");
-        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    [DllImport(\"critical_point_c_apis.dll\")]");
         ls += f!("    private static extern unsafe void {}_arc_drop(RsArcDyn<Rs{}> arc);", snake_case, rs_name);
         ls += f!("    public void Dispose() {{");
         ls += f!("      if (!_dyn.IsNull) {{");
@@ -748,7 +748,7 @@ impl TaskStructOut {
         ls += f!("    internal Box{0}(Rs{0}* ptr) => _ptr = ptr;", rs_name);
         ls += f!("    public Ref{0} Ref() => new Ref{0}(_ptr);", rs_name);
         ls += f!("");
-        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    [DllImport(\"critical_point_c_apis.dll\")]");
         ls += f!("    private static extern unsafe void {}_box_drop(Rs{}* box);", snake_case, rs_name);
         ls += f!("    public void Dispose() {{");
         ls += f!("      if (_ptr != null) {{");
@@ -779,7 +779,7 @@ impl TaskStructOut {
         ls += f!("    private RsArcInner<Rs{}>* _ptr;", rs_name);
         self.gen_ref_fields(ctx, &mut ls, "_ptr->data.")?;
         ls += f!("");
-        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    [DllImport(\"critical_point_c_apis.dll\")]");
         ls += f!("    private static extern unsafe RsArcInner<Rs{0}>* {1}_arc_clone(RsArcInner<Rs{0}>** pptr);", rs_name, snake_case);
         ls += f!("    internal Arc{}(RsArcInner<Rs{}>* ptr) => _ptr = ptr;", rs_name, rs_name);
         ls += f!("    public Weak{0} Weak() => new Weak{0}(_ptr);", rs_name);
@@ -790,7 +790,7 @@ impl TaskStructOut {
         ls += f!("    public IntPtr StrongCount => _ptr->strong;");
         ls += f!("    public IntPtr WeakCount => _ptr->weak;");
         ls += f!("");
-        ls += f!("    [DllImport(\"critical_point_csbridge.dll\")]");
+        ls += f!("    [DllImport(\"critical_point_c_apis.dll\")]");
         ls += f!("    private static extern unsafe void {}_arc_drop(RsArcInner<Rs{}>* ptr);", snake_case, rs_name);
         ls += f!("    public void Dispose() {{");
         ls += f!("      if (_ptr != null) {{");

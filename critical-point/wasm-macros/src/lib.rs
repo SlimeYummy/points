@@ -27,8 +27,9 @@ impl TmplKeyCache {
             ("Accessory", "Accessory"),
             ("Jewel", "Jewel"),
             ("Action", "Action"),
-            ("NpcAction", "NpcAction"),
+            ("ActionNpc", "ActionNpc"),
             ("AiBrain", "AiBrain"),
+            ("AiRoutine", "AiRoutine"),
             ("AiTask", "AiTask"),
             ("Zone", "Zone"),
         ]);
