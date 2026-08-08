@@ -62,20 +62,97 @@ const _: () = {
 #[inline(always)]
 pub fn wrap_ai_brain_execute<F>(
     global_ptr: *const WsGameGlobal,
-    chara_value_ptr: *const WsCharaValue,
-    ai_tasks_ptr: *mut WsAiTask,
-    ai_tasks_len: u32,
+    chara_ctrl_ptr: *const WsCharaControl,
+    chara_phy_ptr: *const WsCharaPhysics,
+    chara_val_ptr: *const WsCharaValue,
+    tgt_phy_ptr: *const WsCharaPhysics,
+    tgt_val_ptr: *const WsCharaValue,
+    ai_do_list_ptr: *mut WsAiDo,
+    ai_do_list_len: u32,
     f: F,
 ) -> u64
 where
-    F: FnOnce(&WsGameGlobal, &WsCharaValue, &mut HostBuffer<WsAiTask>) -> Result<()>,
+    F: FnOnce(
+        &WsGameGlobal,
+        &WsCharaControl,
+        &WsCharaPhysics,
+        &WsCharaValue,
+        Option<&WsCharaPhysics>,
+        Option<&WsCharaValue>,
+        &mut HostBuffer<WsAiDo>,
+    ) -> Result<()>,
 {
     let global = unsafe { &*(global_ptr as *const WsGameGlobal) };
-    let chara_value = unsafe { &*(chara_value_ptr as *const WsCharaValue) };
-    let mut ai_tasks = unsafe { HostBuffer::new(ai_tasks_ptr, ai_tasks_len) };
+    let chara_ctrl = unsafe { &*(chara_ctrl_ptr as *const WsCharaControl) };
+    let chara_phy = unsafe { &*(chara_phy_ptr as *const WsCharaPhysics) };
+    let chara_val = unsafe { &*(chara_val_ptr as *const WsCharaValue) };
+    let tgt_phy = if tgt_phy_ptr.is_null() {
+        None
+    }
+    else {
+        Some(unsafe { &*tgt_phy_ptr })
+    };
+    let tgt_val = if tgt_val_ptr.is_null() {
+        None
+    }
+    else {
+        Some(unsafe { &*tgt_val_ptr })
+    };
+    let mut ai_tasks = unsafe { HostBuffer::new(ai_do_list_ptr, ai_do_list_len) };
 
-    match f(global, chara_value, &mut ai_tasks) {
+    match f(
+        global,
+        chara_ctrl,
+        chara_phy,
+        chara_val,
+        tgt_phy,
+        tgt_val,
+        &mut ai_tasks,
+    ) {
         Ok(()) => (0u32, ai_tasks.len() as u32).pack(),
+        Err(err) => (HostError::write_error(err), 0u32).pack(),
+    }
+}
+
+#[inline(always)]
+pub fn wrap_ai_routine_if<F>(
+    global_ptr: *const WsGameGlobal,
+    chara_ctrl_ptr: *const WsCharaControl,
+    chara_phy_ptr: *const WsCharaPhysics,
+    chara_val_ptr: *const WsCharaValue,
+    tgt_phy_ptr: *const WsCharaPhysics,
+    tgt_val_ptr: *const WsCharaValue,
+    f: F,
+) -> u64
+where
+    F: FnOnce(
+        &WsGameGlobal,
+        &WsCharaControl,
+        &WsCharaPhysics,
+        &WsCharaValue,
+        Option<&WsCharaPhysics>,
+        Option<&WsCharaValue>,
+    ) -> Result<bool>,
+{
+    let global = unsafe { &*(global_ptr as *const WsGameGlobal) };
+    let chara_ctrl = unsafe { &*(chara_ctrl_ptr as *const WsCharaControl) };
+    let chara_phy = unsafe { &*(chara_phy_ptr as *const WsCharaPhysics) };
+    let chara_val = unsafe { &*(chara_val_ptr as *const WsCharaValue) };
+    let tgt_phy = if tgt_phy_ptr.is_null() {
+        None
+    }
+    else {
+        Some(unsafe { &*tgt_phy_ptr })
+    };
+    let tgt_val = if tgt_val_ptr.is_null() {
+        None
+    }
+    else {
+        Some(unsafe { &*tgt_val_ptr })
+    };
+
+    match f(global, chara_ctrl, chara_phy, chara_val, tgt_phy, tgt_val) {
+        Ok(res) => (0u32, if res { 1u32 } else { 0u32 }).pack(),
         Err(err) => (HostError::write_error(err), 0u32).pack(),
     }
 }

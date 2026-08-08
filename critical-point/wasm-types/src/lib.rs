@@ -6,6 +6,7 @@ mod imports;
 mod wrap;
 
 pub use auto_gen::*;
+pub use consts::*;
 pub use critical_point_wasm_macros::id;
 pub use error::*;
 pub use host_buffer::*;
