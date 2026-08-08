@@ -45,3 +45,16 @@ pub const DEFAULT_TOWARD_DIR_2D: Vec2xz = Vec2xz::Z;
 pub const DEFAULT_TOWARD_DIR_3D: Vec3A = Vec3A::Z;
 
 pub const MAX_HIT_TIMES_PER_FRAME: u16 = 100;
+
+//
+// Action & AiTask levels
+//
+
+pub const LEVEL_IDLE: u16 = 0;
+pub const LEVEL_MOVE: u16 = 50;
+pub const LEVEL_ATTACK: u16 = 100;
+pub const LEVEL_SKILL: u16 = 200;
+pub const LEVEL_DERIVE: u16 = 300;
+pub const LEVEL_ULTIMATE: u16 = 400;
+pub const LEVEL_ACTION: u16 = 500;
+pub const LEVEL_UNBREAKABLE: u16 = 600;
