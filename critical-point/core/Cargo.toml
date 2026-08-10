@@ -47,8 +47,8 @@ server-side = []
 debug-print = ["jolt-physics-rs/debug-print"]
 for-turning-point = []
 
-# Special features used to trigger C# code generation.
+# Special feature used to trigger C# code generation.
 csharp = ["critical-point-macros/csharp"]
 
-# Special features used to trigger Wasm(Rust) code generation.
+# Special feature used to trigger Wasm(Rust) code generation.
 wasm = ["critical-point-macros/wasm"]
