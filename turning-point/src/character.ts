@@ -31,6 +31,7 @@ import { Equipment } from './equipment';
 import { parseJevelSlotsArray } from './jewel';
 import * as native from './native';
 import { Perk } from './perk';
+import { ScriptIf } from './script';
 
 export type CharacterArgs = {
     /** 角色名字 */
@@ -45,18 +46,12 @@ export type CharacterArgs = {
     /** 装备ID列表 */
     equipments: ReadonlyArray<ID>;
 
-    /** 用于移动的包围胶囊体 */
-    bounding: Capsule | TaperedCapsule;
-
-    /** 骨骼动画模型文件 一个通配的路径前缀 以xxx为例对应如下文件
+    /** 骨骼动画模型文件（必须面向+Z） 一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
      * - xxx.vs-ozz 视图骨骼
      * - xxx.cp-rkyv/xxx.cp-json 角色物理
      */
     skeleton_files: FilePath;
-
-    /** 模型在XZ平面上的朝向（正面方向） */
-    skeleton_toward: readonly [float, float];
 };
 
 /**
@@ -87,18 +82,12 @@ export class Character extends Resource {
     /** 装备ID列表 */
     public readonly equipments: ReadonlyArray<ID>;
 
-    /** 用于移动的包围胶囊体 */
-    public readonly bounding: Capsule | TaperedCapsule;
-
-    /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
+    /** 骨骼动画模型文件（必须面向+Z） 一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
      * - xxx.vs-ozz 视图骨骼
      * - xxx.cp-rkyv/xxx.cp-json
      */
     public readonly skeleton_files: FilePath;
-
-    /** 模型在XZ平面上的朝向（正面方向） */
-    public readonly skeleton_toward: readonly [float, float];
 
     public constructor(id: ID, args: CharacterArgs) {
         super(id);
@@ -106,12 +95,8 @@ export class Character extends Resource {
         this.level = parseIntRange(args.level, this.w('level'), { type: 'u32' });
         this.styles = parseIDArray(args.styles, 'Style', this.w('styles'));
         this.equipments = parseIDArray(args.equipments, 'Equipment', this.w('equipments'));
-        this.bounding = checkType(args.bounding, [Capsule, TaperedCapsule], this.w('bounding'));
         this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), {
             extension: '.*',
-        });
-        this.skeleton_toward = parseVec2(args.skeleton_toward, this.w('skeleton_toward'), {
-            normalized: true,
         });
 
         this.checkSkeletonFiles();
@@ -327,18 +312,12 @@ export type CharacterNpcArgs = {
     /** AI控制器列表 */
     ai_brains: ReadonlyArray<ID>;
 
-    /** 用于移动的包围胶囊体 */
-    bounding: Capsule | TaperedCapsule;
-
-    /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
+    /** 骨骼动画模型文件（必须面向+Z） 一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
      * - xxx.vs-ozz 视图骨骼
      * - xxx.cp-rkyv/xxx.cp-json 角色物理
      */
     skeleton_files: FilePath;
-
-    /** 模型在XZ平面上的朝向（正面方向） */
-    skeleton_toward: readonly [float, float];
 
     /** 角色模型（渲染） */
     view_model: FilePath;
@@ -381,18 +360,12 @@ export class CharacterNpc extends Resource {
     /** AI控制器列表 */
     public readonly ai_brains: ReadonlyArray<ID>;
 
-    /** 用于移动的包围胶囊体 */
-    public readonly bounding: Capsule | TaperedCapsule;
-
-    /** 骨骼动画模型文件  一个通配的路径前缀 以xxx为例对应如下文件
+    /** 骨骼动画模型文件（必须面向+Z） 一个通配的路径前缀 以xxx为例对应如下文件
      * - xxx.ls-ozz 逻辑骨骼
      * - xxx.vs-ozz 视图骨骼
      * - xxx.cp-rkyv/xxx.cp-json 角色物理
      */
     public readonly skeleton_files: FilePath;
-
-    /** 模型在XZ平面上的朝向（正面方向） */
-    public readonly skeleton_toward: readonly [float, float];
 
     /** 角色模型（渲染） */
     public readonly view_model: FilePath;
@@ -413,12 +386,8 @@ export class CharacterNpc extends Resource {
         );
         this.actions = parseIDArray(args.actions, 'Action', this.w('actions'));
         this.ai_brains = parseIDArray(args.ai_brains, 'AiBrain', this.w('ai_brains'));
-        this.bounding = checkType(args.bounding, [Capsule, TaperedCapsule], this.w('bounding'));
         this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), {
             extension: '.*',
-        });
-        this.skeleton_toward = parseVec2(args.skeleton_toward, this.w('skeleton_toward'), {
-            normalized: true,
         });
         this.view_model = parseFile(args.view_model, this.w('view_model'), {
             extension: ['.vrm', '.prefab', '.unity'],
@@ -460,6 +429,13 @@ export class CharacterNpc extends Resource {
                 throw this.e(`ai_brains[${idx}]`, 'CharacterNpc and AiBrain mismatch');
             }
         }
+    }
+
+    public toJSON() {
+        return {
+            ...this,
+            script_predicates: ScriptIf.hasPredicate(this.id),
+        };
     }
 }
 

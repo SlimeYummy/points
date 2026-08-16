@@ -87,7 +87,7 @@ export class Entry extends Resource {
     public readonly var_indexes?: Readonly<Record<ID, ReadonlyArray<int>>>;
 
     /** 每一级的变量(等级) */
-    public readonly var_indexes_plus?: Readonly<Record<ID, ReadonlyArray<int>>>;
+    public readonly var_plus_indexes?: Readonly<Record<ID, ReadonlyArray<int>>>;
 
     // /** 脚本 */
     // script?: string;
@@ -115,7 +115,7 @@ export class Entry extends Resource {
                   { len: this.max_piece },
               );
 
-        [this.var_indexes, this.var_indexes_plus] = !args.var_indexes
+        [this.var_indexes, this.var_plus_indexes] = !args.var_indexes
             ? [undefined, undefined]
             : parseVarIndexPlusTable(args.var_indexes, this.w('var_indexes'), {
                   len: this.max_piece,
@@ -127,8 +127,8 @@ export class Entry extends Resource {
         if (this.var_indexes) {
             verifyVarIndexTable(this.var_indexes, {}, this.w('var_indexes'));
         }
-        if (this.var_indexes_plus) {
-            verifyVarIndexTable(this.var_indexes_plus, {}, this.w('var_indexes_plus'));
+        if (this.var_plus_indexes) {
+            verifyVarIndexTable(this.var_plus_indexes, {}, this.w('var_plus_indexes'));
         }
     }
 }
