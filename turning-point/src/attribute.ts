@@ -237,11 +237,9 @@ export function parseAttributePlusTable<
             throw new Error(`${where}[${attr}]: attribute not includes`);
         }
         if (attr.startsWith('$')) {
-            const pcattr = attr.slice(1);
-            pcattrs[pcattr] = parseFloatArray(vals!, `${where}[${attr}]`, {
+            pcattrs[attr.slice(1)] = parseFloatArray(vals!, `${where}[${attr}]`, {
                 ...opts,
                 type: 'f32',
-                add_first: 0,
             });
             any_pcattrs = true;
         } else {

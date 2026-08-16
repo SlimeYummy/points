@@ -27,7 +27,7 @@
     "test": "cross-env INPUT_ASSET=../test-asset OUTPUT_ASSET=../test-tmp/test-asset jest",
     "gen-asset": "cross-env INPUT_ASSET=../test-asset OUTPUT_ASSET=../test-tmp/test-asset ts-node ./test-res/asset.ts",
     "gen-tmpl": "cross-env INPUT_ASSET=../test-asset OUTPUT_ASSET=../test-tmp/test-asset ts-node ./test-res/index.ts && npm run build-wasm",
-    "gen-demo": "cross-env INPUT_ASSET=../test-asset OUTPUT_ASSET=../test-tmp/test-asset ts-node ./demo/demo.ts && npm run build-wasm",
+    "gen-demo": "cross-env INPUT_ASSET=../test-asset OUTPUT_ASSET=../test-tmp/test-asset ts-node ./demo/index.ts && npm run build-wasm",
     "build-wasm": "cd ../turning-point-wasm && cargo fmt && cargo build && copy ..\\turning-point-wasm\\target\\wasm32-unknown-unknown\\debug\\turning_point.wasm ..\\test-tmp\\test-asset",
     "native-artifacts": "napi artifacts",
     "native-build": "napi build --platform && node build.js",
