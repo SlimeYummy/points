@@ -15,7 +15,7 @@ import {
 import { Animation, AnimationArgs } from './animation';
 import { Action, ActionArgs, LEVEL_MOVE, parseActionLevel } from './base';
 
-export type ActionMoveStartArgs = AnimationArgs & {
+export type ActionMoveFreeStartArgs = AnimationArgs & {
     /** 进入该动画的移动朝向角度（右手系XZ平面） */
     enter_angle: [float | string, float | string];
 
@@ -26,7 +26,7 @@ export type ActionMoveStartArgs = AnimationArgs & {
     quick_stop_end?: float | string;
 };
 
-export class ActionMoveStart {
+export class ActionMoveFreeStart {
     /** Start动画 */
     public readonly anim: Animation;
 
@@ -39,7 +39,7 @@ export class ActionMoveStart {
     /** 可以触发快速停止的结束时间 */
     public readonly quick_stop_end: float;
 
-    public constructor(args: ActionMoveStartArgs, where: string) {
+    public constructor(args: ActionMoveFreeStartArgs, where: string) {
         this.anim = new Animation(args, where, { root_motion: true });
         this.enter_angle = parseAngleXzRange(args.enter_angle, `${where}.enter_angle`);
         this.turn_in_place_end =
@@ -59,7 +59,7 @@ export class ActionMoveStart {
     }
 }
 
-export type ActionMoveTurnArgs = AnimationArgs & {
+export type ActionMoveFreeTurnArgs = AnimationArgs & {
     /** 进入该动画的转向角度（右手系XZ平面） */
     enter_angle: [float | string, float | string];
 
@@ -67,20 +67,20 @@ export type ActionMoveTurnArgs = AnimationArgs & {
     turn_in_place_end: float | string;
 };
 
-export class ActionMoveTurn {
+export class ActionMoveFreeTurn {
     /** Turn动画 */
     public readonly anim: Animation;
 
     /** 进入该动画的转向角度（右手系XZ平面） */
     public readonly enter_angle: readonly [float, float];
 
-    public constructor(args: ActionMoveTurnArgs, where: string) {
+    public constructor(args: ActionMoveFreeTurnArgs, where: string) {
         this.anim = new Animation(args, where, { root_motion: true });
         this.enter_angle = parseAngleXzRange(args.enter_angle, `${where}.enter_angle`);
     }
 }
 
-export type ActionMoveStopEnterArgs =
+export type ActionMoveFreeStopEnterArgs =
     | {
           /** 进入该动画的相位 [开始, 结束] */
           phase: [float | string, float | string];
@@ -90,7 +90,7 @@ export type ActionMoveStopEnterArgs =
       }
     | [[float | string, float | string], float | string];
 
-export type ActionMoveStopLeaveArgs =
+export type ActionMoveFreeStopLeaveArgs =
     | {
           /** 动画时间 */
           time: float | string;
@@ -99,15 +99,15 @@ export type ActionMoveStopLeaveArgs =
       }
     | [float | string, float | string];
 
-export type ActionMoveStopArgs = AnimationArgs & {
+export type ActionMoveFreeStopArgs = AnimationArgs & {
     /** 进入该动画的相位表  */
-    enter_phase_table: Array<ActionMoveStopEnterArgs>;
+    enter_phase_table: Array<ActionMoveFreeStopEnterArgs>;
 
     /** 离开该动画的相位表  */
-    leave_phase_table?: Array<ActionMoveStopLeaveArgs>;
+    leave_phase_table?: Array<ActionMoveFreeStopLeaveArgs>;
 };
 
-export class ActionMoveStop {
+export class ActionMoveFreeStop {
     /** Stop动画 */
     public readonly anim: Animation;
 
@@ -127,7 +127,7 @@ export class ActionMoveStop {
         readonly phase: float;
     }>;
 
-    public constructor(args: ActionMoveStopArgs, where: string) {
+    public constructor(args: ActionMoveFreeStopArgs, where: string) {
         this.anim = new Animation(args, where, { root_motion: true });
         this.enter_phase_table = this.parseEnterPhaseTable(
             args.enter_phase_table,
@@ -142,7 +142,7 @@ export class ActionMoveStop {
     }
 
     private parseEnterPhaseTable(
-        table: ReadonlyArray<ActionMoveStopEnterArgs>,
+        table: ReadonlyArray<ActionMoveFreeStopEnterArgs>,
         duration: float,
         where: string,
     ) {
@@ -185,7 +185,7 @@ export class ActionMoveStop {
     }
 
     private parseLeavePhaseTable(
-        table: undefined | Array<ActionMoveStopLeaveArgs>,
+        table: undefined | Array<ActionMoveFreeStopLeaveArgs>,
         duration: float,
         where: string,
     ) {
@@ -230,7 +230,7 @@ export class ActionMoveStop {
     }
 }
 
-export type ActionMoveArgs = ActionArgs & {
+export type ActionMoveFreeArgs = ActionArgs & {
     /** 进入按键 */
     enter_key: 'Run' | 'Walk' | 'Dash';
 
@@ -251,20 +251,20 @@ export type ActionMoveArgs = ActionArgs & {
     /** 前向移动动画 */
     anim_move: AnimationArgs;
 
-    /** 移动速度（m/s） 以anim_move为参考 影响Action内全部动画 */
+    /** 移动速度（m/s） 影响Action内全部动画 */
     move_speed: float;
 
     /** 移动开始动画 */
-    anim_starts: ReadonlyArray<ActionMoveStartArgs>;
+    anim_starts: ReadonlyArray<ActionMoveFreeStartArgs>;
 
     /** 移动停止动画 */
-    anim_stops: ReadonlyArray<ActionMoveStopArgs>;
+    anim_stops: ReadonlyArray<ActionMoveFreeStopArgs>;
 
     /** 快速停止时间 */
     quick_stop_time?: float | string;
 
     /** 转身动画 */
-    anim_turns?: ReadonlyArray<ActionMoveTurnArgs>;
+    anim_turns?: ReadonlyArray<ActionMoveFreeTurnArgs>;
 
     /** 转身180°所需时间 仅在未匹配到turns时生效 */
     turn_time: float | string;
@@ -284,7 +284,7 @@ export type ActionMoveArgs = ActionArgs & {
     smooth_move_duration?: float | string;
 };
 
-export class ActionMove extends Action {
+export class ActionMoveFree extends Action {
     /** 进入按键 */
     public readonly enter_key: 'Run' | 'Walk' | 'Dash';
 
@@ -308,23 +308,23 @@ export class ActionMove extends Action {
     /** 前向移动动画 */
     public readonly anim_move: Animation;
 
-    /** 移动速度（m/s） 以anim_move为参考 影响Action内全部动画 */
+    /** 移动速度（m/s） 影响Action内全部动画 */
     public readonly move_speed: float;
 
     /** 速度倍率 */
     public readonly speed_ratio: float;
 
     /** 移动开始动画 */
-    public readonly starts: ReadonlyArray<ActionMoveStart>;
+    public readonly starts: ReadonlyArray<ActionMoveFreeStart>;
 
     /** 移动停止动画 */
-    public readonly stops: ReadonlyArray<ActionMoveStop>;
+    public readonly stops: ReadonlyArray<ActionMoveFreeStop>;
 
     /** 快速停止时间 */
     public readonly quick_stop_time: float;
 
     /** 转身动画 */
-    public readonly turns: ReadonlyArray<ActionMoveTurn>;
+    public readonly turns: ReadonlyArray<ActionMoveFreeTurn>;
 
     /** 转身180°所需时间 仅在未匹配到turns时生效 */
     public readonly turn_time: float;
@@ -343,7 +343,7 @@ export class ActionMove extends Action {
     /** 平滑切换移动持续时间 */
     public readonly smooth_move_duration: float;
 
-    public constructor(id: ID, args: ActionMoveArgs) {
+    public constructor(id: ID, args: ActionMoveFreeArgs) {
         super(id, args, { character: 'player' });
         this.enter_key = parseString(args.enter_key as string, this.w('enter_key'), {
             includes: ['Run', 'Walk', 'Dash'],
@@ -372,14 +372,14 @@ export class ActionMove extends Action {
         this.starts = parseArray(
             args.anim_starts,
             this.w('anim_starts'),
-            (item, idx) => new ActionMoveStart(item, this.w(`anim_starts[${idx}]`)),
+            (item, idx) => new ActionMoveFreeStart(item, this.w(`anim_starts[${idx}]`)),
             { min_len: 1 },
         );
 
         this.stops = parseArray(
             args.anim_stops,
             this.w('anim_stops'),
-            (item, idx) => new ActionMoveStop(item, this.w(`anim_stops[${idx}]`)),
+            (item, idx) => new ActionMoveFreeStop(item, this.w(`anim_stops[${idx}]`)),
             { min_len: 1 },
         );
         this.quick_stop_time = parseTime(args.quick_stop_time || 0, this.w('quick_stop_time'), {
@@ -391,7 +391,7 @@ export class ActionMove extends Action {
             args.anim_turns == null
                 ? []
                 : parseArray(args.anim_turns, this.w('anim_turns'), (item, idx) => {
-                      return new ActionMoveTurn(item, this.w(`anim_turns[${idx}]`));
+                      return new ActionMoveFreeTurn(item, this.w(`anim_turns[${idx}]`));
                   });
         this.turn_time = parseTime(args.turn_time || '12F', this.w('turn_time'), {
             min: 0,
@@ -425,8 +425,8 @@ export class ActionMove extends Action {
         super.verify();
         for (const [idx, id] of this.smooth_move_froms.entries()) {
             const act = Action.find(id, this.w(`smooth_move_froms[${idx}]`));
-            if (!(act instanceof ActionMove)) {
-                throw this.e(`smooth_move_froms[${idx}]`, 'must not be ActionMove');
+            if (!(act instanceof ActionMoveFree)) {
+                throw this.e(`smooth_move_froms[${idx}]`, 'must not be ActionMoveFree');
             }
         }
     }
