@@ -1,4 +1,4 @@
-import { float, ID, int, parseAngleXz, parseString, parseTime } from '../common';
+import { float, ID, int, parseAngleXz, parseBool, parseString, parseTime } from '../common';
 import { Animation, AnimationArgs } from './animation';
 import { Action, ActionArgs } from './base';
 
@@ -36,8 +36,11 @@ export type ActionHitArgs = ActionArgs & {
     /** 进入按键 */
     enter_key: 'Hit1' | 'Hit2' | 'Hit3';
 
-    /** 受击动画 */
+    /** 各方向受击动画 */
     anim_be_hits: ReadonlyArray<ActionHitBeHitArgs>;
+
+    /** 是否混合各方向受击动画（be_hits） */
+    blend_be_hits?: boolean;
 
     /** 受击倒地动画 */
     anim_down?: AnimationArgs;
@@ -56,8 +59,11 @@ export class ActionHit extends Action {
     /** 进入按键 */
     public readonly enter_key: 'Hit1' | 'Hit2' | 'Hit3';
 
-    /** 受击动画 */
+    /** 各方向受击动画 */
     public readonly be_hits: ReadonlyArray<ActionHitBeHit>;
+
+    /** 是否混合各方向受击动画（be_hits） */
+    public readonly blend_be_hits: boolean;
 
     /** 受击倒地动画 */
     public readonly anim_down?: Animation;
@@ -83,12 +89,11 @@ export class ActionHit extends Action {
             includes: ['Hit1', 'Hit2', 'Hit3'],
         }) as any;
         this.be_hits = ActionHitBeHit.parseArray(args.anim_be_hits, this.w('anim_be_hits'));
+        this.blend_be_hits = parseBool(args.blend_be_hits ?? false, this.w('blend_be_hits'));
         this.anim_down = !args.anim_down
             ? undefined
             : new Animation(args.anim_down, this.w('anim_down'));
-        this.max_down_time = !args.max_down_time
-            ? undefined
-            : parseTime(args.max_down_time, this.w('max_down_time'), { min: 0, type: 'f32' });
+        this.max_down_time = parseTime(args.max_down_time ?? 0, this.w('max_down_time'), { min: 0, type: 'f32' });
         this.anim_recovery = !args.anim_recovery
             ? undefined
             : new Animation(args.anim_recovery, this.w('anim_recovery'));

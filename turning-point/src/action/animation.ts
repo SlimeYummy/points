@@ -119,9 +119,9 @@ export class Animation {
         if (duration == null) {
             return anim.duration;
         } else if (typeof duration === 'string' && duration.endsWith('!')) {
-            return parseTime(duration.slice(0, -1), `${where}.duration`, { min: 0, type: 'f32' });
+            return parseTime(duration.slice(0, -1), where, { min: 0, type: 'f32' });
         } else {
-            const dura = parseTime(duration, `${where}.duration`, { min: 0, type: 'f32' });
+            const dura = parseTime(duration, where, { min: 0, type: 'f32' });
             if (Math.abs(dura - anim.duration) > 1e-4) {
                 console.warn(
                     `Warning: ${where}: duration mismatch (${duration} != ${anim.duration}s)`,
