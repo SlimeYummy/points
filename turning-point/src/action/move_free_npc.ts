@@ -80,7 +80,7 @@ export class ActionMoveNpcStop {
     }
 }
 
-export type ActionMoveNpcArgs = ActionArgs & {
+export type ActionMoveFreeNpcArgs = ActionArgs & {
     /** 进入按键 */
     enter_key: 'Run' | 'Walk' | 'Dash';
 
@@ -90,7 +90,7 @@ export type ActionMoveNpcArgs = ActionArgs & {
     /** 前向移动动画 */
     anim_move: AnimationArgs;
 
-    /** 移动速度（m/s） 以anim_move为参考 影响Action内全部动画 */
+    /** 移动速度（m/s） 影响Action内全部动画 */
     move_speed: float;
 
     /** 移动开始动画 */
@@ -103,7 +103,7 @@ export type ActionMoveNpcArgs = ActionArgs & {
     turn_time: float | string;
 };
 
-export class ActionMoveNpc extends Action {
+export class ActionMoveFreeNpc extends Action {
     /** 进入按键 */
     public readonly enter_key: 'Run' | 'Walk' | 'Dash';
 
@@ -113,7 +113,7 @@ export class ActionMoveNpc extends Action {
     /** 前向移动动画 */
     public readonly anim_move: Animation;
 
-    /** 移动速度（m/s） 以anim_move为参考 影响Action内全部动画 */
+    /** 移动速度（m/s） 影响Action内全部动画 */
     public readonly move_speed: float;
 
     /** 移动速度倍率 */
@@ -134,7 +134,7 @@ export class ActionMoveNpc extends Action {
     /** 每步移动的距离（m） */
     public readonly step_length: float;
 
-    public constructor(id: ID, args: ActionMoveNpcArgs) {
+    public constructor(id: ID, args: ActionMoveFreeNpcArgs) {
         super(id, args, { character: 'npc' });
         this.enter_key = parseString(args.enter_key as string, this.w('enter_key'), {
             includes: ['Run', 'Walk', 'Dash'],
@@ -170,7 +170,8 @@ export class ActionMoveNpc extends Action {
             min: 0,
             type: 'f32',
         });
-        [this.min_distance, this.step_length] = this.calcMinDistanceAndStepLength();
+        this.min_distance = this.calcMinDistance();
+        this.step_length = this.calcStepLength();
 
         Animation.generateLocalID([
             this.anim_start,
@@ -179,14 +180,41 @@ export class ActionMoveNpc extends Action {
         ]);
     }
 
-    private calcMinDistanceAndStepLength(): [float, float] {
-        let start_ratio = 1.0;
-        const stop_ratios = [];
+    private calcMinDistance() {
+        let min_start_ratio = Infinity;
+        let min_move_ratio = 1;
         for (const stop of this.stops) {
             for (const from of stop.enter_from_table) {
                 if (from.anim === this.anim_start.files) {
-                    start_ratio = Math.min(start_ratio, from.ratio);
+                    min_start_ratio = Math.min(min_start_ratio, from.ratio);
                 } else if (from.anim === this.anim_move.files) {
+                    min_move_ratio = Math.min(min_move_ratio, from.ratio);
+                }
+            }
+        }
+
+        let min_distance;
+        if (min_start_ratio < Infinity) {
+            const start_dist = calcRootMotionDistances(this.anim_start.files, [
+                { from: 0, to: min_start_ratio },
+            ]);
+            min_distance = start_dist[0]!;
+        } else {
+            const start_dist = calcRootMotionDistances(this.anim_start.files, [{ from: 0, to: 1 }]);
+            const move_dist = calcRootMotionDistances(this.anim_move.files, [
+                { from: 0, to: min_move_ratio },
+            ]);
+            min_distance = start_dist[0]! + move_dist[0]!;
+        }
+        // console.log(this.id, min_start_ratio, min_move_ratio, min_distance);
+        return min_distance;
+    }
+
+    private calcStepLength() {
+        const stop_ratios = [];
+        for (const stop of this.stops) {
+            for (const from of stop.enter_from_table) {
+                if (from.anim === this.anim_move.files) {
                     stop_ratios.push(from.ratio);
                 }
             }
@@ -197,27 +225,17 @@ export class ActionMoveNpc extends Action {
         stop_ratios.sort();
 
         const stop_ranges = [];
-        for (let i = 0; i < stop_ratios.length - 1; i++) {
-            stop_ranges.push({ from: stop_ratios[i]!, to: stop_ratios[i + 1]! });
-        }
-        stop_ranges.push({ from: stop_ratios[stop_ratios.length - 1]!, to: stop_ratios[0]! });
-        if (start_ratio === 1) {
-            // No start used in stops
-            stop_ranges.push({ from: 0, to: stop_ratios[0]! });
+        if (stop_ratios.length <= 1) {
+            stop_ranges.push({ from: 0, to: 1 });
+        } else {
+            for (let i = 0; i < stop_ratios.length - 1; i++) {
+                stop_ranges.push({ from: stop_ratios[i]!, to: stop_ratios[i + 1]! });
+            }
+            stop_ranges.push({ from: stop_ratios[stop_ratios.length - 1]!, to: stop_ratios[0]! });
         }
         const stop_dists = calcRootMotionDistances(this.anim_move.files, stop_ranges);
-        const start_dist = calcRootMotionDistances(this.anim_start.files, [
-            { from: 0, to: start_ratio },
-        ]);
-
-        let min_distance = start_dist[0]!;
-        if (start_ratio === 1) {
-            // No start used in stops, min_distance = start + move(stop)
-            min_distance += stop_dists[stop_dists.length - 1]!;
-            stop_dists.pop();
-        }
-
-        let step_length = Math.max(...stop_dists);
-        return [min_distance, step_length];
+        const step_length = Math.max(...stop_dists);
+        // console.log(this.id, stop_ranges, stop_dists, step_length);
+        return step_length;
     }
 }
