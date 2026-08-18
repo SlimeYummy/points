@@ -165,9 +165,6 @@ export type ActionGeneralArgs = ActionArgs & {
 
     /** 攻击判定表 */
     hits?: ReadonlyArray<HitArgs>;
-
-    /** 动作过程中触发的事件 */
-    custom_events?: TimelinePointArgs<string | VarValueArgs<string>>;
 };
 
 /**
@@ -219,9 +216,6 @@ export class ActionGeneral extends Action {
 
     /** 攻击判定表 */
     public hits?: ReadonlyArray<Hit>;
-
-    /** 动作过程中触发的事件 */
-    public readonly custom_events?: TimelinePoint<string | Var<string>>;
 
     public constructor(id: ID, args: ActionGeneralArgs) {
         super(id, args);
@@ -279,15 +273,6 @@ export class ActionGeneral extends Action {
             args.hits == null
                 ? undefined
                 : Hit.parseArray(args.hits ?? [], this.w('hits'), { files: args.anim_main.files });
-        this.custom_events = !args.custom_events
-            ? undefined
-            : new TimelinePoint(
-                  args.custom_events,
-                  this.w('custom_events'),
-                  { duration: this.anim_main.duration, type: 'f32' },
-                  {},
-                  parseString,
-              );
 
         Animation.generateLocalID([this.anim_main]);
     }
