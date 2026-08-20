@@ -1,14 +1,5 @@
-import {
-    checkArray,
-    float,
-    ID,
-    parseBool,
-    parseFloat,
-    parseID,
-    parseTime,
-    parseVec3,
-} from '../common';
-import { Action, ActionIdle, ActionMoveFreeNpc } from '../action';
+import { checkArray, float, ID, parseBool, parseID, parseTime, parseVec3 } from '../common';
+import { Action, ActionIdle, ActionMoveNpc } from '../action';
 import { AiIntention, AiTask, AiTaskArgs, parseAiIntention } from './task_base';
 
 export type AiTaskPatrolArgs = AiTaskArgs & {
@@ -26,9 +17,6 @@ export type AiTaskPatrolArgs = AiTaskArgs & {
 
     /** 巡逻路线 */
     route: ReadonlyArray<AiTaskPatrolStepArgs>;
-
-    /** 循环次数 0表示无限循环 */
-    loop_times?: float | string;
 
     /** 在目标改变时退出动作 */
     target_exit?: boolean;
@@ -61,9 +49,6 @@ export class AiTaskPatrol extends AiTask {
     /** 巡逻路线 */
     public readonly route: ReadonlyArray<AiTaskPatrolStep>;
 
-    /** 循环次数 0表示无限循环 */
-    public readonly loop_times: float;
-
     /** 在目标改变时退出动作 */
     public readonly target_exit: boolean;
 
@@ -77,7 +62,6 @@ export class AiTaskPatrol extends AiTask {
         this.action_idle = parseID(args.action_idle, 'Action', this.w('action_idle'));
         this.action_move = parseID(args.action_move, 'Action', this.w('action_move'));
         this.route = this.parseRoute(args.route);
-        this.loop_times = parseFloat(args.loop_times ?? 0, this.w('loop_times'));
         this.target_exit = parseBool(args.target_exit ?? false, this.w('target_exit'));
     }
 
@@ -115,11 +99,11 @@ export class AiTaskPatrol extends AiTask {
         }
 
         const move = Action.find(this.action_move, this.w('action_move'));
-        if (!(move instanceof ActionMoveFreeNpc)) {
-            throw this.e('action_move', 'must be an ActionMoveFreeNpc');
+        if (!(move instanceof ActionMoveNpc)) {
+            throw this.e('action_move', 'must be an ActionMoveNpc');
         }
         if (!move.character_npcs?.includes(this.character_npc)) {
-            throw this.e('action_move', 'AiTaskPatrol and ActionMoveFreeNpc mismatch');
+            throw this.e('action_move', 'AiTaskPatrol and ActionMoveNpc mismatch');
         }
     }
 }

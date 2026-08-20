@@ -1,5 +1,5 @@
 import { float, ID, parseAngleXz, parseBool, parseFloatRange, parseID } from '../common';
-import { Action, ActionMoveFreeNpc } from '../action';
+import { Action, ActionMoveNpc } from '../action';
 import { AiIntention, AiTask, AiTaskArgs, parseAiIntention } from './task_base';
 
 export type AiTaskMoveToCharacterArgs = AiTaskArgs & {
@@ -77,19 +77,19 @@ export class AiTaskMoveToCharacter extends AiTask {
         super.verify();
 
         const move_action = Action.find(this.move_action, this.w('move_action'));
-        if (!(move_action instanceof ActionMoveFreeNpc)) {
-            throw this.e('move_action', 'must be an ActionMoveFreeNpc');
+        if (!(move_action instanceof ActionMoveNpc)) {
+            throw this.e('move_action', 'must be an ActionMoveNpc');
         }
         if (!move_action.character_npcs?.includes(this.character_npc)) {
-            throw this.e('move_action', 'AiTaskMoveToCharacter and ActionMoveFreeNpc mismatch');
+            throw this.e('move_action', 'AiTaskMoveToCharacter and ActionMoveNpc mismatch');
         }
 
         // const turn_action = Action.find(this.turn_action, this.w('turn_action'));
-        // if (!(turn_action instanceof ActionMoveFreeNpc)) {
-        //     throw this.e('turn_action', 'must be an ActionMoveFreeNpc');
+        // if (!(turn_action instanceof ActionMoveNpc)) {
+        //     throw this.e('turn_action', 'must be an ActionMoveNpc');
         // }
         // if (!turn_action.character_npcs?.includes(this.character_npc)) {
-        //     throw this.e('turn_action', 'AiTaskMoveToCharacter and ActionMoveFreeNpc mismatch');
+        //     throw this.e('turn_action', 'AiTaskMoveToCharacter and ActionMoveNpc mismatch');
         // }
     }
 }

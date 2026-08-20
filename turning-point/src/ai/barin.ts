@@ -2,7 +2,7 @@ import { float, ID, IDPrefix, parseArray, parseID, parseIDArray, parseTime } fro
 import { Resource } from '../resource';
 import { CharacterNpc } from '../character';
 import { Sphere, SphereArgs, SphericalCone, SphericalConeArgs } from '../common/shape';
-import { ScriptCode } from '../script';
+import { Script } from '../script';
 import { AiRoutine } from './routine';
 import { AiTask } from './task_base';
 
@@ -65,7 +65,7 @@ export class AiBrain extends Resource {
     public readonly tasks: ReadonlyArray<ID>;
 
     /** AI执行脚本 */
-    public readonly execute: ScriptCode;
+    public readonly execute: Script;
 
     public constructor(id: ID, args: AiBrainArgs) {
         super(id);
@@ -77,9 +77,7 @@ export class AiBrain extends Resource {
             min: 0,
             type: 'f32',
         });
-        this.execute = new ScriptCode(args.execute, this.id, this.w('execute'), {
-            func: 'execute',
-        });
+        this.execute = new Script(args.execute, this.id, this.w('execute'), { func: 'execute' });
         this.tasks = this.parseTasks(args.tasks || [], args.tasks_from_script || false);
     }
 
