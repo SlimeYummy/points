@@ -4,4 +4,5 @@ export * from './task_idle';
 export * from './task_general';
 export * from './task_patrol';
 export * from './task_move_to_character';
+export * from './task_keep_distance';
 export * from './routine';
