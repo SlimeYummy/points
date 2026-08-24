@@ -3,20 +3,21 @@ import {
     AccessoryPool,
     ActionGeneral,
     ActionGeneralNpc,
+    ActionDodgeNpc,
     ActionHit,
     ActionIdle,
-    ActionMove,
-    ActionMoveNpc,
+    ActionMoveFree,
+    ActionMoveFreeNpc,
     AiBrain,
     AiRoutine,
     AiTaskGeneral,
     AiTaskIdle,
     AiTaskMoveToCharacter,
     AiTaskPatrol,
+    AiTaskKeepDistance,
     Attack,
     Attack1,
     Attack2,
-    Capsule,
     Character,
     CharacterNpc,
     Defense,
@@ -26,8 +27,6 @@ import {
     Jewel,
     LEVEL_ACTION,
     LEVEL_ATTACK,
-    LEVEL_IDLE,
-    LEVEL_MOVE,
     MAX_ENTRY_PLUS,
     Perk,
     Rare1,
@@ -38,13 +37,13 @@ import {
     Slot3,
     Special,
     Style,
-    TaperedCapsule,
     Var,
     Variant1,
     Variant2,
     Variant3,
     Walk,
     Zone,
+    If,
 } from '../src';
 
 Var.define({
@@ -72,9 +71,7 @@ const ONE = new Character('Character.One', {
     level: [1, 6],
     styles: ['Style.One^1', 'Style.One^2'],
     equipments: ['Equipment.No1', 'Equipment.No2', 'Equipment.No3'],
-    bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'Girl/Girl.*',
-    skeleton_toward: [0, 1],
 });
 
 new Style('Style.One^1', {
@@ -126,9 +123,7 @@ new Character('Character.Two', {
     level: [0, 5],
     styles: ['Style.Two^1'],
     equipments: ['Equipment.No4'],
-    bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'Girl/Girl.*',
-    skeleton_toward: [0, 1],
 });
 
 new Style('Style.Two^1', {
@@ -222,7 +217,7 @@ new ActionIdle('Action.One.Idle', {
     },
     anim_ready: {
         files: 'Girl/Idle_Axe.*',
-        duration: 2,
+        duration: 3,
     },
 });
 
@@ -236,7 +231,7 @@ new ActionIdle('Action.One.IdleX', {
     },
 });
 
-new ActionMove('Action.One.Run', {
+new ActionMoveFree('Action.One.Run', {
     character: ONE.id,
     styles: ONE.styles,
     tags: ['Run'],
@@ -352,9 +347,6 @@ new ActionGeneral('Action.One.Attack^1', {
             box_max_times: 1,
         },
     ],
-    custom_events: {
-        '1s': 'CustomEvent',
-    },
 });
 
 new ActionGeneral('Action.One.Attack^2', {
@@ -612,11 +604,15 @@ new CharacterNpc('CharacterNpc.Enemy', {
         MaxHealth: [10000, 20000, 30000],
     },
     fixed_attributes,
-    actions: ['Action.Enemy.Idle', 'Action.Enemy.Walk', 'Action.Enemy.Hit1', 'Action.Enemy.Attack'],
+    actions: [
+        'Action.Enemy.Idle',
+        'Action.Enemy.Walk',
+        'Action.Enemy.Hit1',
+        'Action.Enemy.Attack',
+        'Action.Enemy.Dodge',
+    ],
     ai_brains: ['AiBrain.Enemy'],
-    bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'TrainingDummy/TrainingDummy.*',
-    skeleton_toward: [0, 1],
     view_model: 'TrainingDummy.prefab',
 });
 
@@ -663,30 +659,30 @@ new ActionHit('Action.Enemy.Hit1', {
 //     view_model: 'Slime.prefab',
 // });
 
-const x = new ActionMoveNpc('Action.Enemy.Walk', {
+const x = new ActionMoveFreeNpc('Action.Enemy.Walk', {
     character_npcs: ['CharacterNpc.Enemy'],
     tags: ['Walk'],
     enter_key: Walk,
     move_speed: 1.5,
     anim_move: {
-        files: 'Slime/WalkLoop.*',
+        files: 'Slime/WalkFrontLoop.*',
         duration: '80F',
         root_motion: true,
     },
     anim_start: {
-        files: 'Slime/WalkStart.*',
+        files: 'Slime/WalkFrontStart.*',
         duration: '40F',
         root_motion: true,
     },
     anim_stops: [
         {
-            files: 'Slime/WalkStop.*',
+            files: 'Slime/WalkFrontStop.*',
             duration: '40F',
             root_motion: true,
             enter_from_table: [
-                { anim: 'Slime/WalkStart.*', ratio: 1.0 },
-                { anim: 'Slime/WalkLoop.*', ratio: 0.5 },
-                { anim: 'Slime/WalkLoop.*', ratio: 1.0 },
+                { anim: 'Slime/WalkFrontStart.*', ratio: 1.0 },
+                { anim: 'Slime/WalkFrontLoop.*', ratio: 0.5 },
+                { anim: 'Slime/WalkFrontLoop.*', ratio: 1.0 },
             ],
         },
     ],
@@ -698,7 +694,7 @@ new ActionGeneralNpc('Action.Enemy.Attack', {
     tags: ['Attack'],
     anim_main: {
         files: 'Slime/Attack1A.*',
-        duration: '206F',
+        duration: '168F',
         root_motion: true,
         weapon_motion: false,
         hit_motion: false,
@@ -708,8 +704,8 @@ new ActionGeneralNpc('Action.Enemy.Attack', {
         '20F': { duration: '20F', fade_ratio: 0.1, distance: [2, 5], speed_ratio: [0.8, 1.5] },
     },
     keep_levels: {
-        '0-206F': LEVEL_ACTION,
-        '150F-206F': LEVEL_ATTACK,
+        '0-168F': LEVEL_ACTION,
+        '150F-168F': LEVEL_ATTACK,
     },
     // hits: [
     //     {
@@ -723,9 +719,41 @@ new ActionGeneralNpc('Action.Enemy.Attack', {
     //         box_max_times: 1,
     //     },
     // ],
-    custom_events: {
-        '1s': 'CustomEvent',
-    },
+    // custom_events: {
+    //     '1s': 'CustomEvent',
+    // },
+});
+
+new ActionDodgeNpc('Action.Enemy.Dodge', {
+    character_npcs: ['CharacterNpc.Enemy'],
+    tags: ['Dodge'],
+    move_distance: [2.0, 5.0],
+    anim_dodges: [
+        {
+            files: 'Slime/Dodge_F.*',
+            duration: '110F',
+            root_motion: true,
+            shape_key: true,
+            enter_angle: 0,
+            rotation_reference: 'TargetCharacter' as const,
+            rotation_start: '84F',
+            rotation_duration: ['16F', '24F'],
+            rotation_max_angle: 180,
+            keep_levels: { '0-110F': LEVEL_ACTION },
+        },
+        {
+            files: 'Slime/Dodge_B.*',
+            duration: '110F',
+            root_motion: true,
+            shape_key: true,
+            enter_angle: 180,
+            rotation_reference: 'TargetCharacter' as const,
+            rotation_start: '84F',
+            rotation_duration: ['16F', '24F'],
+            rotation_max_angle: 180,
+            keep_levels: { '0-110F': LEVEL_ACTION },
+        }
+    ],
 });
 
 //
@@ -768,6 +796,7 @@ new AiTaskPatrol('AiTask.Enemy.Patrol', {
         ['Idle', 1.0],
         ['Move', [3, -4, -5]],
     ],
+    loop_times: 5,
     target_exit: true,
 });
 
@@ -788,9 +817,22 @@ new AiTaskGeneral('AiTask.Enemy.Attack', {
     actions: ['Action.Enemy.Idle', 'Action.Enemy.Walk'],
 });
 
+new AiTaskKeepDistance('AiTask.Enemy.KeepDistance', {
+    character_npc: 'CharacterNpc.Enemy',
+    intention: 'Attack',
+    next_intention: 'SquareOff',
+    dodge_action: 'Action.Enemy.Dodge',
+    expected_distance: 0,
+});
+
 new AiRoutine('AiRoutine.Enemy.Sequence', {
     character_npc: 'CharacterNpc.Enemy',
-    tasks: ['AiTask.Enemy.Idle', 'AiTask.Enemy.Patrol', 'AiTask.Enemy.MoveTo'],
+    tasks: [
+        'AiTask.Enemy.Idle',
+        If('true', 'AiTask.Enemy.Patrol')
+        .Elsif_R('Ok(true)', 'AiTask.Enemy.Patrol')
+        .Else('AiTask.Enemy.MoveTo'),
+    ],
 });
 
 //

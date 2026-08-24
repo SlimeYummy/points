@@ -22,6 +22,7 @@ const MAPPING_VRM_HUMAN = {
 
 Asset.gltf2ozz('Girl/GirlLocomotion.glb', null, MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
 Asset.gltf2ozz('Girl/GirlAttack.glb', 'Girl/', MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
+Asset.gltf2ozz('Girl/GirlBeHit.glb', null, MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
 Asset.gltf2ozz('Girl/GirlExtra.glb', null, MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
 
 const MAPPING_SIMPLE = {
@@ -39,4 +40,4 @@ Asset.gltf2ozz(
 );
 Asset.gltf2ozz('Slime/Slime.glb', 'Slime/', MAPPING_SIMPLE, 'Slime', 'Slime/');
 
-console.log('\nGenerate assets done\n');
+console.log('Generate assets done\n');
