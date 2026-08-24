@@ -1,5 +1,62 @@
 import { float, int, parseFloatArray } from './common';
 
+//
+// 属性的一些分类
+// 属性计算涉及两个阶段，在战斗外计算静态属性的阶段，在战斗内动态计算属性的阶段，具体请参考Script部分。
+// 为了明确计算流程，避免出现描述不明确，加成循环依赖，左脚踩右脚的情况，将属性定义为以下几类。
+//
+// xxx (无前缀)普通属性
+// 非聚合属性，相当于词条上的一条普通加成，常用作Script的输出。
+// 举例：
+//   - max_health_up 生命上限提升x%
+//   - critical_damage 暴击伤害提升x%
+//   - fire_damage_up 火属性伤害提升x%
+//
+// primary_xxx 基础属性
+// 聚合属性，合并了角色、装备、技能上的全部基础词条后获得。
+// 基础属性不可由Script输出或修改，它们会作为Script的输入，传入后续Script阶段。
+// 其它加成属性也大都参考基础属性计算，基础属性是一切属性的起点。
+// 举例：
+//   - primary_max_health 基础生命上限x
+//   - primary_max_physical_attack 基础物理攻击x
+//   - primary_max_elemental_denfense 基础元素防御x
+//
+// 静态属性 static_xxx
+// 聚合属性，合并了角色、装备、技能上的全部静态效果后获得，可以理解为角色面板上展示的属性。
+// 静态属性的计算参考了基础属性，它们在战斗内动态计算属性的阶段是不不可变的。
+// 注意，在有些如WhenAssemble等脚本中，输入的静态属性表达的是未计算额外属性的估算值。
+// 举例：
+//   - static_max_posture 游戏开始前角色的架势上限x
+//   - static_cut_attack_up 游戏开始前角色的斩击攻击提升x%
+//   - static_arcane_damage_up 游戏开始前角色的奥术伤害提升x%
+//
+// 动态属性 dynamic_xxx
+// 聚合属性，合并了静态属性，在加上Buff、被动、技能的全部动态效果，可以理解为之际战斗中结算的属性。
+// 动态属性的计算参考了基础属性和静态属性。
+// 注意，在有些如...等脚本中，输入的静态属性表达的是未计算额外属性的估算值。
+// 举例：
+//   - dynamic_health 当前生命值
+//   - dynamic_posture 当前架势值
+//   - dynamic_elemental_attack 当前元素攻击
+//
+// 额外属性 extra_xxx
+// 非聚合属性，通常用于需要参考其他属性的加成（如：每100点生命上限额外加1攻击）。
+// 通常，额外加成属性，应用于静态、动态属性计算的最后一个阶段。
+// 在静态属性计算阶段，额外加成属性参考估算的静态属性计算。
+// 在动态属性计算阶段，额外加成属性参考估算的动态属性计算。
+// 举例：
+//   - extra_ammo_attack 额外提升x射击攻击
+//   - extra_ammo_attack_up 额外提升x%射击攻击
+//   - extra_skill_damage_up 额外提升x%技能伤害
+//
+// 最终属性 final_xxx
+// 非聚合属性，该类加成在动态属性计算完成后额外计算，且同名值乘算。
+// 最终加成通常用于一些非常核心的机制，以确保这些机制绝对不会被稀释。
+// 举例：
+//   - final_damage_up 最终提升x%伤害
+//   - final_damage_down 最终降低x%伤害
+//
+
 const _PRIMARY_ATTRIBUTES = [
     'MaxHealth',
     'HealthCureRatio',

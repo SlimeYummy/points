@@ -23,23 +23,27 @@ export const RE_TMPL_ID_EXTRA =
 
 export type ID = string;
 
-export function parseID(raw: string, prefix: IDPrefix | IDPrefix[], where: string): ID {
+export function parseID(raw: string, prefix: IDPrefix | IDPrefix[] | null, where: string): ID {
     if (typeof raw !== 'string') {
         throw new Error(`${where}: must be a ID`);
     }
 
     let prefixLength = 0;
-    if (!Array.isArray(prefix)) {
-        prefixLength = prefix.length;
-        if (!raw.startsWith(prefix)) {
-            throw new Error(`${where}: must start with "${prefix}"`);
+    if (prefix) {
+        if (!Array.isArray(prefix)) {
+            prefixLength = prefix.length;
+            if (!raw.startsWith(prefix)) {
+                throw new Error(`${where}: must start with "${prefix}"`);
+            }
+        } else {
+            const pfx = prefix.find((p) => raw.startsWith(p));
+            if (!pfx) {
+                throw new Error(`${where}: must start with "${prefix.join('" or "')}"`);
+            }
+            prefixLength = pfx.length;
         }
     } else {
-        const pfx = prefix.find((p) => raw.startsWith(p));
-        if (!pfx) {
-            throw new Error(`${where}: must start with "${prefix.join('" or "')}"`);
-        }
-        prefixLength = pfx.length;
+        prefixLength = raw.indexOf('.');
     }
 
     if (!RE_TMPL_ID_EXTRA.test(raw.slice(prefixLength))) {

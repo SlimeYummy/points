@@ -507,7 +507,7 @@ dependencies = [
  "ctor 0.6.3",
  "educe",
  "enum-iterator",
- "glam",
+ "glam 0.30.8",
  "glam-ext",
  "jolt-physics-rs",
  "lasso",
@@ -1031,6 +1031,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e12d847aeb25f41be4c0ec9587d624e9cd631bc007a8fd7ce3f5851e064c6460"
 dependencies = [
  "approx",
+ "libm",
+ "rkyv",
+ "serde_core",
+]
+
+[[package]]
+name = "glam"
+version = "0.33.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7360bd2cd76e0cd9032d42cf2922155cecea2685b0cfa4630c3246df030bcfd6"
+dependencies = [
+ "approx",
  "bytemuck",
  "libm",
  "rkyv",
@@ -1039,10 +1051,10 @@ dependencies = [
 
 [[package]]
 name = "glam-ext"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "approx",
- "glam",
+ "glam 0.33.3",
  "libm",
  "rkyv",
  "serde",
@@ -1192,7 +1204,7 @@ dependencies = [
  "cc",
  "cxx",
  "cxx-build",
- "glam",
+ "glam 0.33.3",
  "glam-ext",
  "jolt-macros",
  "libc",
@@ -1493,11 +1505,11 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
 name = "ozz-animation-rs"
-version = "0.11.0"
+version = "0.11.1"
 dependencies = [
  "bimap",
  "bytecheck",
- "glam",
+ "glam 0.33.3",
  "glam-ext",
  "rkyv",
  "serde",
@@ -2133,7 +2145,7 @@ name = "turining-point-node"
 version = "0.5.0"
 dependencies = [
  "critical-point-core",
- "glam",
+ "glam 0.30.8",
  "napi",
  "napi-build",
  "napi-derive",

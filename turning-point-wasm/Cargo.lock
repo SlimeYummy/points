@@ -100,7 +100,7 @@ dependencies = [
  "anyhow",
  "const_format",
  "critical-point-wasm-macros",
- "glam",
+ "glam 0.30.10",
  "glam-ext",
  "static_assertions",
 ]
@@ -116,11 +116,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "glam-ext"
-version = "0.3.2"
+name = "glam"
+version = "0.33.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7360bd2cd76e0cd9032d42cf2922155cecea2685b0cfa4630c3246df030bcfd6"
 dependencies = [
  "approx",
- "glam",
+ "libm",
+]
+
+[[package]]
+name = "glam-ext"
+version = "0.4.0"
+dependencies = [
+ "approx",
+ "glam 0.33.3",
  "libm",
 ]
 
@@ -319,7 +329,7 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "critical-point-wasm-types",
- "glam",
+ "glam 0.30.10",
  "glam-ext",
  "static_assertions",
  "talc",

@@ -1,33 +1,31 @@
 import {
+    ActionDodgeNpc,
     ActionGeneral,
     ActionGeneralNpc,
     ActionHit,
     ActionIdle,
-    ActionMove,
-    ActionMoveNpc,
+    ActionMoveFree,
+    ActionMoveFreeNpc,
     AiBrain,
     AiRoutine,
     AiTaskGeneral,
     AiTaskIdle,
     AiTaskMoveToCharacter,
     AiTaskPatrol,
+    AiTaskKeepDistance,
     Attack1,
     Attack2,
-    Capsule,
     Character,
     CharacterNpc,
     Equipment,
     Hit1,
     LEVEL_ACTION,
     LEVEL_ATTACK,
-    LEVEL_MOVE,
-    LEVEL_SKILL,
     Perk,
     Run,
     Slot1,
     Slot3,
     Style,
-    TaperedCapsule,
     Var,
     Walk,
 } from '../src';
@@ -58,9 +56,7 @@ new Character('Character.Instance^1', {
     level: [1, 6],
     styles: ['Style.Instance^1A'],
     equipments: ['Equipment.Instance^1A', 'Equipment.Instance^1B'],
-    bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'Girl/Girl.*',
-    skeleton_toward: [0, 1],
 });
 
 new Style('Style.Instance^1A', {
@@ -188,7 +184,7 @@ new ActionIdle('Action.Instance.Idle^1A', {
     },
 });
 
-new ActionMove('Action.Instance.Run^1A', {
+new ActionMoveFree('Action.Instance.Run^1A', {
     character: 'Character.Instance^1',
     styles: ['Style.Instance^1A'],
     tags: ['Run'],
@@ -302,10 +298,6 @@ new ActionGeneral('Action.Instance.Attack^1A', {
             box_max_times: 1,
         },
     ],
-    custom_events: {
-        '2s': 'Event2s',
-        '1s': 'Event1s',
-    },
 });
 
 new ActionGeneral('Action.Instance.AttackDerive^1A', {
@@ -364,11 +356,10 @@ new CharacterNpc('CharacterNpc.InstanceNpc^1', {
         'Action.InstanceNpc.Walk^1A',
         'Action.InstanceNpc.Attack^1A',
         'Action.InstanceNpc.Hit1^1A',
+        'Action.InstanceNpc.Dodge',
     ],
     ai_brains: ['AiBrain.InstanceNpc^1'],
-    bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'TrainingDummy/TrainingDummy.*',
-    skeleton_toward: [0, 1],
     view_model: 'TrainingDummy.prefab',
 });
 
@@ -394,6 +385,7 @@ new ActionHit('Action.InstanceNpc.Hit1^1A', {
             root_motion: true,
         },
     ],
+    blend_be_hits: true,
 });
 
 new ActionGeneralNpc('Action.InstanceNpc.Attack^1A', {
@@ -401,7 +393,7 @@ new ActionGeneralNpc('Action.InstanceNpc.Attack^1A', {
     tags: ['Attack'],
     anim_main: {
         files: 'Slime/Attack1A.*',
-        duration: '206F',
+        duration: '168F',
         root_motion: true,
         weapon_motion: false,
         hit_motion: false,
@@ -411,42 +403,71 @@ new ActionGeneralNpc('Action.InstanceNpc.Attack^1A', {
         '20F': { duration: '20F', fade_ratio: 0.1, distance: [2, 5], speed_ratio: [0.8, 1.5] },
     },
     keep_levels: {
-        '0-206F': LEVEL_ACTION,
-        '150F-206F': LEVEL_ATTACK,
-    },
-    custom_events: {
-        '1s': 'CustomEvent',
+        '0-168F': LEVEL_ACTION,
+        '150F-168F': LEVEL_ATTACK,
     },
 });
 
-const x = new ActionMoveNpc('Action.InstanceNpc.Walk^1A', {
+const x = new ActionMoveFreeNpc('Action.InstanceNpc.Walk^1A', {
     character_npcs: ['CharacterNpc.InstanceNpc^1'],
     tags: ['Walk'],
     enter_key: Walk,
     move_speed: 1.5,
     anim_move: {
-        files: 'Slime/WalkLoop.*',
+        files: 'Slime/WalkFrontLoop.*',
         duration: '80F',
         root_motion: true,
     },
     anim_start: {
-        files: 'Slime/WalkStart.*',
+        files: 'Slime/WalkFrontStart.*',
         duration: '40F',
         root_motion: true,
     },
     anim_stops: [
         {
-            files: 'Slime/WalkStop.*',
+            files: 'Slime/WalkFrontStop.*',
             duration: '40F',
             root_motion: true,
             enter_from_table: [
-                { anim: 'Slime/WalkStart.*', ratio: 1.0 },
-                { anim: 'Slime/WalkLoop.*', ratio: 0.5 },
-                { anim: 'Slime/WalkLoop.*', ratio: 1.0 },
+                { anim: 'Slime/WalkFrontStart.*', ratio: 1.0 },
+                { anim: 'Slime/WalkFrontLoop.*', ratio: 0.5 },
+                { anim: 'Slime/WalkFrontLoop.*', ratio: 1.0 },
             ],
         },
     ],
     turn_time: '12F',
+});
+
+new ActionDodgeNpc('Action.InstanceNpc.Dodge', {
+    character_npcs: ['CharacterNpc.InstanceNpc^1'],
+    tags: ['Dodge'],
+    move_distance: [2.0, 4.0],
+    anim_dodges: [
+        {
+            files: 'Slime/Dodge_L.*',
+            duration: '110F',
+            root_motion: true,
+            shape_key: true,
+            enter_angle: -90,
+            rotation_reference: 'TargetCharacter' as const,
+            rotation_start: '84F',
+            rotation_duration: ['16F', '24F'],
+            rotation_max_angle: 180,
+            keep_levels: { '0-110F': LEVEL_ACTION },
+        },
+        {
+            files: 'Slime/Dodge_R.*',
+            duration: '110F',
+            root_motion: true,
+            shape_key: true,
+            enter_angle: 90,
+            rotation_reference: 'TargetCharacter' as const,
+            rotation_start: '84F',
+            rotation_duration: ['16F', '24F'],
+            rotation_max_angle: 180,
+            keep_levels: { '0-110F': LEVEL_ACTION },
+        },
+    ],
 });
 
 new AiBrain('AiBrain.InstanceNpc^1', {
@@ -461,6 +482,7 @@ new AiBrain('AiBrain.InstanceNpc^1', {
         out.push((id!("AiTask.InstanceNpc.Patrol^1"), 1.0, 1).into());
         out.push((id!("AiTask.InstanceNpc.MoveTo^1"), 1.0, 1).into());
         out.push((id!("AiTask.InstanceNpc.General^1"), 1.0, 1).into());
+        out.push((id!("AiTask.InstanceNpc.KeepDistance^1"), 1.0, 1).into());
     `,
 });
 
@@ -491,6 +513,14 @@ new AiTaskMoveToCharacter('AiTask.InstanceNpc.MoveTo^1', {
 new AiTaskGeneral('AiTask.InstanceNpc.General^1', {
     character_npc: 'CharacterNpc.InstanceNpc^1',
     actions: ['Action.InstanceNpc.Idle^1A', 'Action.InstanceNpc.Walk^1A'],
+});
+
+new AiTaskKeepDistance('AiTask.InstanceNpc.KeepDistance^1', {
+    character_npc: 'CharacterNpc.InstanceNpc^1',
+    intention: 'Attack',
+    next_intention: 'SquareOff',
+    dodge_action: 'Action.InstanceNpc.Dodge',
+    expected_distance: 0,
 });
 
 new AiRoutine('AiRoutine.InstanceNpc.Sequence^1', {
