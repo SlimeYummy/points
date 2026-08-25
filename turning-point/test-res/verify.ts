@@ -30,9 +30,7 @@ new Character('Character.Verify^1', {
     level: [1, 3],
     styles: ['Style.Verify^1A', 'Style.Verify^1B'],
     equipments: ['Equipment.Verify^1A', 'Equipment.Verify^1B', 'Equipment.Verify^1C'],
-    bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'Girl/Girl.*',
-    skeleton_toward: [0, 1],
 });
 
 new Style('Style.Verify^1A', {
@@ -63,9 +61,7 @@ new Character('Character.Verify^2', {
     level: [1, 3],
     styles: ['Style.Verify^2'],
     equipments: ['Equipment.Verify^2A'],
-    bounding: new TaperedCapsule(0.6, 0.3, 0.1),
     skeleton_files: 'Girl/Girl.*',
-    skeleton_toward: [0, 1],
 });
 
 new Style('Style.Verify^2', {
@@ -152,9 +148,7 @@ new CharacterNpc('CharacterNpc.Verify^1', {
     fixed_attributes,
     actions: [],
     ai_brains: ['AiBrain.Verify^1'],
-    bounding: new Capsule(0.5, 0.5),
     skeleton_files: 'TrainingDummy/TrainingDummy.*',
-    skeleton_toward: [0, 1],
     view_model: 'TrainingDummy.prefab',
 });
 
