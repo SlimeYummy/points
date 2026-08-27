@@ -503,7 +503,7 @@ macro_rules! xfrom {
         |e| $crate::utils::XError::from(e).set_pos(&const_format::formatcp!("{}:{}", file!(), line!()))
     };
     ($extra:expr) => {
-        |e| $crate::utils::XError::from(e).set_pos(&const_format::formatcp!("{}:{}({})"))
+        |e| $crate::utils::XError::from(e).set_pos(&const_format::formatcp!("{}:{}({})", file!(), line!(), $extra))
     };
 }
 pub use xfrom;
@@ -517,3 +517,15 @@ macro_rules! xfromf {
     };
 }
 pub use xfromf;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_xfrom_extra_branch_includes_extra() {
+        let err = Result::<(), std::io::Error>::Err(std::io::Error::new(std::io::ErrorKind::Other, "boom"))
+            .map_err(xfrom!("branch_tag"))
+            .unwrap_err();
+
+        assert!(err.pos().contains("branch_tag"));
+    }
+}

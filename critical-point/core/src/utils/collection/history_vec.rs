@@ -1,5 +1,4 @@
 use std::hint::unlikely;
-use std::iter::FusedIterator;
 use std::ops::{Index, IndexMut};
 use std::{fmt, slice};
 
@@ -173,6 +172,17 @@ impl<T> HistoryVec<T> {
     where
         F: FnMut(&mut T) -> XResult<bool>,
     {
+        // let mut new_end: usize = 0;
+        // for idx in 0..self.current_end {
+        //     if !func(&mut self.vec[idx])? {
+        //         self.vec.swap(new_end, idx);
+        //         new_end += 1;
+        //     }
+        // }
+        // self.vec.drain(new_end..self.current_end);
+        // self.current_end = new_end;
+        // Ok(())
+
         let mut idx = 0;
         let mut new_end = 0;
 
@@ -198,7 +208,7 @@ impl<T> HistoryVec<T> {
             }
         });
         self.current_end = new_end;
-        Ok(())
+        res
     }
 
     /// Take a element and return it with a rest vec.
@@ -309,14 +319,11 @@ pub struct HistoryVecTakenRestIter<'t, T> {
     len: usize,
 }
 
-impl<'t, T> ExactSizeIterator for HistoryVecTakenRestIter<'t, T> {}
-impl<'t, T> FusedIterator for HistoryVecTakenRestIter<'t, T> {}
-
-impl<'t, T> Iterator for HistoryVecTakenRestIter<'t, T> {
-    type Item = (&'t mut T, HistoryVecRest<'t, T>);
-
+impl<'t, T> HistoryVecTakenRestIter<'t, T> {
+    // This is an inherent borrowing cursor instead of std::Iterator so each
+    // returned pair stays tied to this call's borrow of self.
     #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn next<'s>(&'s mut self) -> Option<(&'s mut T, HistoryVecRest<'s, T>)> {
         if self.current >= self.len {
             return None;
         }
@@ -342,9 +349,19 @@ impl<'t, T> Iterator for HistoryVecTakenRestIter<'t, T> {
     }
 
     #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
+    pub fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = self.len - self.current;
         return (remaining, Some(remaining));
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.len - self.current
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.current >= self.len
     }
 }
 
@@ -520,12 +537,16 @@ mod tests {
     #[test]
     fn test_history_vec_taken_rest_iter() {
         let mut hv = new_history_vec();
-        for (idx, (item, rest)) in hv.taken_rest_iter().enumerate() {
+        let mut iter = hv.taken_rest_iter();
+        let mut idx = 0;
+        while let Some((item, rest)) = iter.next() {
             assert_eq!(item.key, (idx + 1) as i32);
             assert_eq!(rest.iter().count(), 4);
             for r in rest.iter() {
                 assert_ne!(r.key, item.key);
             }
+            idx += 1;
         }
+        assert_eq!(idx, 5);
     }
 }

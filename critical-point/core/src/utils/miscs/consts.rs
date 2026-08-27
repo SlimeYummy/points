@@ -51,13 +51,15 @@ unsafe impl Bitsetable for DeriveContinue {
 pub enum ActionType {
     Empty,
     Idle,
-    Move,
-    MoveNpc,
+    MoveFree,
+    MoveFreeNpc,
+    MoveTowardNpc,
     Attack,
     General,
     GeneralNpc,
     Dodge,
     Guard,
+    DodgeNpc,
     Aim,
     Hit,
 }
@@ -118,6 +120,23 @@ pub enum HitType {
 rkyv_self!(HitType);
 
 //
+// RotationReference
+//
+
+#[repr(u8)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum RotationReference {
+    #[default]
+    None,
+    /// Rotate by character direction
+    Character,
+    /// Rotate toward the target character
+    TargetCharacter,
+}
+
+rkyv_self!(RotationReference);
+
+//
 // AiTaskType
 //
 
@@ -129,6 +148,7 @@ pub enum AiTaskType {
     Patrol,
     MoveToCharacter,
     General,
+    KeepDistance,
 }
 
 rkyv_self!(AiTaskType);

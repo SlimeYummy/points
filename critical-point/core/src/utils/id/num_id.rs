@@ -17,8 +17,8 @@ impl NumID {
     pub const INVALID: NumID = NumID(u32::MAX);
     pub const GAME: NumID = NumID(1);
     pub const STAGE: NumID = NumID(2);
-    pub const MIN_PLAYER: NumID = NumID(100);
-    pub const MAX_PLAYER: NumID = NumID(100 + (MAX_PLAYER as u32));
+    pub const MIN_PLAYER: NumID = NumID(101);
+    pub const MAX_PLAYER: NumID = NumID(101 + (MAX_PLAYER as u32));
     pub const MIN_AUTO_GEN: NumID = NumID(1000);
 
     #[inline]
