@@ -41,6 +41,29 @@
       }
     },
     {
+      "clip": "Hit1_Empty_\\w",
+      "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
+      "raw": false,
+      "additive": false,
+      "optimize": true,
+      "tracks": {
+        <% if (root_motion) { %>
+        "motion": {
+          "enable": true,
+          "filename": "{{out_dir}}/*.rm-ozz",
+          "root_motion_joint": "Root"
+        }
+        <% } %>
+      }
+    },
+    {
+      "clip": "Attack_\\d\\d\\w",
+      "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
+      "raw": false,
+      "additive": false,
+      "optimize": true
+    },
+    {
       "clip": "Greet",
       "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
       "raw": false,
@@ -56,13 +79,6 @@
         <%
         } %>
       }
-    },
-    {
-      "clip": "Attack_\\d\\d\\w",
-      "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
-      "raw": false,
-      "additive": false,
-      "optimize": true
     }
     // {
     //   "clip": "Attack_\\d\\d\\a",
