@@ -82,7 +82,6 @@ impl TmplKeyCache {
 
         let builder = FxBuildHasher::default();
         let mut cache = Rodeo::with_capacity_and_hasher(Capacity::for_strings(strings.len()), builder);
-        let memory_usage = cache.current_memory_usage();
 
         for (idx, string) in strings.iter().enumerate() {
             let string = string.as_ref();
@@ -97,6 +96,7 @@ impl TmplKeyCache {
 
         let regex =
             Regex::new(r"^(\#|\w+)\.([\w\-\_]+)(?:\.([\w\-\_]+))?(?:\.([\w\-\_]+))?(?:\^([0-9A-Z]{1,3}))?$").unwrap();
+        let memory_usage = cache.current_memory_usage();
 
         Ok(TmplKeyCache {
             cache: cache.into_reader(),
@@ -445,17 +445,17 @@ impl TmplID {
     }
 
     #[inline]
-    pub fn make_func_name(&self, func: &str, func_no: Option<u16>) -> XResult<String> {
+    pub fn make_func_name(&self, func: &str) -> XResult<String> {
         if likely(key_cache().is_some()) {
             let cache = unsafe { key_cache().unwrap_unchecked() };
-            self.make_func_name_with(cache, func, func_no)
+            self.make_func_name_with(cache, func)
         }
         else {
             xres!(UninitedTmplID; "uninitialized")
         }
     }
 
-    fn make_func_name_with(&self, cache: &TmplKeyCache, func: &str, func_no: Option<u16>) -> XResult<String> {
+    fn make_func_name_with(&self, cache: &TmplKeyCache, func: &str) -> XResult<String> {
         if self.is_invalid() {
             return xres!(InvalidTmplID; "invalid id");
         }
@@ -470,30 +470,27 @@ impl TmplID {
             }
         }
 
-        let mut no_buf = [0u8; 6];
-        let no_str = Self::encode_func_no(&mut no_buf, func_no);
-
         let key0 = cache.find_str(self.keys[0]).map_err(|e| e.set_pos(xpos!("key0")))?;
         let name = if self.keys[1] == 0 {
             debug_assert!(self.keys[2] == 0);
             match suffix {
-                "" => format!("{}_{}__{}{}", prefix, key0, func, no_str),
-                _ => format!("{}_{}_{}__{}{}", prefix, key0, suffix, func, no_str),
+                "" => format!("{}_{}__{}", prefix, key0, func),
+                _ => format!("{}_{}_{}__{}", prefix, key0, suffix, func),
             }
         }
         else {
             let key1 = cache.find_str(self.keys[1]).map_err(|e| e.set_pos(xpos!("key1")))?;
             if self.keys[2] == 0 {
                 match suffix {
-                    "" => format!("{}_{}_{}__{}{}", prefix, key0, key1, func, no_str),
-                    _ => format!("{}_{}_{}_{}__{}{}", prefix, key0, key1, suffix, func, no_str),
+                    "" => format!("{}_{}_{}__{}", prefix, key0, key1, func),
+                    _ => format!("{}_{}_{}_{}__{}", prefix, key0, key1, suffix, func),
                 }
             }
             else {
                 let key2 = cache.find_str(self.keys[2]).map_err(|e| e.set_pos(xpos!("key2")))?;
                 match suffix {
-                    "" => format!("{}_{}_{}_{}__{}{}", prefix, key0, key1, key2, func, no_str),
-                    _ => format!("{}_{}_{}_{}_{}__{}{}", prefix, key0, key1, key2, suffix, func, no_str),
+                    "" => format!("{}_{}_{}_{}__{}", prefix, key0, key1, key2, func),
+                    _ => format!("{}_{}_{}_{}_{}__{}", prefix, key0, key1, key2, suffix, func),
                 }
             }
         };
@@ -527,31 +524,6 @@ impl TmplID {
         }
         buf[0..len].reverse();
         unsafe { str::from_utf8_unchecked(slice::from_raw_parts(buf.as_ptr(), len)) }
-    }
-
-    fn encode_func_no(buf: &mut [u8; 6], n: Option<u16>) -> &str {
-        let mut v = match n {
-            Some(v) => v,
-            _ => return "",
-        };
-
-        let mut i = 6;
-        if unlikely(v == 0) {
-            i -= 1;
-            buf[i] = b'0';
-        }
-        else {
-            while v > 0 {
-                i -= 1;
-                buf[i] = b'0' + (v % 10) as u8;
-                v /= 10;
-            }
-        }
-
-        i -= 1;
-        buf[i] = b'_';
-
-        unsafe { str::from_utf8_unchecked(&buf[i..]) }
     }
 }
 
@@ -837,40 +809,40 @@ mod tests {
 
         let id1 = TmplID::new_with("Character.Zzz", &cache).unwrap();
         assert_eq!(
-            id1.make_func_name_with(&cache, "ai_main", None).unwrap(),
+            id1.make_func_name_with(&cache, "ai_main").unwrap(),
             "Character_Zzz__ai_main"
         );
 
         let id2 = TmplID::new_with("Equipment.Aaa^Z", &cache).unwrap();
         assert_eq!(
-            id2.make_func_name_with(&cache, "on_equip", None).unwrap(),
+            id2.make_func_name_with(&cache, "on_equip").unwrap(),
             "Equipment_Aaa_Z__on_equip"
         );
 
         let id3 = TmplID::new_with("Zone.Hhh.Iii", &cache).unwrap();
         assert_eq!(
-            id3.make_func_name_with(&cache, "on_enter", None).unwrap(),
+            id3.make_func_name_with(&cache, "on_enter").unwrap(),
             "Zone_Hhh_Iii__on_enter"
         );
 
         let id4 = TmplID::new_with("Zone.Hhh.Iii^9Z", &cache).unwrap();
         assert_eq!(
-            id4.make_func_name_with(&cache, "on_exit", Some(0)).unwrap(),
-            "Zone_Hhh_Iii_9Z__on_exit_0"
+            id4.make_func_name_with(&cache, "on_exit").unwrap(),
+            "Zone_Hhh_Iii_9Z__on_exit"
         );
 
         let id5 = TmplID::new_with("Character.Xxx.Yyy.Ooo", &cache).unwrap();
         assert_eq!(
-            id5.make_func_name_with(&cache, "on_tick", Some(1)).unwrap(),
-            "Character_Xxx_Yyy_Ooo__on_tick_1"
+            id5.make_func_name_with(&cache, "on_tick").unwrap(),
+            "Character_Xxx_Yyy_Ooo__on_tick"
         );
 
         let id6 = TmplID::new_with("Character.Xxx.Yyy.Ooo^A00", &cache).unwrap();
         assert_eq!(
-            id6.make_func_name_with(&cache, "on_hit", Some(u16::MAX)).unwrap(),
-            "Character_Xxx_Yyy_Ooo_A00__on_hit_65535"
+            id6.make_func_name_with(&cache, "on_hit").unwrap(),
+            "Character_Xxx_Yyy_Ooo_A00__on_hit"
         );
 
-        assert!(TmplID::INVALID.make_func_name_with(&cache, "func", None).is_err());
+        assert!(TmplID::INVALID.make_func_name_with(&cache, "func").is_err());
     }
 }

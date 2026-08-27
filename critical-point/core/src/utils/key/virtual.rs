@@ -3,7 +3,7 @@ use glam::{Vec3, Vec3A};
 use glam_ext::Vec2xz;
 
 use super::raw::RawKey;
-use crate::consts::DEFAULT_VIEW_DIR_3D;
+use crate::consts::DEFAULT_CAMERA_DIR_3D;
 use crate::utils::macros::rkyv_self;
 use crate::utils::serde_by;
 
@@ -154,7 +154,7 @@ impl VirtualInput {
         frame: u32::MAX,
         key: VirtualKey::None,
         pressed: false,
-        view_dir_3d: Vec3::from_array(DEFAULT_VIEW_DIR_3D.to_array()),
+        view_dir_3d: Vec3::from_array(DEFAULT_CAMERA_DIR_3D.to_array()),
         world_move_dir: Vec2xz::ZERO,
     };
 
@@ -165,7 +165,7 @@ impl VirtualInput {
             frame,
             key,
             pressed,
-            view_dir_3d: DEFAULT_VIEW_DIR_3D.into(),
+            view_dir_3d: DEFAULT_CAMERA_DIR_3D.into(),
             world_move_dir: Vec2xz::ZERO,
         }
     }

@@ -94,7 +94,9 @@ where
         }
         pow = pow.max(5);
         let prime_pos = pow - 5;
-        let prime = PRIME_TABLE[prime_pos];
+        let prime = *PRIME_TABLE
+            .get(prime_pos)
+            .expect("PRIME_TABLE exhausted while initializing HashIndex");
 
         let layout = Layout::array::<Option<IndexNode<K, V>>>(prime as usize).unwrap();
         let nodes = unsafe { alloc::alloc(layout) as *mut Option<IndexNode<K, V>> };
@@ -133,7 +135,9 @@ where
         }
 
         let new_prime_pos = self.prime_pos + 1;
-        let new_prime = PRIME_TABLE[new_prime_pos as usize];
+        let new_prime = *PRIME_TABLE
+            .get(new_prime_pos as usize)
+            .expect("PRIME_TABLE exhausted while growing HashIndex");
         let layout = Layout::array::<Option<IndexNode<K, V>>>(new_prime as usize).unwrap();
         let new_nodes = unsafe { alloc::alloc(layout) as *mut Option<IndexNode<K, V>> };
         for pos in 0..(new_prime as usize) {

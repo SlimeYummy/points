@@ -104,6 +104,11 @@ impl SymbolCache {
         }
         pow = ifelse!(pow < 5, 5, pow);
         let prime_pos = pow - 5;
+        assert!(
+            prime_pos < PRIME_TABLE.len(),
+            "PRIME_TABLE exhausted while initializing SymbolCache"
+        );
+        let prime = PRIME_TABLE[prime_pos];
 
         SymbolCache {
             arenas: vec![],
@@ -111,7 +116,7 @@ impl SymbolCache {
             arena_ptr: 0,
 
             nodes: vec![],
-            prime: PRIME_TABLE[prime_pos] as u64,
+            prime: prime as u64,
             count: 1, // +1 for empty node
             prime_pos,
             tmp: Vec::new(),
@@ -192,7 +197,9 @@ impl SymbolCache {
         }
 
         let new_prime_pos = self.prime_pos + 1;
-        let new_prime = PRIME_TABLE[new_prime_pos] as u64;
+        let new_prime = *PRIME_TABLE
+            .get(new_prime_pos)
+            .expect("PRIME_TABLE exhausted while growing SymbolCache") as u64;
         let mut new_nodes = vec![ptr::null_mut(); new_prime as usize];
 
         self.tmp.clear();
@@ -236,17 +243,11 @@ impl SymbolCache {
 // Statics
 //
 
-#[cfg(not(feature = "server-side"))]
 static SYMBOL_CACHE: std::sync::Mutex<SymbolCache> = std::sync::Mutex::new(SymbolCache::new(512, 16 * KB));
-#[cfg(feature = "server-side")]
-static SYMBOL_CACHE: std::sync::RwLock<SymbolCache> = std::sync::RwLock::new(SymbolCache::new(512, 16 * KB));
 
 #[ctor::ctor]
 fn init_symbol_cache() {
-    #[cfg(not(feature = "server-side"))]
     SYMBOL_CACHE.lock().unwrap().init();
-    #[cfg(feature = "server-side")]
-    SYMBOL_CACHE.write().unwrap().init();
 }
 
 static EMPTY_NODE: SymbolNode = SymbolNode {
@@ -276,7 +277,6 @@ impl Symbol {
         hasher.finish()
     }
 
-    #[cfg(not(feature = "server-side"))]
     pub fn new(string: &str) -> XResult<Symbol> {
         let mut cache = SYMBOL_CACHE.lock().unwrap();
 
@@ -288,27 +288,6 @@ impl Symbol {
         if let Some(node) = cache.find(string, hash) {
             return Ok(Symbol(SymbolNode::to_str_ptr(node)));
         }
-
-        let node = cache.insert(string, hash)?;
-        Ok(Symbol(SymbolNode::to_str_ptr(node)))
-    }
-
-    #[cfg(feature = "server-side")]
-    #[inline]
-    pub fn new(string: &str) -> XResult<Symbol> {
-        let cache = SYMBOL_CACHE.read().unwrap();
-
-        if unlikely(string.is_empty()) {
-            return Ok(Symbol(SymbolNode::to_str_ptr(&EMPTY_NODE)));
-        }
-
-        let hash = Self::hash(string);
-        if let Some(node) = cache.find(string, hash) {
-            return Ok(Symbol(SymbolNode::to_str_ptr(node)));
-        }
-
-        drop(cache);
-        let mut cache = SYMBOL_CACHE.write().unwrap();
 
         let node = cache.insert(string, hash)?;
         Ok(Symbol(SymbolNode::to_str_ptr(node)))
@@ -330,10 +309,7 @@ impl Symbol {
     }
 
     pub fn count_capacity_memory() -> (usize, usize, usize) {
-        #[cfg(not(feature = "server-side"))]
         let cache = SYMBOL_CACHE.lock().unwrap();
-        #[cfg(feature = "server-side")]
-        let cache = SYMBOL_CACHE.read().unwrap();
 
         let count = cache.count;
         let capacity = cache.capacity();
@@ -372,10 +348,7 @@ impl Symbol {
     ///
     /// The caller is responsible for ensuring no `Symbol` instances survive across this call.
     pub unsafe fn clean_up() {
-        #[cfg(not(feature = "server-side"))]
         let mut cache = SYMBOL_CACHE.lock().unwrap();
-        #[cfg(feature = "server-side")]
-        let mut cache = SYMBOL_CACHE.write().unwrap();
 
         unsafe { cache.clean_up() };
     }
