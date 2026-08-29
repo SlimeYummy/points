@@ -5,7 +5,7 @@ use crate::utils::{TmplID, VirtualKey};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-pub struct TmplActionMoveNpc {
+pub struct TmplActionMoveFreeNpc {
     pub id: TmplID,
     pub enabled: TmplVar<bool>,
     pub character_npcs: Vec<TmplID>,
@@ -22,7 +22,7 @@ pub struct TmplActionMoveNpc {
     pub step_length: f32,
 }
 
-impl_tmpl!(TmplActionMoveNpc, ActionMoveNpc, "ActionMoveNpc");
+impl_tmpl!(TmplActionMoveFreeNpc, ActionMoveFreeNpc, "ActionMoveFreeNpc");
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
@@ -63,7 +63,7 @@ mod tests {
     fn test_load_action_move_npc() {
         let db = TmplDatabase::new(10240, 150).unwrap();
 
-        let act = db.find_as::<TmplActionMoveNpc>(id!("Action.Enemy.Walk")).unwrap();
+        let act = db.find_as::<TmplActionMoveFreeNpc>(id!("Action.Enemy.Walk")).unwrap();
         assert_eq!(act.id, id!("Action.Enemy.Walk"));
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character_npcs.as_slice(), &[id!("CharacterNpc.Enemy")]);
@@ -71,7 +71,7 @@ mod tests {
         assert_eq!(act.enter_key, VirtualKey::Walk);
         assert_eq!(act.poise_level, 0);
 
-        assert_eq!(act.anim_move.files, "Slime/WalkLoop.*");
+        assert_eq!(act.anim_move.files, "Slime/WalkFrontLoop.*");
         assert_eq!(act.anim_move.duration, cf2s(80));
         assert_eq!(act.anim_move.fade_in, 0.1);
         assert_eq!(act.anim_move.root_motion, true);
@@ -79,7 +79,7 @@ mod tests {
         assert_eq!(act.anim_move.hit_motion, false);
         assert_eq!(act.move_speed, 1.5);
 
-        assert_eq!(act.anim_start.files, "Slime/WalkStart.*");
+        assert_eq!(act.anim_start.files, "Slime/WalkFrontStart.*");
         assert_eq!(act.anim_start.duration, cf2s(40));
         assert_eq!(act.anim_start.fade_in, 0.1);
         assert_eq!(act.anim_start.root_motion, true);
@@ -87,22 +87,22 @@ mod tests {
         assert_eq!(act.anim_start.hit_motion, false);
 
         assert_eq!(act.stops.len(), 1);
-        assert_eq!(act.stops[0].anim.files, "Slime/WalkStop.*");
+        assert_eq!(act.stops[0].anim.files, "Slime/WalkFrontStop.*");
         assert_eq!(act.stops[0].anim.duration, cf2s(40));
         assert_eq!(act.stops[0].anim.fade_in, 0.1);
         assert_eq!(act.stops[0].anim.root_motion, true);
         assert_eq!(act.stops[0].anim.weapon_motion, false);
         assert_eq!(act.stops[0].anim.hit_motion, false);
         assert_eq!(act.stops[0].enter_from_table.len(), 3);
-        assert_eq!(act.stops[0].enter_from_table[0].anim.as_str(), "Slime/WalkStart.*");
+        assert_eq!(act.stops[0].enter_from_table[0].anim.as_str(), "Slime/WalkFrontStart.*");
         assert_eq!(act.stops[0].enter_from_table[0].ratio.to_native(), 1.0);
-        assert_eq!(act.stops[0].enter_from_table[1].anim.as_str(), "Slime/WalkLoop.*");
+        assert_eq!(act.stops[0].enter_from_table[1].anim.as_str(), "Slime/WalkFrontLoop.*");
         assert_eq!(act.stops[0].enter_from_table[1].ratio.to_native(), 0.5);
-        assert_eq!(act.stops[0].enter_from_table[2].anim.as_str(), "Slime/WalkLoop.*");
+        assert_eq!(act.stops[0].enter_from_table[2].anim.as_str(), "Slime/WalkFrontLoop.*");
         assert_eq!(act.stops[0].enter_from_table[2].ratio.to_native(), 1.0);
 
         assert_eq!(act.turn_time, cf2s(12));
-        assert_abs_diff_eq!(act.min_distance.to_native(), 1.8, epsilon = 1e-3);
+        assert_abs_diff_eq!(act.min_distance.to_native(), 0.8, epsilon = 1e-3);
         assert_abs_diff_eq!(act.step_length.to_native(), 1.0, epsilon = 1e-3);
     }
 }
