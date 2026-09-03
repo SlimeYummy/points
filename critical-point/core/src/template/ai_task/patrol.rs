@@ -13,6 +13,7 @@ pub struct TmplAiTaskPatrol {
     pub action_idle: TmplID,
     pub action_move: TmplID,
     pub route: Vec<TmplAiTaskPatrolStep>,
+    pub loop_times: u32,
     pub target_exit: bool,
 }
 
@@ -133,6 +134,7 @@ mod tests {
             TmplAiTaskPatrolStep::from_rkyv(&task.route[2]),
             TmplAiTaskPatrolStep::Move(vec3a(3.0, -4.0, -5.0))
         );
+        assert_eq!(task.loop_times, 5);
         assert_eq!(task.target_exit, true);
     }
 }
