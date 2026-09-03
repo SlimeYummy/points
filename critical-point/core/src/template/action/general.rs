@@ -34,8 +34,6 @@ pub struct TmplActionGeneral {
     pub derive_continues: EnumBitset<DeriveContinue, { DeriveContinue::LEN }>,
     #[serde(default)]
     pub hits: Vec<TmplHit>,
-    #[serde(default)]
-    pub custom_events: TmplTimelinePoint<String>,
 }
 
 impl_tmpl!(TmplActionGeneral, ActionGeneral, "ActionGeneral");
@@ -219,9 +217,5 @@ mod tests {
         assert_eq!(act.hits[2].box_max_times.value().unwrap(), 1);
         assert_eq!(act.hits[2].box_min_interval.value().unwrap(), cf2s(2));
         assert_eq!(act.hits[2].group_max_times.value().unwrap(), 2);
-
-        assert_eq!(act.custom_events.pairs.len(), 1);
-        assert_eq!(act.custom_events.pairs[0].0, 1.0);
-        assert_eq!(act.custom_events.pairs[0].1, "CustomEvent");
     }
 }

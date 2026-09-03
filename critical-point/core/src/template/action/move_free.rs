@@ -5,7 +5,7 @@ use crate::utils::{TmplID, VirtualKey};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-pub struct TmplActionMove {
+pub struct TmplActionMoveFree {
     pub id: TmplID,
     pub enabled: TmplVar<bool>,
     pub character: TmplID,
@@ -19,20 +19,20 @@ pub struct TmplActionMove {
     pub anim_move: TmplAnimation,
     pub move_speed: f32,
     pub speed_ratio: f32,
-    pub starts: Vec<TmplActionMoveStart>,
-    pub stops: Vec<TmplActionMoveStop>,
+    pub starts: Vec<TmplActionMoveFreeStart>,
+    pub stops: Vec<TmplActionMoveFreeStop>,
     pub quick_stop_time: f32,
-    pub turns: Vec<TmplActionMoveTurn>,
+    pub turns: Vec<TmplActionMoveFreeTurn>,
     pub turn_time: f32,
     pub smooth_move_froms: Vec<TmplID>,
     pub smooth_move_duration: f32,
 }
 
-impl_tmpl!(TmplActionMove, ActionMove, "ActionMove");
+impl_tmpl!(TmplActionMoveFree, ActionMoveFree, "ActionMoveFree");
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-pub struct TmplActionMoveStart {
+pub struct TmplActionMoveFreeStart {
     pub anim: TmplAnimation,
     pub enter_angle: [f32; 2],
     pub turn_in_place_end: f32,
@@ -41,7 +41,7 @@ pub struct TmplActionMoveStart {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-pub struct TmplActionMoveTurn {
+pub struct TmplActionMoveFreeTurn {
     pub anim: TmplAnimation,
     pub enter_angle: [f32; 2],
     pub turn_in_place_end: f32,
@@ -49,10 +49,10 @@ pub struct TmplActionMoveTurn {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-pub struct TmplActionMoveStop {
+pub struct TmplActionMoveFreeStop {
     pub anim: TmplAnimation,
-    pub enter_phase_table: Vec<TmplActionMoveStopEnter>,
-    pub leave_phase_table: Vec<TmplActionMoveStopLeave>,
+    pub enter_phase_table: Vec<TmplActionMoveFreeStopEnter>,
+    pub leave_phase_table: Vec<TmplActionMoveFreeStopLeave>,
 }
 
 #[derive(
@@ -68,15 +68,15 @@ pub struct TmplActionMoveStop {
     rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-pub struct TmplActionMoveStopEnter {
+pub struct TmplActionMoveFreeStopEnter {
     pub phase: [f32; 2],
     pub offset: f32,
 }
 
-impl TmplActionMoveStopEnter {
+impl TmplActionMoveFreeStopEnter {
     #[inline]
-    pub fn from_rkyv(archived: &ArchivedTmplActionMoveStopEnter) -> TmplActionMoveStopEnter {
-        TmplActionMoveStopEnter {
+    pub fn from_rkyv(archived: &ArchivedTmplActionMoveFreeStopEnter) -> TmplActionMoveFreeStopEnter {
+        TmplActionMoveFreeStopEnter {
             phase: [archived.phase[0].into(), archived.phase[1].into()],
             offset: archived.offset.into(),
         }
@@ -96,15 +96,15 @@ impl TmplActionMoveStopEnter {
     rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-pub struct TmplActionMoveStopLeave {
+pub struct TmplActionMoveFreeStopLeave {
     pub time: f32,
     pub phase: f32,
 }
 
-impl TmplActionMoveStopLeave {
+impl TmplActionMoveFreeStopLeave {
     #[inline]
-    pub fn from_rkyv(archived: &ArchivedTmplActionMoveStopLeave) -> TmplActionMoveStopLeave {
-        TmplActionMoveStopLeave {
+    pub fn from_rkyv(archived: &ArchivedTmplActionMoveFreeStopLeave) -> TmplActionMoveFreeStopLeave {
+        TmplActionMoveFreeStopLeave {
             time: archived.time.into(),
             phase: archived.phase.into(),
         }
@@ -121,7 +121,7 @@ mod tests {
     fn test_load_action_move() {
         let db = TmplDatabase::new(10240, 150).unwrap();
 
-        let act = db.find_as::<TmplActionMove>(id!("Action.One.Run")).unwrap();
+        let act = db.find_as::<TmplActionMoveFree>(id!("Action.One.Run")).unwrap();
         assert_eq!(act.id, id!("Action.One.Run"));
         assert_eq!(act.enabled.value().unwrap(), true);
         assert_eq!(act.character, id!("Character.One"));
@@ -169,20 +169,20 @@ mod tests {
         assert_eq!(act.stops[0].anim.hit_motion, false);
         assert_eq!(act.stops[0].enter_phase_table.len(), 1);
         assert_eq!(
-            TmplActionMoveStopEnter::from_rkyv(&act.stops[0].enter_phase_table[0]),
-            TmplActionMoveStopEnter {
+            TmplActionMoveFreeStopEnter::from_rkyv(&act.stops[0].enter_phase_table[0]),
+            TmplActionMoveFreeStopEnter {
                 phase: [0.75, 0.25],
                 offset: cf2s(2)
             }
         );
         assert_eq!(act.stops[0].leave_phase_table.len(), 2);
         assert_eq!(
-            TmplActionMoveStopLeave::from_rkyv(&act.stops[0].leave_phase_table[0]),
-            TmplActionMoveStopLeave { time: 0.0, phase: 0.0 }
+            TmplActionMoveFreeStopLeave::from_rkyv(&act.stops[0].leave_phase_table[0]),
+            TmplActionMoveFreeStopLeave { time: 0.0, phase: 0.0 }
         );
         assert_eq!(
-            TmplActionMoveStopLeave::from_rkyv(&act.stops[0].leave_phase_table[1]),
-            TmplActionMoveStopLeave {
+            TmplActionMoveFreeStopLeave::from_rkyv(&act.stops[0].leave_phase_table[1]),
+            TmplActionMoveFreeStopLeave {
                 time: cf2s(14),
                 phase: 0.5
             }
@@ -191,20 +191,20 @@ mod tests {
         assert_eq!(act.stops[1].anim.files, "Girl/RunStop_R_Empty.*");
         assert_eq!(act.stops[0].enter_phase_table.len(), 1);
         assert_eq!(
-            TmplActionMoveStopEnter::from_rkyv(&act.stops[1].enter_phase_table[0]),
-            TmplActionMoveStopEnter {
+            TmplActionMoveFreeStopEnter::from_rkyv(&act.stops[1].enter_phase_table[0]),
+            TmplActionMoveFreeStopEnter {
                 phase: [0.25, 0.75],
                 offset: cf2s(2)
             }
         );
         assert_eq!(act.stops[1].leave_phase_table.len(), 2);
         assert_eq!(
-            TmplActionMoveStopLeave::from_rkyv(&act.stops[1].leave_phase_table[0]),
-            TmplActionMoveStopLeave { time: 0.0, phase: 0.5 }
+            TmplActionMoveFreeStopLeave::from_rkyv(&act.stops[1].leave_phase_table[0]),
+            TmplActionMoveFreeStopLeave { time: 0.0, phase: 0.5 }
         );
         assert_eq!(
-            TmplActionMoveStopLeave::from_rkyv(&act.stops[1].leave_phase_table[1]),
-            TmplActionMoveStopLeave {
+            TmplActionMoveFreeStopLeave::from_rkyv(&act.stops[1].leave_phase_table[1]),
+            TmplActionMoveFreeStopLeave {
                 time: cf2s(14),
                 phase: 0.0
             }

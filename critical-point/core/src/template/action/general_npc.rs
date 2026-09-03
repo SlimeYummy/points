@@ -18,8 +18,6 @@ pub struct TmplActionGeneralNpc {
     pub keep_levels: TmplTimelineRange<u16>,
     #[serde(default)]
     pub hits: Vec<TmplHit>,
-    #[serde(default)]
-    pub custom_events: TmplTimelinePoint<String>,
 }
 
 impl_tmpl!(TmplActionGeneralNpc, ActionGeneralNpc, "ActionGeneralNpc");
@@ -137,7 +135,7 @@ mod tests {
         assert_eq!(act.tags.as_slice(), &["Attack"]);
 
         assert_eq!(act.anim_main.files, "Slime/Attack1A.*");
-        assert_eq!(act.anim_main.duration, cf2s(206));
+        assert_eq!(act.anim_main.duration, cf2s(168));
         assert_eq!(act.anim_main.fade_in, 0.1);
         assert!(act.anim_main.root_motion);
         assert!(!act.anim_main.weapon_motion);
@@ -151,7 +149,7 @@ mod tests {
         assert_eq!(act.keep_levels.values[0], LEVEL_ACTION);
         assert_eq!(
             act.keep_levels.fragments[1].to_time_range(),
-            TimeRange::new(cf2s(150), cf2s(206))
+            TimeRange::new(cf2s(150), cf2s(168))
         );
         assert_eq!(act.keep_levels.values[1], LEVEL_ATTACK);
 
@@ -177,9 +175,5 @@ mod tests {
         );
 
         assert!(act.hits.is_empty());
-
-        assert_eq!(act.custom_events.pairs.len(), 1);
-        assert_eq!(act.custom_events.pairs[0].0, cf2s(60));
-        assert_eq!(act.custom_events.pairs[0].1, "CustomEvent");
     }
 }
