@@ -27,11 +27,13 @@ pub enum TmplType {
     Zone,
 
     ActionIdle,
-    ActionMove,
-    ActionMoveNpc,
+    ActionMoveFree,
+    ActionMoveFreeNpc,
+    ActionMoveTowardNpc,
     ActionGeneral,
     ActionGeneralNpc,
     ActionDodge,
+    ActionDodgeNpc,
     ActionGuard,
     ActionAim,
     ActionHit,
@@ -42,6 +44,7 @@ pub enum TmplType {
     AiTaskPatrol,
     AiTaskGeneral,
     AiTaskMoveToCharacter,
+    AiTaskKeepDistance,
 }
 
 rkyv_self!(TmplType);
@@ -123,15 +126,17 @@ const _: () = {
 
     use super::accessory::{ArchivedTmplAccessory, ArchivedTmplAccessoryPool, TmplAccessory, TmplAccessoryPool};
     use super::action::{
-        ArchivedTmplActionGeneral, ArchivedTmplActionGeneralNpc, ArchivedTmplActionHit, ArchivedTmplActionIdle,
-        ArchivedTmplActionMove, ArchivedTmplActionMoveNpc, TmplActionGeneral, TmplActionGeneralNpc, TmplActionHit,
-        TmplActionIdle, TmplActionMove, TmplActionMoveNpc,
+        ArchivedTmplActionDodgeNpc, ArchivedTmplActionGeneral, ArchivedTmplActionGeneralNpc, ArchivedTmplActionHit,
+        ArchivedTmplActionIdle, ArchivedTmplActionMoveFree, ArchivedTmplActionMoveFreeNpc,
+        ArchivedTmplActionMoveTowardNpc, TmplActionDodgeNpc, TmplActionGeneral, TmplActionGeneralNpc, TmplActionHit,
+        TmplActionIdle, TmplActionMoveFree, TmplActionMoveFreeNpc, TmplActionMoveTowardNpc,
     };
     use super::ai_brain::{ArchivedTmplAiBrain, TmplAiBrain};
     use super::ai_routine::{ArchivedTmplAiRoutine, TmplAiRoutine};
     use super::ai_task::{
-        ArchivedTmplAiTaskGeneral, ArchivedTmplAiTaskIdle, ArchivedTmplAiTaskMoveToCharacter, ArchivedTmplAiTaskPatrol,
-        TmplAiTaskGeneral, TmplAiTaskIdle, TmplAiTaskMoveToCharacter, TmplAiTaskPatrol,
+        ArchivedTmplAiTaskGeneral, ArchivedTmplAiTaskIdle, ArchivedTmplAiTaskKeepDistance,
+        ArchivedTmplAiTaskMoveToCharacter, ArchivedTmplAiTaskPatrol, TmplAiTaskGeneral, TmplAiTaskIdle,
+        TmplAiTaskKeepDistance, TmplAiTaskMoveToCharacter, TmplAiTaskPatrol,
     };
     use super::character::{
         ArchivedTmplCharacter, ArchivedTmplCharacterNpc, ArchivedTmplStyle, TmplCharacter, TmplCharacterNpc, TmplStyle,
@@ -182,10 +187,12 @@ const _: () = {
                     Jewel => mem::transmute_copy::<usize, &ArchivedTmplJewel>(&0),
                     Zone => mem::transmute_copy::<usize, &ArchivedTmplZone>(&0),
                     ActionIdle => mem::transmute_copy::<usize, &ArchivedTmplActionIdle>(&0),
-                    ActionMove => mem::transmute_copy::<usize, &ArchivedTmplActionMove>(&0),
-                    ActionMoveNpc => mem::transmute_copy::<usize, &ArchivedTmplActionMoveNpc>(&0),
+                    ActionMoveFree => mem::transmute_copy::<usize, &ArchivedTmplActionMoveFree>(&0),
+                    ActionMoveFreeNpc => mem::transmute_copy::<usize, &ArchivedTmplActionMoveFreeNpc>(&0),
+                    ActionMoveTowardNpc => mem::transmute_copy::<usize, &ArchivedTmplActionMoveTowardNpc>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &ArchivedTmplActionGeneral>(&0),
                     ActionGeneralNpc => mem::transmute_copy::<usize, &ArchivedTmplActionGeneralNpc>(&0),
+                    ActionDodgeNpc => mem::transmute_copy::<usize, &ArchivedTmplActionDodgeNpc>(&0),
                     ActionHit => mem::transmute_copy::<usize, &ArchivedTmplActionHit>(&0),
                     AiBrain => mem::transmute_copy::<usize, &ArchivedTmplAiBrain>(&0),
                     AiRoutine => mem::transmute_copy::<usize, &ArchivedTmplAiRoutine>(&0),
@@ -193,6 +200,7 @@ const _: () = {
                     AiTaskPatrol => mem::transmute_copy::<usize, &ArchivedTmplAiTaskPatrol>(&0),
                     AiTaskGeneral => mem::transmute_copy::<usize, &ArchivedTmplAiTaskGeneral>(&0),
                     AiTaskMoveToCharacter => mem::transmute_copy::<usize, &ArchivedTmplAiTaskMoveToCharacter>(&0),
+                    AiTaskKeepDistance => mem::transmute_copy::<usize, &ArchivedTmplAiTaskKeepDistance>(&0),
                     _ => unreachable!("pointer_metadata() Invalid TmplType"),
                 }
             };
@@ -240,10 +248,12 @@ const _: () = {
                 Jewel => serialize::<TmplJewel, _>(self, serializer),
                 Zone => serialize::<TmplZone, _>(self, serializer),
                 ActionIdle => serialize::<TmplActionIdle, _>(self, serializer),
-                ActionMove => serialize::<TmplActionMove, _>(self, serializer),
-                ActionMoveNpc => serialize::<TmplActionMoveNpc, _>(self, serializer),
+                ActionMoveFree => serialize::<TmplActionMoveFree, _>(self, serializer),
+                ActionMoveFreeNpc => serialize::<TmplActionMoveFreeNpc, _>(self, serializer),
+                ActionMoveTowardNpc => serialize::<TmplActionMoveTowardNpc, _>(self, serializer),
                 ActionGeneral => serialize::<TmplActionGeneral, _>(self, serializer),
                 ActionGeneralNpc => serialize::<TmplActionGeneralNpc, _>(self, serializer),
+                ActionDodgeNpc => serialize::<TmplActionDodgeNpc, _>(self, serializer),
                 ActionHit => serialize::<TmplActionHit, _>(self, serializer),
                 AiBrain => serialize::<TmplAiBrain, _>(self, serializer),
                 AiRoutine => serialize::<TmplAiRoutine, _>(self, serializer),
@@ -251,6 +261,7 @@ const _: () = {
                 AiTaskPatrol => serialize::<TmplAiTaskPatrol, _>(self, serializer),
                 AiTaskGeneral => serialize::<TmplAiTaskGeneral, _>(self, serializer),
                 AiTaskMoveToCharacter => serialize::<TmplAiTaskMoveToCharacter, _>(self, serializer),
+                AiTaskKeepDistance => serialize::<TmplAiTaskKeepDistance, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid TmplType"),
             }
         }
@@ -293,10 +304,12 @@ const _: () = {
                 Zone => deserialize::<TmplZone, _>(self, deserializer, out),
                 ActionIdle => deserialize::<TmplActionIdle, _>(self, deserializer, out),
                 // NpcActionIdle => deserialize::<TmplNpcActionIdle, _>(self, deserializer, out),
-                ActionMove => deserialize::<TmplActionMove, _>(self, deserializer, out),
-                ActionMoveNpc => deserialize::<TmplActionMoveNpc, _>(self, deserializer, out),
+                ActionMoveFree => deserialize::<TmplActionMoveFree, _>(self, deserializer, out),
+                ActionMoveFreeNpc => deserialize::<TmplActionMoveFreeNpc, _>(self, deserializer, out),
+                ActionMoveTowardNpc => deserialize::<TmplActionMoveTowardNpc, _>(self, deserializer, out),
                 ActionGeneral => deserialize::<TmplActionGeneral, _>(self, deserializer, out),
                 ActionGeneralNpc => deserialize::<TmplActionGeneralNpc, _>(self, deserializer, out),
+                ActionDodgeNpc => deserialize::<TmplActionDodgeNpc, _>(self, deserializer, out),
                 ActionHit => deserialize::<TmplActionHit, _>(self, deserializer, out),
                 // NpcActionHit => deserialize::<TmplNpcActionHit, _>(self, deserializer, out),
                 AiBrain => deserialize::<TmplAiBrain, _>(self, deserializer, out),
@@ -305,6 +318,7 @@ const _: () = {
                 AiTaskPatrol => deserialize::<TmplAiTaskPatrol, _>(self, deserializer, out),
                 AiTaskGeneral => deserialize::<TmplAiTaskGeneral, _>(self, deserializer, out),
                 AiTaskMoveToCharacter => deserialize::<TmplAiTaskMoveToCharacter, _>(self, deserializer, out),
+                AiTaskKeepDistance => deserialize::<TmplAiTaskKeepDistance, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid TmplType"),
             }
         }
@@ -324,10 +338,12 @@ const _: () = {
                     Zone => mem::transmute_copy::<usize, &TmplZone>(&0),
                     ActionIdle => mem::transmute_copy::<usize, &TmplActionIdle>(&0),
                     // NpcActionIdle => mem::transmute_copy::<usize, &TmplNpcActionIdle>(&0),
-                    ActionMove => mem::transmute_copy::<usize, &TmplActionMove>(&0),
-                    ActionMoveNpc => mem::transmute_copy::<usize, &TmplActionMoveNpc>(&0),
+                    ActionMoveFree => mem::transmute_copy::<usize, &TmplActionMoveFree>(&0),
+                    ActionMoveFreeNpc => mem::transmute_copy::<usize, &TmplActionMoveFreeNpc>(&0),
+                    ActionMoveTowardNpc => mem::transmute_copy::<usize, &TmplActionMoveTowardNpc>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &TmplActionGeneral>(&0),
                     ActionGeneralNpc => mem::transmute_copy::<usize, &TmplActionGeneralNpc>(&0),
+                    ActionDodgeNpc => mem::transmute_copy::<usize, &TmplActionDodgeNpc>(&0),
                     ActionHit => mem::transmute_copy::<usize, &TmplActionHit>(&0),
                     // NpcActionHit => mem::transmute_copy::<usize, &TmplNpcActionHit>(&0),
                     AiBrain => mem::transmute_copy::<usize, &TmplAiBrain>(&0),

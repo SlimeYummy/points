@@ -25,7 +25,6 @@ pub struct TmplCharacter {
     pub styles: Vec<TmplID>,
     pub equipments: Vec<TmplID>,
     pub skeleton_files: String,
-    pub skeleton_toward: Vec2xz,
 }
 
 impl_tmpl!(TmplCharacter, Character, "Character");
@@ -67,8 +66,8 @@ pub struct TmplCharacterNpc {
     pub fixed_attributes: TmplFixedAttributes,
     pub actions: Vec<TmplID>,
     pub ai_brains: Vec<TmplID>,
+    pub script_predicates: bool,
     pub skeleton_files: String,
-    pub skeleton_toward: Vec2xz,
     pub view_model: String,
 }
 
@@ -116,7 +115,6 @@ mod tests {
             id!("Equipment.No3")
         ]);
         assert_eq!(character.skeleton_files, "Girl/Girl.*");
-        assert_eq!(character.skeleton_toward, Vec2xz::Z);
     }
 
     #[test]
@@ -219,12 +217,12 @@ mod tests {
             id!("Action.Enemy.Walk"),
             id!("Action.Enemy.Hit1"),
             id!("Action.Enemy.Attack"),
+            id!("Action.Enemy.Dodge"),
         ]);
 
         assert_eq!(npc.ai_brains.as_slice(), &[id!("AiBrain.Enemy")]);
 
         assert_eq!(npc.skeleton_files, "TrainingDummy/TrainingDummy.*");
-        assert_eq!(npc.skeleton_toward, Vec2xz::Z);
         assert_eq!(npc.view_model, "TrainingDummy.prefab");
     }
 }
