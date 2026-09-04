@@ -245,10 +245,12 @@ impl TmplDatabaseInner {
     }
 
     fn set_cache_size_limit(&mut self, size: usize) {
-        if size < self.cached_size_limit {
+        let old_limit = self.cached_size_limit;
+        self.cached_size_limit = size;
+
+        if size < old_limit {
             self.delete_by(|zelf, _| zelf.cached_size > zelf.cached_size_limit);
         }
-        self.cached_size_limit = size;
     }
 }
 
@@ -722,5 +724,30 @@ mod tests {
         db.update_frame(2);
         assert_eq!(db_all_count(&db), 0);
         assert_eq!(db_cache_count(&db), 0);
+    }
+
+    #[test]
+    fn test_tmpl_database_shrink_cache_limit() {
+        let db = TmplDatabase::new(400, 10).unwrap();
+
+        let entry1 = db.find(id!("Entry.MaxHealthUp")).unwrap();
+        let entry1_size = entry1.size();
+        let entry2 = db.find(id!("Entry.AttackUp")).unwrap();
+        let entry2_size = entry2.size();
+
+        mem::drop(entry1);
+        mem::drop(entry2);
+
+        let shrink_limit = entry2_size;
+        assert!(db.cached_size() > shrink_limit);
+
+        db.set_cache_size_limit(shrink_limit);
+
+        assert!(db.cached_size() <= shrink_limit);
+        assert_eq!(db_all_count(&db), 1);
+        assert_eq!(db_cache_count(&db), 1);
+        assert_eq!(db.cached_size(), entry2_size);
+        assert_eq!(db.size(), entry2_size);
+        assert!(entry1_size > 0);
     }
 }
