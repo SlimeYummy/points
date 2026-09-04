@@ -16,7 +16,7 @@ use crate::utils::TmplID;
 #[serde(tag = "T")]
 pub enum TmplAiRoutineItem {
     Task { id: TmplID },
-    If { script: u16, jump: u32 },
+    If { script: u32, jump: u32 },
     Else { jump: u32 },
 }
 
@@ -67,7 +67,7 @@ impl_tmpl!(TmplAiRoutine, AiRoutine, "AiRoutine");
 mod tests {
     use super::*;
     use crate::template::TmplDatabase;
-    use crate::utils::{LEVEL_MOVE, id};
+    use crate::utils::id;
 
     #[test]
     fn test_tmpl_ai_routine() {
@@ -76,14 +76,31 @@ mod tests {
 
         assert_eq!(tmpl.id, id!("AiRoutine.Enemy.Sequence"));
         assert_eq!(tmpl.character_npc, id!("CharacterNpc.Enemy"));
-        assert_eq!(tmpl.tasks.len(), 3);
+        assert_eq!(tmpl.tasks.len(), 8);
         assert_eq!(TmplAiRoutineItem::from_rkyv(&tmpl.tasks[0]), TmplAiRoutineItem::Task {
             id: id!("AiTask.Enemy.Idle")
         });
-        assert_eq!(TmplAiRoutineItem::from_rkyv(&tmpl.tasks[1]), TmplAiRoutineItem::Task {
-            id: id!("AiTask.Enemy.Patrol")
+        assert_eq!(TmplAiRoutineItem::from_rkyv(&tmpl.tasks[1]), TmplAiRoutineItem::If {
+            script: 0,
+            jump: 4
         });
         assert_eq!(TmplAiRoutineItem::from_rkyv(&tmpl.tasks[2]), TmplAiRoutineItem::Task {
+            id: id!("AiTask.Enemy.Patrol")
+        });
+        assert_eq!(TmplAiRoutineItem::from_rkyv(&tmpl.tasks[3]), TmplAiRoutineItem::Else {
+            jump: 8
+        });
+        assert_eq!(TmplAiRoutineItem::from_rkyv(&tmpl.tasks[4]), TmplAiRoutineItem::If {
+            script: 1,
+            jump: 7
+        });
+        assert_eq!(TmplAiRoutineItem::from_rkyv(&tmpl.tasks[5]), TmplAiRoutineItem::Task {
+            id: id!("AiTask.Enemy.Patrol")
+        });
+        assert_eq!(TmplAiRoutineItem::from_rkyv(&tmpl.tasks[6]), TmplAiRoutineItem::Else {
+            jump: 8
+        });
+        assert_eq!(TmplAiRoutineItem::from_rkyv(&tmpl.tasks[7]), TmplAiRoutineItem::Task {
             id: id!("AiTask.Enemy.MoveTo")
         });
     }
