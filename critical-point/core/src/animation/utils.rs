@@ -77,7 +77,6 @@ pub struct WeaponTransform {
 pub struct ShapeKeyValue {
     pub name: Symbol,
     pub value: f32,
-    pub weight: f32,
 }
 
 pub fn soa_transforms_to_transforms(soa_transforms: &[SoaTransform], transforms: &mut [Transform3A]) -> XResult<()> {

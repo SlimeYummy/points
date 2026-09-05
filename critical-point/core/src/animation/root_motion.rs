@@ -1,10 +1,12 @@
+use approx::abs_diff_eq;
 use critical_point_macros::csharp_enum;
 use glam::{Quat, Vec3};
+use glam_ext::Transform3A;
 use ozz_animation_rs::{Archive, OzzError, Track, TrackSamplingJobRef};
 use std::io::{ErrorKind, Read};
 use std::path::Path;
 
-use crate::utils::{XResult, rkyv_self, xres, xresf};
+use crate::utils::{XResult, quat_pow_i64, rkyv_self, xres, xresf};
 
 #[csharp_enum]
 #[repr(u8)]
@@ -26,7 +28,18 @@ pub struct RootMotion {
 
 impl RootMotion {
     #[inline]
+    pub fn from_path<P: AsRef<Path>>(path: P) -> XResult<RootMotion> {
+        let mut archive = Archive::from_path(path.as_ref())?;
+        RootMotion::from_archive_with_path(&mut archive, path.as_ref())
+    }
+
+    #[inline]
     pub fn from_archive(archive: &mut Archive<impl Read>) -> XResult<RootMotion> {
+        RootMotion::from_archive_with_path(archive, "")
+    }
+
+    #[inline]
+    pub fn from_archive_with_path<P: AsRef<Path>>(archive: &mut Archive<impl Read>, path: P) -> XResult<RootMotion> {
         let mut rm = RootMotion {
             positions: Default::default(),
             rotation: Track::<Quat>::default(),
@@ -91,13 +104,44 @@ impl RootMotion {
         if !pos_default {
             return xres!(BadAsset; "name=Pos:Default, notfound");
         }
-        Ok(rm)
-    }
 
-    #[inline]
-    pub fn from_path<P: AsRef<Path>>(path: P) -> XResult<RootMotion> {
-        let mut archive = Archive::from_path(path)?;
-        RootMotion::from_archive(&mut archive)
+        // For simplicity, we assume that all root motion here has no initial translation or rotation.
+
+        let first_default = rm.first_position(RootTrackName::Default);
+        if !abs_diff_eq!(first_default, Vec3::ZERO, epsilon = 0.01) {
+            log::warn!(
+                "root motion init, pos={:?} name={:?} path={:?}",
+                first_default,
+                RootTrackName::Default,
+                path.as_ref()
+            );
+        }
+
+        let first_move = rm.first_position(RootTrackName::Move);
+        if !abs_diff_eq!(first_move, Vec3::ZERO, epsilon = 0.01) {
+            log::warn!(
+                "root motion init, pos={:?} name={:?} path={:?}",
+                first_move,
+                RootTrackName::Move,
+                path.as_ref()
+            );
+        }
+
+        let first_move_ex = rm.first_position(RootTrackName::MoveEx);
+        if !abs_diff_eq!(first_move_ex, Vec3::ZERO, epsilon = 0.01) {
+            log::warn!(
+                "root motion init, pos={:?} name={:?} path={:?}",
+                first_move_ex,
+                RootTrackName::MoveEx,
+                path.as_ref()
+            );
+        }
+
+        let first_rotation = rm.first_rotation();
+        if !abs_diff_eq!(first_rotation, Quat::IDENTITY, epsilon = 0.01) {
+            log::warn!("root motion init, rot={:?} path={:?}", first_rotation, path.as_ref());
+        }
+        Ok(rm)
     }
 
     #[inline]
@@ -134,6 +178,16 @@ impl RootMotion {
     }
 
     #[inline]
+    pub fn sample_position(&self, tt: RootTrackName, ratio: f32) -> XResult<Vec3> {
+        let track = self.position(tt);
+        let mut job: TrackSamplingJobRef<Vec3> = TrackSamplingJobRef::default();
+        job.set_track(track);
+        job.set_ratio(ratio);
+        job.run()?;
+        Ok(job.result())
+    }
+
+    #[inline]
     pub fn has_rotation(&self) -> bool {
         self.rotation.key_count() > 0
     }
@@ -154,15 +208,15 @@ impl RootMotion {
     }
 
     #[inline]
-    pub fn sample_position(&self, tt: RootTrackName, ratio: f32) -> Vec3 {
-        let track = self.position(tt);
-        let mut job: TrackSamplingJobRef<Vec3> = TrackSamplingJobRef::default();
-        job.set_track(track);
+    pub fn sample_rotation(&self, ratio: f32) -> XResult<Quat> {
+        let mut job: TrackSamplingJobRef<Quat> = TrackSamplingJobRef::default();
+        job.set_track(&self.rotation);
         job.set_ratio(ratio);
-        let _ = job.run();
-        job.result()
+        job.run()?;
+        Ok(job.result())
     }
 
+    /// Returns the straight-line displacement between two sampled root positions.
     #[inline]
     pub fn calc_distance_between(&self, tt: RootTrackName, from: f32, to: f32) -> XResult<f32> {
         if from < 0.0 || from > 1.0 {
@@ -177,18 +231,51 @@ impl RootMotion {
         }
 
         if from <= to {
-            let p0 = self.sample_position(tt, from);
-            let p1 = self.sample_position(tt, to);
+            let p0 = self.sample_position(tt, from)?;
+            let p1 = self.sample_position(tt, to)?;
             Ok(p0.distance(p1))
         }
         else {
-            let p_from = self.sample_position(tt, from);
+            let p_from = self.sample_position(tt, from)?;
             let p_end = self.last_position(tt);
             let p_start = self.first_position(tt);
-            let p_to = self.sample_position(tt, to);
+            let p_to = self.sample_position(tt, to)?;
 
             let delta = (p_end - p_from) + (p_to - p_start);
             Ok(delta.length())
         }
+    }
+
+    #[inline]
+    pub fn calc_motion_between(&self, tt: RootTrackName, from: f32, to: f32) -> XResult<Transform3A> {
+        debug_assert!(from >= 0.0 && to >= 0.0, "from and to should be non-negative");
+
+        let from_loops = from.trunc();
+        let from_frac = from - from_loops;
+        let to_loops = to.trunc();
+        let to_frac = to - to_loops;
+
+        let first_pos = self.first_position(tt);
+        let last_pos = self.last_position(tt);
+        let trunc_pos = (last_pos - first_pos) * (to_loops - from_loops) as f32;
+
+        let pos1 = self.sample_position(tt, from_frac)?;
+        let pos2 = self.sample_position(tt, to_frac)?;
+        let pos_diff = pos2 - pos1 + trunc_pos;
+
+        let first_rot = self.first_rotation();
+        let whole_rot = self.whole_rotation();
+        let rot1 = self.sample_rotation(from_frac)?;
+        let rot2 = self.sample_rotation(to_frac)?;
+
+        let first_rot_inv = first_rot.inverse();
+        let from_partial = rot1 * first_rot_inv;
+        let to_partial = rot2 * first_rot_inv;
+        let loop_rot = quat_pow_i64(whole_rot, (to_loops - from_loops) as i64);
+
+        // Earlier loop deltas stay on the right so sequential clip segments still compose correctly.
+        let rot_diff = (to_partial * loop_rot * from_partial.inverse()).normalize();
+
+        Ok(Transform3A::from_rotation_translation(rot_diff, pos_diff))
     }
 }

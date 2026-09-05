@@ -229,6 +229,8 @@ impl HitSamplerJointData {
 }
 
 impl HitSampler<HitSamplerJointData> {
+    /// Joint attachments use the same interpolation as body updates: if `joint2` is present,
+    /// lerp the attachment origin by `ratio`, then apply the sampled local offset in joint space.
     fn sample(&mut self, asset_box: &HitBoxJoint, time: f32, model_transforms: &[Transform3A]) {
         self.sample_inner(
             asset_box.start_time,
