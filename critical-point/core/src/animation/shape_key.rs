@@ -8,6 +8,8 @@ use std::path::Path;
 use crate::animation::utils::ShapeKeyValue;
 use crate::utils::{Symbol, XResult, sb, strict_gt};
 
+/// ShapeKey not used in logic engine.
+/// We will use it when rendering animations (in the bridge project).
 #[derive(Debug)]
 pub struct ShapeKey {
     tracks: Vec<ShapeTrack>,
@@ -101,28 +103,25 @@ pub fn sample_shape_key_by_name_weight(
         let value = track.sample(ratio)?;
         if let Some(skv) = values.iter_mut().find(|skv| skv.name == track.name()) {
             skv.value += value * weight;
-            skv.weight += weight;
         }
         else {
             values.push(ShapeKeyValue {
                 name: track.name(),
                 value: value * weight,
-                weight,
             });
         }
     }
     Ok(())
 }
 
-pub fn normalize_shape_key_by_weight(values: &mut Vec<ShapeKeyValue>) {
+pub fn normalize_shape_key_by_weight(values: &mut Vec<ShapeKeyValue>, total_weight: f32) {
     for value in values.iter_mut() {
-        if likely(strict_gt!(value.weight, 0.0)) {
-            value.value /= value.weight;
+        if likely(strict_gt!(total_weight, 0.0)) {
+            value.value /= total_weight;
         }
         else {
             value.value = 0.0;
         }
-        value.weight = 1.0;
     }
 }
 
@@ -144,14 +143,12 @@ mod tests {
         sample_shape_key_by_name_weight(&shape_key, 0.3, 0.5, &mut values).unwrap();
         assert_eq!(values.len(), shape_key.len());
         assert_eq!(values[1].name, shape_key[1].name());
-        assert_eq!(values[1].weight, 0.5);
         let val01 = shape_key[1].sample(0.3).unwrap();
         assert_eq!(values[1].value, val01 * 0.5);
 
         sample_shape_key_by_name_weight(&shape_key, 0.6, 0.7, &mut values).unwrap();
         assert_eq!(values.len(), shape_key.len());
         assert_eq!(values[0].name, shape_key[0].name());
-        assert_eq!(values[0].weight, 1.2);
         let val00 = shape_key[0].sample(0.3).unwrap();
         let val10 = shape_key[0].sample(0.6).unwrap();
         assert_eq!(values[0].value, val10 * 0.7 + val00 * 0.5);
@@ -162,19 +159,15 @@ mod tests {
         let mut values = vec![ShapeKeyValue {
             name: sb!("Idle_Vert"),
             value: 2.0,
-            weight: 0.5,
         }];
-        normalize_shape_key_by_weight(&mut values);
-        assert_eq!(values[0].weight, 1.0);
+        normalize_shape_key_by_weight(&mut values, 0.5);
         assert_eq!(values[0].value, 4.0);
 
         let mut values = vec![ShapeKeyValue {
             name: sb!("Idle_Vert"),
             value: 2.0,
-            weight: 0.0,
         }];
-        normalize_shape_key_by_weight(&mut values);
-        assert_eq!(values[0].weight, 1.0);
+        normalize_shape_key_by_weight(&mut values, 0.0);
         assert_eq!(values[0].value, 0.0);
     }
 }

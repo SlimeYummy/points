@@ -427,18 +427,14 @@ impl HitMotion {
 
     #[inline]
     pub fn find_box_joint(&self, box_index: u16) -> Option<&HitBoxJoint> {
-        if box_index > self.joint_offset {
-            return None;
-        }
-        self.joint_boxes.get((box_index - self.joint_offset) as usize)
+        self.to_joint_box_index(box_index)
+            .and_then(|idx| self.joint_boxes.get(idx as usize))
     }
 
     #[inline]
     pub fn find_box_weapon(&self, box_index: u16) -> Option<&HitBoxWeapon> {
-        if box_index > self.weapon_offset {
-            return None;
-        }
-        self.weapon_boxes.get((box_index - self.weapon_offset) as usize)
+        self.to_weapon_box_index(box_index)
+            .and_then(|idx| self.weapon_boxes.get(idx as usize))
     }
 
     #[inline]
@@ -847,5 +843,20 @@ mod tests {
         json_file.read_to_end(&mut json_buf).unwrap();
         let hit_motion = HitMotion::from_json_bytes(&json_buf, Some(&json_path)).unwrap();
         check_hit_motion(&hit_motion);
+    }
+
+    #[test]
+    fn test_find_box_joint_and_weapon() {
+        let json_path = format!("{}/Girl/Attack_Test.hm-json", TEST_ASSET_PATH);
+        let hit_motion = HitMotion::from_path(&json_path).unwrap();
+
+        assert_eq!(hit_motion.find_box_joint(0).map(|bx| bx.joint), Some(sb!("Spine")));
+        assert_eq!(hit_motion.find_box_joint(1).map(|bx| bx.joint), Some(sb!("LeftHand")));
+        assert!(hit_motion.find_box_joint(2).is_none());
+
+        assert!(hit_motion.find_box_weapon(1).is_none());
+        assert_eq!(hit_motion.find_box_weapon(2).map(|bx| bx.weapon), Some(sb!("Axe")));
+        assert_eq!(hit_motion.find_box_weapon(3).map(|bx| bx.weapon), Some(sb!("Axe")));
+        assert!(hit_motion.find_box_weapon(4).is_none());
     }
 }

@@ -14,7 +14,7 @@ use crate::animation::weapon_motion::{WeaponMotion, normalize_weapons_by_weight,
 use crate::asset::AssetLoader;
 use crate::consts::{INVALID_ACTION_ID, INVALID_ANIMATION_ID};
 use crate::logic::{StateActionAnimation, StateActionAny};
-use crate::utils::{HistoryQueue, SmallVec, Symbol, TmplID, XError, XResult, xfrom, xres};
+use crate::utils::{HistoryQueue, SmallVec, Symbol, TmplID, XResult, xfrom, xres};
 
 #[derive(Debug)]
 pub struct Animator {
@@ -202,7 +202,7 @@ impl Animator {
     }
 
     #[inline]
-    pub fn hit_motion_sampler(&self) -> Option<&HitMotionSampler> {
+    pub(crate) fn hit_motion_sampler(&self) -> Option<&HitMotionSampler> {
         if let Some(ad) = self.action_queue.last() {
             if let Some(sd) = ad.current_sampling_data(&self.sampling_arena) {
                 return sd.hit_motion_sampler.as_ref();
@@ -283,6 +283,7 @@ impl ActionData {
             sd.frame = frame;
             sd.weight = anim_state.weight * state.fade_in_weight;
             sd.sampling_job.set_ratio(anim_state.ratio);
+            log::debug!("ActionData::init() anim={:?}", anim_state.files);
 
             unsafe { *pnext = pos };
             pnext = &mut sd.next;
@@ -381,6 +382,7 @@ impl ActionData {
                 sd.frame = frame;
                 sd.weight = anim_state.weight * state.fade_in_weight;
                 sd.sampling_job.set_ratio(anim_state.ratio);
+                log::debug!("ActionData::update() reuse anim={:?}", anim_state.files);
 
                 last = self.job_future;
                 self.job_future = sd.next;
@@ -417,6 +419,7 @@ impl ActionData {
             sd.frame = frame;
             sd.weight = anim_state.weight * state.fade_in_weight;
             sd.sampling_job.set_ratio(anim_state.ratio);
+            log::debug!("ActionData::update() enqueue anim={:?}", anim_state.files);
 
             unsafe { *pnext = pos };
             pnext = &mut sd.next;

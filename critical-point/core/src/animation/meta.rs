@@ -226,7 +226,6 @@ pub fn load_shape_key_meta(path: String, with_names: bool) -> XResult<ShapeKeyMe
     Ok(meta)
 }
 
-
 #[repr(C)]
 #[csharp_out(Ref)]
 #[derive(Debug, Default, Clone)]
