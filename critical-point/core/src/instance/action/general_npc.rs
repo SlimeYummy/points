@@ -6,7 +6,7 @@ use crate::template::{
     At, TmplActionGeneralNpc, TmplActionGeneralNpcMovement, TmplActionGeneralNpcRotation,
     TmplActionGeneralNpcTranslation,
 };
-use crate::utils::{ActionType, Symbol, ThinVec, XResult, extend, sb};
+use crate::utils::{ActionType, ThinVec, XResult, extend, sb};
 
 pub type InstActionGeneralNpcMovement = TmplActionGeneralNpcMovement;
 pub type InstActionGeneralNpcTranslation = TmplActionGeneralNpcTranslation;
@@ -20,7 +20,6 @@ pub struct InstActionGeneralNpc {
     pub adjust_movements: InstTimelinePoint<InstActionGeneralNpcMovement>,
     // pub attributes: InstTimelineRange<InstActionAttributes>,
     pub keep_levels: InstTimelineRange<u16>,
-    pub custom_events: InstTimelinePoint<Symbol>,
 }
 
 extend!(InstActionGeneralNpc, InstActionBase);
@@ -61,8 +60,6 @@ impl InstActionGeneralNpc {
             hits.push(InstHit::from_rkyv(ctx, hit));
         }
 
-        let custom_events = InstTimelinePoint::from_rkyv(&tmpl.custom_events, |s| Ok(sb!(s)))?;
-
         let inst = InstActionGeneralNpc {
             _base: InstActionBase {
                 tmpl_id: tmpl.id,
@@ -74,7 +71,6 @@ impl InstActionGeneralNpc {
             adjust_movements,
             // attributes,
             keep_levels,
-            custom_events,
         };
         Ok(Some(inst))
     }
@@ -107,7 +103,7 @@ mod tests {
         assert_eq!(inst_act.tags, vec![sb!("Attack")]);
 
         assert_eq!(inst_act.anim_main.files, sb!("Slime/Attack1A.*"));
-        assert_eq!(inst_act.anim_main.duration, cf2s(206));
+        assert_eq!(inst_act.anim_main.duration, cf2s(168));
         assert_eq!(inst_act.anim_main.fade_in, 0.1);
         assert_eq!(inst_act.anim_main.root_motion, true);
         assert_eq!(inst_act.anim_main.weapon_motion, false);
@@ -136,11 +132,8 @@ mod tests {
         assert_eq!(inst_act.keep_levels.len(), 2);
         assert_eq!(inst_act.keep_levels[0].range, TimeRange::new(0.0, cf2s(150)));
         assert_eq!(inst_act.keep_levels[0].value, LEVEL_ACTION);
-        assert_eq!(inst_act.keep_levels[1].range, TimeRange::new(cf2s(150), cf2s(206)));
+        assert_eq!(inst_act.keep_levels[1].range, TimeRange::new(cf2s(150), cf2s(168)));
         assert_eq!(inst_act.keep_levels[1].value, LEVEL_ATTACK);
 
-        assert_eq!(inst_act.custom_events.len(), 1);
-        assert_eq!(inst_act.custom_events[0].time, 1.0);
-        assert_eq!(inst_act.custom_events[0].value, sb!("CustomEvent"));
     }
 }

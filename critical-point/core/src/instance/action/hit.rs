@@ -42,6 +42,7 @@ impl InstActionHitBeHit {
 pub struct InstActionHit {
     pub _base: InstActionBase,
     pub be_hits: Vec<InstActionHitBeHit>,
+    pub blend_be_hits: bool,
     pub anim_down: Option<InstAnimation>,
     pub max_down_time: f32,
     pub anim_recovery: Option<InstAnimation>,
@@ -81,6 +82,7 @@ impl InstActionHit {
                 ..Default::default()
             },
             be_hits: InstActionHitBeHit::vec_from_rkyv(&tmpl.be_hits, tmpl.id)?,
+            blend_be_hits: tmpl.blend_be_hits,
             anim_down: match tmpl.anim_down.as_ref() {
                 Some(t) => Some(InstAnimation::from_rkyv(t)),
                 None => None,
