@@ -1,26 +1,30 @@
 // mod aim;
 mod base;
 // mod dodge;
+mod dodge_npc;
 mod empty;
 mod general;
 mod general_npc;
 // mod guard;
 mod hit;
 mod idle;
-mod r#move;
-mod move_npc;
+mod move_free;
+mod move_free_npc;
+mod move_toward_npc;
 
 // pub use aim::*;
 pub use base::*;
 // pub use dodge::*;
+pub use dodge_npc::*;
 pub use empty::*;
 pub use general::*;
 pub use general_npc::*;
 // pub use guard::*;
 pub use hit::*;
 pub use idle::*;
-pub use r#move::*;
-pub use move_npc::*;
+pub use move_free::*;
+pub use move_free_npc::*;
+pub use move_toward_npc::*;
 
 use std::rc::Rc;
 
@@ -36,14 +40,22 @@ pub(crate) fn assemble_action(
             Some(act) => Rc::new(act),
             None => return Ok(None),
         },
-        TmplType::ActionMoveNpc => match InstActionMoveNpc::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
+        TmplType::ActionMoveFree => match InstActionMoveFree::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
             Some(act) => Rc::new(act),
             None => return Ok(None),
         },
-        TmplType::ActionMove => match InstActionMove::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
-            Some(act) => Rc::new(act),
-            None => return Ok(None),
-        },
+        TmplType::ActionMoveFreeNpc => {
+            match InstActionMoveFreeNpc::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
+                Some(act) => Rc::new(act),
+                None => return Ok(None),
+            }
+        }
+        TmplType::ActionMoveTowardNpc => {
+            match InstActionMoveTowardNpc::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
+                Some(act) => Rc::new(act),
+                None => return Ok(None),
+            }
+        }
         TmplType::ActionGeneral => match InstActionGeneral::new_from_action(ctx, unsafe { tmpl.cast_unchecked() })? {
             Some(act) => Rc::new(act),
             None => return Ok(None),
@@ -54,6 +66,10 @@ pub(crate) fn assemble_action(
                 None => return Ok(None),
             }
         }
+        TmplType::ActionDodgeNpc => match InstActionDodgeNpc::new_from_action(ctx, unsafe { tmpl.cast_unchecked() })? {
+            Some(act) => Rc::new(act),
+            None => return Ok(None),
+        },
         // TmplType::ActionDodge => match InstActionDodge::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
         //     Some(act) => Rc::new(act),
         //     None => return Ok(None),

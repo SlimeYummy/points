@@ -21,7 +21,6 @@ pub struct InstActionGeneral {
     pub keep_levels: InstTimelineRange<u16>,
     pub derives: ThinVec<InstDeriveRule>,
     pub derive_continues: EnumBitset<DeriveContinue, { DeriveContinue::LEN }>,
-    pub custom_events: InstTimelinePoint<Symbol>,
 }
 
 extend!(InstActionGeneral, InstActionBase);
@@ -74,8 +73,6 @@ impl InstActionGeneral {
             hits.push(InstHit::from_rkyv(ctx, hit));
         }
 
-        let custom_events = InstTimelinePoint::from_rkyv(&tmpl.custom_events, |s| Ok(sb!(s)))?;
-
         let inst = InstActionGeneral {
             _base: InstActionBase {
                 tmpl_id: tmpl.id,
@@ -91,7 +88,6 @@ impl InstActionGeneral {
             attributes,
             keep_levels,
             derive_continues: tmpl.derive_continues,
-            custom_events,
         };
         Ok(Some(inst))
     }
@@ -202,11 +198,6 @@ mod tests {
             assert_eq!(inst_act.hits[2].box_min_interval, 1e10);
             assert_eq!(inst_act.hits[2].group_max_times, 0);
 
-            assert_eq!(inst_act.custom_events.len(), 2);
-            assert_eq!(inst_act.custom_events[0].time, 1.0);
-            assert_eq!(inst_act.custom_events[0].value, "Event1s");
-            assert_eq!(inst_act.custom_events[1].time, 2.0);
-            assert_eq!(inst_act.custom_events[1].value, "Event2s");
         }
     }
 }

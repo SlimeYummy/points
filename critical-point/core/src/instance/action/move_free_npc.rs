@@ -1,7 +1,7 @@
 use crate::instance::action::base::{
     ContextActionAssemble, InstActionAny, InstActionBase, InstAnimation, InstDeriveRule,
 };
-use crate::template::{ArchivedTmplActionMoveNpcStop, ArchivedTmplActionMoveNpcStopFrom, At, TmplActionMoveNpc};
+use crate::template::{ArchivedTmplActionMoveNpcStop, ArchivedTmplActionMoveNpcStopFrom, At, TmplActionMoveFreeNpc};
 use crate::utils::{ActionType, SmallVec, Symbol, VirtualKeyDir, extend, sb};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -21,15 +21,15 @@ impl InstActionMoveNpcStopFrom {
 }
 
 #[derive(Debug)]
-pub struct InstActionMoveNpcStop {
+pub struct InstActionMoveFreeNpcStop {
     pub anim: InstAnimation,
     pub enter_from_table: SmallVec<[InstActionMoveNpcStopFrom; 3]>,
 }
 
-impl InstActionMoveNpcStop {
+impl InstActionMoveFreeNpcStop {
     #[inline]
-    fn from_rkyv(archived: &ArchivedTmplActionMoveNpcStop) -> InstActionMoveNpcStop {
-        InstActionMoveNpcStop {
+    fn from_rkyv(archived: &ArchivedTmplActionMoveNpcStop) -> InstActionMoveFreeNpcStop {
+        InstActionMoveFreeNpcStop {
             anim: InstAnimation::from_rkyv(&archived.anim),
             enter_from_table: archived
                 .enter_from_table
@@ -42,25 +42,25 @@ impl InstActionMoveNpcStop {
 
 #[derive(Debug)]
 #[repr(C)]
-pub struct InstActionMoveNpc {
+pub struct InstActionMoveFreeNpc {
     pub _base: InstActionBase,
     pub poise_level: u16,
     pub anim_move: InstAnimation,
     pub move_speed: f32,
     pub speed_ratio: f32,
     pub anim_start: InstAnimation,
-    pub stops: Vec<InstActionMoveNpcStop>,
+    pub stops: Vec<InstActionMoveFreeNpcStop>,
     pub turn_time: f32,
     pub min_distance: f32,
     pub step_length: f32,
 }
 
-extend!(InstActionMoveNpc, InstActionBase);
+extend!(InstActionMoveFreeNpc, InstActionBase);
 
-unsafe impl InstActionAny for InstActionMoveNpc {
+unsafe impl InstActionAny for InstActionMoveFreeNpc {
     #[inline]
     fn typ(&self) -> ActionType {
-        ActionType::MoveNpc
+        ActionType::MoveFreeNpc
     }
 
     fn animations<'a>(&'a self, animations: &mut Vec<&'a InstAnimation>) {
@@ -70,18 +70,18 @@ unsafe impl InstActionAny for InstActionMoveNpc {
     fn derives(&self, _derives: &mut Vec<InstDeriveRule>) {}
 }
 
-impl InstActionMoveNpc {
+impl InstActionMoveFreeNpc {
     pub(crate) fn new_from_action(
         ctx: &ContextActionAssemble<'_>,
-        tmpl: At<TmplActionMoveNpc>,
-    ) -> Option<InstActionMoveNpc> {
+        tmpl: At<TmplActionMoveFreeNpc>,
+    ) -> Option<InstActionMoveFreeNpc> {
         if !ctx.solve_var(&tmpl.enabled) {
             return None;
         }
 
-        let stops = tmpl.stops.iter().map(InstActionMoveNpcStop::from_rkyv).collect();
+        let stops = tmpl.stops.iter().map(InstActionMoveFreeNpcStop::from_rkyv).collect();
 
-        Some(InstActionMoveNpc {
+        Some(InstActionMoveFreeNpc {
             _base: InstActionBase {
                 tmpl_id: tmpl.id,
                 tags: tmpl.tags.iter().map(|t| sb!(t)).collect(),
@@ -152,6 +152,8 @@ impl InstActionMoveNpc {
 
 #[cfg(test)]
 mod tests {
+    use approx::assert_abs_diff_eq;
+
     use super::*;
     use crate::template::TmplDatabase;
     use crate::utils::{DtHashMap, VirtualKey, cf2s, id, sb};
@@ -165,9 +167,9 @@ mod tests {
         };
 
         let tmpl_act = db
-            .find_as::<TmplActionMoveNpc>(id!("Action.InstanceNpc.Walk^1A"))
+            .find_as::<TmplActionMoveFreeNpc>(id!("Action.InstanceNpc.Walk^1A"))
             .unwrap();
-        let inst_act = InstActionMoveNpc::new_from_action(&ctx, tmpl_act).unwrap();
+        let inst_act = InstActionMoveFreeNpc::new_from_action(&ctx, tmpl_act).unwrap();
 
         assert_eq!(inst_act.tmpl_id, id!("Action.InstanceNpc.Walk^1A"));
         assert_eq!(inst_act.tags, vec![sb!("Walk")]);
@@ -175,7 +177,7 @@ mod tests {
         assert_eq!(inst_act.enter_level, 0);
         assert_eq!(inst_act.poise_level, 0);
 
-        assert_eq!(inst_act.anim_move.files, sb!("Slime/WalkLoop.*"));
+        assert_eq!(inst_act.anim_move.files, sb!("Slime/WalkFrontLoop.*"));
         assert_eq!(inst_act.anim_move.local_id, 1);
         assert_eq!(inst_act.anim_move.duration, cf2s(80));
         assert_eq!(inst_act.anim_move.fade_in, 0.1);
@@ -185,7 +187,7 @@ mod tests {
         assert_eq!(inst_act.move_speed, 1.5);
         assert_eq!(inst_act.speed_ratio, 1.0);
 
-        assert_eq!(inst_act.anim_start.files, sb!("Slime/WalkStart.*"));
+        assert_eq!(inst_act.anim_start.files, sb!("Slime/WalkFrontStart.*"));
         assert_eq!(inst_act.anim_start.local_id, 0);
         assert_eq!(inst_act.anim_start.duration, cf2s(40));
         assert_eq!(inst_act.anim_start.fade_in, 0.1);
@@ -194,7 +196,7 @@ mod tests {
         assert_eq!(inst_act.anim_start.hit_motion, false);
 
         assert_eq!(inst_act.stops.len(), 1);
-        assert_eq!(inst_act.stops[0].anim.files, sb!("Slime/WalkStop.*"));
+        assert_eq!(inst_act.stops[0].anim.files, sb!("Slime/WalkFrontStop.*"));
         assert_eq!(inst_act.stops[0].anim.local_id, 2);
         assert_eq!(inst_act.stops[0].anim.duration, cf2s(40));
         assert_eq!(inst_act.stops[0].anim.fade_in, 0.1);
@@ -203,22 +205,22 @@ mod tests {
         assert_eq!(inst_act.stops[0].anim.hit_motion, false);
         assert_eq!(inst_act.stops[0].enter_from_table.as_slice(), &[
             InstActionMoveNpcStopFrom {
-                anim: sb!("Slime/WalkStart.*"),
+                anim: sb!("Slime/WalkFrontStart.*"),
                 ratio: 1.0
             },
             InstActionMoveNpcStopFrom {
-                anim: sb!("Slime/WalkLoop.*"),
+                anim: sb!("Slime/WalkFrontLoop.*"),
                 ratio: 0.5
             },
             InstActionMoveNpcStopFrom {
-                anim: sb!("Slime/WalkLoop.*"),
+                anim: sb!("Slime/WalkFrontLoop.*"),
                 ratio: 1.0
             }
         ]);
 
         assert_eq!(inst_act.turn_time, cf2s(12));
-        assert!((inst_act.min_distance - 1.8001196).abs() < 1e-6);
-        assert!((inst_act.step_length - 1.0001197).abs() < 1e-6);
+        assert_eq!(inst_act.min_distance, 0.8);
+        assert_abs_diff_eq!(inst_act.step_length, 1.0, epsilon = 1e-3);
         assert_eq!(inst_act.animations_count(), 3);
     }
 
@@ -231,40 +233,40 @@ mod tests {
         };
 
         let tmpl_act = db
-            .find_as::<TmplActionMoveNpc>(id!("Action.InstanceNpc.Walk^1A"))
+            .find_as::<TmplActionMoveFreeNpc>(id!("Action.InstanceNpc.Walk^1A"))
             .unwrap();
-        let inst_act = InstActionMoveNpc::new_from_action(&ctx, tmpl_act).unwrap();
+        let inst_act = InstActionMoveFreeNpc::new_from_action(&ctx, tmpl_act).unwrap();
 
         assert_eq!(
-            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkStart.*"), 0.25, false),
+            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkFrontStart.*"), 0.25, false),
             Some((0, 1.0))
         );
         assert_eq!(
-            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkLoop.*"), 0.25, false),
+            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkFrontLoop.*"), 0.25, false),
             Some((0, 0.5))
         );
         assert_eq!(
-            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkLoop.*"), 0.75, false),
+            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkFrontLoop.*"), 0.75, false),
             Some((0, 1.0))
         );
         assert_eq!(
-            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkLoop.*"), 0.75, true),
+            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkFrontLoop.*"), 0.75, true),
             Some((0, 1.0))
         );
         assert_eq!(
-            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkLoop.*"), 1.0, true),
+            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkFrontLoop.*"), 1.0, true),
             Some((0, 1.0))
         );
         assert_eq!(
-            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkLoop.*"), 1.0, false),
+            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkFrontLoop.*"), 1.0, false),
             Some((0, 1.0))
         );
         assert_eq!(
-            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkLoop.*"), 1.1, false),
+            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkFrontLoop.*"), 1.1, false),
             None
         );
         assert_eq!(
-            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkLoop.*"), 1.1, true),
+            inst_act.find_stop_by_anim_ratio(sb!("Slime/WalkFrontLoop.*"), 1.1, true),
             Some((0, 0.5))
         );
         assert_eq!(
