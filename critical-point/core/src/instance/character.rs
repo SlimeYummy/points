@@ -1,5 +1,3 @@
-use glam::Quat;
-use glam_ext::Vec2xz;
 use std::collections::hash_map::Entry;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
@@ -16,8 +14,7 @@ use crate::template::{
     TmplJewel, TmplPerk, TmplStyle,
 };
 use crate::utils::{
-    Castable, DtHashIndex, DtHashMap, JewelSlots, PiecePlus, Symbol, TmplID, VirtualKey, XResult, force_mut,
-    quat_from_dir_xz, sb,
+    Castable, DtHashIndex, DtHashMap, JewelSlots, PiecePlus, Symbol, TmplID, VirtualKey, XResult, force_mut, sb,
 };
 
 #[derive(Debug, Default)]
@@ -29,21 +26,18 @@ pub struct InstCharacter {
 
     pub tags: Vec<Symbol>,
     pub skeleton_files: Symbol,
-    pub skeleton_toward: Vec2xz,
-    pub skeleton_rotation: Quat,
 
     pub values: Box<InstValues>,
     pub slots: JewelSlots,
     pub entries: DtHashMap<TmplID, PiecePlus>,
     pub var_indexes: DtHashMap<TmplID, u32>,
 
-    // pub global: SymbolMap<Num>,
-    // pub scripts: Vec<InstScript>,
     pub actions: DtHashMap<TmplID, Rc<dyn InstActionAny>>,
     pub primary_keys: DtHashIndex<VirtualKey, TmplID>,
     pub derive_keys: DtHashIndex<(TmplID, VirtualKey), InstDeriveRule>,
 
     pub ai_brain: Option<Rc<InstAiBrain>>,
+    pub script_predicates: bool,
 }
 
 #[derive(Debug, Default)]
@@ -98,8 +92,6 @@ impl InstCharacter {
 
         inst.tags = style.tags.iter().map(|t| sb!(t)).collect();
         inst.skeleton_files = sb!(&chara.skeleton_files);
-        inst.skeleton_toward = chara.skeleton_toward;
-        inst.skeleton_rotation = quat_from_dir_xz(chara.skeleton_toward);
 
         let idx = chara.level_to_index(param.level);
         for attr in style.attributes.iter() {
@@ -242,16 +234,19 @@ impl InstCharacter {
 
             if pair.piece > 0 {
                 let piece_idx = entry.piece_to_index(pair.piece);
-                let plus_idx = entry.plus_to_index(pair.plus);
-
-                inst_mut.secondary.append_table(piece_idx, &entry.attributes)?;
-                inst_mut.secondary.append_table(plus_idx, &entry.plus_attributes)?;
-
-                for var in entry.var_indexes.iter() {
-                    inst_mut.append_var_index(var.k, var.v[piece_idx].into());
+                if let Some(piece_idx) = piece_idx {
+                    inst_mut.secondary.append_table(piece_idx, &entry.attributes)?;
+                    for var in entry.var_indexes.iter() {
+                        inst_mut.append_var_index(var.k, var.v[piece_idx].into());
+                    }
                 }
-                for var in entry.plus_var_indexes.iter() {
-                    inst_mut.append_var_index(var.k, var.v[plus_idx].into());
+
+                let plus_idx = entry.plus_to_index(pair.plus);
+                if let Some(plus_idx) = plus_idx {
+                    inst_mut.secondary.append_table(plus_idx, &entry.plus_attributes)?;
+                    for var in entry.var_plus_indexes.iter() {
+                        inst_mut.append_var_index(var.k, var.v[plus_idx].into());
+                    }
                 }
             }
         }
@@ -280,8 +275,6 @@ impl InstCharacter {
 
         inst.tags = chara.tags.iter().map(|t| sb!(t)).collect();
         inst.skeleton_files = sb!(&chara.skeleton_files);
-        inst.skeleton_toward = chara.skeleton_toward;
-        inst.skeleton_rotation = quat_from_dir_xz(chara.skeleton_toward);
 
         let idx = chara.level_to_index(param.level);
         for attr in chara.attributes.iter() {
@@ -310,30 +303,12 @@ impl InstCharacter {
     }
 
     fn collect_npc_ai_brain(ctx: &mut ContextAssemble<'_>, param: &ParamNpc, inst: &mut InstCharacter) -> XResult<()> {
+        let chara = ctx.tmpl_db.find_as::<TmplCharacterNpc>(param.character)?;
+        inst.script_predicates = chara.script_predicates;
+
         let tmpl_ai_brain = ctx.tmpl_db.find_as::<TmplAiBrain>(param.ai_brain)?;
         let ai_brain = InstAiBrain::new(ctx.tmpl_db, tmpl_ai_brain)?;
         inst.ai_brain = Some(ai_brain.clone());
-
-        // let mut actions = Vec::new();
-        // ai_brain.travel_idle(|node| {
-        //     if let InstAiNode::Task(_, task) = node {
-        //         task.actions(&mut actions);
-        //     }
-        //     Ok(())
-        // })?;
-
-        // let ctxa = ContextActionAssemble {
-        //     var_indexes: &inst.var_indexes,
-        // };
-
-        // for id in actions {
-        //     if let Entry::Vacant(v) = inst.actions.entry(id) {
-        //         let action = ctx.tmpl_db.find(id)?;
-        //         if let Some(action) = assemble_action(&ctxa, action)? {
-        //             v.insert(action);
-        //         }
-        //     }
-        // }
         Ok(())
     }
 }
@@ -417,6 +392,7 @@ mod tests {
     use glam::Vec3A;
 
     use super::*;
+    use crate::consts::DEFAULT_TOWARD_DIR_2D;
     use crate::instance::InstDeriveRule;
     use crate::parameter::ParamAccessory;
     use crate::template::TmplDatabase;
@@ -436,8 +412,6 @@ mod tests {
 
         assert_eq!(inst.tags.as_slice(), &[sb!("Player")]);
         assert_eq!(inst.skeleton_files, sb!("Girl/Girl.*"));
-        assert_eq!(inst.skeleton_toward, Vec2xz::new(0.0, 1.0));
-        assert_eq!(inst.skeleton_rotation, quat_from_dir_xz(Vec2xz::new(0.0, 1.0)));
 
         assert_eq!(inst.primary.max_health, 1200.0);
         assert_eq!(inst.primary.max_posture, 180.0);
@@ -676,6 +650,7 @@ mod tests {
                 TmplIDLevel::new(id!("Perk.Instance^1B"), 3),
             ],
             position: Vec3A::ZERO,
+            direction: DEFAULT_TOWARD_DIR_2D,
         };
         let inst = InstCharacter::new_player(&mut ctx, &param).unwrap();
 
@@ -739,8 +714,6 @@ mod tests {
 
         assert_eq!(inst.tags.as_slice(), &[sb!("Npc")]);
         assert_eq!(inst.skeleton_files, sb!("TrainingDummy/TrainingDummy.*"));
-        assert_eq!(inst.skeleton_toward, Vec2xz::new(0.0, 1.0));
-        assert_eq!(inst.skeleton_rotation, quat_from_dir_xz(Vec2xz::new(0.0, 1.0)));
 
         assert_eq!(inst.primary.max_health, 1000.0);
         assert_eq!(inst.primary.max_posture, 160.0);
@@ -758,11 +731,12 @@ mod tests {
         let mut inst = InstCharacter::default();
         InstCharacter::collect_npc_actions(&mut ctx, &param, &mut inst).unwrap();
 
-        assert_eq!(inst.actions.len(), 4);
+        assert_eq!(inst.actions.len(), 5);
         assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Idle^1A")));
         assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Walk^1A")));
         assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Hit1^1A")));
         assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Attack^1A")));
+        assert!(inst.actions.contains_key(&id!("Action.InstanceNpc.Dodge")));
 
         assert_eq!(inst.primary_keys.len(), 3);
         assert_eq!(
@@ -789,10 +763,11 @@ mod tests {
             level: 4,
             ai_brain: id!("AiBrain.InstanceNpc^1"),
             position: Vec3A::ZERO,
+            direction: DEFAULT_TOWARD_DIR_2D,
         };
         let inst = InstCharacter::new_npc(&mut ctx, &param).unwrap();
 
-        assert_eq!(inst.actions.len(), 4);
+        assert_eq!(inst.actions.len(), 5);
 
         assert_eq!(inst.primary.max_health, 1000.0);
         assert_eq!(inst.primary.max_posture, 160.0);
