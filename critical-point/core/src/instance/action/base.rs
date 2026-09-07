@@ -270,7 +270,7 @@ impl<T> InstTimelinePoint<T> {
     #[inline]
     pub fn find(&self, range: TimeRange) -> Option<&TimeWith<T>> {
         // TODO: Optimize performance
-        self.0.iter().find(|item| range.contains_rc(item.time))
+        self.0.iter().find(|item| range.contains_lc(item.time))
     }
 
     #[inline]
@@ -283,8 +283,8 @@ impl<T> InstTimelinePoint<T> {
         // TODO: Optimize performance
         self.0
             .iter()
-            .skip_while(move |item| item.time <= range.begin)
-            .take_while(move |item| item.time <= range.end)
+            .skip_while(move |item| item.time < range.begin)
+            .take_while(move |item| item.time < range.end)
     }
 }
 
