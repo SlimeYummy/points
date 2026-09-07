@@ -13,6 +13,7 @@ pub struct InstAiTaskPatrol {
     pub action_idle: TmplID,
     pub action_move: TmplID,
     pub route: Vec<InstAiTaskPatrolStep>,
+    pub loop_times: u32,
     pub target_exit: bool,
 }
 
@@ -39,6 +40,7 @@ impl InstAiTaskPatrol {
             action_idle: tmpl.action_idle,
             action_move: tmpl.action_move,
             route: tmpl.route.iter().map(InstAiTaskPatrolStep::from_rkyv).collect(),
+            loop_times: tmpl.loop_times.to_native(),
             target_exit: tmpl.target_exit,
         }
     }

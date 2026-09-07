@@ -1,12 +1,14 @@
 mod base;
 mod general;
 mod idle;
+mod keep_distance;
 mod move_to_character;
 mod patrol;
 
 pub use base::*;
 pub use general::*;
 pub use idle::*;
+pub use keep_distance::*;
 pub use move_to_character::*;
 pub use patrol::*;
 
@@ -31,6 +33,10 @@ pub(crate) fn assemble_ai_task(tmpl: At<dyn TmplAny>) -> XResult<Rc<dyn InstAiTa
         }
         TmplType::AiTaskGeneral => {
             let inst = InstAiTaskGeneral::new(unsafe { tmpl.cast_unchecked() });
+            Rc::new(inst)
+        }
+        TmplType::AiTaskKeepDistance => {
+            let inst = InstAiTaskKeepDistance::new(unsafe { tmpl.cast_unchecked() });
             Rc::new(inst)
         }
         _ => return xres!(BadType),

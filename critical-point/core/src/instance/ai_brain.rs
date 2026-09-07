@@ -93,7 +93,7 @@ mod tests {
         assert_eq!(inst.alert_cone.half_angle, 45.0f32.to_radians());
         assert_eq!(inst.aggro_sphere.radius, 10.0);
         assert_eq!(inst.aggro_lost_time, 10.0);
-        assert_eq!(inst.tasks.len(), 4);
+        assert_eq!(inst.tasks.len(), 5);
         assert_eq!(inst.execute, true);
     }
 }
