@@ -1,4 +1,5 @@
 use critical_point_macros::csharp_out;
+use glam_ext::Vec2xz;
 use std::fmt::Debug;
 use std::rc::Rc;
 
@@ -70,6 +71,6 @@ unsafe impl LogicActionAny for LogicActionEmpty {
 
     fn update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
         self._base.update(ctx, ctxa)?;
-        Ok(ActionUpdateReturn::new())
+        Ok(ActionUpdateReturn::new(Vec2xz::ZERO))
     }
 }

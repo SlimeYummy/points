@@ -1,5 +1,5 @@
 use core::f32;
-use glam::Vec3Swizzles;
+use critical_point_macros::csharp_out;
 use glam_ext::Vec2xz;
 use std::fmt::Debug;
 use std::rc::Rc;
@@ -13,11 +13,12 @@ use crate::logic::action::base::{
 use crate::logic::action::root_motion::{LogicRootMotion, StateRootMotion};
 use crate::logic::game::ContextUpdateEx;
 use crate::utils::{
-    ActionType, Castable, CustomEvent, F32Range, LEVEL_IDLE, TimeRange, XResult, ease_in_out_quad, ease_in_quad,
-    extend, lerp, lerp_trapezoid_with, lerp_with, ok_or, quat_from_dir_xz, strict_lt, xresf,
+    ActionType, Castable, LEVEL_IDLE, TimeRange, XResult, ease_in_out_quad, ease_in_quad, extend, lerp,
+    lerp_trapezoid_with, lerp_with, loose_ge, loose_le, ok_or, quat_from_default_toward_xz, xresf,
 };
 
 #[repr(C)]
+#[csharp_out(Ref)]
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
 pub struct StateActionGeneralNpc {
@@ -135,16 +136,8 @@ unsafe impl LogicActionAny for LogicActionGeneralNpc {
         self.translation_fade_ratio = 0.0;
         self.translation_time = TimeRange::EMPTY;
 
-        let mut ret = ActionStartReturn::new();
-        self.handle_ai_movement(ctx, ctxa, f32::NEG_INFINITY)?;
-
-        ret.custom_events = self
-            .inst
-            .custom_events
-            .find_values((f32::NEG_INFINITY, self.current_time).into())
-            .map(|ev| CustomEvent::new(self.inst.tmpl_id, *ev))
-            .collect();
-        Ok(ret)
+        self.handle_ai_movement(ctxa, f32::NEG_INFINITY)?;
+        Ok(ActionStartReturn::new())
     }
 
     fn update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<ActionUpdateReturn> {
@@ -161,40 +154,28 @@ unsafe impl LogicActionAny for LogicActionGeneralNpc {
             self.fade_in_weight = self.inst.anim_main.fade_in_weight(self.fade_in_weight, ctxa.time_step);
         }
 
-        self.handle_ai_movement(ctx, ctxa, prev_time)?;
+        self.handle_ai_movement(ctxa, prev_time)?;
         self.update_rotation();
-
-        let direction = Vec2xz::from_angle(self.current_rotation);
-        let rotation = quat_from_dir_xz(direction);
 
         self.root_motion
             .update(self.inst.anim_main.ratio_saturating(self.current_time))?;
 
+        let curr_dir = Vec2xz::from_angle(self.current_rotation);
+        let mut ret = ActionUpdateReturn::new(curr_dir);
+
         let mut delta_pos = self.root_motion.position_delta();
         let real_speed_ratio = self.update_translation(ctxa);
-
         delta_pos.x *= real_speed_ratio;
         delta_pos.z *= real_speed_ratio;
 
-        let velocity = rotation * delta_pos * ctxa.frac_1_time_step;
+        let curr_rot = quat_from_default_toward_xz(curr_dir);
+        ret.set_velocity(curr_rot * delta_pos * ctxa.frac_1_time_step);
 
-        let mut ret;
-        if strict_lt!(self.current_time, self.inst.anim_main.duration) {
-            ret = ActionUpdateReturn::new();
-        }
-        else {
+        ret.new_gravity = loose_le!(self.root_motion.position().y, 0.0, 1e-3);
+
+        if loose_ge!(self.current_time, self.inst.anim_main.duration) {
             self.stop(ctx, ctxa)?;
-            ret = ActionUpdateReturn::new();
         }
-
-        ret.set_velocity(velocity);
-        ret.set_direction(direction);
-        ret.custom_events = self
-            .inst
-            .custom_events
-            .find_values((prev_time, self.current_time).into())
-            .map(|ev| CustomEvent::new(self.inst.tmpl_id, *ev))
-            .collect();
         Ok(ret)
     }
 
@@ -224,7 +205,7 @@ unsafe impl LogicActionAny for LogicActionGeneralNpc {
 }
 
 impl LogicActionGeneralNpc {
-    fn handle_ai_movement(&mut self, _ctx: &mut ContextUpdateEx, ctxa: &ContextAction, prev_time: f32) -> XResult<()> {
+    fn handle_ai_movement(&mut self, ctxa: &ContextAction, prev_time: f32) -> XResult<()> {
         let ai_thinking = match ctxa.ai_thinking {
             Some(ai_thinking) => ai_thinking,
             None => return Ok(()),
@@ -243,8 +224,9 @@ impl LogicActionGeneralNpc {
 
                     let target_chara_pos = ok_or!(ai_thinking.target_chara_pos(); continue);
                     let target_pos = Vec2xz::from_vec3a(target_chara_pos);
+                    let target_distance_radius = ok_or!(ai_thinking.target_chara_distance_radius(); continue);
 
-                    let dist = ctxa.chara_phy.position_xz().distance(target_pos);
+                    let dist = ctxa.chara_phy.distance_to_pos_xz(target_pos, target_distance_radius);
                     if dist <= trans.distance.min {
                         self.translation_speed_ratio = trans.speed_ratio.min;
                     }
@@ -316,6 +298,7 @@ impl LogicActionGeneralNpc {
         }
 
         if self.translation_time.contains_lc(self.current_time) {
+            // TODO: replace lerp_trapezoid_with.
             let t = (self.current_time - self.translation_time.begin) / self.translation_time.duration();
             lerp_trapezoid_with(
                 1.0,

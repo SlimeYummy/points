@@ -1,6 +1,4 @@
 use critical_point_macros::{csharp_enum, csharp_out};
-use glam::Vec3Swizzles;
-use glam_ext::Vec2xz;
 use std::fmt::Debug;
 use std::rc::Rc;
 
@@ -11,7 +9,9 @@ use crate::logic::action::base::{
 };
 use crate::logic::action::root_motion::{LogicMultiRootMotion, StateMultiRootMotion};
 use crate::logic::game::ContextUpdateEx;
-use crate::utils::{ActionType, Castable, XResult, extend, loose_ge, ratio_warpping, xresf};
+use crate::utils::{
+    ActionType, Castable, XResult, extend, loose_ge, quat_from_default_toward_rot_y, ratio_warpping, xresf,
+};
 
 #[csharp_enum]
 #[repr(u8)]
@@ -44,9 +44,9 @@ pub struct StateActionHit {
     pub be_hit_index0: u32,
     pub be_hit_index1: u32,
     pub be_hit_ratio: f32,
-    pub be_hit_angle_diff: Vec2xz,
+    pub be_hit_angle_diff: f32,
     pub current_time: f32,
-
+    pub current_rotation: f32,
     pub root_motion: StateMultiRootMotion,
 }
 
@@ -58,14 +58,13 @@ impl_state_action!(StateActionHit, Hit, "Hit");
 pub(crate) struct LogicActionHit {
     _base: LogicActionBase,
     inst: Rc<InstActionHit>,
-
     mode: ActionHitMode,
     be_hit_index0: u32,
     be_hit_index1: u32,
     be_hit_ratio: f32,
-    be_hit_angle_diff: Vec2xz,
+    be_hit_angle_diff: f32,
     current_time: f32,
-
+    current_rotation: f32,
     root_motion: LogicMultiRootMotion,
 }
 
@@ -83,14 +82,13 @@ impl LogicActionHit {
                 ..LogicActionBase::new(ctx.identity.gen_action_id(), inst_act.clone())
             },
             inst: inst_act,
-
             mode: ActionHitMode::BeHit,
             be_hit_index0: u32::MAX,
             be_hit_index1: u32::MAX,
             be_hit_ratio: 1.0,
-            be_hit_angle_diff: Vec2xz::from_angle(0.0),
+            be_hit_angle_diff: 0.0,
             current_time: 0.0,
-
+            current_rotation: 0.0,
             root_motion,
         })
     }
@@ -115,7 +113,7 @@ unsafe impl LogicActionAny for LogicActionHit {
         self.be_hit_ratio = state.be_hit_ratio;
         self.be_hit_angle_diff = state.be_hit_angle_diff;
         self.current_time = state.current_time;
-
+        self.current_rotation = state.current_rotation;
         self.root_motion.restore(&state.root_motion);
         Ok(())
     }
@@ -129,18 +127,40 @@ unsafe impl LogicActionAny for LogicActionHit {
         self._base.start(ctx, ctxa, args)?;
 
         let hit_dir = args.input_world_move_dir;
+        debug_assert!(hit_dir.length_squared() > 1e-4, "hit_dir={:?}", hit_dir);
         let chara_dir = ctxa.chara_phy.direction_xz();
         let angle = chara_dir.angle_to(hit_dir);
 
         let inst = self.inst.clone();
         let res = inst.find_be_hit_by_angle(angle);
+        self.be_hit_angle_diff = res.angle_diff;
         self.be_hit_index0 = res.index0;
-        self.be_hit_index1 = res.index1;
-        self.be_hit_ratio = res.ratio;
-        self.be_hit_angle_diff = Vec2xz::from_angle(res.angle_diff);
+        if inst.blend_be_hits {
+            self.be_hit_index1 = res.index1;
+            self.be_hit_ratio = res.ratio;
+        }
+        else {
+            self.be_hit_index1 = u32::MAX;
+            self.be_hit_ratio = 1.0;
+        }
+        // println!(
+        //     "ActionHit start: chara_dir={:?}, hit_dir={:?}, be_hit_index0={}, be_hit_index1={}, be_hit_ratio={:.2}, be_hit_angle_diff={:.2}",
+        //     chara_dir,
+        //     hit_dir,
+        //     self.be_hit_index0,
+        //     self.be_hit_index1,
+        //     self.be_hit_ratio,
+        //     self.be_hit_angle_diff.to_degrees(),
+        // );
+        // if inst.blend_be_hits {
+        //     println!("anim0={:?}, anim1={:?}", inst.be_hits[self.be_hit_index0 as usize].anim.files, inst.be_hits[self.be_hit_index1 as usize].anim.files);
+        // } else {
+        //     println!("anim={:?}", inst.be_hits[self.be_hit_index0 as usize].anim.files);
+        // }
 
         self.mode = ActionHitMode::BeHit;
         self.current_time = 0.0;
+        self.current_rotation = ctxa.chara_phy.direction_xz().to_angle();
 
         let be_hit = &inst.be_hits[self.be_hit_index0 as usize];
         self.root_motion.set_local_id(be_hit.anim.local_id, 0.0)?;
@@ -151,7 +171,7 @@ unsafe impl LogicActionAny for LogicActionHit {
         self._base.update(ctx, ctxa)?;
         self.current_time += ctxa.time_step;
 
-        let mut ret = ActionUpdateReturn::new();
+        let mut ret = ActionUpdateReturn::new(ctxa.chara_phy.direction_xz());
         let mut stop = false;
 
         match self.mode {
@@ -160,9 +180,15 @@ unsafe impl LogicActionAny for LogicActionHit {
 
                 self.root_motion
                     .update(be_hit.anim.ratio_saturating(self.current_time))?;
-                let vel = self.root_motion.position_delta().xz() * ctxa.frac_1_time_step;
-                let vel_xz = Vec2xz::from(vel).rotate(self.be_hit_angle_diff);
-                ret.set_velocity_2d(vel_xz);
+
+                let vel = self.root_motion.position_delta() * ctxa.frac_1_time_step;
+                let rot = quat_from_default_toward_rot_y(self.current_rotation + self.be_hit_angle_diff);
+                let rotated_vel = rot * vel;
+                ret.set_velocity(rotated_vel);
+
+                // let vel = self.root_motion.position_delta().xz() * ctxa.frac_1_time_step;
+                // let vel_xz = Vec2xz::from(vel).rotate(self.be_hit_angle_diff);
+                // ret.set_velocity_2d(vel_xz);
 
                 if loose_ge!(self.current_time, be_hit.anim.duration) {
                     // if self.inst.anim_down.is_some() {
@@ -227,6 +253,7 @@ unsafe impl LogicActionAny for LogicActionHit {
             be_hit_ratio: self.be_hit_ratio,
             be_hit_angle_diff: self.be_hit_angle_diff,
             current_time: self.current_time,
+            current_rotation: self.current_rotation,
             root_motion: self.root_motion.save(),
         });
 
