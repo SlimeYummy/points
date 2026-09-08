@@ -8,6 +8,7 @@ use crate::utils::{Symbol, XResult, default_position, default_rotation, sb, xerr
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize, serde::Serialize, serde::Deserialize)]
 struct AssetCharacterPhysics {
     bounding: AssetShape,
+    distance_radius: f32,
     parts: Vec<Symbol>,
     shapes: Vec<AssetShape>,
     bodies: Vec<AssetCharacterBody>,
@@ -30,6 +31,7 @@ struct AssetCharacterBody {
 #[derive(Debug)]
 pub struct LoadedCharacterPhysics {
     pub bounding: JRef<Shape>,
+    pub distance_radius: f32,
     pub parts: Vec<Symbol>,
     pub bodies: Vec<LoadedCharacterBody>,
 }
@@ -63,6 +65,7 @@ impl AssetLoader {
 fn from_asset(path: &str, mut asset: AssetCharacterPhysics) -> XResult<LoadedCharacterPhysics> {
     let mut loaded = LoadedCharacterPhysics {
         bounding: asset.bounding.create_physics()?,
+        distance_radius: asset.distance_radius,
         parts: asset.parts,
         bodies: Vec::with_capacity(asset.bodies.len()),
     };
@@ -99,6 +102,7 @@ fn from_archived_asset(path: &str, asset: &ArchivedAssetCharacterPhysics) -> XRe
 
     let mut loaded = LoadedCharacterPhysics {
         bounding: bounding.create_physics()?,
+        distance_radius: asset.distance_radius.to_native(),
         parts,
         bodies: Vec::with_capacity(asset.bodies.len()),
     };

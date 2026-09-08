@@ -37,14 +37,18 @@ pub const MAX_WALK_DIR_LENGTH: f32 = 0.5;
 pub const MIN_RUN_DIR_LENGTH: f32 = 0.5;
 
 /// default camera direction
-pub const DEFAULT_VIEW_DIR_2D: Vec2xz = Vec2xz::NEG_Z;
+pub const DEFAULT_CAMERA_DIR_2D: Vec2xz = Vec2xz::NEG_Z;
 /// default camera direction
-pub const DEFAULT_VIEW_DIR_3D: Vec3A = Vec3A::NEG_Z;
+pub const DEFAULT_CAMERA_DIR_3D: Vec3A = Vec3A::NEG_Z;
+/// default camera angle (XZ plane, in radians)
+pub const DEFAULT_CAMERA_ANGLE_2D: f32 = std::f32::consts::FRAC_PI_2;
 
 /// default character toward direction
 pub const DEFAULT_TOWARD_DIR_2D: Vec2xz = Vec2xz::Z;
 /// default character toward direction
 pub const DEFAULT_TOWARD_DIR_3D: Vec3A = Vec3A::Z;
+/// default character toward angle (XZ plane, in radians)
+pub const DEFAULT_TOWARD_ANGLE_2D: f32 = -std::f32::consts::FRAC_PI_2;
 
 pub const MAX_HIT_TIMES_PER_FRAME: u16 = 100;
 
