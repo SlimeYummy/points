@@ -1,5 +1,5 @@
 use critical_point_macros::{csharp_enum, csharp_out};
-use glam::Vec3Swizzles;
+use glam::{Vec3A, Vec3Swizzles};
 use glam_ext::Vec2xz;
 use libm;
 use std::f32::consts::PI;
@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use crate::consts::MAX_ACTION_ANIMATION;
-use crate::instance::{InstActionMoveNpc, InstAnimation};
+use crate::instance::{InstActionMoveFreeNpc, InstAnimation};
 use crate::logic::action::base::{
     ActionStartArgs, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
     StateActionAnimation, StateActionAny, StateActionBase, impl_state_action,
@@ -33,7 +33,7 @@ use crate::utils::{
     rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-pub enum ActionMoveNpcMode {
+pub enum ActionMoveFreeNpcMode {
     Start,
     Move,
     Stop,
@@ -43,10 +43,10 @@ pub enum ActionMoveNpcMode {
 #[csharp_out(Ref)]
 #[derive(Debug, PartialEq, rkyv::Archive, serde::Serialize, serde::Deserialize, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-pub struct StateActionMoveNpc {
+pub struct StateActionMoveFreeNpc {
     pub _base: StateActionBase,
 
-    pub mode: ActionMoveNpcMode,
+    pub mode: ActionMoveFreeNpcMode,
     pub current_time: f32,
     pub local_fade_in_weight: f32,
 
@@ -56,8 +56,8 @@ pub struct StateActionMoveNpc {
     pub root_motion: StateMultiRootMotion,
 }
 
-extend!(StateActionMoveNpc, StateActionBase);
-impl_state_action!(StateActionMoveNpc, MoveNpc, "MoveNpc");
+extend!(StateActionMoveFreeNpc, StateActionBase);
+impl_state_action!(StateActionMoveFreeNpc, MoveFreeNpc, "MoveFreeNpc");
 
 ///
 /// General move action logic.
@@ -68,13 +68,13 @@ impl_state_action!(StateActionMoveNpc, MoveNpc, "MoveNpc");
 ///
 #[repr(C)]
 #[derive(Debug)]
-pub(crate) struct LogicActionMoveNpc {
+pub(crate) struct LogicActionMoveFreeNpc {
     _base: LogicActionBase,
-    inst: Rc<InstActionMoveNpc>,
+    inst: Rc<InstActionMoveFreeNpc>,
     turn_angle_step: Vec2xz,
     turn_cos_step: f32,
 
-    mode: ActionMoveNpcMode,
+    mode: ActionMoveFreeNpcMode,
     current_time: f32,
     local_fade_in_weight: f32,
 
@@ -85,17 +85,17 @@ pub(crate) struct LogicActionMoveNpc {
     prev_anim_queue: Vec<StateActionAnimation>,
 }
 
-extend!(LogicActionMoveNpc, LogicActionBase);
+extend!(LogicActionMoveFreeNpc, LogicActionBase);
 
-impl LogicActionMoveNpc {
-    pub fn new(ctx: &mut ContextUpdateEx, inst_act: Rc<InstActionMoveNpc>) -> XResult<LogicActionMoveNpc> {
+impl LogicActionMoveFreeNpc {
+    pub fn new(ctx: &mut ContextUpdateEx, inst_act: Rc<InstActionMoveFreeNpc>) -> XResult<LogicActionMoveFreeNpc> {
         let root_motion =
             LogicMultiRootMotion::new_with_capacity(ctx, inst_act.animations(), inst_act.animations_count())?;
 
         let turn_angle_step = Vec2xz::from_angle(PI / s2ff_round(inst_act.turn_time).max(1.0));
         let turn_cos_step = libm::cosf(PI / s2ff_round(inst_act.turn_time).max(1.0));
 
-        Ok(LogicActionMoveNpc {
+        Ok(LogicActionMoveFreeNpc {
             _base: LogicActionBase {
                 keep_level: LEVEL_MOVE,
                 poise_level: inst_act.poise_level,
@@ -105,7 +105,7 @@ impl LogicActionMoveNpc {
             turn_angle_step,
             turn_cos_step,
 
-            mode: ActionMoveNpcMode::Start,
+            mode: ActionMoveFreeNpcMode::Start,
             current_time: 0.0,
             local_fade_in_weight: 1.0,
 
@@ -118,17 +118,17 @@ impl LogicActionMoveNpc {
     }
 }
 
-unsafe impl LogicActionAny for LogicActionMoveNpc {
+unsafe impl LogicActionAny for LogicActionMoveFreeNpc {
     #[inline]
     fn typ(&self) -> ActionType {
-        ActionType::MoveNpc
+        ActionType::MoveFreeNpc
     }
 
     fn restore(&mut self, state: &(dyn StateActionAny + 'static)) -> XResult<()> {
         if state.id != self._base.id {
             return xresf!(LogicIDMismatch; "state.id={}, self.id={}", state.id, self._base.id);
         }
-        let state = state.cast::<StateActionMoveNpc>()?;
+        let state = state.cast::<StateActionMoveFreeNpc>()?;
 
         self._base.restore(&state._base);
         self.mode = state.mode;
@@ -147,7 +147,7 @@ unsafe impl LogicActionAny for LogicActionMoveNpc {
     }
 
     fn save(&self) -> Box<dyn StateActionAny> {
-        let mut state = Box::new(StateActionMoveNpc {
+        let mut state = Box::new(StateActionMoveFreeNpc {
             _base: self._base.save(self.typ()),
             mode: self.mode,
             current_time: self.current_time,
@@ -177,9 +177,9 @@ unsafe impl LogicActionAny for LogicActionMoveNpc {
         self._base.update(ctx, ctxa)?;
 
         let res = match self.mode {
-            ActionMoveNpcMode::Start => self.update_start(ctxa)?,
-            ActionMoveNpcMode::Move => self.update_move(ctxa)?,
-            ActionMoveNpcMode::Stop => self.update_stop(ctxa)?,
+            ActionMoveFreeNpcMode::Start => self.update_start(ctxa)?,
+            ActionMoveFreeNpcMode::Move => self.update_move(ctxa)?,
+            ActionMoveFreeNpcMode::Stop => self.update_stop(ctxa)?,
         };
 
         if let Operation::Enter(new_mode) = res.operation {
@@ -190,9 +190,9 @@ unsafe impl LogicActionAny for LogicActionMoveNpc {
             }
 
             match new_mode {
-                ActionMoveNpcMode::Move => self.prepare_move(ctxa)?,
-                ActionMoveNpcMode::Stop => self.prepare_stop(ctxa)?,
-                ActionMoveNpcMode::Start => return xres!(Unexpected; "unreachable start")?,
+                ActionMoveFreeNpcMode::Move => self.prepare_move(ctxa)?,
+                ActionMoveFreeNpcMode::Stop => self.prepare_stop(ctxa)?,
+                ActionMoveFreeNpcMode::Start => return xres!(Unexpected; "unreachable start")?,
             }
         }
         else if matches!(res.operation, Operation::Exit) {
@@ -204,9 +204,9 @@ unsafe impl LogicActionAny for LogicActionMoveNpc {
             self.prev_anim_queue.clear();
         }
 
-        let mut ret = ActionUpdateReturn::new();
-        ret.set_direction(res.new_direction);
-        ret.set_velocity(res.new_direction.as_vec3a() * res.new_speed);
+        let mut ret = ActionUpdateReturn::new(res.new_direction);
+        ret.set_velocity(res.new_direction.as_vec3a() * res.new_speed_xz + Vec3A::new(0.0, res.new_speed_y, 0.0));
+        ret.new_gravity = res.new_gravity;
         Ok(ret)
     }
 }
@@ -214,16 +214,20 @@ unsafe impl LogicActionAny for LogicActionMoveNpc {
 #[derive(Debug)]
 struct UpdateRes {
     new_direction: Vec2xz,
-    new_speed: f32,
+    new_speed_xz: f32,
+    new_speed_y: f32,
+    new_gravity: bool,
     operation: Operation,
 }
 
 impl UpdateRes {
     #[inline]
-    fn new(new_direction: Vec2xz) -> Self {
+    fn new(direction: Vec2xz) -> Self {
         Self {
-            new_direction,
-            new_speed: 0.0,
+            new_direction: direction,
+            new_speed_xz: 0.0,
+            new_speed_y: 0.0,
+            new_gravity: true,
             operation: Operation::Keep,
         }
     }
@@ -233,14 +237,15 @@ impl UpdateRes {
     //     matches!(self.operation, Operation::Keep)
     // }
 
-    #[inline]
-    fn set_dir_speed(&mut self, direction: Vec2xz, speed: f32) {
-        self.new_direction = direction;
-        self.new_speed = speed;
-    }
+    // #[inline]
+    // fn set_move(&mut self, direction: Vec2xz, speed_xz: f32, speed_y: f32) {
+    //     self.new_direction = direction;
+    //     self.new_speed_xz = speed_xz;
+    //     self.new_speed_y = speed_y;
+    // }
 
     #[inline]
-    fn enter(&mut self, new_mode: ActionMoveNpcMode) {
+    fn enter(&mut self, new_mode: ActionMoveFreeNpcMode) {
         self.operation = Operation::Enter(new_mode);
     }
 
@@ -254,13 +259,13 @@ impl UpdateRes {
 enum Operation {
     #[default]
     Keep,
-    Enter(ActionMoveNpcMode),
+    Enter(ActionMoveFreeNpcMode),
     Exit,
 }
 
-impl LogicActionMoveNpc {
+impl LogicActionMoveFreeNpc {
     #[inline]
-    fn init_anim(&mut self, mode: ActionMoveNpcMode) {
+    fn init_anim(&mut self, mode: ActionMoveFreeNpcMode) {
         self.mode = mode;
         self.current_time = 0.0;
         self.local_fade_in_weight = 1.0;
@@ -279,7 +284,7 @@ impl LogicActionMoveNpc {
     }
 
     fn prepare_start(&mut self, _ctxa: &mut ContextAction) -> XResult<ActionStartReturn> {
-        self.init_anim(ActionMoveNpcMode::Start);
+        self.init_anim(ActionMoveFreeNpcMode::Start);
         self.root_motion.set_local_id(self.inst.anim_start.local_id, 0.0)?;
         Ok(ActionStartReturn::new())
     }
@@ -294,14 +299,17 @@ impl LogicActionMoveNpc {
 
         self.root_motion
             .update(inst_act.anim_start.ratio_saturating(self.current_time))?;
-        let speed = self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.inst.speed_ratio;
-        res.set_dir_speed(chara_dir, speed);
+
+        let delta_pos = self.root_motion.position_delta();
+        res.new_speed_xz = delta_pos.xz().length() * ctxa.frac_1_time_step * self.inst.speed_ratio;
+        res.new_speed_y = delta_pos.y * ctxa.frac_1_time_step;
+        res.new_gravity = loose_le!(self.root_motion.position().y, 0.0, 1e-3);
 
         let move_dir = match ctxa.ai_thinking {
             Some(ai_thinking) => ai_thinking.move_dir,
             None => {
                 log::warn!(
-                    "LogicActionMoveNpc::update_start() missing ai_thinking, action_id={}, tmpl_action={}, chara_id={}, tmpl_character={}",
+                    "LogicActionMoveFreeNpc::update_start() missing ai_thinking, action_id={}, tmpl_action={}, chara_id={}, tmpl_character={}",
                     self.id,
                     self.inst.tmpl_id,
                     ctxa.chara_id,
@@ -333,25 +341,25 @@ impl LogicActionMoveNpc {
         }
         else {
             self.clear_prepare_stop();
-            res.set_dir_speed(self.turn_towards(chara_dir, move_dir), speed);
+            res.new_direction = self.turn_towards(chara_dir, move_dir);
         }
 
         // Check preparing stop
         if self.stop_anim_idx != u16::MAX {
             if loose_ge!(self.current_time, self.prepare_stop_time) {
-                res.enter(ActionMoveNpcMode::Stop);
+                res.enter(ActionMoveFreeNpcMode::Stop);
             }
         }
         else {
             if loose_ge!(self.current_time, inst_act.anim_start.duration) {
-                res.enter(ActionMoveNpcMode::Move);
+                res.enter(ActionMoveFreeNpcMode::Move);
             }
         }
         Ok(res)
     }
 
     fn prepare_move(&mut self, _ctxa: &mut ContextAction) -> XResult<()> {
-        self.init_anim(ActionMoveNpcMode::Move);
+        self.init_anim(ActionMoveFreeNpcMode::Move);
         self.local_fade_in_weight = ifelse!(self.inst.anim_move.fade_in <= 0.0, 1.0, 0.0);
         self.root_motion.set_local_id(self.inst.anim_move.local_id, 0.0)?;
         Ok(())
@@ -365,7 +373,7 @@ impl LogicActionMoveNpc {
             Some(ai_thinking) => ai_thinking.move_dir,
             None => {
                 log::warn!(
-                    "LogicActionMoveNpc::update_move() missing ai_thinking, action_id={}, tmpl_action={}, chara_id={}, tmpl_character={}",
+                    "LogicActionMoveFreeNpc::update_move() missing ai_thinking, action_id={}, tmpl_action={}, chara_id={}, tmpl_character={}",
                     self.id,
                     self.inst.tmpl_id,
                     ctxa.chara_id,
@@ -381,8 +389,11 @@ impl LogicActionMoveNpc {
 
         self.root_motion
             .update(inst_act.anim_move.ratio_unsafe(self.current_time))?;
-        let speed = self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.inst.speed_ratio;
-        res.set_dir_speed(chara_dir, speed);
+
+        let delta_pos = self.root_motion.position_delta();
+        res.new_speed_xz = delta_pos.xz().length() * ctxa.frac_1_time_step * self.inst.speed_ratio;
+        res.new_speed_y = delta_pos.y * ctxa.frac_1_time_step;
+        res.new_gravity = loose_le!(self.root_motion.position().y, 0.0, 1e-3);
 
         if loose_le!(move_dir.length(), 0.0) {
             if self.stop_anim_idx == u16::MAX {
@@ -398,27 +409,27 @@ impl LogicActionMoveNpc {
         }
         else {
             self.clear_prepare_stop();
-            res.set_dir_speed(self.turn_towards(chara_dir, move_dir), speed);
+            res.new_direction = self.turn_towards(chara_dir, move_dir);
         }
 
         // Check preparing stop
         if self.stop_anim_idx != u16::MAX {
             if loose_ge!(self.current_time, self.prepare_stop_time) {
-                res.enter(ActionMoveNpcMode::Stop);
+                res.enter(ActionMoveFreeNpcMode::Stop);
             }
         }
         Ok(res)
     }
 
     fn prepare_stop(&mut self, ctxa: &mut ContextAction) -> XResult<()> {
-        self.init_anim(ActionMoveNpcMode::Stop);
+        self.init_anim(ActionMoveFreeNpcMode::Stop);
         self.prepare_stop_time = 0.0;
 
         let stop = match self.inst.stops.get(self.stop_anim_idx as usize) {
             Some(stop) => stop,
             None => {
                 log::warn!(
-                    "LogicActionMoveNpc::prepare_stop() missing stop, action_id={}, tmpl_action={}, stop_anim_idx={}, chara_id={}, tmpl_character={}",
+                    "LogicActionMoveFreeNpc::prepare_stop() missing stop, action_id={}, tmpl_action={}, stop_anim_idx={}, chara_id={}, tmpl_character={}",
                     self.id,
                     self.inst.tmpl_id,
                     self.stop_anim_idx,
@@ -451,8 +462,11 @@ impl LogicActionMoveNpc {
         self.handle_fade_in(&stop.anim, ctxa.time_step);
 
         self.root_motion.update(stop.anim.ratio_saturating(self.current_time))?;
-        let speed = self.root_motion.position_delta().xz().length() * ctxa.frac_1_time_step * self.inst.speed_ratio;
-        res.set_dir_speed(chara_dir, speed);
+
+        let delta_pos = self.root_motion.position_delta();
+        res.new_speed_xz = delta_pos.xz().length() * ctxa.frac_1_time_step * self.inst.speed_ratio;
+        res.new_speed_y = delta_pos.y * ctxa.frac_1_time_step;
+        res.new_gravity = loose_le!(self.root_motion.position().y, 0.0, 1e-3);
 
         if loose_ge!(self.current_time, stop.anim.duration) {
             res.exit();
@@ -512,15 +526,15 @@ impl LogicActionMoveNpc {
 
     fn save_current_animation(&self) -> StateActionAnimation {
         let (anim, ratio) = match self.mode {
-            ActionMoveNpcMode::Start => {
+            ActionMoveFreeNpcMode::Start => {
                 let anim = &self.inst.anim_start;
                 (anim, anim.ratio_saturating(self.current_time))
             }
-            ActionMoveNpcMode::Move => {
+            ActionMoveFreeNpcMode::Move => {
                 let anim = &self.inst.anim_move;
                 (anim, anim.ratio_warpping(self.current_time))
             }
-            ActionMoveNpcMode::Stop => {
+            ActionMoveFreeNpcMode::Stop => {
                 let anim = match self.inst.stops.get(self.stop_anim_idx as usize) {
                     Some(stop) => &stop.anim,
                     None => &self.inst.anim_move,
