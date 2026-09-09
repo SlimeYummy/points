@@ -1,23 +1,27 @@
 mod base;
+mod dodge_npc;
 mod empty;
 mod general;
 mod general_npc;
 mod hit;
 mod idle;
-mod r#move;
-mod move_npc;
+mod move_free;
+mod move_free_npc;
+mod move_toward_npc;
 mod root_motion;
 #[cfg(test)]
 mod test_utils;
 
 pub use base::*;
+pub use dodge_npc::*;
 pub use empty::*;
 pub use general::*;
 pub use general_npc::*;
 pub use hit::*;
 pub use idle::*;
-pub use r#move::*;
-pub use move_npc::*;
+pub use move_free::*;
+pub use move_free_npc::*;
+pub use move_toward_npc::*;
 pub use root_motion::*;
 
 use std::rc::Rc;
@@ -41,13 +45,17 @@ pub(crate) fn new_logic_action(
             let inst_act = unsafe { inst_act.cast_unchecked() };
             Box::new(LogicActionIdle::new(ctx, inst_act)?)
         }
-        Move => {
+        MoveFree => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
-            Box::new(LogicActionMove::new(ctx, inst_act)?)
+            Box::new(LogicActionMoveFree::new(ctx, inst_act)?)
         }
-        MoveNpc => {
+        MoveFreeNpc => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
-            Box::new(LogicActionMoveNpc::new(ctx, inst_act)?)
+            Box::new(LogicActionMoveFreeNpc::new(ctx, inst_act)?)
+        }
+        MoveTowardNpc => {
+            let inst_act = unsafe { inst_act.cast_unchecked() };
+            Box::new(LogicActionMoveTowardNpc::new(ctx, inst_act)?)
         }
         General => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
@@ -56,6 +64,10 @@ pub(crate) fn new_logic_action(
         GeneralNpc => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
             Box::new(LogicActionGeneralNpc::new(ctx, inst_act)?)
+        }
+        DodgeNpc => {
+            let inst_act = unsafe { inst_act.cast_unchecked() };
+            Box::new(LogicActionDodgeNpc::new(ctx, inst_act)?)
         }
         Hit => {
             let inst_act = unsafe { inst_act.cast_unchecked() };
@@ -88,17 +100,24 @@ pub(crate) fn try_reuse_logic_action(
                 return Ok(true);
             }
         }
-        Move => {
-            if let Ok(logic_act) = logic_act.cast::<LogicActionMove>() {
+        MoveFree => {
+            if let Ok(logic_act) = logic_act.cast::<LogicActionMoveFree>() {
                 let inst_act = unsafe { inst_act.cast_unchecked() };
-                *logic_act = LogicActionMove::new(ctx, inst_act)?;
+                *logic_act = LogicActionMoveFree::new(ctx, inst_act)?;
                 return Ok(true);
             }
         }
-        MoveNpc => {
-            if let Ok(logic_act) = logic_act.cast::<LogicActionMoveNpc>() {
+        MoveFreeNpc => {
+            if let Ok(logic_act) = logic_act.cast::<LogicActionMoveFreeNpc>() {
                 let inst_act = unsafe { inst_act.cast_unchecked() };
-                *logic_act = LogicActionMoveNpc::new(ctx, inst_act)?;
+                *logic_act = LogicActionMoveFreeNpc::new(ctx, inst_act)?;
+                return Ok(true);
+            }
+        }
+        MoveTowardNpc => {
+            if let Ok(logic_act) = logic_act.cast::<LogicActionMoveTowardNpc>() {
+                let inst_act = unsafe { inst_act.cast_unchecked() };
+                *logic_act = LogicActionMoveTowardNpc::new(ctx, inst_act)?;
                 return Ok(true);
             }
         }
@@ -113,6 +132,13 @@ pub(crate) fn try_reuse_logic_action(
             if let Ok(logic_act) = logic_act.cast::<LogicActionGeneralNpc>() {
                 let inst_act = unsafe { inst_act.cast_unchecked() };
                 *logic_act = LogicActionGeneralNpc::new(ctx, inst_act)?;
+                return Ok(true);
+            }
+        }
+        DodgeNpc => {
+            if let Ok(logic_act) = logic_act.cast::<LogicActionDodgeNpc>() {
+                let inst_act = unsafe { inst_act.cast_unchecked() };
+                *logic_act = LogicActionDodgeNpc::new(ctx, inst_act)?;
                 return Ok(true);
             }
         }
