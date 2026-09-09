@@ -10,7 +10,7 @@ use std::u16;
 use crate::animation::RootTrackName;
 use crate::consts::{CFG_SPF, MAX_ACTION_ANIMATION};
 use crate::input::{RefInputEventQueue, WorldMoveState};
-use crate::instance::{InstActionMove, InstAnimation};
+use crate::instance::{InstActionMoveFree, InstAnimation};
 use crate::logic::action::base::{
     ActionStartArgs, ActionStartReturn, ActionUpdateReturn, ContextAction, LogicActionAny, LogicActionBase,
     StateActionAnimation, StateActionAny, StateActionBase, impl_state_action,
@@ -37,7 +37,7 @@ use crate::utils::{
     rkyv::Deserialize,
 )]
 #[rkyv(derive(Debug))]
-pub enum ActionMoveMode {
+pub enum ActionMoveFreeMode {
     Start,
     Move,
     Turn,
@@ -48,10 +48,10 @@ pub enum ActionMoveMode {
 #[csharp_out(Ref)]
 #[derive(Debug, PartialEq, rkyv::Archive, serde::Serialize, serde::Deserialize, rkyv::Serialize, rkyv::Deserialize)]
 #[rkyv(derive(Debug))]
-pub struct StateActionMove {
+pub struct StateActionMoveFree {
     pub _base: StateActionBase,
 
-    pub mode: ActionMoveMode,
+    pub mode: ActionMoveFreeMode,
     pub smooth_move_switch: bool,
     pub start_anim_idx: u16,
     pub turn_anim_idx: u16,
@@ -66,8 +66,8 @@ pub struct StateActionMove {
     pub root_motion: StateMultiRootMotion,
 }
 
-extend!(StateActionMove, StateActionBase);
-impl_state_action!(StateActionMove, Move, "Move");
+extend!(StateActionMoveFree, StateActionBase);
+impl_state_action!(StateActionMoveFree, MoveFree, "MoveFree");
 
 ///
 /// Move action designs specifically for player-controlled characters.
@@ -77,14 +77,14 @@ impl_state_action!(StateActionMove, Move, "Move");
 ///
 #[repr(C)]
 #[derive(Debug)]
-pub(crate) struct LogicActionMove {
+pub(crate) struct LogicActionMoveFree {
     _base: LogicActionBase,
-    inst: Rc<InstActionMove>,
+    inst: Rc<InstActionMoveFree>,
     player_inputs: Option<RefInputEventQueue>,
     turn_angle_step: Vec2xz,
     turn_cos_step: f32,
 
-    mode: ActionMoveMode,
+    mode: ActionMoveFreeMode,
     smooth_move_switch: bool,
     start_anim_idx: u16,
     turn_anim_idx: u16,
@@ -100,17 +100,17 @@ pub(crate) struct LogicActionMove {
     prev_anim_queue: Vec<StateActionAnimation>,
 }
 
-extend!(LogicActionMove, LogicActionBase);
+extend!(LogicActionMoveFree, LogicActionBase);
 
-impl LogicActionMove {
-    pub fn new(ctx: &mut ContextUpdateEx, inst_act: Rc<InstActionMove>) -> XResult<LogicActionMove> {
+impl LogicActionMoveFree {
+    pub fn new(ctx: &mut ContextUpdateEx, inst_act: Rc<InstActionMoveFree>) -> XResult<LogicActionMoveFree> {
         let root_motion =
             LogicMultiRootMotion::new_with_capacity(ctx, inst_act.animations(), inst_act.animations_count())?;
 
         let turn_angle_step = Vec2xz::from_angle(PI / s2ff_round(inst_act.turn_time).max(1.0));
         let turn_cos_step = libm::cosf(PI / s2ff_round(inst_act.turn_time).max(1.0));
 
-        Ok(LogicActionMove {
+        Ok(LogicActionMoveFree {
             _base: LogicActionBase {
                 keep_level: inst_act.keep_level,
                 poise_level: inst_act.poise_level,
@@ -121,7 +121,7 @@ impl LogicActionMove {
             turn_angle_step,
             turn_cos_step,
 
-            mode: ActionMoveMode::Move,
+            mode: ActionMoveFreeMode::Move,
             smooth_move_switch: false,
             start_anim_idx: u16::MAX,
             turn_anim_idx: u16::MAX,
@@ -139,17 +139,17 @@ impl LogicActionMove {
     }
 }
 
-unsafe impl LogicActionAny for LogicActionMove {
+unsafe impl LogicActionAny for LogicActionMoveFree {
     #[inline]
     fn typ(&self) -> ActionType {
-        ActionType::Move
+        ActionType::MoveFree
     }
 
     fn restore(&mut self, state: &(dyn StateActionAny + 'static)) -> XResult<()> {
         if state.id != self._base.id {
             return xresf!(LogicIDMismatch; "state.id={}, self.id={}", state.id, self._base.id);
         }
-        let state = state.cast::<StateActionMove>()?;
+        let state = state.cast::<StateActionMoveFree>()?;
 
         self._base.restore(&state._base);
         self.mode = state.mode;
@@ -175,7 +175,7 @@ unsafe impl LogicActionAny for LogicActionMove {
     }
 
     fn save(&self) -> Box<dyn StateActionAny> {
-        let mut state = Box::new(StateActionMove {
+        let mut state = Box::new(StateActionMoveFree {
             _base: self._base.save(self.typ()),
             mode: self.mode,
             smooth_move_switch: self.smooth_move_switch,
@@ -211,7 +211,7 @@ unsafe impl LogicActionAny for LogicActionMove {
         }
         else {
             log::warn!(
-                "LogicActionMove::start: non-player character, action_id={}, tmpl_action={}, chara_id={}, tmpl_character={}",
+                "LogicActionMoveFree::start: non-player character, action_id={}, tmpl_action={}, chara_id={}, tmpl_character={}",
                 self.id,
                 self.inst.tmpl_id,
                 ctxa.chara_id,
@@ -242,10 +242,10 @@ unsafe impl LogicActionAny for LogicActionMove {
         };
 
         let res = match self.mode {
-            ActionMoveMode::Start => self.update_start(ctxa, world_move)?,
-            ActionMoveMode::Move => self.update_move(ctxa, world_move)?,
-            ActionMoveMode::Turn => self.update_turn(ctxa)?,
-            ActionMoveMode::Stop => self.update_stop(ctxa)?,
+            ActionMoveFreeMode::Start => self.update_start(ctxa, world_move)?,
+            ActionMoveFreeMode::Move => self.update_move(ctxa, world_move)?,
+            ActionMoveFreeMode::Turn => self.update_turn(ctxa)?,
+            ActionMoveFreeMode::Stop => self.update_stop(ctxa)?,
         };
 
         if let Operation::Enter(enter) = res.operation {
@@ -256,10 +256,10 @@ unsafe impl LogicActionAny for LogicActionMove {
             }
 
             match enter.new_mode {
-                ActionMoveMode::Move => self.prepare_move(ctxa, &enter)?,
-                ActionMoveMode::Turn => self.prepare_turn(ctxa, &enter)?,
-                ActionMoveMode::Stop => self.prepare_stop(ctxa, &enter)?,
-                ActionMoveMode::Start => {
+                ActionMoveFreeMode::Move => self.prepare_move(ctxa, &enter)?,
+                ActionMoveFreeMode::Turn => self.prepare_turn(ctxa, &enter)?,
+                ActionMoveFreeMode::Stop => self.prepare_stop(ctxa, &enter)?,
+                ActionMoveFreeMode::Start => {
                     return xres!(Unexpected; "unreachable start")?;
                 }
             }
@@ -273,8 +273,7 @@ unsafe impl LogicActionAny for LogicActionMove {
             self.prev_anim_queue.clear();
         }
 
-        let mut ret = ActionUpdateReturn::new();
-        ret.set_direction(res.new_direction);
+        let mut ret = ActionUpdateReturn::new(res.new_direction);
         if self.smooth_move_switch && self.fade_in_weight < 1.0 {
             ret.set_velocity(
                 res.new_direction.as_vec3a() * lerp(self.smooth_move_start_speed, res.new_speed, self.fade_in_weight),
@@ -288,7 +287,7 @@ unsafe impl LogicActionAny for LogicActionMove {
 
     fn fade_start(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<bool> {
         self._base.fade_start(ctx, ctxa)?;
-        Ok(self.mode == ActionMoveMode::Move)
+        Ok(self.mode == ActionMoveFreeMode::Move)
     }
 
     fn fade_update(&mut self, ctx: &mut ContextUpdateEx, ctxa: &mut ContextAction) -> XResult<()> {
@@ -326,7 +325,7 @@ impl UpdateRes {
     }
 
     #[inline]
-    fn enter(&mut self, new_mode: ActionMoveMode, anim_idx: u16) {
+    fn enter(&mut self, new_mode: ActionMoveFreeMode, anim_idx: u16) {
         self.operation = Operation::Enter(OptEnter {
             new_mode,
             anim_idx,
@@ -335,7 +334,7 @@ impl UpdateRes {
     }
 
     #[inline]
-    fn enter2(&mut self, new_mode: ActionMoveMode, anim_idx: u16, anim_offset_time: f32) {
+    fn enter2(&mut self, new_mode: ActionMoveFreeMode, anim_idx: u16, anim_offset_time: f32) {
         self.operation = Operation::Enter(OptEnter {
             new_mode,
             anim_idx,
@@ -359,20 +358,20 @@ enum Operation {
 
 #[derive(Debug)]
 struct OptEnter {
-    new_mode: ActionMoveMode,
+    new_mode: ActionMoveFreeMode,
     anim_idx: u16,
     anim_offset_time: f32,
 }
 
-impl LogicActionMove {
+impl LogicActionMoveFree {
     #[inline]
-    fn init_anim(&mut self, mode: ActionMoveMode, anim_idx: u16) {
+    fn init_anim(&mut self, mode: ActionMoveFreeMode, anim_idx: u16) {
         self.mode = mode;
         match mode {
-            ActionMoveMode::Start => self.start_anim_idx = anim_idx,
-            ActionMoveMode::Turn => self.turn_anim_idx = anim_idx,
-            ActionMoveMode::Stop => self.stop_anim_idx = anim_idx,
-            ActionMoveMode::Move => {}
+            ActionMoveFreeMode::Start => self.start_anim_idx = anim_idx,
+            ActionMoveFreeMode::Turn => self.turn_anim_idx = anim_idx,
+            ActionMoveFreeMode::Stop => self.stop_anim_idx = anim_idx,
+            ActionMoveFreeMode::Move => {}
         }
 
         self.current_time = 0.0;
@@ -388,13 +387,13 @@ impl LogicActionMove {
         let angle = chara_dir.angle_to(move_dir);
 
         if let Some((start_idx, start)) = inst_act.find_start_by_angle(angle) {
-            self.init_anim(ActionMoveMode::Start, start_idx as u16);
+            self.init_anim(ActionMoveFreeMode::Start, start_idx as u16);
             self.keep_level = inst_act.keep_level_special;
             self.start_turn_angle_step = Vec2xz::from_angle(angle / s2ff_round(start.turn_in_place_end + CFG_SPF));
             self.root_motion.set_local_id(start.anim.local_id, 0.0)?;
         }
         else {
-            self.init_anim(ActionMoveMode::Move, 0);
+            self.init_anim(ActionMoveFreeMode::Move, 0);
             self.root_motion.set_local_id(inst_act.anim_move.local_id, 0.0)?;
         }
         Ok(ActionStartReturn::new())
@@ -441,7 +440,7 @@ impl LogicActionMove {
                         let angle = chara_dir.angle_to(move_dir);
                         if let Some((turn_idx, _)) = inst_act.find_turn_by_angle(angle) {
                             // TODO: ...
-                            res.enter(ActionMoveMode::Turn, turn_idx as u16);
+                            res.enter(ActionMoveFreeMode::Turn, turn_idx as u16);
                             break 'X;
                         }
                     }
@@ -468,7 +467,7 @@ impl LogicActionMove {
                             .ratio_saturating(inst_act.anim_move.duration - (start.anim.duration - adjusted_time));
                         match inst_act.find_stop_by_phase(phase) {
                             Some((stop_idx, _, offset)) => {
-                                res.enter2(ActionMoveMode::Stop, stop_idx as u16, offset);
+                                res.enter2(ActionMoveFreeMode::Stop, stop_idx as u16, offset);
                             }
                             None => res.exit(),
                         };
@@ -478,14 +477,14 @@ impl LogicActionMove {
         }
 
         if res.is_keep() && loose_ge!(adjusted_time, start.anim.duration) {
-            res.enter(ActionMoveMode::Move, u16::MAX);
+            res.enter(ActionMoveFreeMode::Move, u16::MAX);
         }
         return Ok(res);
     }
 
     fn prepare_move(&mut self, _ctxa: &mut ContextAction, _change: &OptEnter) -> XResult<()> {
-        if self.mode != ActionMoveMode::Move {
-            self.init_anim(ActionMoveMode::Move, 0);
+        if self.mode != ActionMoveFreeMode::Move {
+            self.init_anim(ActionMoveFreeMode::Move, 0);
             self.local_fade_in_weight = ifelse!(self.inst.anim_move.fade_in <= 0.0, 1.0, 0.0);
             self.root_motion.set_local_id(self.inst.anim_move.local_id, 0.0)?;
         }
@@ -518,7 +517,7 @@ impl LogicActionMove {
                     let angle = chara_dir.angle_to(move_dir);
                     if let Some((turn_idx, _)) = inst_act.find_turn_by_angle(angle) {
                         // TODO: ...
-                        res.enter(ActionMoveMode::Turn, turn_idx as u16);
+                        res.enter(ActionMoveFreeMode::Turn, turn_idx as u16);
                         break 'X;
                     }
                 }
@@ -545,7 +544,7 @@ impl LogicActionMove {
                             stop_idx,
                             offset
                         );
-                        res.enter2(ActionMoveMode::Stop, stop_idx as u16, offset);
+                        res.enter2(ActionMoveFreeMode::Stop, stop_idx as u16, offset);
                     }
                     None => res.exit(),
                 };
@@ -564,7 +563,7 @@ impl LogicActionMove {
     }
 
     fn prepare_stop(&mut self, _ctxa: &mut ContextAction, enter: &OptEnter) -> XResult<()> {
-        self.init_anim(ActionMoveMode::Stop, enter.anim_idx);
+        self.init_anim(ActionMoveFreeMode::Stop, enter.anim_idx);
         self.anim_offset_time = enter.anim_offset_time;
 
         let stop = &self.inst.stops[enter.anim_idx as usize];
@@ -623,7 +622,12 @@ impl LogicActionMove {
     }
 
     fn try_enter_smooth(&mut self, ctxa: &mut ContextAction, args: &ActionStartArgs) -> XResult<bool> {
-        fn init_smooth(zelf: &mut LogicActionMove, prev_mov: &LogicActionMove, mode: ActionMoveMode, anim_idx: u16) {
+        fn init_smooth(
+            zelf: &mut LogicActionMoveFree,
+            prev_mov: &LogicActionMoveFree,
+            mode: ActionMoveFreeMode,
+            anim_idx: u16,
+        ) {
             zelf.init_anim(mode, anim_idx);
             zelf.smooth_move_switch = true;
             zelf.fade_in_weight = 0.0;
@@ -637,12 +641,12 @@ impl LogicActionMove {
             return Ok(false);
         }
 
-        if let Ok(prev_mov) = prev_act.cast::<LogicActionMove>() {
-            if prev_mov.mode == ActionMoveMode::Move {
+        if let Ok(prev_mov) = prev_act.cast::<LogicActionMoveFree>() {
+            if prev_mov.mode == ActionMoveFreeMode::Move {
                 let prev_adjusted_time = prev_mov.current_time + prev_mov.anim_offset_time;
                 let prev_ratio = prev_mov.inst.anim_move.ratio_warpping(prev_adjusted_time);
 
-                init_smooth(self, &prev_mov, ActionMoveMode::Move, 0);
+                init_smooth(self, &prev_mov, ActionMoveFreeMode::Move, 0);
                 self.anim_offset_time = inst_act.anim_move.duration * prev_ratio;
 
                 self.smooth_move_start_speed =
@@ -650,7 +654,7 @@ impl LogicActionMove {
                 self.root_motion.set_local_id(inst_act.anim_move.local_id, prev_ratio)?;
                 return Ok(true);
             }
-            else if prev_mov.mode == ActionMoveMode::Start {
+            else if prev_mov.mode == ActionMoveFreeMode::Start {
                 let prev_start = &prev_mov.inst.starts[prev_mov.start_anim_idx as usize];
                 let prev_adjusted_time = prev_mov.current_time + prev_mov.anim_offset_time;
                 let prev_x_ratio = ratio_warpping(
@@ -659,7 +663,7 @@ impl LogicActionMove {
                 );
 
                 if let Some((start_idx, start)) = inst_act.find_start_by_angle(0.0) {
-                    init_smooth(self, &prev_mov, ActionMoveMode::Start, start_idx as u16);
+                    init_smooth(self, &prev_mov, ActionMoveFreeMode::Start, start_idx as u16);
                     self.anim_offset_time =
                         start.turn_in_place_end + prev_x_ratio * (start.anim.duration - start.turn_in_place_end);
 
@@ -670,7 +674,7 @@ impl LogicActionMove {
                     return Ok(true);
                 }
             }
-            else if prev_mov.mode == ActionMoveMode::Stop {
+            else if prev_mov.mode == ActionMoveFreeMode::Stop {
                 let prev_adjusted_time = prev_mov.current_time + prev_mov.anim_offset_time;
                 let prev_ratio = prev_mov
                     .inst
@@ -683,7 +687,7 @@ impl LogicActionMove {
                 // );
                 let prev_ratio = ok_or!(prev_ratio; return Ok(false));
 
-                init_smooth(self, &prev_mov, ActionMoveMode::Move, 0);
+                init_smooth(self, &prev_mov, ActionMoveFreeMode::Move, 0);
                 self.anim_offset_time = inst_act.anim_move.duration * prev_ratio;
 
                 self.smooth_move_start_speed =
@@ -699,7 +703,7 @@ impl LogicActionMove {
     // TODO: remove or fix this
     fn fade_update_impl(&mut self, ctxa: &mut ContextAction) -> XResult<()> {
         match self.mode {
-            ActionMoveMode::Move => {
+            ActionMoveFreeMode::Move => {
                 self.current_time += ctxa.time_step;
                 if self.local_fade_in_weight < 1.0 {
                     self.local_fade_in_weight = self
@@ -718,25 +722,25 @@ impl LogicActionMove {
         let anim;
         let ratio;
         match self.mode {
-            ActionMoveMode::Start => {
+            ActionMoveFreeMode::Start => {
                 anim = match self.inst.starts.get(self.start_anim_idx as usize) {
                     Some(start) => &start.anim,
                     None => &self.inst.anim_move,
                 };
                 ratio = anim.ratio_saturating(adjusted_time);
             }
-            ActionMoveMode::Move => {
+            ActionMoveFreeMode::Move => {
                 anim = &self.inst.anim_move;
                 ratio = anim.ratio_warpping(adjusted_time);
             }
-            ActionMoveMode::Turn => {
+            ActionMoveFreeMode::Turn => {
                 anim = match self.inst.turns.get(self.turn_anim_idx as usize) {
                     Some(turn) => &turn.anim,
                     None => &self.inst.anim_move,
                 };
                 ratio = anim.ratio_saturating(adjusted_time);
             }
-            ActionMoveMode::Stop => {
+            ActionMoveFreeMode::Stop => {
                 anim = match self.inst.stops.get(self.stop_anim_idx as usize) {
                     Some(stop) => &stop.anim,
                     None => &self.inst.anim_move,
@@ -762,9 +766,9 @@ impl LogicActionMove {
 
 //     #[test]
 //     fn test_state_rkyv() {
-//         let mut raw_state = Box::new(StateActionMove {
-//             _base: StateActionBase::new(ActionType::Move, TmplType::ActionMove),
-//             mode: ActionMoveMode::Move,
+//         let mut raw_state = Box::new(StateActionMoveFree {
+//             _base: StateActionBase::new(ActionType::Move, TmplType::ActionMoveFree),
+//             mode: ActionMoveFreeMode::Move,
 //             switch_time: 5.0,
 //             current_time: 10.0,
 //         });
@@ -777,8 +781,8 @@ impl LogicActionMove {
 //         raw_state.poise_level = 2;
 //         raw_state.animations[0] = StateActionAnimation::new(sb!("move"), 1, false, false, false, 0.5, 0.5);
 
-//         let state = test_state_action_rkyv(raw_state, ActionType::Move, TmplType::ActionMove).unwrap();
-//         let state = state.cast::<StateActionMove>().unwrap();
+//         let state = test_state_action_rkyv(raw_state, ActionType::Move, TmplType::ActionMoveFree).unwrap();
+//         let state = state.cast::<StateActionMoveFree>().unwrap();
 
 //         assert_eq!(state.id, 123);
 //         assert_eq!(state.tmpl_id, id!("Action.Instance.Run/1A"));
@@ -791,17 +795,17 @@ impl LogicActionMove {
 //         assert_eq!(state.animations[1], StateActionAnimation::default());
 //         assert_eq!(state.animations[2], StateActionAnimation::default());
 //         assert_eq!(state.animations[3], StateActionAnimation::default());
-//         assert_eq!(state.mode, ActionMoveMode::Move);
+//         assert_eq!(state.mode, ActionMoveFreeMode::Move);
 //         assert_eq!(state.switch_time, 5.0);
 //         assert_eq!(state.current_time, 10.0);
 //     }
 
-//     fn new_move(tenv: &mut TestEnv) -> (LogicActionMove, Rc<InstActionMove>) {
-//         let inst_act: Rc<InstActionMove> = tenv
+//     fn new_move(tenv: &mut TestEnv) -> (LogicActionMoveFree, Rc<InstActionMoveFree>) {
+//         let inst_act: Rc<InstActionMoveFree> = tenv
 //             .inst_player
 //             .find_action_by_id(id!("Action.Instance.Run/1A"))
 //             .unwrap();
-//         let logic_act = LogicActionMove::new(&mut tenv.context_update(), inst_act.clone()).unwrap();
+//         let logic_act = LogicActionMoveFree::new(&mut tenv.context_update(), inst_act.clone()).unwrap();
 //         (logic_act, inst_act)
 //     }
 
@@ -820,7 +824,7 @@ impl LogicActionMove {
 //         assert_ulps_eq!(logic_move.yam_ang_vel, FRAC_PI_2 / 0.4);
 //         assert_ulps_eq!(logic_move.turn_ang_vel, PI / 1.0);
 //         assert_eq!(logic_move.turn_threshold_cos, -1.0);
-//         assert_eq!(logic_move.mode, ActionMoveMode::Start);
+//         assert_eq!(logic_move.mode, ActionMoveFreeMode::Start);
 //         assert_eq!(logic_move.switch_time, 0.0);
 //         assert_eq!(logic_move.current_time, 0.0);
 //     }
@@ -838,7 +842,7 @@ impl LogicActionMove {
 //             logic_move.start(&mut ctx, &mut ctxa).unwrap();
 //             let ret = logic_move.update(&mut ctx, &mut ctxa).unwrap();
 //             assert!(logic_move.is_running());
-//             assert_eq!(logic_move.mode, ActionMoveMode::Move);
+//             assert_eq!(logic_move.mode, ActionMoveFreeMode::Move);
 //             assert_eq!(logic_move.current_time, 0.0);
 //             assert_eq!(ret.state.fade_in_weight, SPF / inst_move.anim_move.fade_in);
 //             assert_eq!(ret.state.animations[0].animation_id, ANIME_MOVE_ID);
@@ -856,7 +860,7 @@ impl LogicActionMove {
 //             logic_move.start(&mut ctx, &mut ctxa).unwrap();
 //             let ret = logic_move.update(&mut ctx, &mut ctxa).unwrap();
 //             assert!(logic_move.is_running());
-//             assert_eq!(logic_move.mode, ActionMoveMode::Start);
+//             assert_eq!(logic_move.mode, ActionMoveFreeMode::Start);
 //             assert_eq!(logic_move.current_time, 0.0);
 //             assert_eq!(ret.state.fade_in_weight, SPF / inst_move.anim_move.fade_in);
 //             assert_eq!(ret.state.animations[0].animation_id, ANIME_MOVE_ID);
@@ -880,7 +884,7 @@ impl LogicActionMove {
 
 //             let ret = logic_move.update(&mut ctx, &mut ctxa).unwrap();
 //             assert!(logic_move.is_running());
-//             assert_eq!(logic_move.mode, ft.or_last(ActionMoveMode::Start, ActionMoveMode::Move));
+//             assert_eq!(logic_move.mode, ft.or_last(ActionMoveFreeMode::Start, ActionMoveFreeMode::Move));
 //             assert_eq!(logic_move.current_time, ft.time);
 
 //             assert_ulps_eq!(ret.state.fade_in_weight, inst_move.anim_move.fade_in_weight(ft.time(1)));
@@ -916,7 +920,7 @@ impl LogicActionMove {
 
 //             let ret = logic_move.update(&mut ctx, &mut ctxa).unwrap();
 //             assert!(logic_move.is_running());
-//             assert_eq!(logic_move.mode, ActionMoveMode::Move);
+//             assert_eq!(logic_move.mode, ActionMoveFreeMode::Move);
 //             assert_eq!(logic_move.current_time, ft.time);
 
 //             assert_eq!(ret.state.fade_in_weight, 1.0);
@@ -948,7 +952,7 @@ impl LogicActionMove {
 
 //             let ret = logic_move.update(&mut ctx, &mut ctxa).unwrap();
 //             assert!(logic_move.is_running());
-//             assert_eq!(logic_move.mode, ActionMoveMode::Move);
+//             assert_eq!(logic_move.mode, ActionMoveFreeMode::Move);
 //             assert_eq!(logic_move.current_time, ft.time(1));
 
 //             assert_eq!(ret.state.fade_in_weight, 1.0);
