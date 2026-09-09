@@ -16,8 +16,8 @@ use crate::logic::action::{ActionStartArgs, DeriveKeeping};
 use crate::logic::game::ContextUpdateEx;
 use crate::ok_or;
 use crate::utils::{
-    ActionType, Castable, CustomEvent, LEVEL_IDLE, TimeRange, XResult, ease_in_out_quad, extend, lerp_with,
-    quat_from_dir_xz, strict_lt, xresf,
+    ActionType, Castable, LEVEL_IDLE, TimeRange, XResult, ease_in_out_quad, extend, lerp_with, loose_ge,
+    loose_le, quat_from_default_toward_xz, xresf,
 };
 
 #[repr(C)]
@@ -121,12 +121,6 @@ unsafe impl LogicActionAny for LogicActionGeneral {
             ret.clear_preinput = true;
         }
 
-        ret.custom_events = self
-            .inst
-            .custom_events
-            .find_values((f32::NEG_INFINITY, self.current_time).into())
-            .map(|ev| CustomEvent::new(self.inst.tmpl_id, *ev))
-            .collect();
         Ok(ret)
     }
 
@@ -151,33 +145,27 @@ unsafe impl LogicActionAny for LogicActionGeneral {
 
         let clear_preinput = self.handle_input_movement(ctxa, prev_time)?;
         self.update_rotation();
-        let direction = Vec2xz::from_angle(self.current_rotation);
-        let rotation = quat_from_dir_xz(direction);
+        // let direction = Vec2xz::from_angle(self.current_rotation);
+        // let rotation = quat_from_dir_xz(direction);
 
         self.root_motion
             .update(self.inst.anim_main.ratio_saturating(self.current_time))?;
-        let delta_pos = self.root_motion.position_delta();
-        let velocity = rotation * delta_pos * ctxa.frac_1_time_step;
-        // velocity = rotation * (Vec3A::new(delta_pos.x, 0.0, delta_pos.z) / ctxa.time_step);
-        // if abs_diff_ne!(delta_pos.y, 0.0) {
-        //     velocity.y = delta_pos.y / ctxa.time_step;
-        // }
 
-        let mut ret;
-        if strict_lt!(self.current_time, self.inst.anim_main.duration) {
-            ret = ActionUpdateReturn::new();
-        }
-        else {
+        let curr_dir = Vec2xz::from_angle(self.current_rotation);
+        let mut ret = ActionUpdateReturn::new(curr_dir);
+
+        let vel = self.root_motion.position_delta() * ctxa.frac_1_time_step;
+        let curr_rot = quat_from_default_toward_xz(curr_dir);
+        ret.set_velocity(curr_rot * vel);
+
+        ret.new_gravity = loose_le!(self.root_motion.position().y, 0.0, 1e-3);
+
+        ret.clear_preinput = clear_preinput;
+
+        if loose_ge!(self.current_time, self.inst.anim_main.duration) {
             self.stop(ctx, ctxa)?;
-            ret = ActionUpdateReturn::new();
 
             if self.inst.keep_levels.end_time() > self.current_time {
-                println!(
-                    "----- {} {} {}",
-                    ctx.time.time,
-                    self.current_time,
-                    (self.inst.keep_levels.end_time() - self.current_time)
-                );
                 ret.derive_keeping = DeriveKeeping {
                     action_id: self.tmpl_id(),
                     keep_level: *self.inst.keep_levels.end_value().unwrap_or(&LEVEL_IDLE),
@@ -185,16 +173,6 @@ unsafe impl LogicActionAny for LogicActionGeneral {
                 }
             }
         }
-
-        ret.set_velocity(velocity);
-        ret.set_direction(direction);
-        ret.custom_events = self
-            .inst
-            .custom_events
-            .find_values((prev_time, self.current_time).into())
-            .map(|ev| CustomEvent::new(self.inst.tmpl_id, *ev))
-            .collect();
-        ret.clear_preinput = clear_preinput;
         Ok(ret)
     }
 
@@ -291,10 +269,6 @@ impl LogicActionGeneral {
             self.current_rotation = lerp_with(self.from_rotation, self.to_rotation, t, ease_in_out_quad);
         }
         else {
-            // println!(
-            //     "current_time: {} > rotation_time.end: {}",
-            //     self.current_time, self.rotation_time.end
-            // );
             debug_assert!(self.current_time >= self.rotation_time.end);
             self.current_rotation = self.to_rotation;
             self.from_rotation = 0.0;
@@ -332,9 +306,15 @@ mod tests {
         raw_state.last_frame = 99;
         raw_state.keep_level = 1;
         raw_state.poise_level = 2;
-        raw_state
-            .animations
-            .push(StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, false, 0.5, 0.5));
+        raw_state.animations.push(StateActionAnimation::new(
+            sb!("idle.ozz"),
+            1,
+            true,
+            false,
+            false,
+            0.5,
+            0.5,
+        ));
 
         let state = test_state_action_rkyv(raw_state, ActionType::General).unwrap();
         let state = state.cast::<StateActionGeneral>().unwrap();

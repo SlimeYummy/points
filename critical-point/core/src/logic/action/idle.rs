@@ -200,7 +200,7 @@ unsafe impl LogicActionAny for LogicActionIdle {
             }
         }
 
-        Ok(ActionUpdateReturn::new())
+        Ok(ActionUpdateReturn::new(ctxa.chara_phy.direction_xz()))
     }
 
     fn save(&self) -> Box<dyn StateActionAny> {
@@ -275,6 +275,7 @@ mod tests {
     use crate::utils::tests::FrameTicker;
     use crate::utils::{id, s2f, sb};
     use approx::assert_ulps_eq;
+    use glam::Vec3A;
 
     const ANIME_IDLE_ID: u16 = 0;
     const ANIME_READY_ID: u16 = 1;
@@ -296,9 +297,15 @@ mod tests {
         raw_state.last_frame = 99;
         raw_state.keep_level = 1;
         raw_state.poise_level = 2;
-        raw_state
-            .animations
-            .push(StateActionAnimation::new(sb!("idle.ozz"), 1, true, false, false, 0.5, 0.5));
+        raw_state.animations.push(StateActionAnimation::new(
+            sb!("idle.ozz"),
+            1,
+            true,
+            false,
+            false,
+            0.5,
+            0.5,
+        ));
 
         let state = test_state_action_rkyv(raw_state, ActionType::Idle).unwrap();
         let state = state.cast::<StateActionIdle>().unwrap();
@@ -337,7 +344,7 @@ mod tests {
     #[test]
     fn logic_new() {
         let mut tenv = TestEnv::new().unwrap();
-        let (mut logic_idle, inst_idle) = new_idle(&mut tenv);
+        let (mut logic_idle, _inst_idle) = new_idle(&mut tenv);
         let (mut ctx, mut ctxa, sargs) = tenv.contexts(true);
         ctxa.chara_phy.set_idle(true);
 
@@ -411,8 +418,8 @@ mod tests {
             assert_eq!(state.animations[0].files, IDLE_OZZ);
             assert_eq!(state.animations[0].ratio, inst_idle.anim_idle.ratio_warpping(SPF));
             assert_eq!(state.animations[0].weight, 1.0);
-            assert!(ret.new_velocity.is_none());
-            assert!(ret.new_direction.is_none());
+            assert_eq!(ret.new_velocity, Vec3A::ZERO);
+            assert_eq!(ret.new_direction, ctxa.chara_phy.direction_xz());
             assert!(ret.derive_keeping.is_invalid());
         }
 
@@ -443,8 +450,8 @@ mod tests {
                 inst_idle.anim_ready.as_ref().unwrap().ratio_warpping(SPF)
             );
             assert_eq!(state.animations[0].weight, 1.0);
-            assert!(ret.new_velocity.is_none());
-            assert!(ret.new_direction.is_none());
+            assert_eq!(ret.new_velocity, Vec3A::ZERO);
+            assert_eq!(ret.new_direction, ctxa.chara_phy.direction_xz());
             assert!(ret.derive_keeping.is_invalid());
         }
     }

@@ -14,7 +14,7 @@ use crate::logic::ai_task::AiBrainThinking;
 use crate::logic::character::LogicCharaPhysics;
 use crate::logic::game::ContextUpdateEx;
 use crate::utils::{
-    ActionType, ArrayVec, CustomEvent, NumID, Symbol, TmplID, VirtualKey, XResult, interface, rkyv_self, xres,
+    ActionType, ArrayVec, NumID, Symbol, TmplID, VirtualKey, XResult, interface, rkyv_self, xres,
 };
 
 //
@@ -283,13 +283,15 @@ const _: () = {
     use std::ptr::DynMetadata;
     use std::{mem, ptr};
 
+    use crate::logic::action::dodge_npc::{ArchivedStateActionDodgeNpc, StateActionDodgeNpc};
     use crate::logic::action::empty::{ArchivedStateActionEmpty, StateActionEmpty};
     use crate::logic::action::general::{ArchivedStateActionGeneral, StateActionGeneral};
     use crate::logic::action::general_npc::{ArchivedStateActionGeneralNpc, StateActionGeneralNpc};
     use crate::logic::action::hit::{ArchivedStateActionHit, StateActionHit};
     use crate::logic::action::idle::{ArchivedStateActionIdle, StateActionIdle};
-    use crate::logic::action::r#move::{ArchivedStateActionMove, StateActionMove};
-    use crate::logic::action::move_npc::{ArchivedStateActionMoveNpc, StateActionMoveNpc};
+    use crate::logic::action::move_free::{ArchivedStateActionMoveFree, StateActionMoveFree};
+    use crate::logic::action::move_free_npc::{ArchivedStateActionMoveFreeNpc, StateActionMoveFreeNpc};
+    use crate::logic::action::move_toward_npc::{ArchivedStateActionMoveTowardNpc, StateActionMoveTowardNpc};
     use crate::utils::Castable;
     use ActionType::*;
 
@@ -302,17 +304,24 @@ const _: () = {
                 (Idle, Idle) => unsafe {
                     self.cast_unchecked::<StateActionIdle>() == other.cast_unchecked::<StateActionIdle>()
                 },
-                (Move, Move) => unsafe {
-                    self.cast_unchecked::<StateActionMove>() == other.cast_unchecked::<StateActionMove>()
+                (MoveFree, MoveFree) => unsafe {
+                    self.cast_unchecked::<StateActionMoveFree>() == other.cast_unchecked::<StateActionMoveFree>()
                 },
-                (MoveNpc, MoveNpc) => unsafe {
-                    self.cast_unchecked::<StateActionMoveNpc>() == other.cast_unchecked::<StateActionMoveNpc>()
+                (MoveFreeNpc, MoveFreeNpc) => unsafe {
+                    self.cast_unchecked::<StateActionMoveFreeNpc>() == other.cast_unchecked::<StateActionMoveFreeNpc>()
+                },
+                (MoveTowardNpc, MoveTowardNpc) => unsafe {
+                    self.cast_unchecked::<StateActionMoveTowardNpc>()
+                        == other.cast_unchecked::<StateActionMoveTowardNpc>()
                 },
                 (General, General) => unsafe {
                     self.cast_unchecked::<StateActionGeneral>() == other.cast_unchecked::<StateActionGeneral>()
                 },
                 (GeneralNpc, GeneralNpc) => unsafe {
                     self.cast_unchecked::<StateActionGeneralNpc>() == other.cast_unchecked::<StateActionGeneralNpc>()
+                },
+                (DodgeNpc, DodgeNpc) => unsafe {
+                    self.cast_unchecked::<StateActionDodgeNpc>() == other.cast_unchecked::<StateActionDodgeNpc>()
                 },
                 (Hit, Hit) => unsafe {
                     self.cast_unchecked::<StateActionHit>() == other.cast_unchecked::<StateActionHit>()
@@ -352,10 +361,12 @@ const _: () = {
                 match typ {
                     Empty => mem::transmute_copy::<usize, &ArchivedStateActionEmpty>(&0),
                     Idle => mem::transmute_copy::<usize, &ArchivedStateActionIdle>(&0),
-                    Move => mem::transmute_copy::<usize, &ArchivedStateActionMove>(&0),
-                    MoveNpc => mem::transmute_copy::<usize, &ArchivedStateActionMoveNpc>(&0),
+                    MoveFree => mem::transmute_copy::<usize, &ArchivedStateActionMoveFree>(&0),
+                    MoveFreeNpc => mem::transmute_copy::<usize, &ArchivedStateActionMoveFreeNpc>(&0),
+                    MoveTowardNpc => mem::transmute_copy::<usize, &ArchivedStateActionMoveTowardNpc>(&0),
                     General => mem::transmute_copy::<usize, &ArchivedStateActionGeneral>(&0),
                     GeneralNpc => mem::transmute_copy::<usize, &ArchivedStateActionGeneralNpc>(&0),
+                    DodgeNpc => mem::transmute_copy::<usize, &ArchivedStateActionDodgeNpc>(&0),
                     Hit => mem::transmute_copy::<usize, &ArchivedStateActionHit>(&0),
                     _ => unreachable!("pointer_metadata() Invalid ActionType"),
                 }
@@ -398,10 +409,12 @@ const _: () = {
             match self.typ() {
                 Empty => serialize::<StateActionEmpty, _>(self, serializer),
                 Idle => serialize::<StateActionIdle, _>(self, serializer),
-                Move => serialize::<StateActionMove, _>(self, serializer),
-                MoveNpc => serialize::<StateActionMoveNpc, _>(self, serializer),
+                MoveFree => serialize::<StateActionMoveFree, _>(self, serializer),
+                MoveFreeNpc => serialize::<StateActionMoveFreeNpc, _>(self, serializer),
+                MoveTowardNpc => serialize::<StateActionMoveTowardNpc, _>(self, serializer),
                 General => serialize::<StateActionGeneral, _>(self, serializer),
                 GeneralNpc => serialize::<StateActionGeneralNpc, _>(self, serializer),
+                DodgeNpc => serialize::<StateActionDodgeNpc, _>(self, serializer),
                 Hit => serialize::<StateActionHit, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid ActionType"),
             }
@@ -439,10 +452,12 @@ const _: () = {
             match self.typ() {
                 Empty => deserialize::<StateActionEmpty, _>(self, deserializer, out),
                 Idle => deserialize::<StateActionIdle, _>(self, deserializer, out),
-                Move => deserialize::<StateActionMove, _>(self, deserializer, out),
-                MoveNpc => deserialize::<StateActionMoveNpc, _>(self, deserializer, out),
+                MoveFree => deserialize::<StateActionMoveFree, _>(self, deserializer, out),
+                MoveFreeNpc => deserialize::<StateActionMoveFreeNpc, _>(self, deserializer, out),
+                MoveTowardNpc => deserialize::<StateActionMoveTowardNpc, _>(self, deserializer, out),
                 General => deserialize::<StateActionGeneral, _>(self, deserializer, out),
                 GeneralNpc => deserialize::<StateActionGeneralNpc, _>(self, deserializer, out),
+                DodgeNpc => deserialize::<StateActionDodgeNpc, _>(self, deserializer, out),
                 Hit => deserialize::<StateActionHit, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid ActionType"),
             }
@@ -453,10 +468,12 @@ const _: () = {
                 match self.typ() {
                     Empty => mem::transmute_copy::<usize, &StateActionEmpty>(&0),
                     Idle => mem::transmute_copy::<usize, &StateActionIdle>(&0),
-                    Move => mem::transmute_copy::<usize, &StateActionMove>(&0),
-                    MoveNpc => mem::transmute_copy::<usize, &StateActionMoveNpc>(&0),
+                    MoveFree => mem::transmute_copy::<usize, &StateActionMoveFree>(&0),
+                    MoveFreeNpc => mem::transmute_copy::<usize, &StateActionMoveFreeNpc>(&0),
+                    MoveTowardNpc => mem::transmute_copy::<usize, &StateActionMoveTowardNpc>(&0),
                     General => mem::transmute_copy::<usize, &StateActionGeneral>(&0),
                     GeneralNpc => mem::transmute_copy::<usize, &StateActionGeneralNpc>(&0),
+                    DodgeNpc => mem::transmute_copy::<usize, &StateActionDodgeNpc>(&0),
                     Hit => mem::transmute_copy::<usize, &StateActionHit>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid ActionType"),
                 }
@@ -644,7 +661,6 @@ impl<'t> ActionStartArgs<'t> {
 pub struct ActionStartReturn {
     pub prev_fade_update: bool,
     pub clear_preinput: bool,
-    pub custom_events: Vec<CustomEvent>,
 }
 
 impl ActionStartReturn {
@@ -654,34 +670,53 @@ impl ActionStartReturn {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ActionUpdateReturn {
-    pub new_velocity: Option<Vec3A>,
-    pub new_direction: Option<Vec2xz>,
+    pub new_velocity: Vec3A,
+    pub new_direction: Vec2xz,
+    pub new_gravity: bool,
     pub clear_preinput: bool,
     pub derive_keeping: DeriveKeeping,
-    pub custom_events: Vec<CustomEvent>,
 }
+
+// impl Default for ActionUpdateReturn {
+//     #[inline]
+//     fn default() -> Self {
+//         Self {
+//             new_velocity: Vec3A::ZERO,
+//             new_direction: Vec2xz::ZERO,
+//             new_gravity: true,
+//             clear_preinput: false,
+//             derive_keeping: DeriveKeeping::default(),
+//         }
+//     }
+// }
 
 impl ActionUpdateReturn {
     #[inline]
-    pub fn new() -> ActionUpdateReturn {
-        ActionUpdateReturn::default()
+    pub fn new(direction: Vec2xz) -> ActionUpdateReturn {
+        ActionUpdateReturn {
+            new_velocity: Vec3A::ZERO,
+            new_direction: direction,
+            new_gravity: true,
+            clear_preinput: false,
+            derive_keeping: DeriveKeeping::default(),
+        }
     }
 
     #[inline]
     pub fn set_velocity_2d(&mut self, velocity: Vec2xz) {
-        self.new_velocity = Some(velocity.as_vec3a());
+        self.new_velocity = velocity.as_vec3a();
     }
 
     #[inline]
     pub fn set_velocity(&mut self, velocity: Vec3A) {
-        self.new_velocity = Some(velocity);
+        self.new_velocity = velocity.into();
     }
 
     #[inline]
     pub fn set_direction(&mut self, direction: Vec2xz) {
-        self.new_direction = Some(direction);
+        self.new_direction = direction;
     }
 }
 
