@@ -37,7 +37,8 @@ impl AssetLoader {
         let path = format!("{}.rm-ozz", &path_pattern[0..path_pattern.len() - 2]);
         let data_buf = self.load_buffer(&path)?;
         let mut archive = Archive::from_vec(data_buf).map_err(xfromf!("path={:?}", &path))?;
-        let root_motion = Rc::new(RootMotion::from_archive(&mut archive).map_err(xfromf!("path={:?}", &path))?);
+        let root_motion =
+            Rc::new(RootMotion::from_archive_with_path(&mut archive, &path).map_err(xfromf!("path={:?}", &path))?);
         self.root_motion_cache.insert(path_pattern.clone(), root_motion.clone());
         Ok(root_motion)
     }

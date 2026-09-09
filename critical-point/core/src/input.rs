@@ -7,7 +7,7 @@ use std::collections::{VecDeque, vec_deque};
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::rc::Rc;
 
-use crate::consts::{DEFAULT_VIEW_DIR_2D, DEFAULT_VIEW_DIR_3D, FPS_USIZE, MAX_PLAYER};
+use crate::consts::{DEFAULT_CAMERA_DIR_2D, DEFAULT_CAMERA_DIR_3D, FPS_USIZE, MAX_PLAYER};
 use crate::utils::{NumID, RawInput, RawKey, VirtualInput, VirtualKey, XResult, xerrf, xres, xresf};
 
 pub(crate) const FIRST_EVENT_ID: u64 = 1;
@@ -154,6 +154,9 @@ impl InputManager {
         let base_frame = player_inputs.iter().map(|e| e.frame.wrapping_sub(1)).min().unwrap_or(0);
 
         for inputs in player_inputs {
+            if !inputs.player_id.is_player() {
+                return xresf!(BadArgument; "player_id={}", inputs.player_id);
+            }
             let player_idx = inputs.player_id.0 - NumID::MIN_PLAYER.0;
             match self.queues.get(player_idx as usize) {
                 Some(queue) => {
@@ -369,8 +372,8 @@ impl Default for InputVariables {
 impl InputVariables {
     pub const EMPTY: InputVariables = InputVariables {
         view_rads: Vec2::ZERO,
-        view_dir_2d: DEFAULT_VIEW_DIR_2D,
-        view_dir_3d: DEFAULT_VIEW_DIR_3D,
+        view_dir_2d: DEFAULT_CAMERA_DIR_2D,
+        view_dir_3d: DEFAULT_CAMERA_DIR_3D,
         device_move: InputMoveState::EMPTY,
         optimized_device_move: InputMoveState::EMPTY,
     };
@@ -1200,7 +1203,7 @@ mod tests {
     #[test]
     fn test_input_variables() {
         let mut iv = InputVariables::default();
-        assert_eq!(iv.view_dir_2d, DEFAULT_VIEW_DIR_2D);
+        assert_eq!(iv.view_dir_2d, DEFAULT_CAMERA_DIR_2D);
         assert_eq!(iv.device_move(), InputMoveState::new(Vec2::ZERO));
         assert_eq!(iv.optimized_device_move(), InputMoveState::new(Vec2::ZERO));
 

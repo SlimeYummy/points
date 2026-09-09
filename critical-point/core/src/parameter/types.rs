@@ -1,5 +1,6 @@
 use critical_point_macros::csharp_in;
 use glam::Vec3A;
+use glam_ext::Vec2xz;
 
 use crate::utils::{TmplID, TmplIDLevel, TmplIDPlus};
 
@@ -35,6 +36,8 @@ pub struct ParamPlayer {
     pub jewels: Vec<TmplIDPlus>,
     #[serde(default)]
     pub position: Vec3A,
+    #[serde(default)]
+    pub direction: Vec2xz,
 }
 
 #[csharp_in(Class)]
@@ -58,6 +61,8 @@ pub struct ParamNpc {
     pub ai_brain: TmplID,
     #[serde(default)]
     pub position: Vec3A,
+    #[serde(default)]
+    pub direction: Vec2xz,
 }
 
 #[csharp_in(Class)]
