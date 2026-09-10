@@ -127,6 +127,11 @@ impl LogicRootMotion {
     }
 
     #[inline]
+    pub fn position(&self) -> Vec3A {
+        self.state.current_pos
+    }
+
+    #[inline]
     pub fn position_delta(&self) -> Vec3A {
         self.state.pos_delta
     }
@@ -282,8 +287,18 @@ impl LogicMultiRootMotion {
     }
 
     #[inline]
+    pub fn state(&self) -> &StateMultiRootMotion {
+        &self.state
+    }
+
+    #[inline]
     pub fn ratio(&self) -> f32 {
         self.state.ratio
+    }
+
+    #[inline]
+    pub fn position(&self) -> Vec3A {
+        self.state.current_pos
     }
 
     #[inline]
@@ -311,7 +326,7 @@ fn run_position_job(root_motion: &RootMotion, pos_track: RootTrackName, ratio: f
     job.run()?;
     let frac_pos: Vec3A = job.result().into();
 
-    let last_pos: Vec3A = root_motion.last_position(pos_track).into();
+    let last_pos: Vec3A = root_motion.whole_position(pos_track).into();
     let trunc_pos = last_pos * trunc;
 
     Ok(trunc_pos + frac_pos)
