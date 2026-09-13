@@ -102,6 +102,7 @@ const _: () = {
 
     use crate::logic::ai_task::general::{ArchivedStateAiTaskGeneral, StateAiTaskGeneral};
     use crate::logic::ai_task::idle::{ArchivedStateAiTaskIdle, StateAiTaskIdle};
+    use crate::logic::ai_task::keep_distance::{ArchivedStateAiTaskKeepDistance, StateAiTaskKeepDistance};
     use crate::logic::ai_task::move_to_character::{ArchivedStateAiTaskMoveToCharacter, StateAiTaskMoveToCharacter};
     use crate::logic::ai_task::patrol::{ArchivedStateAiTaskPatrol, StateAiTaskPatrol};
     use crate::utils::Castable;
@@ -122,6 +123,10 @@ const _: () = {
                 },
                 (General, General) => unsafe {
                     self.cast_unchecked::<StateAiTaskGeneral>() == other.cast_unchecked::<StateAiTaskGeneral>()
+                },
+                (KeepDistance, KeepDistance) => unsafe {
+                    self.cast_unchecked::<StateAiTaskKeepDistance>()
+                        == other.cast_unchecked::<StateAiTaskKeepDistance>()
                 },
                 _ => false,
             }
@@ -160,6 +165,7 @@ const _: () = {
                     Patrol => mem::transmute_copy::<usize, &ArchivedStateAiTaskPatrol>(&0),
                     MoveToCharacter => mem::transmute_copy::<usize, &ArchivedStateAiTaskMoveToCharacter>(&0),
                     General => mem::transmute_copy::<usize, &ArchivedStateAiTaskGeneral>(&0),
+                    KeepDistance => mem::transmute_copy::<usize, &ArchivedStateAiTaskKeepDistance>(&0),
                     _ => unreachable!("pointer_metadata() Invalid AiTaskType"),
                 }
             };
@@ -203,6 +209,7 @@ const _: () = {
                 Patrol => serialize::<StateAiTaskPatrol, _>(self, serializer),
                 MoveToCharacter => serialize::<StateAiTaskMoveToCharacter, _>(self, serializer),
                 General => serialize::<StateAiTaskGeneral, _>(self, serializer),
+                KeepDistance => serialize::<StateAiTaskKeepDistance, _>(self, serializer),
                 _ => unreachable!("serialize_unsized() Invalid AiTaskType"),
             }
         }
@@ -241,6 +248,7 @@ const _: () = {
                 Patrol => deserialize::<StateAiTaskPatrol, _>(self, deserializer, out),
                 MoveToCharacter => deserialize::<StateAiTaskMoveToCharacter, _>(self, deserializer, out),
                 General => deserialize::<StateAiTaskGeneral, _>(self, deserializer, out),
+                KeepDistance => deserialize::<StateAiTaskKeepDistance, _>(self, deserializer, out),
                 _ => unreachable!("deserialize_unsized() Invalid AiTaskType"),
             }
         }
@@ -252,6 +260,7 @@ const _: () = {
                     Patrol => mem::transmute_copy::<usize, &StateAiTaskPatrol>(&0),
                     MoveToCharacter => mem::transmute_copy::<usize, &StateAiTaskMoveToCharacter>(&0),
                     General => mem::transmute_copy::<usize, &StateAiTaskGeneral>(&0),
+                    KeepDistance => mem::transmute_copy::<usize, &StateAiTaskKeepDistance>(&0),
                     _ => unreachable!("deserialize_metadata() Invalid AiTaskType"),
                 }
             };
@@ -585,6 +594,10 @@ pub(crate) struct AiBrainThinking {
     /// Self position, if target_chara == INVALID.
     pub(crate) target_chara_pos: Vec3A,
 
+    /// Target character's distance radius, if target_chara != INVALID.
+    /// 0.0 if target_chara == INVALID.
+    pub(crate) target_chara_distance_radius: f32,
+
     // This field may be invalid, inner use only.
     pub(crate) target_chara_idx: u32,
 }
@@ -597,6 +610,7 @@ impl AiBrainThinking {
         self.move_dir = Vec2xz::ZERO;
         self.target_chara = NumID::INVALID;
         self.target_chara_pos = Vec3A::ZERO;
+        self.target_chara_distance_radius = 0.0;
         self.target_chara_idx = u32::MAX;
     }
 
@@ -605,6 +619,14 @@ impl AiBrainThinking {
         match self.target_chara {
             NumID::INVALID => None,
             _ => Some(self.target_chara_pos),
+        }
+    }
+
+    #[inline]
+    pub fn target_chara_distance_radius(&self) -> Option<f32> {
+        match self.target_chara {
+            NumID::INVALID => None,
+            _ => Some(self.target_chara_distance_radius),
         }
     }
 }

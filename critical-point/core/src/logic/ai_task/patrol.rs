@@ -5,15 +5,15 @@ use std::fmt::Debug;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::instance::{InstActionIdle, InstActionMoveNpc, InstAiTaskPatrol, InstAiTaskPatrolStep, InstCharacter};
+use crate::instance::{InstActionIdle, InstActionMoveFreeNpc, InstAiTaskPatrol, InstAiTaskPatrolStep, InstCharacter};
 use crate::logic::ai_task::base::{
     AiTaskReturn, ContextAiTask, LogicAiTaskAny, LogicAiTaskBase, StateAiTaskAny, StateAiTaskBase, impl_state_ai_task,
 };
 use crate::logic::game::ContextUpdateEx;
 use crate::utils::{AiTaskType, Castable, TmplID, XResult, extend, loose_le, strict_lt, xresf};
 
-const THRESHOLD_XZ_RATIO_MOVE: f32 = 0.25;
-const THRESHOLD_XZ_RATIO_IDLE: f32 = 1.0;
+const THRESHOLD_XZ_RATIO_MOVE: f32 = 1.0;
+const THRESHOLD_XZ_RATIO_IDLE: f32 = 0.5;
 const THRESHOLD_Y_DISTANCE: f32 = 5.0;
 
 #[csharp_enum]
@@ -47,6 +47,7 @@ pub struct StateAiTaskPatrol {
     pub step_idx: u32,
     pub idle_timer: f32,
     pub path_idx: u32,
+    pub loop_times: u32,
     #[csharp_hide(8, 8)]
     pub move_path: Option<Arc<Vec<Vec3>>>, // TODO: Optimize
 }
@@ -60,12 +61,13 @@ pub(crate) struct LogicAiTaskPatrol {
     _base: LogicAiTaskBase,
     inst: Rc<InstAiTaskPatrol>,
     inst_idle: Rc<InstActionIdle>,
-    inst_move: Rc<InstActionMoveNpc>,
+    inst_move: Rc<InstActionMoveFreeNpc>,
 
     mode: AiTaskPatrolMode,
     step_idx: u32,
     idle_timer: f32,
     path_idx: u32,
+    loop_times: u32,
     move_path: Option<Arc<Vec<Vec3>>>,
 }
 
@@ -81,7 +83,7 @@ impl LogicAiTaskPatrol {
             Some(inst) => inst.clone().cast()?,
             None => return xresf!(InstNotFound; "id={}", inst_task.action_idle),
         };
-        let inst_move: Rc<InstActionMoveNpc> = match inst_chara.actions.get(&inst_task.action_move) {
+        let inst_move: Rc<InstActionMoveFreeNpc> = match inst_chara.actions.get(&inst_task.action_move) {
             Some(inst) => inst.clone().cast()?,
             None => return xresf!(InstNotFound; "id={}", inst_task.action_move),
         };
@@ -95,6 +97,7 @@ impl LogicAiTaskPatrol {
             step_idx: u32::MAX,
             idle_timer: 0.0,
             path_idx: 0,
+            loop_times: 0,
             move_path: None,
         })
     }
@@ -113,6 +116,7 @@ unsafe impl LogicAiTaskAny for LogicAiTaskPatrol {
             step_idx: self.step_idx,
             idle_timer: self.idle_timer,
             path_idx: self.path_idx,
+            loop_times: self.loop_times,
             move_path: self.move_path.clone(),
         })
     }
@@ -127,6 +131,7 @@ unsafe impl LogicAiTaskAny for LogicAiTaskPatrol {
         self.step_idx = state.step_idx;
         self.idle_timer = state.idle_timer;
         self.path_idx = state.path_idx;
+        self.loop_times = state.loop_times;
         self.move_path = state.move_path.clone();
         Ok(())
     }
@@ -134,6 +139,7 @@ unsafe impl LogicAiTaskAny for LogicAiTaskPatrol {
     fn start(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
         self._base.start(ctx, ctxt)?;
         self.intention = self.inst.intention;
+        self.loop_times = u32::MAX; // wrapping_add to 0 in enter_next()
         self.step_idx = self.inst.route.len() as u32 - 1;
         self.enter_next(ctx, ctxt)
     }
@@ -253,6 +259,15 @@ impl LogicAiTaskPatrol {
         let mut ret = AiTaskReturn::default();
 
         for _ in 0..self.inst.route.len() {
+            // Detect wrap-around to track completed loops.
+            if self.step_idx + 1 >= self.inst.route.len() as u32 {
+                self.loop_times = self.loop_times.wrapping_add(1);
+                if self.inst.loop_times > 0 && self.loop_times >= self.inst.loop_times {
+                    self.stop(ctx, ctxt)?;
+                    self.intention = self.inst.next_intention;
+                    return Ok(AiTaskReturn::default());
+                }
+            }
             self.step_idx = (self.step_idx + 1) % (self.inst.route.len() as u32);
             match self.inst.route[self.step_idx as usize] {
                 InstAiTaskPatrolStep::Move(point) => {

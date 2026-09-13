@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::consts::SPF;
-use crate::instance::{InstActionMoveNpc, InstAiTaskMoveToCharacter, InstCharacter};
+use crate::instance::{InstActionMoveFreeNpc, InstAiTaskMoveToCharacter, InstCharacter};
 use crate::logic::ai_task::base::{
     AiTaskReturn, ContextAiTask, LogicAiTaskAny, LogicAiTaskBase, StateAiTaskAny, StateAiTaskBase, impl_state_ai_task,
 };
@@ -39,7 +39,7 @@ const THRESHOLD_Y_DISTANCE: f32 = 5.0;
 pub enum AiTaskMoveToCharacterMode {
     Move,
     Stop,
-    Turn,
+    // Turn,
 }
 
 #[repr(C)]
@@ -64,7 +64,7 @@ impl_state_ai_task!(StateAiTaskMoveToCharacter, MoveToCharacter, "MoveToCharacte
 pub(crate) struct LogicAiTaskMoveToCharacter {
     _base: LogicAiTaskBase,
     inst: Rc<InstAiTaskMoveToCharacter>,
-    inst_move: Rc<InstActionMoveNpc>,
+    inst_move: Rc<InstActionMoveFreeNpc>,
 
     mode: AiTaskMoveToCharacterMode,
     target_chara: NumID,
@@ -160,15 +160,17 @@ unsafe impl LogicAiTaskAny for LogicAiTaskMoveToCharacter {
         let ret = match self.mode {
             AiTaskMoveToCharacterMode::Move => self.update_move(ctx, ctxt)?,
             AiTaskMoveToCharacterMode::Stop => self.update_stop(ctx, ctxt)?,
-            AiTaskMoveToCharacterMode::Turn => self.update_turn(ctx, ctxt)?,
+            // AiTaskMoveToCharacterMode::Turn => self.update_turn(ctx, ctxt)?,
         };
 
         match ret {
             Some(ret) => Ok(ret),
             None => match self.mode {
                 AiTaskMoveToCharacterMode::Move => self.enter_stop(ctx, ctxt),
-                AiTaskMoveToCharacterMode::Stop => self.enter_turn(ctx, ctxt),
-                AiTaskMoveToCharacterMode::Turn => unreachable!(),
+                AiTaskMoveToCharacterMode::Stop => {
+                    self.stop(ctx, ctxt)?;
+                    Ok(AiTaskReturn::default())
+                } // AiTaskMoveToCharacterMode::Turn => unreachable!(),
             },
         }
     }
@@ -313,21 +315,21 @@ impl LogicAiTaskMoveToCharacter {
         Ok(Some(ret))
     }
 
-    fn enter_turn(&mut self, _ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
-        self.mode = AiTaskMoveToCharacterMode::Turn;
+    // fn enter_turn(&mut self, _ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<AiTaskReturn> {
+    //     self.mode = AiTaskMoveToCharacterMode::Turn;
 
-        let mut ret = AiTaskReturn::default();
+    //     let mut ret = AiTaskReturn::default();
 
-        // During turn stage, we want character to face target character.
-        Self::fill_face_character(&mut ret, ctxt);
-        Ok(ret)
-    }
+    //     // During turn stage, we want character to face target character.
+    //     Self::fill_face_character(&mut ret, ctxt);
+    //     Ok(ret)
+    // }
 
-    fn update_turn(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
-        self.stop(ctx, ctxt)?;
-        self.intention = self.inst.next_intention;
-        Ok(None)
-    }
+    // fn update_turn(&mut self, ctx: &mut ContextUpdateEx, ctxt: &mut ContextAiTask) -> XResult<Option<AiTaskReturn>> {
+    //     self.stop(ctx, ctxt)?;
+    //     self.intention = self.inst.next_intention;
+    //     Ok(None)
+    // }
 
     #[inline]
     fn update_move_path(&mut self, ctxt: &ContextAiTask, src_pos: Vec3A, dst_pos: Vec3A) -> XResult<bool> {

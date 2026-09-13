@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use crate::consts::SPF;
-use crate::instance::{InstActionAny, InstActionMoveNpc, InstAiTaskGeneral, InstCharacter};
+use crate::instance::{InstActionAny, InstActionMoveFreeNpc, InstAiTaskGeneral, InstCharacter};
 use crate::logic::ai_task::base::{
     AiTaskReturn, ContextAiTask, LogicAiTaskAny, LogicAiTaskBase, StateAiTaskAny, StateAiTaskBase, impl_state_ai_task,
 };

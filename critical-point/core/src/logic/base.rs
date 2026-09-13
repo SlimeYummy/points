@@ -596,7 +596,6 @@ mod tests {
                 },
                 value: StateCharaValue::default(),
                 actions: Vec::new(),
-                custom_events: Vec::new(),
             }),
             StateType::CharacterUpdate,
             LogicType::Character,
