@@ -1,12 +1,14 @@
 mod base;
 mod general;
 mod idle;
+mod keep_distance;
 mod move_to_character;
 mod patrol;
 
 pub use base::*;
 pub use general::*;
 pub use idle::*;
+pub use keep_distance::*;
 pub use move_to_character::*;
 pub use patrol::*;
 
@@ -39,6 +41,10 @@ pub(crate) fn new_logic_ai_task(
         General => {
             let inst_task = unsafe { inst_task.cast_unchecked() };
             Box::new(LogicAiTaskGeneral::new(ctx, inst_task, inst_chara)?)
+        }
+        KeepDistance => {
+            let inst_task = unsafe { inst_task.cast_unchecked() };
+            Box::new(LogicAiTaskKeepDistance::new(ctx, inst_task, inst_chara)?)
         }
         _ => return xres!(BadType),
     };
@@ -79,6 +85,13 @@ pub(crate) fn try_reuse_logic_ai_task(
             if let Ok(logic_task) = logic_task.cast::<LogicAiTaskGeneral>() {
                 let inst_task = unsafe { inst_task.cast_unchecked() };
                 *logic_task = LogicAiTaskGeneral::new(ctx, inst_task, inst_chara)?;
+                return Ok(true);
+            }
+        }
+        KeepDistance => {
+            if let Ok(logic_task) = logic_task.cast::<LogicAiTaskKeepDistance>() {
+                let inst_task = unsafe { inst_task.cast_unchecked() };
+                *logic_task = LogicAiTaskKeepDistance::new(ctx, inst_task, inst_chara)?;
                 return Ok(true);
             }
         }
