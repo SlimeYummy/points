@@ -12,7 +12,7 @@ use crate::logic::character::control::LogicCharaControl;
 use crate::logic::character::physics::body::CharacterContactListenerImpl;
 use crate::logic::game::{ContextRestore, ContextUpdateEx};
 use crate::script::WsBox;
-use crate::utils::{NumID, SmallVec, Symbol, XResult, quat_from_dir_xz};
+use crate::utils::{NumID, SmallVec, Symbol, XResult, quat_from_default_toward_xz};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct CharacterLocation {
@@ -79,14 +79,15 @@ pub struct StateCharaPhysics {
 }
 
 #[repr(C)]
-#[wasm_struct(80, 16)]
+#[wasm_struct(64, 16)]
 #[derive(Debug)]
 pub(crate) struct WsCharaPhysics {
     pub chara_id: NumID,
-    pub velocity: Vec3A,
-    pub position: Vec3A,
+    pub distance_radius: f32,
     pub direction: Vec2xz,
     pub rotation: Quat,
+    pub velocity: Vec3A,
+    pub position: Vec3A,
 }
 
 #[wasm_impl]
@@ -99,6 +100,24 @@ impl WsCharaPhysics {
     #[inline]
     pub fn position_xz(&self) -> Vec2xz {
         Vec2xz::from_vec3a(self.position)
+    }
+    
+    /// Calculate the distance to character, excluding the distance radius. The result can be negative if they are overlapping.
+    #[inline]
+    pub fn distance_to_chara(&self, other: &WsCharaPhysics) -> f32 {
+        self.position.distance(other.position) - self.distance_radius - other.distance_radius
+    }
+
+    /// Calculate the distance to position, excluding the distance radius. The result can be negative if they are overlapping.
+    #[inline]
+    pub fn distance_to_pos(&self, other_pos: Vec3A, other_dsitance_radius: f32) -> f32 {
+        self.position.distance(other_pos) - self.distance_radius - other_dsitance_radius
+    }
+
+    /// Calculate the distance to position, excluding the distance radius. The result can be negative if they are overlapping.
+    #[inline]
+    pub fn distance_to_pos_xz(&self, other_pos: Vec2xz, other_dsitance_radius: f32) -> f32 {
+        Vec2xz::from_vec3a(self.position).distance(other_pos) - self.distance_radius - other_dsitance_radius
     }
 }
 
@@ -162,13 +181,13 @@ impl LogicCharaPhysics {
         ctx: &mut ContextUpdateEx,
         chara_id: NumID,
         inst_chara: Rc<InstCharacter>,
-        position: Vec3A,
-        direction: Vec2xz,
+        init_position: Vec3A,
+        init_direction: Vec2xz,
     ) -> XResult<LogicCharaPhysics> {
-        let rotation = quat_from_dir_xz(direction);
-        let character = LogicCharaPhysics::init_bounding(ctx, &inst_chara, position, rotation)?;
+        let init_rotation = quat_from_default_toward_xz(init_direction);
+        let (character, distance_radius) = LogicCharaPhysics::init_bounding(ctx, &inst_chara, init_position, init_rotation)?;
         let (target_body, target_shape, joint_bindings) =
-            LogicCharaPhysics::init_bodies(ctx, chara_id, &inst_chara, position, rotation)?;
+            LogicCharaPhysics::init_bodies(ctx, chara_id, &inst_chara, init_position, init_rotation)?;
 
         let target_bindings_len = joint_bindings.len();
         Ok(LogicCharaPhysics {
@@ -177,10 +196,11 @@ impl LogicCharaPhysics {
             ws: WsBox::new_in(
                 WsCharaPhysics {
                     chara_id,
+                    distance_radius,
+                    direction: init_direction,
+                    rotation: init_rotation,
                     velocity: Vec3A::ZERO,
-                    position,
-                    direction,
-                    rotation,
+                    position: init_position,
                 },
                 ctx.script.alloc(),
             ),
@@ -236,7 +256,7 @@ impl LogicCharaPhysics {
         self.velocity = state.velocity;
         self.position = state.position;
         self.direction = state.direction;
-        self.rotation = quat_from_dir_xz(self.direction);
+        self.rotation = quat_from_default_toward_xz(self.direction);
 
         self.body_ids.clear();
         self.body_ids.extend_from_slice(&state.body_ids);
@@ -269,18 +289,8 @@ impl LogicCharaPhysics {
     }
 
     #[inline]
-    pub(crate) fn position_xz_3d(&self) -> Vec3A {
-        Vec3A::new(self.position.x, 0.0, self.position.z)
-    }
-
-    #[inline]
     pub(crate) fn position_xz(&self) -> Vec2xz {
         Vec2xz::from_vec2(self.position.xz())
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_position(&mut self, position: Vec3A) {
-        self.position = position;
     }
 
     #[inline]
@@ -293,19 +303,13 @@ impl LogicCharaPhysics {
         self.direction
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_direction(&mut self, direction: Vec2xz) {
-        self.direction = direction;
-        self.rotation = quat_from_dir_xz(self.direction);
-    }
-
     #[inline]
     pub(crate) fn rotation(&self) -> Quat {
         self.rotation
     }
 
     #[inline]
-    pub(crate) fn rotation_y(&self) -> Quat {
+    pub(crate) fn rotation_xz(&self) -> Quat {
         self.rotation
     }
 

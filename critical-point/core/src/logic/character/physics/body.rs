@@ -17,7 +17,7 @@ use crate::logic::character::control::LogicCharaControl;
 use crate::logic::character::physics::physics::{CharacterHandle, CharacterLocation, JointBinding, LogicCharaPhysics};
 use crate::logic::game::ContextUpdateEx;
 use crate::logic::physics::{PhyBodyUserData, phy_layer};
-use crate::utils::{NumID, XResult, quat_from_dir_xz, xerrf, xfrom};
+use crate::utils::{NumID, XResult, quat_from_default_toward_xz, xerrf, xfrom};
 
 const CHARACTER_RADIUS_STANDING: f32 = -0.3;
 
@@ -27,7 +27,7 @@ impl LogicCharaPhysics {
         inst_chara: &InstCharacter,
         position: Vec3A,
         rotation: Quat,
-    ) -> XResult<CharacterHandle> {
+    ) -> XResult<(CharacterHandle, f32)> {
         let charc_phy = ctx.asset.load_character_physics(inst_chara.skeleton_files)?;
 
         if inst_chara.is_player {
@@ -44,18 +44,19 @@ impl LogicCharaPhysics {
                     body_itf: unsafe { ctx.physics.steal_body_itf() },
                 },
             )));
-            Ok(CharacterHandle::Player(character))
+            Ok((CharacterHandle::Player(character), charc_phy.distance_radius))
         }
         else {
             // Use Character for NPC
 
             let mut settings = CharacterSettings::new(charc_phy.bounding, phy_layer!(Bounding, All));
             settings.max_slope_angle = 45f32.to_radians();
-            settings.friction = 0.5;
+            settings.friction = 0.0;
+            // settings.gravity_factor = 0.0;
             settings.supporting_volume = Plane::new(Vec3::Y, CHARACTER_RADIUS_STANDING);
 
             let character = Character::new_add(&mut ctx.physics, &settings, position, rotation, 0, true, false);
-            Ok(CharacterHandle::Npc(character))
+            Ok((CharacterHandle::Npc(character), charc_phy.distance_radius))
         }
     }
 
@@ -76,7 +77,7 @@ impl LogicCharaPhysics {
         assert_abs_diff_eq!(location.rotation.z, 0.0, epsilon = 0.01);
 
         self.direction = chara_ctrl.new_direction();
-        self.rotation = quat_from_dir_xz(self.direction);
+        self.rotation = quat_from_default_toward_xz(self.direction);
         self.idle.set(true);
         Ok(())
     }
@@ -86,7 +87,7 @@ impl LogicCharaPhysics {
         ctx: &mut ContextUpdateEx,
         chara_ctrl: &LogicCharaControl,
     ) -> XResult<CharacterLocation> {
-        let new_rotation = quat_from_dir_xz(chara_ctrl.new_direction());
+        let new_rotation = quat_from_default_toward_xz(chara_ctrl.new_direction());
         if new_rotation != character.get_rotation() {
             character.set_rotation(new_rotation);
         }
@@ -99,7 +100,7 @@ impl LogicCharaPhysics {
         let ground_velocity: Vec3A = character.get_ground_velocity();
         let moving_towards_ground = (linear_velocity.y - ground_velocity.y) < 0.1;
 
-        if abs_diff_eq!(chara_ctrl.new_velocity().y, 0.0) {
+        if abs_diff_eq!(chara_ctrl.new_velocity().y, 0.0, epsilon = 1e-3) {
             let mut new_velocity;
             if character.get_ground_state() == GroundState::OnGround && moving_towards_ground {
                 new_velocity = ground_velocity;
@@ -142,12 +143,27 @@ impl LogicCharaPhysics {
         ctx: &mut ContextUpdateEx,
         chara_ctrl: &LogicCharaControl,
     ) -> XResult<CharacterLocation> {
+        let new_rotation = quat_from_default_toward_xz(chara_ctrl.new_direction());
+        if new_rotation != character.get_rotation(false) {
+            character.set_rotation(new_rotation, true, false);
+        }
+
+        // println!(">>>>> velocity => {:?} | {:?}", ws_phy.velocity, character.get_linear_velocity(false));
+
         character.set_linear_velocity(chara_ctrl.new_velocity(), false);
+        if chara_ctrl.new_gravity() {
+            ctx.physics.body_itf().set_gravity_factor(character.get_body_id(), 1.0);
+        }
+        else {
+            ctx.physics.body_itf().set_gravity_factor(character.get_body_id(), 0.0);
+        }
+
+        // println!("get_position => {:?} | {} | {}", character.get_position(false), character.get_position(false).xz().length(), character.get_position(false).y);
 
         Ok(CharacterLocation {
             position: character.get_position(false),
             rotation: character.get_rotation(false),
-            velocity: character.get_linear_velocity(false),
+            velocity: chara_ctrl.new_velocity(),
         })
     }
 
@@ -211,7 +227,7 @@ impl LogicCharaPhysics {
             phy_layer!(Target, inst_chara.is_player => Player | Enemy),
             MotionType::Kinematic,
             position.into(),
-            rotation * inst_chara.skeleton_rotation,
+            rotation,
         );
         settings.user_data = PhyBodyUserData::new_character(chara_id).into();
 
@@ -224,6 +240,8 @@ impl LogicCharaPhysics {
         Ok((target_body, target_shape, joint_bindings))
     }
 
+    /// Keeps target bodies aligned with hit motion sampling: when `joint2` exists, interpolate
+    /// the attachment origin by the binding ratio before applying the local offset.
     pub(super) fn update_bodies(&mut self, ctx: &mut ContextUpdateEx, chara_ctrl: &LogicCharaControl) -> XResult<()> {
         let model_transforms = chara_ctrl.model_transforms();
         for binding in &self.joint_bindings {
@@ -248,12 +266,9 @@ impl LogicCharaPhysics {
             .body_itf()
             .notify_shape_changed(self.target_body, previous_center_of_mass, false, true);
 
-        ctx.physics.body_itf().set_position_rotation(
-            self.target_body,
-            self.position,
-            self.rotation * self.inst_chara.skeleton_rotation,
-            true,
-        );
+        ctx.physics
+            .body_itf()
+            .set_position_rotation(self.target_body, self.position, self.rotation, true);
         Ok(())
     }
 }
@@ -361,7 +376,7 @@ impl CharacterContactListener for CharacterContactListenerImpl {
         _contact_position: JVec3,
         contact_normal: JVec3,
         contact_velocity: JVec3,
-        _material: &PhysicsMaterial,
+        _material: Option<&PhysicsMaterial>,
         _character_velocity: JVec3,
         new_character_velocity: &mut Vec3A,
     ) {
@@ -383,7 +398,7 @@ impl CharacterContactListener for CharacterContactListenerImpl {
         _contact_position: JVec3,
         _contact_normal: JVec3,
         _contact_velocity: JVec3,
-        _material: &PhysicsMaterial,
+        _material: Option<&PhysicsMaterial>,
         _character_velocity: JVec3,
         _new_character_velocity: &mut Vec3A,
     ) {
