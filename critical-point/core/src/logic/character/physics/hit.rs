@@ -40,7 +40,7 @@ impl LogicCharaPhysics {
     ) -> XResult<()> {
         let sampler = ok_or!(chara_act.hit_motion_sampler(); return Ok(()));
         let body_itf = ctx.physics.body_itf();
-        let chara_isometry = Isometry3A::new_3a(self.position, self.rotation * self.inst_chara.skeleton_rotation);
+        let chara_isometry = Isometry3A::new_3a(self.position, self.rotation);
 
         for joint in sampler.joints() {
             update(
