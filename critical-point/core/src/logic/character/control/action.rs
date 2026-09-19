@@ -243,20 +243,21 @@ impl LogicCharaControl {
 
         // Update current action
         let ret = current_act.update(ctx, &mut ctxa)?;
-        if let Some(new_velocity) = ret.new_velocity {
-            self.new_velocity = new_velocity;
-        }
-        if let Some(new_direction) = ret.new_direction {
-            self.new_direction = new_direction;
-        }
+        // if let Some(new_velocity) = ret.new_velocity() {
+        //     self.new_velocity = new_velocity;
+        // }
+        // if let Some(new_direction) = ret.new_direction {
+        //     self.new_direction = new_direction;
+        // }
+        self.new_velocity = ret.new_velocity;
+        self.new_direction = ret.new_direction;
+        self.new_gravity = ret.new_gravity;
 
         if ret.clear_preinput {
             if let Some(player_inputs) = self.player_inputs.as_ref() {
                 self.input_cursor_id = player_inputs.borrow().future_id();
             }
         }
-
-        self.action_events = ret.custom_events;
 
         if current_act.is_stopping() {
             // Trigger derive keeping, when current action actively stops.
@@ -321,8 +322,6 @@ impl LogicCharaControl {
                 self.input_cursor_id = player_inputs.borrow().future_id();
             }
         }
-
-        self.action_events.extend(ret.custom_events);
 
         // Clear derive keeping, if current action not supported.
         if !current_act.inst.derive_keeping {

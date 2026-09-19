@@ -40,6 +40,7 @@ impl LogicCharaControl {
                     self.ai_thinking.target_changed = false;
                     self.ai_thinking.target_chara_idx = idx as u32;
                     self.ai_thinking.target_chara_pos = target_pos;
+                    self.ai_thinking.target_chara_distance_radius = ctx.characters[idx].physics().distance_radius;
                     return;
                 }
             }
@@ -85,9 +86,10 @@ impl LogicCharaControl {
         self.ai_thinking.target_changed = self.target_chara != old_target_chara;
         if self.ai_thinking.target_changed {
             log::info!(
-                "LogicCharaControl::update_ai_target(), chara_id={}, target_id={}",
+                "LogicCharaControl::update_ai_target(), chara_id={}, target_id={}, old_target_id={}",
                 self.chara_id,
-                self.target_chara
+                self.target_chara,
+                old_target_chara
             );
         }
 
@@ -292,15 +294,18 @@ impl LogicCharaControl {
                     };
                 }
                 InstAiRoutineItem::If { script, jump } => {
-                    let func = ctx.systems.script.get_ai_routine_if(routine.tmpl_id, *script)?;
-                    let res = ctx.systems.script.call_ai_routine_if(
-                        func,
-                        &self.ws,
-                        chara_phy.ws(),
-                        chara_val.ws(),
-                        tgt_chara.map(|c| c.physics().ws()),
-                        tgt_chara.map(|c| c.value().ws()),
-                    )?;
+                    let mut res = false;
+                    if let Some(func_predicates) = self.chara_predicates.clone() {
+                        res = ctx.systems.script.call_any_predicates(
+                            func_predicates,
+                            &self.ws,
+                            chara_phy.ws(),
+                            chara_val.ws(),
+                            tgt_chara.map(|c| c.physics().ws()),
+                            tgt_chara.map(|c| c.value().ws()),
+                            *script,
+                        )?;
+                    }
                     if res {
                         self.current_routine_exec += 1;
                     }

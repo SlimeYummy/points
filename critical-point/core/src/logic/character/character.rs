@@ -46,7 +46,6 @@ pub struct StateCharacterUpdate {
     pub physics: StateCharaPhysics,
     pub value: StateCharaValue,
     pub actions: Vec<Box<dyn StateActionAny>>,
-    pub custom_events: Vec<CustomEvent>,
 }
 
 extend!(StateCharacterUpdate, StateBase);
@@ -101,27 +100,29 @@ impl LogicCharacter {
     ) -> XResult<(Box<LogicCharacter>, Arc<StateCharacterInit>)> {
         let inst_chara = InstCharacter::new_player(&mut ctx.context_assemble(), param_player)?;
         let tmpl_style = ctx.tmpl_db.find_as::<TmplStyle>(param_player.style)?;
+
         Self::new_impl(
             ctx,
             inst_chara,
             &tmpl_style.view_model,
             param_player.position,
-            DEFAULT_TOWARD_DIR_2D,
+            param_player.direction.normalize_or(DEFAULT_TOWARD_DIR_2D),
         )
     }
 
     pub fn new_npc(
         ctx: &mut ContextUpdateEx,
-        param: &ParamNpc,
+        param_npc: &ParamNpc,
     ) -> XResult<(Box<LogicCharacter>, Arc<StateCharacterInit>)> {
-        let inst_npc = InstCharacter::new_npc(&mut ctx.context_assemble(), param)?;
-        let tmpl_chara = ctx.tmpl_db.find_as::<TmplCharacterNpc>(param.character)?;
+        let inst_npc = InstCharacter::new_npc(&mut ctx.context_assemble(), param_npc)?;
+        let tmpl_chara = ctx.tmpl_db.find_as::<TmplCharacterNpc>(param_npc.character)?;
+
         Self::new_impl(
             ctx,
             inst_npc,
             &tmpl_chara.view_model,
-            param.position,
-            DEFAULT_TOWARD_DIR_2D,
+            param_npc.position,
+            param_npc.direction.normalize_or(DEFAULT_TOWARD_DIR_2D),
         )
     }
 
@@ -143,7 +144,7 @@ impl LogicCharacter {
             spawn_frame: ctx.time.frame,
             death_frame: u32::MAX,
             inst: inst_chara.clone(),
-            control: LogicCharaControl::new(ctx, id, inst_chara.clone(), inst_chara.ai_brain.clone())?,
+            control: LogicCharaControl::new(ctx, id, inst_chara.clone(), inst_chara.ai_brain.clone(), init_direction)?,
             physics: LogicCharaPhysics::new(ctx, id, inst_chara.clone(), init_position, init_direction)?,
             value: LogicCharaValue::new(ctx, id, inst_chara.clone()),
         });
@@ -167,14 +168,13 @@ impl LogicCharacter {
     }
 
     pub fn state(&mut self) -> XResult<Box<StateCharacterUpdate>> {
-        let (action, actions, custom_events) = self.control.take_states()?;
+        let (action, actions) = self.control.take_states()?;
         Ok(Box::new(StateCharacterUpdate {
             _base: StateBase::new(self.id, StateType::CharacterUpdate, LogicType::Character),
             control: action,
             physics: self.physics.state(),
             value: self.value.state(),
             actions,
-            custom_events,
         }))
     }
 
