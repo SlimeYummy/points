@@ -15,7 +15,7 @@ use crate::logic::ai_task::{AiBrainThinking, AiTaskReturn, LogicAiTaskAny, WsAiD
 use crate::logic::character::physics::LogicCharaPhysics;
 use crate::logic::character::value::LogicCharaValue;
 use crate::logic::game::{ContextRestore, ContextUpdateEx};
-use crate::logic::script::WsFuncAiBrainExecute;
+use crate::logic::script::{WsFuncAiBrainExecute, WsFuncAnyPredicates};
 use crate::script::{WsBox, WsVec};
 use crate::utils::{
     AiIntention, CustomEvent, DtHashMap, HistoryQueue, NumID, TmplID, VirtualInput, VirtualKey, XResult, xerr, xres,
@@ -67,6 +67,8 @@ pub(crate) struct LogicCharaControl {
 
     #[educe(Debug(ignore))]
     pub(super) ai_brain_execute: Option<WsFuncAiBrainExecute>,
+    #[educe(Debug(ignore))]
+    pub(super) chara_predicates: Option<WsFuncAnyPredicates>,
     pub(super) current_task: Option<Box<dyn LogicAiTaskAny>>,
     pub(super) current_routine: Option<Rc<InstAiRoutine>>,
     pub(super) current_routine_exec: u32,
@@ -79,6 +81,7 @@ pub(crate) struct LogicCharaControl {
     pub(super) ws: WsBox<WsCharaControl>,
     pub(super) new_velocity: Vec3A,
     pub(super) new_direction: Vec2xz,
+    pub(super) new_gravity: bool,
     pub(super) cache_action_states: Vec<Box<dyn StateActionAny>>,
     pub(super) action_events: Vec<CustomEvent>,
 
@@ -107,6 +110,7 @@ impl LogicCharaControl {
         chara_id: NumID,
         inst_chara: Rc<InstCharacter>,
         inst_ai_brain: Option<Rc<InstAiBrain>>,
+        init_direction: Vec2xz,
     ) -> XResult<LogicCharaControl> {
         let skeleton = ctx.asset.load_skeleton(inst_chara.skeleton_files)?;
 
@@ -114,10 +118,16 @@ impl LogicCharaControl {
             .find_first_primary_action(&VirtualKey::Idle)
             .ok_or_else(|| xerr!(NotFound; "No idle action"))?;
 
-        let ai_brain_execute = match inst_ai_brain.as_ref() {
-            Some(brain) if brain.execute => Some(ctx.script.get_ai_brain_execute(brain.tmpl_id)?),
-            _ => None,
-        };
+        let mut ai_brain_execute = None;
+        let mut chara_predicates = None;
+        if let Some(brain) = inst_ai_brain.as_ref() {
+            if brain.execute {
+                ai_brain_execute = Some(ctx.script.get_ai_brain_execute(brain.tmpl_id)?);
+            }
+            if inst_chara.script_predicates {
+                chara_predicates = Some(ctx.script.get_any_predicates(brain.character_npc)?);
+            }
+        }
 
         Ok(LogicCharaControl {
             chara_id,
@@ -133,6 +143,7 @@ impl LogicCharaControl {
             animation_changed: false,
 
             ai_brain_execute,
+            chara_predicates,
             current_task: None,
             current_routine: None,
             current_routine_exec: 0,
@@ -144,7 +155,8 @@ impl LogicCharaControl {
 
             ws: WsBox::new_in(WsCharaControl::default(), ctx.script.alloc()),
             new_velocity: Vec3A::ZERO,
-            new_direction: DEFAULT_TOWARD_DIR_2D,
+            new_direction: init_direction,
+            new_gravity: true,
             cache_action_states: Vec::with_capacity(16),
             action_events: Vec::new(),
 
@@ -195,6 +207,7 @@ impl LogicCharaControl {
 
         let mut next_action = None;
         if !self.inst_chara.is_player {
+            self.update_ai_target(ctx, chara_phy);
             let ai_ret = self.handle_ai_all(ctx, chara_phy, chara_val)?;
             next_action = NextAction::try_from_ai_return(&ai_ret);
         }
@@ -288,20 +301,20 @@ impl LogicCharaControl {
         self.current_routine_exec = state.current_routine_exec;
 
         if let Some(action) = self.action_queue.last() {
-            self.ws.current_task = action.tmpl_id();
+            self.ws.current_action = action.tmpl_id();
             self.ws.action_keep_level = action.keep_level;
         }
         else {
-            self.ws.current_task = TmplID::INVALID;
+            self.ws.current_action = TmplID::INVALID;
             self.ws.action_keep_level = 0;
         }
 
         if let Some(task) = self.current_task.as_ref() {
-            self.ws.current_action = task.inst.tmpl_id;
+            self.ws.current_task = task.inst.tmpl_id;
             self.ws.ai_intention = task.intention;
         }
         else {
-            self.ws.current_action = TmplID::INVALID;
+            self.ws.current_task = TmplID::INVALID;
             self.ws.ai_intention = AiIntention::Idle;
         }
 
@@ -335,7 +348,7 @@ impl LogicCharaControl {
 
     pub(crate) fn take_states(
         &mut self,
-    ) -> XResult<(StateCharaControl, Vec<Box<dyn StateActionAny>>, Vec<CustomEvent>)> {
+    ) -> XResult<(StateCharaControl, Vec<Box<dyn StateActionAny>>)> {
         if self.cache_action_states.is_empty() {
             return xres!(LogicBadState; "states already taken");
         }
@@ -354,7 +367,6 @@ impl LogicCharaControl {
                 target_chara: self.target_chara,
             },
             mem::take(&mut self.cache_action_states),
-            mem::take(&mut self.action_events),
         ))
     }
 
@@ -376,6 +388,11 @@ impl LogicCharaControl {
     #[inline]
     pub(crate) fn new_direction(&self) -> Vec2xz {
         self.new_direction
+    }
+
+    #[inline]
+    pub(crate) fn new_gravity(&self) -> bool {
+        self.new_gravity
     }
 
     #[inline]
