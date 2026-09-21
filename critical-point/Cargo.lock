@@ -562,8 +562,8 @@ dependencies = [
  "critical-point-core",
  "ctor",
  "fern",
- "glam",
- "glam-ext",
+ "glam 0.30.8",
+ "glam-ext 0.4.0",
  "libc",
  "log",
  "ozz-animation-rs",
@@ -586,8 +586,8 @@ dependencies = [
  "ctor",
  "educe",
  "enum-iterator",
- "glam",
- "glam-ext",
+ "glam 0.30.8",
+ "glam-ext 0.4.0",
  "jolt-physics-rs",
  "lasso",
  "libc",
@@ -623,8 +623,8 @@ dependencies = [
  "chrono",
  "critical-point-core",
  "fern",
- "glam",
- "glam-ext",
+ "glam 0.30.8",
+ "glam-ext 0.4.0",
  "jolt-physics-rs",
  "log",
  "serde",
@@ -663,8 +663,8 @@ dependencies = [
  "anyhow",
  "const_format",
  "critical-point-wasm-macros",
- "glam",
- "glam-ext",
+ "glam 0.30.8",
+ "glam-ext 0.4.0",
  "static_assertions",
 ]
 
@@ -1144,6 +1144,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e12d847aeb25f41be4c0ec9587d624e9cd631bc007a8fd7ce3f5851e064c6460"
 dependencies = [
  "approx",
+ "libm",
+ "rkyv",
+ "serde_core",
+]
+
+[[package]]
+name = "glam"
+version = "0.33.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21fef0953c54fd3de2f44b743fbf77e044c81a25faee03636dfccc0d35135e23"
+dependencies = [
+ "approx",
  "bytemuck",
  "libm",
  "rkyv",
@@ -1152,13 +1164,25 @@ dependencies = [
 
 [[package]]
 name = "glam-ext"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "approx",
- "glam",
+ "glam 0.33.6",
  "libm",
  "rkyv",
  "serde",
+]
+
+[[package]]
+name = "glam-ext"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49f6098938830bba86809107b50dcb0fbdb037dac6e43dbe4af4c0b9126dfaa0"
+dependencies = [
+ "approx",
+ "glam 0.33.6",
+ "libm",
+ "rkyv",
 ]
 
 [[package]]
@@ -1347,8 +1371,8 @@ dependencies = [
  "cc",
  "cxx",
  "cxx-build",
- "glam",
- "glam-ext",
+ "glam 0.33.6",
+ "glam-ext 0.4.0",
  "jolt-macros",
  "libc",
  "rkyv",
@@ -1576,12 +1600,12 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
 name = "ozz-animation-rs"
-version = "0.11.0"
+version = "0.11.1"
 dependencies = [
  "bimap",
  "bytecheck",
- "glam",
- "glam-ext",
+ "glam 0.33.6",
+ "glam-ext 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rkyv",
  "serde",
  "static_assertions",

@@ -65,6 +65,7 @@ impl CSharpGenerator {
         // types_in.insert("[f32; 2]".into(), TypeIn::new_primitive("Vec2"));
         // types_in.insert("[f32; 3]".into(), TypeIn::new_primitive("Vec3"));
         types_in.insert("Vec2".into(), TypeIn::new_primitive("Vec2"));
+        types_in.insert("Vec2xz".into(), TypeIn::new_primitive("Vec2xz"));
         types_in.insert("Vec3".into(), TypeIn::new_primitive("Vec3"));
         types_in.insert("Vec3A".into(), TypeIn::new_primitive("Vec3"));
         types_in.insert("Vec3A".into(), TypeIn::new_primitive("Vec3A"));
