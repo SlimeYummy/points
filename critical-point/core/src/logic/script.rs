@@ -45,7 +45,7 @@ impl LogicScriptEngine {
 
     #[inline]
     pub(crate) fn get_ai_brain_execute(&mut self, id: TmplID) -> XResult<WsFuncAiBrainExecute> {
-        let func_name = id.make_func_name("execute", None)?;
+        let func_name = id.make_func_name("execute")?;
         self.engine
             .get_typed_func::<WsArgsAiBrainExecute, WsRetsAiBrainExecute>(&func_name)
     }
@@ -94,21 +94,22 @@ impl LogicScriptEngine {
     }
 
     #[inline]
-    pub(crate) fn get_ai_routine_if(&mut self, id: TmplID, func_no: u16) -> XResult<WsFuncAiRoutineIf> {
-        let func_name = id.make_func_name("if", Some(func_no))?;
+    pub(crate) fn get_any_predicates(&mut self, id: TmplID) -> XResult<WsFuncAnyPredicates> {
+        let func_name = id.make_func_name("predicates")?;
         self.engine
-            .get_typed_func::<WsArgsAiRoutineIf, WsRetsAiRoutineIf>(&func_name)
+            .get_typed_func::<WsArgsAnyPredicates, WsRetsAnyPredicates>(&func_name)
     }
 
     #[inline]
-    pub(crate) fn call_ai_routine_if(
+    pub(crate) fn call_any_predicates(
         &mut self,
-        func: WsFuncAiRoutineIf,
+        func: WsFuncAnyPredicates,
         chara_ctrl: &WsBox<WsCharaControl>,
         chara_phy: &WsBox<WsCharaPhysics>,
         chara_val: &WsBox<WsCharaValue>,
         tgt_phy: Option<&WsBox<WsCharaPhysics>>,
         tgt_val: Option<&WsBox<WsCharaValue>>,
+        index: u32,
     ) -> XResult<bool> {
         let res = self.engine.call(
             func,
@@ -119,6 +120,7 @@ impl LogicScriptEngine {
                 self.engine.to_wasm_addr(chara_val),
                 self.engine.to_wasm_addr_opt(tgt_phy),
                 self.engine.to_wasm_addr_opt(tgt_val),
+                index,
             ),
         )?;
 
@@ -162,8 +164,9 @@ pub(crate) type WsRetsAiBrainExecute = u64;
 ///     chara_val_ptr: *const WsCharaValue,
 ///     tgt_phy_ptr: *const WsCharaPhysics, // nullable
 ///     tgt_val_ptr: *const WsCharaValue, // nullable
+///     index: u32,
 /// ) -> bool
 /// ```
-pub(crate) type WsFuncAiRoutineIf = TypedFunc<WsArgsAiRoutineIf, WsRetsAiRoutineIf>;
-pub(crate) type WsArgsAiRoutineIf = (u32, u32, u32, u32, u32, u32);
-pub(crate) type WsRetsAiRoutineIf = u64;
+pub(crate) type WsFuncAnyPredicates = TypedFunc<WsArgsAnyPredicates, WsRetsAnyPredicates>;
+pub(crate) type WsArgsAnyPredicates = (u32, u32, u32, u32, u32, u32, u32);
+pub(crate) type WsRetsAnyPredicates = u64;
