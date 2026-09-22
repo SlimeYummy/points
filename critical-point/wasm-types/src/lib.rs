@@ -3,6 +3,7 @@ mod consts;
 mod error;
 mod host_buffer;
 mod imports;
+mod math;
 mod wrap;
 
 pub use auto_gen::*;
@@ -10,6 +11,7 @@ pub use consts::*;
 pub use critical_point_wasm_macros::id;
 pub use error::*;
 pub use host_buffer::*;
+pub use math::*;
 pub use wrap::*;
 
 #[cfg(test)]

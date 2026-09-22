@@ -86,17 +86,13 @@ where
     let chara_ctrl = unsafe { &*(chara_ctrl_ptr as *const WsCharaControl) };
     let chara_phy = unsafe { &*(chara_phy_ptr as *const WsCharaPhysics) };
     let chara_val = unsafe { &*(chara_val_ptr as *const WsCharaValue) };
-    let tgt_phy = if tgt_phy_ptr.is_null() {
-        None
-    }
-    else {
-        Some(unsafe { &*tgt_phy_ptr })
+    let tgt_phy = match tgt_phy_ptr.is_null() {
+        true => None,
+        false => Some(unsafe { &*tgt_phy_ptr }),
     };
-    let tgt_val = if tgt_val_ptr.is_null() {
-        None
-    }
-    else {
-        Some(unsafe { &*tgt_val_ptr })
+    let tgt_val = match tgt_val_ptr.is_null() {
+        true => None,
+        false => Some(unsafe { &*tgt_val_ptr }),
     };
     let mut ai_tasks = unsafe { HostBuffer::new(ai_do_list_ptr, ai_do_list_len) };
 
@@ -115,7 +111,44 @@ where
 }
 
 #[inline(always)]
-pub fn wrap_ai_routine_if<F>(
+pub fn wrap_predicate_bool<F>(
+    global_ptr: *const WsGameGlobal,
+    chara_ctrl_ptr: *const WsCharaControl,
+    chara_phy_ptr: *const WsCharaPhysics,
+    chara_val_ptr: *const WsCharaValue,
+    tgt_phy_ptr: *const WsCharaPhysics,
+    tgt_val_ptr: *const WsCharaValue,
+    f: F,
+) -> u64
+where
+    F: FnOnce(
+        &WsGameGlobal,
+        &WsCharaControl,
+        &WsCharaPhysics,
+        &WsCharaValue,
+        Option<&WsCharaPhysics>,
+        Option<&WsCharaValue>,
+    ) -> bool,
+{
+    let global = unsafe { &*(global_ptr as *const WsGameGlobal) };
+    let chara_ctrl = unsafe { &*(chara_ctrl_ptr as *const WsCharaControl) };
+    let chara_phy = unsafe { &*(chara_phy_ptr as *const WsCharaPhysics) };
+    let chara_val = unsafe { &*(chara_val_ptr as *const WsCharaValue) };
+    let tgt_phy = match tgt_phy_ptr.is_null() {
+        true => None,
+        false => Some(unsafe { &*tgt_phy_ptr }),
+    };
+    let tgt_val = match tgt_val_ptr.is_null() {
+        true => None,
+        false => Some(unsafe { &*tgt_val_ptr }),
+    };
+
+    let res = f(global, chara_ctrl, chara_phy, chara_val, tgt_phy, tgt_val);
+    (0u32, if res { 1u32 } else { 0u32 }).pack()
+}
+
+#[inline(always)]
+pub fn wrap_predicate_result<F>(
     global_ptr: *const WsGameGlobal,
     chara_ctrl_ptr: *const WsCharaControl,
     chara_phy_ptr: *const WsCharaPhysics,
@@ -138,17 +171,13 @@ where
     let chara_ctrl = unsafe { &*(chara_ctrl_ptr as *const WsCharaControl) };
     let chara_phy = unsafe { &*(chara_phy_ptr as *const WsCharaPhysics) };
     let chara_val = unsafe { &*(chara_val_ptr as *const WsCharaValue) };
-    let tgt_phy = if tgt_phy_ptr.is_null() {
-        None
-    }
-    else {
-        Some(unsafe { &*tgt_phy_ptr })
+    let tgt_phy = match tgt_phy_ptr.is_null() {
+        true => None,
+        false => Some(unsafe { &*tgt_phy_ptr }),
     };
-    let tgt_val = if tgt_val_ptr.is_null() {
-        None
-    }
-    else {
-        Some(unsafe { &*tgt_val_ptr })
+    let tgt_val = match tgt_val_ptr.is_null() {
+        true => None,
+        false => Some(unsafe { &*tgt_val_ptr }),
     };
 
     match f(global, chara_ctrl, chara_phy, chara_val, tgt_phy, tgt_val) {

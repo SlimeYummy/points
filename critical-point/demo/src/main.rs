@@ -1,7 +1,7 @@
 mod input;
 
 use chrono::Local;
-use critical_point_core::consts::{DEFAULT_VIEW_DIR_3D, FPS};
+use critical_point_core::consts::{DEFAULT_CAMERA_DIR_3D, FPS};
 use critical_point_core::engine::LogicEngine;
 use critical_point_core::input::InputPlayerInputs;
 use critical_point_core::logic::{StateCharacterUpdate, StateSet};
@@ -93,7 +93,7 @@ impl DebugApp for Testbed {
 
     fn get_initial_camera(&mut self, state: &mut CameraState) {
         state.pos = Vec3A::ZERO;
-        state.forward = (3.0 * DEFAULT_VIEW_DIR_3D + Vec3A::new(0.0, -2.0, 0.0)).normalize();
+        state.forward = (3.0 * DEFAULT_CAMERA_DIR_3D + Vec3A::new(0.0, -2.0, 0.0)).normalize();
     }
 
     fn get_camera_pivot(&mut self, heading: f32, pitch: f32) -> Vec3A {

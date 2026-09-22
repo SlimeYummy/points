@@ -508,7 +508,7 @@ dependencies = [
  "educe",
  "enum-iterator",
  "glam 0.30.8",
- "glam-ext",
+ "glam-ext 0.4.0",
  "jolt-physics-rs",
  "lasso",
  "libc",
@@ -1061,6 +1061,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "glam-ext"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49f6098938830bba86809107b50dcb0fbdb037dac6e43dbe4af4c0b9126dfaa0"
+dependencies = [
+ "approx",
+ "glam 0.33.3",
+ "libm",
+ "rkyv",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1205,7 +1217,7 @@ dependencies = [
  "cxx",
  "cxx-build",
  "glam 0.33.3",
- "glam-ext",
+ "glam-ext 0.4.0",
  "jolt-macros",
  "libc",
  "rkyv",
@@ -1510,7 +1522,7 @@ dependencies = [
  "bimap",
  "bytecheck",
  "glam 0.33.3",
- "glam-ext",
+ "glam-ext 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rkyv",
  "serde",
  "static_assertions",
