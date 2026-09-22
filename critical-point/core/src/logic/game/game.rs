@@ -372,6 +372,11 @@ impl LogicGame {
 
         for param_npc in param.npcs {
             let mut ctx_ex = ContextUpdateEx::new(systems, time, &zone);
+
+            // We only provide players here, so NPCs can only target players at initialization.
+            // It's enough for most cases. But we should fix it in future.
+            ctx_ex.characters = logic_characters.taken_rest(usize::MAX).1;
+
             let (logic_npc, npc_init) = LogicCharacter::new_npc(&mut ctx_ex, &param_npc)?;
             logic_characters.append_new(logic_npc);
             state_set.inits.push(npc_init);

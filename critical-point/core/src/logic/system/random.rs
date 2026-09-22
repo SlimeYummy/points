@@ -72,7 +72,6 @@ impl SystemRandom {
 
     pub(crate) fn restore(&mut self, frame: u32) {
         let last_frame = self.history.back().map_or(0, |(fr, _)| *fr);
-        println!("last_frame: {} frame: {}", last_frame, frame);
         debug_assert!(last_frame >= frame);
         let first_frame = self.history.front().map_or(0, |(fr, _)| *fr);
         debug_assert!(first_frame <= frame);
