@@ -1,0 +1,143 @@
+[
+    {
+        "name": "All",
+        "weights": {
+            "Hips": 1,
+            "Spine": 1,
+            "Chest": 1,
+            "UpperChest": 1,
+            "Neck": 1,
+            "Head": 1,
+            "LeftShoulder": 1,
+            "LeftUpperArm": 1,
+            "LeftLowerArm": 1,
+            "LeftHand": 1,
+            "LeftWeaponRoot": 1,
+            "RightShoulder": 1,
+            "RightUpperArm": 1,
+            "RightLowerArm": 1,
+            "RightHand": 1,
+            "RightWeaponRoot": 1,
+            "LeftUpperLeg": 1,
+            "LeftLowerLeg": 1,
+            "LeftFoot": 1,
+            "RightUpperLeg": 1,
+            "RightLowerLeg": 1,
+            "RightFoot": 1
+        }
+    },
+    {
+        "name": "NoArm",
+        "weights": {
+            "Hips": 1,
+            "Spine": 1,
+            "Chest": 1,
+            "UpperChest": 1,
+            "Neck": 1,
+            "Head": 1,
+            "LeftShoulder": 0.5,
+            "RightShoulder": 0.5,
+            "LeftUpperLeg": 1,
+            "LeftLowerLeg": 1,
+            "LeftFoot": 1,
+            "RightUpperLeg": 1,
+            "RightLowerLeg": 1,
+            "RightFoot": 1
+        }
+    },
+    {
+        "name": "Arm",
+        "weights": {
+            "LeftShoulder": 0.5,
+            "LeftUpperArm": 1,
+            "LeftLowerArm": 1,
+            "LeftHand": 1,
+            "LeftWeaponRoot": 1,
+            "RightShoulder": 0.5,
+            "RightUpperArm": 1,
+            "RightLowerArm": 1,
+            "RightHand": 1,
+            "RightWeaponRoot": 1
+        }
+    },
+    {
+        "name": "LeftArm",
+        "weights": {
+            "LeftShoulder": 0.5,
+            "LeftUpperArm": 1,
+            "LeftLowerArm": 1,
+            "LeftHand": 1,
+            "LeftWeaponRoot": 1
+        }
+    },
+    {
+        "name": "RightArm",
+        "weights": {
+            "RightShoulder": 0.5,
+            "RightUpperArm": 1,
+            "RightLowerArm": 1,
+            "RightHand": 1,
+            "RightWeaponRoot": 1
+        }
+    },
+    {
+        "name": "All",
+        "weights": {
+            "Hips": 1,
+            "Spine": 1,
+            "Chest": 1,
+            "UpperChest": 1,
+            "Neck": 1,
+            "Head": 1,
+            "LeftShoulder": 1,
+            "LeftUpperArm": 1,
+            "LeftLowerArm": 1,
+            "LeftHand": 1,
+            "LeftWeaponRoot": 1,
+            "RightShoulder": 1,
+            "RightUpperArm": 1,
+            "RightLowerArm": 1,
+            "RightHand": 1,
+            "RightWeaponRoot": 1,
+            "LeftUpperLeg": 1,
+            "LeftLowerLeg": 1,
+            "LeftFoot": 1,
+            "RightUpperLeg": 1,
+            "RightLowerLeg": 1,
+            "RightFoot": 1
+        }
+    },
+    {
+        "name": "NoLeg",
+        "weights": {
+            "Hips": 0.5,
+            "Spine": 1,
+            "Chest": 1,
+            "UpperChest": 1,
+            "Neck": 1,
+            "Head": 1,
+            "LeftShoulder": 1,
+            "LeftUpperArm": 1,
+            "LeftLowerArm": 1,
+            "LeftHand": 1,
+            "LeftWeaponRoot": 1,
+            "RightShoulder": 1,
+            "RightUpperArm": 1,
+            "RightLowerArm": 1,
+            "RightHand": 1,
+            "RightWeaponRoot": 1
+        }
+    },
+    {
+        "name": "Leg",
+        "weights": {
+            "Hips": 0.5,
+            "LeftUpperLeg": 1,
+            "LeftLowerLeg": 1,
+            "LeftFoot": 1,
+            "RightUpperLeg": 1,
+            "RightLowerLeg": 1,
+            "RightFoot": 1
+        }
+    }
+]

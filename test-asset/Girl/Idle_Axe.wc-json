@@ -1,0 +1,19 @@
+[
+  {
+    "name": "RightWeapon",
+    "type": "float1",
+    "duration": 3.0,
+    "data": [
+      {
+        "t": 0.0,
+        "v": 5,
+        "s": true
+      },
+      {
+        "t": 3.0,
+        "v": 5,
+        "s": true
+      }
+    ]
+  }
+]
