@@ -1,9 +1,8 @@
-use critical_point_core::animation::{HitMotion, RootMotion, RootTrackName, ShapeKey, WeaponMotion};
-use glam::{Vec3, Vec3Swizzles};
+use critical_point_core::animation::{self as cp_anim, RootMotion, RootTrackName};
 use napi::bindgen_prelude::*;
 use napi::{Error, Status};
 use napi_derive::napi;
-use ozz_animation_rs::{Animation, Archive, Skeleton, Track};
+use ozz_animation_rs::{Animation, Archive, Skeleton};
 use std::collections::HashMap;
 
 use crate::error::{cp_err_msg, ozz_err_msg};
@@ -55,23 +54,19 @@ pub struct AnimationMeta {
 
 #[napi]
 pub fn load_animation_meta(path: String) -> Result<AnimationMeta> {
-    let mut archive = match Archive::from_path(&path) {
-        Ok(archive) => archive,
-        Err(err) => return Err(ozz_err_msg(err, &path)),
-    };
-    let ozz_meta = match Animation::read_meta(&mut archive) {
+    let cp_meta = match cp_anim::load_animation_meta(&path) {
         Ok(meta) => meta,
-        Err(err) => return Err(ozz_err_msg(err, &path)),
+        Err(err) => return Err(cp_err_msg(err, &path)),
     };
 
     Ok(AnimationMeta {
         version: Animation::version(),
-        duration: ozz_meta.duration as f64,
-        num_tracks: ozz_meta.num_tracks,
-        name: ozz_meta.name,
-        translations_count: ozz_meta.translations_count,
-        rotations_count: ozz_meta.rotations_count,
-        scales_count: ozz_meta.scales_count,
+        duration: cp_meta.duration as f64,
+        num_tracks: cp_meta.num_tracks,
+        name: cp_meta.name,
+        translations_count: cp_meta.translations_count,
+        rotations_count: cp_meta.rotations_count,
+        scales_count: cp_meta.scales_count,
     })
 }
 
@@ -100,47 +95,38 @@ pub struct RootMotionPositionMeta {
 
 #[napi]
 pub fn load_root_motion_meta(path: String) -> Result<RootMotionMeta> {
-    let root_motion = match RootMotion::from_path(&path) {
-        Ok(root_motion) => root_motion,
+    let cp_meta = match cp_anim::load_root_motion_meta(&path) {
+        Ok(meta) => meta,
         Err(err) => return Err(cp_err_msg(err, &path)),
     };
 
-    let mut position_default = None;
-    if root_motion.has_position(RootTrackName::Default) {
-        let whole = root_motion.whole_position(RootTrackName::Default);
-        position_default = Some(RootMotionPositionMeta {
-            whole_distance: whole.length() as f64,
-            whole_distance_xz: whole.xz().length() as f64,
-            whole_distance_y: whole.y as f64,
-        });
-    }
-
-    let mut position_move = None;
-    if root_motion.has_position(RootTrackName::Move) {
-        let whole = root_motion.whole_position(RootTrackName::Move);
-        position_move = Some(RootMotionPositionMeta {
-            whole_distance: whole.length() as f64,
-            whole_distance_xz: whole.xz().length() as f64,
-            whole_distance_y: whole.y as f64,
-        });
-    }
-
-    let mut position_move_ex = None;
-    if root_motion.has_position(RootTrackName::MoveEx) {
-        let whole = root_motion.whole_position(RootTrackName::MoveEx);
-        position_move_ex = Some(RootMotionPositionMeta {
-            whole_distance: whole.length() as f64,
-            whole_distance_xz: whole.xz().length() as f64,
-            whole_distance_y: whole.y as f64,
-        });
-    }
-
     Ok(RootMotionMeta {
-        version: Track::<Vec3>::version(),
-        position_default,
-        position_move,
-        position_move_ex,
-        has_rotation: root_motion.has_rotation(),
+        version: cp_meta.version,
+            position_default: match cp_meta.position_default.enabled {
+                true => Some(RootMotionPositionMeta {
+                    whole_distance: cp_meta.position_default.whole_distance as f64,
+                    whole_distance_xz: cp_meta.position_default.whole_distance_xz as f64,
+                    whole_distance_y: cp_meta.position_default.whole_distance_y as f64,
+                }),
+                false => None,
+            },
+            position_move: match cp_meta.position_move.enabled {
+                true => Some(RootMotionPositionMeta {
+                    whole_distance: cp_meta.position_move.whole_distance as f64,
+                    whole_distance_xz: cp_meta.position_move.whole_distance_xz as f64,
+                    whole_distance_y: cp_meta.position_move.whole_distance_y as f64,
+                }),
+                false => None,
+            },
+            position_move_ex: match cp_meta.position_move_ex.enabled {
+                true => Some(RootMotionPositionMeta {
+                    whole_distance: cp_meta.position_move_ex.whole_distance as f64,
+                    whole_distance_xz: cp_meta.position_move_ex.whole_distance_xz as f64,
+                    whole_distance_y: cp_meta.position_move_ex.whole_distance_y as f64,
+                }),
+                false => None,
+            },
+        has_rotation: cp_meta.has_rotation,
     })
 }
 
@@ -174,22 +160,22 @@ pub fn calc_root_motion_distances(path: String, ranges: Vec<RangePair>) -> Resul
 }
 
 #[napi(object)]
-pub struct WeaponMotionMeta {
+pub struct WeaponControlMeta {
     pub version: u32,
-    pub count: u32,
-    pub names: Vec<String>,
+    pub has_left_weapon: bool,
+    pub has_right_weapon: bool,
 }
 
 #[napi]
-pub fn load_weapon_motion_meta(path: String) -> Result<WeaponMotionMeta> {
-    let weapon_motion = match WeaponMotion::from_path(&path) {
-        Ok(weapon_motion) => weapon_motion,
+pub fn load_weapon_control_meta(path: String) -> Result<WeaponControlMeta> {
+    let cp_meta = match cp_anim::load_weapon_control_meta(&path) {
+        Ok(meta) => meta,
         Err(err) => return Err(cp_err_msg(err, &path)),
     };
-    Ok(WeaponMotionMeta {
-        version: Track::<Vec3>::version(),
-        count: weapon_motion.len() as u32,
-        names: weapon_motion.iter().map(|w| w.name().to_string()).collect(),
+    Ok(WeaponControlMeta {
+        version: cp_meta.version,
+        has_left_weapon: cp_meta.has_left_weapon,
+        has_right_weapon: cp_meta.has_right_weapon,
     })
 }
 
@@ -206,38 +192,21 @@ pub struct HitMotionGroupMeta {
 
 #[napi]
 pub fn load_hit_motion_meta(path: String) -> Result<HitMotionMeta> {
-    let hit_motion = match HitMotion::from_path(&path) {
-        Ok(cp_meta) => cp_meta,
+    let cp_meta = match cp_anim::load_hit_motion_meta(&path) {
+        Ok(meta) => meta,
         Err(err) => return Err(cp_err_msg(err, &path)),
     };
 
-    let mut groups = Vec::<HitMotionGroupMeta>::default();
-
-    for bx in hit_motion.joint_boxes() {
-        match groups.iter_mut().find(|g| g.group == bx.group) {
-            Some(item) => item.tracks += 1,
-            None => {
-                groups.push(HitMotionGroupMeta {
-                    group: bx.group.to_string(),
-                    tracks: 1,
-                });
-            }
-        }
-    }
-
-    for bx in hit_motion.weapon_boxes() {
-        match groups.iter_mut().find(|g| g.group == bx.group) {
-            Some(item) => item.tracks += 1,
-            None => {
-                groups.push(HitMotionGroupMeta {
-                    group: bx.group.to_string(),
-                    tracks: 1,
-                });
-            }
-        }
-    }
-
-    Ok(HitMotionMeta { groups })
+    Ok(HitMotionMeta {
+        groups: cp_meta
+        .track_groups
+        .into_iter()
+        .map(|g| HitMotionGroupMeta {
+            group: g.group,
+            tracks: g.count as i32,
+        })
+        .collect()
+    })
 }
 
 #[napi(object)]
@@ -249,16 +218,31 @@ pub struct ShapeKeyMeta {
 
 #[napi]
 pub fn load_shape_key_meta(path: String) -> Result<ShapeKeyMeta> {
-    let shape_anim = match ShapeKey::from_path(&path) {
-        Ok(shape_anim) => shape_anim,
+    let cp_meta = match cp_anim::load_shape_key_meta(&path) {
+        Ok(meta) => meta,
         Err(err) => return Err(cp_err_msg(err, &path)),
     };
     Ok(ShapeKeyMeta {
-        version: Track::<f32>::version(),
-        count: shape_anim.len() as u32,
-        names: shape_anim
-            .iter()
-            .map(|shape_key| shape_key.name().to_string())
-            .collect(),
+        version: cp_meta.version,
+        count: cp_meta.count,
+        names: cp_meta.names,
+    })
+}
+
+#[napi(object)]
+pub struct JointWeightsTableMeta {
+    pub names: HashMap<String, u32>,
+    pub count: u32,
+}
+
+#[napi]
+pub fn load_joint_weights_table_meta(path: String) -> Result<JointWeightsTableMeta> {
+    let cp_meta = match cp_anim::load_joint_weights_table_meta(&path) {
+        Ok(meta) => meta,
+        Err(err) => return Err(cp_err_msg(err, &path)),
+    };
+    Ok(JointWeightsTableMeta {
+        names: cp_meta.names.into_iter().enumerate().map(|(idx, name)| (name, idx as u32)).collect(),
+        count: cp_meta.count,
     })
 }

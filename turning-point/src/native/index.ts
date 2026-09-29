@@ -62,27 +62,12 @@ export function calcRootMotionDistances(
     return native.calcRootMotionDistances(realPath, ranges);
 }
 
-const loadWeaponMotionMetaMemoize = memoize(native.loadWeaponMotionMeta);
+const loadWeaponControlMetaMemoize = memoize(native.loadWeaponControlMeta);
 
-export function loadWeaponMotionMeta(path: string, err?: string): native.WeaponMotionMeta {
+export function loadWeaponControlMeta(path: string, err?: string): native.WeaponControlMeta {
     try {
-        const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.wm-ozz')}`;
-        return loadWeaponMotionMetaMemoize(realPath);
-    } catch (e) {
-        if (err) {
-            throw new (Error as any)(err, { cause: e });
-        } else {
-            throw e;
-        }
-    }
-}
-
-const loadShapeKeyMetaMemoize = memoize(native.loadShapeKeyMeta);
-
-export function loadShapeKeyMeta(path: string, err?: string): native.ShapeKeyMeta {
-    try {
-        const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.sk-ozz')}`;
-        return loadShapeKeyMetaMemoize(realPath);
+        const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.wc-ozz')}`;
+        return loadWeaponControlMetaMemoize(realPath);
     } catch (e) {
         if (err) {
             throw new (Error as any)(err, { cause: e });
@@ -107,6 +92,47 @@ export function loadHitMotionMeta(path: string, err?: string): native.HitMotionM
         } else {
             throw e;
         }
+    }
+}
+
+const loadShapeKeyMetaMemoize = memoize(native.loadShapeKeyMeta);
+
+export function loadShapeKeyMeta(path: string, err?: string): native.ShapeKeyMeta {
+    try {
+        const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.sk-ozz')}`;
+        return loadShapeKeyMetaMemoize(realPath);
+    } catch (e) {
+        if (err) {
+            throw new (Error as any)(err, { cause: e });
+        } else {
+            throw e;
+        }
+    }
+}
+
+const loadJointWeightsTableMetaMemoize = memoize(native.loadJointWeightsTableMeta);
+
+export function loadJointWeightsTableMeta(
+    path: string,
+    err?: string,
+): native.JointWeightsTableMeta {
+    try {
+        const realPath = `${OUTPUT_ASSET}/${path.replace('.*', '.lw-json')}`;
+        return loadJointWeightsTableMetaMemoize(realPath);
+    } catch (e) {
+        if (err) {
+            throw new (Error as any)(err, { cause: e });
+        } else {
+            throw e;
+        }
+    }
+}
+
+export function checkJointWeightsTableName(path: string, name: string, err?: string) {
+    const meta = loadJointWeightsTableMeta(path, err);
+    const index = meta.names[name];
+    if (index == null) {
+        throw new (Error as any)(err);
     }
 }
 
