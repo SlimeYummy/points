@@ -9,4 +9,5 @@ export * from './move_free_npc';
 export * from './move_toward_npc';
 export * from './general';
 export * from './general_npc';
+export * from './dodge';
 export * from './dodge_npc';

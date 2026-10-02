@@ -51,7 +51,10 @@ export class Hit {
     ) {
         const hm =
             opts.files &&
-            native.loadHitMotionMeta(opts.files, `${where}.files: file not found (${opts.files})`);
+            native.loadHitMotionMeta(
+                opts.files,
+                `${where}.files: file corrupted or not found (${opts.files})`,
+            );
 
         this.group = parseString(args.group, `${where}.group`, {
             includes: !hm ? undefined : hm.groups.map((g) => g.group),
@@ -102,7 +105,7 @@ export class Hit {
     ): ReadonlyArray<Hit> {
         const hm = native.loadHitMotionMeta(
             opts.files,
-            `${where}.files: file not found (${opts.files})`,
+            `${where}.files: file corrupted or not found (${opts.files})`,
         );
         const hits: Array<Hit> = [];
         for (const gp of hm.groups) {
