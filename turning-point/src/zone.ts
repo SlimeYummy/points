@@ -59,13 +59,13 @@ export class Zone extends Resource {
 
     private checkZoneFiles() {
         if (!fs.existsSync(path.join(INPUT_ASSET, this.files.replace('.*', '.nm-bin')))) {
-            throw this.e('files', `file not found (${this.files})`);
+            throw this.e('files', `file corrupted or not found (${this.files})`);
         }
         if (
             !fs.existsSync(path.join(INPUT_ASSET, this.files.replace('.*', '.zp-json'))) &&
             !fs.existsSync(path.join(INPUT_ASSET, this.files.replace('.*', '.zp-rkyv')))
         ) {
-            throw this.e('files', `file not found (${this.files})`);
+            throw this.e('files', `file corrupted or not found (${this.files})`);
         }
     }
 

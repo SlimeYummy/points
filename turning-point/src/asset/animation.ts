@@ -45,10 +45,10 @@ export function gltf2ozz(
             throw new Error(`JSON track (${jsonTrackDir}) not found`);
         }
         for (const json of fs.readdirSync(jsonTrackDir)) {
-            if (json.endsWith('.wm-json')) {
+            if (json.endsWith('.wc-json')) {
                 jsonTracks.push({
                     json,
-                    filename: path.posix.join(dstDir, json.replace('.wm-json', '.wm-ozz')),
+                    filename: path.posix.join(dstDir, json.replace('.wc-json', '.wc-ozz')),
                 });
             } else if (json.endsWith('.rm-json')) {
                 jsonTracks.push({

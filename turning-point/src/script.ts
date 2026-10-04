@@ -68,7 +68,7 @@ export abstract class Script {
 #![allow(unused)]
 
 use critical_point_wasm_types::*;
-use glam::*;
+use glam::f32::*;
 use glam_ext::*;`,
             ...Script.#scripts
                 .filter((script) => !!script.code && !!script.generator)
