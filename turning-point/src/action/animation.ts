@@ -1,4 +1,4 @@
-import { FilePath, float, int, parseBool, parseFile, parseTime } from '../common';
+import { FilePath, float, int, parseBool, parseFile, parseString, parseTime } from '../common';
 import * as native from '../native';
 
 export type AnimationArgs = {
@@ -7,29 +7,41 @@ export type AnimationArgs = {
      * - xxx.la-ozz 逻辑动画
      * - xxx.va-ozz 视图动画
      * - xxx.rm-ozz 根运动RootMotion
-     * - xxx.wm-ozz 武器轨迹
+     * - xxx.wc-ozz 武器轨迹
      * - xxx.sk-ozz 形态键
      * - xxx.hm-rkyv/xxx.hm-json 攻击判定盒
      */
     files: FilePath;
 
-    /** 动画时长（单位秒） */
+    /**
+     * 动画时长
+     * 默认要与动画文件一致 使用'10s!'形式强制指定时长
+     */
     duration?: float | string;
 
-    /** 淡入动画时间（单位秒） */
+    /**
+     * 默认淡入动画时间
+     * 主要用于Action动画间切换 同一Action内由Action自身逻辑空控制
+     */
     fade_in?: float | string;
 
     /** 是否启用RootMotion */
     root_motion?: boolean;
 
     /** 是否启用武器轨迹 */
-    weapon_motion?: boolean;
+    weapon_control?: boolean;
 
     /** 是否启用命中判定盒 */
     hit_motion?: boolean;
 
     /** 是否启用形态键 */
     shape_key?: boolean;
+
+    /** 是否是叠加混合 */
+    additive_blending?: boolean;
+
+    /** 关节权重配置名称 */
+    joint_weights?: string;
 };
 
 export class Animation {
@@ -38,7 +50,7 @@ export class Animation {
      * - xxx.la-ozz 逻辑动画
      * - xxx.va-ozz 视图动画
      * - xxx.rm-ozz 根运动RootMotion
-     * - xxx.wm-ozz 武器轨迹
+     * - xxx.wc-ozz 武器轨迹
      * - xxx.hm-rkyv/xxx.hm-json 攻击判定盒
      */
     public readonly files: FilePath;
@@ -47,19 +59,19 @@ export class Animation {
     public readonly local_id: int;
 
     /**
-     * 动画时长（单位秒）
-     * 当动画文件内时常与duration不一致时 会将时长缩放为duration
+     * 动画时长
+     * 默认要与动画文件一致 使用'10s!'形式强制指定时长
      */
     public readonly duration: float;
 
-    /** 淡入动画时间（单位秒） */
+    /** 默认淡入动画时间 */
     public readonly fade_in: float;
 
     /** 是否启用RootMotion */
     public readonly root_motion: boolean;
 
     /** 是否启用武器轨迹 */
-    public readonly weapon_motion: boolean;
+    public readonly weapon_control: boolean;
 
     /** 是否启用命中判定盒 */
     public readonly hit_motion: boolean;
@@ -67,24 +79,31 @@ export class Animation {
     /** 是否启用形态键 */
     public readonly shape_key: boolean;
 
+    /** 是否是叠加混合 */
+    public readonly additive_blending: boolean;
+
     public constructor(
         args: AnimationArgs,
         where: string,
         opts: {
             root_motion?: boolean;
-            weapon_motion?: boolean;
+            weapon_control?: boolean;
             hit_motion?: boolean;
+            additive_blending?: boolean;
         } = {},
     ) {
         this.files = parseFile(args.files, `${where}.files`, { extension: '.*' });
         // 确保动画存在
         const anim = native.loadAnimationMeta(
             this.files,
-            `${where}.files: file not found (${this.files})`,
+            `${where}.files: file corrupted or not found (${this.files})`,
         );
 
         this.duration = this.parseDuration(anim, args.duration, `${where}.duration`);
-        this.fade_in = parseTime(args.fade_in ?? 0.1, `${where}.fade_in`, { min: 0, type: 'f32' });
+        this.fade_in = parseTime(args.fade_in ?? 0.1, `${where}.fade_in`, {
+            min: 0,
+            type: 'f32',
+        });
         this.fade_in = Math.min(this.fade_in, this.duration);
 
         this.root_motion = parseBool(args.root_motion ?? false, `${where}.root_motion`);
@@ -93,12 +112,15 @@ export class Animation {
         }
         if (this.root_motion) {
             // 确保RootMotion存在
-            native.loadRootMotionMeta(this.files, `${where}.files: file not found (${this.files})`);
+            native.loadRootMotionMeta(
+                this.files,
+                `${where}.files: file corrupted or not found (${this.files})`,
+            );
         }
 
-        this.weapon_motion = parseBool(args.weapon_motion ?? false, `${where}.weapon_motion`);
-        if (opts.weapon_motion !== undefined && this.weapon_motion !== opts.weapon_motion) {
-            throw new Error(`${where}.weapon_motion: must be ${!!opts.weapon_motion}`);
+        this.weapon_control = parseBool(args.weapon_control ?? false, `${where}.weapon_control`);
+        if (opts.weapon_control !== undefined && this.weapon_control !== opts.weapon_control) {
+            throw new Error(`${where}.weapon_control: must be ${!!opts.weapon_control}`);
         }
 
         this.hit_motion = parseBool(args.hit_motion ?? false, `${where}.hit_motion`);
@@ -107,6 +129,17 @@ export class Animation {
         }
 
         this.shape_key = parseBool(args.shape_key ?? false, `${where}.shape_key`);
+
+        this.additive_blending = parseBool(
+            args.additive_blending ?? false,
+            `${where}.additive_blending`,
+        );
+        if (
+            opts.additive_blending !== undefined &&
+            this.additive_blending !== opts.additive_blending
+        ) {
+            throw new Error(`${where}.additive_blending: must be ${!!opts.additive_blending}`);
+        }
 
         this.local_id = 65535;
     }

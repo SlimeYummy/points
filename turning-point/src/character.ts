@@ -1,12 +1,11 @@
 import {
-    Capsule,
-    checkType,
     FilePath,
     float,
     ID,
     IDPrefix,
     int,
     MAX_NAME_LEN,
+    parseBool,
     parseFile,
     parseFloat,
     parseID,
@@ -14,8 +13,6 @@ import {
     parseIntRange,
     parseString,
     parseStringArray,
-    parseVec2,
-    TaperedCapsule,
 } from './common';
 import { Resource } from './resource';
 import { Action } from './action';
@@ -52,6 +49,9 @@ export type CharacterArgs = {
      * - xxx.cp-rkyv/xxx.cp-json 角色物理
      */
     skeleton_files: FilePath;
+
+    /** 是否包含关节权重表 */
+    joint_weights_table?: boolean;
 };
 
 /**
@@ -89,6 +89,9 @@ export class Character extends Resource {
      */
     public readonly skeleton_files: FilePath;
 
+    /** 是否包含关节权重表 */
+    public readonly joint_weights_table: boolean;
+
     public constructor(id: ID, args: CharacterArgs) {
         super(id);
         this.name = parseString(args.name, this.w('name'), { max_len: MAX_NAME_LEN });
@@ -98,20 +101,31 @@ export class Character extends Resource {
         this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), {
             extension: '.*',
         });
+        this.joint_weights_table = parseBool(
+            args.joint_weights_table ?? false,
+            this.w('joint_weights_table'),
+        );
 
         this.checkSkeletonFiles();
     }
 
     private checkSkeletonFiles() {
         if (!native.existCharacterPhysics(this.skeleton_files)) {
-            throw this.e('skeleton_files', `file not found (${this.skeleton_files})`);
+            throw this.e('skeleton_files', `file corrupted or not found (${this.skeleton_files})`);
         }
 
         native.loadSkeletonMeta(
             this.skeleton_files,
             false,
-            `${this.w('skeleton_files')}: file not found (${this.skeleton_files})`,
+            `${this.w('skeleton_files')}: file corrupted or not found (${this.skeleton_files})`,
         );
+
+        if (this.joint_weights_table) {
+            native.loadJointWeightsTableMeta(
+                this.skeleton_files,
+                `${this.w('skeleton_files')}: file corrupted or not found (${this.skeleton_files})`,
+            );
+        }
     }
 
     public override verify() {
@@ -319,6 +333,9 @@ export type CharacterNpcArgs = {
      */
     skeleton_files: FilePath;
 
+    /** 是否包含关节权重表 */
+    joint_weights_table?: boolean;
+
     /** 角色模型（渲染） */
     view_model: FilePath;
 };
@@ -367,6 +384,9 @@ export class CharacterNpc extends Resource {
      */
     public readonly skeleton_files: FilePath;
 
+    /** 是否包含关节权重表 */
+    public readonly joint_weights_table: boolean;
+
     /** 角色模型（渲染） */
     public readonly view_model: FilePath;
 
@@ -389,6 +409,10 @@ export class CharacterNpc extends Resource {
         this.skeleton_files = parseFile(args.skeleton_files, this.w('skeleton_files'), {
             extension: '.*',
         });
+        this.joint_weights_table = parseBool(
+            args.joint_weights_table ?? false,
+            this.w('joint_weights_table'),
+        );
         this.view_model = parseFile(args.view_model, this.w('view_model'), {
             extension: ['.vrm', '.prefab', '.unity'],
         });
@@ -398,14 +422,21 @@ export class CharacterNpc extends Resource {
 
     private checkSkeletonFiles() {
         if (!native.existCharacterPhysics(this.skeleton_files)) {
-            throw this.e('skeleton_files', `file not found (${this.skeleton_files})`);
+            throw this.e('skeleton_files', `file corrupted or not found (${this.skeleton_files})`);
         }
 
         native.loadSkeletonMeta(
             this.skeleton_files,
             false,
-            `${this.w('skeleton_files')}: file not found (${this.skeleton_files})`,
+            `${this.w('skeleton_files')}: file corrupted or not found (${this.skeleton_files})`,
         );
+
+        if (this.joint_weights_table) {
+            native.loadJointWeightsTableMeta(
+                this.skeleton_files,
+                `${this.w('skeleton_files')}: file corrupted or not found (${this.skeleton_files})`,
+            );
+        }
     }
 
     public verify(): void {
