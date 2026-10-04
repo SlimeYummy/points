@@ -11,7 +11,10 @@ import {
     parseIDArray,
     parseString,
     parseTime,
+    parseTimeRange,
 } from '../common';
+import { Character } from '../character';
+import * as native from '../native';
 import { Animation, AnimationArgs } from './animation';
 import { Action, ActionArgs, LEVEL_MOVE, parseActionLevel } from './base';
 
@@ -80,15 +83,8 @@ export class ActionMoveFreeTurn {
     }
 }
 
-export type ActionMoveFreeStopEnterArgs =
-    | {
-          /** 进入该动画的相位 [开始, 结束] */
-          phase: [float | string, float | string];
-
-          /** 动画偏移时间 */
-          offset: float | string;
-      }
-    | [[float | string, float | string], float | string];
+/** 进入该动画的相位 [开始, 结束] */
+export type ActionMoveFreeStopEnterArgs = [float | string, float | string];
 
 export type ActionMoveFreeStopLeaveArgs =
     | {
@@ -99,7 +95,10 @@ export type ActionMoveFreeStopLeaveArgs =
       }
     | [float | string, float | string];
 
-export type ActionMoveFreeStopArgs = AnimationArgs & {
+export type ActionMoveFreeStop1Args = AnimationArgs & {
+    /** 停止动画淡入时间 */
+    fade_in?: float | string;
+
     /** 进入该动画的相位表  */
     enter_phase_table: Array<ActionMoveFreeStopEnterArgs>;
 
@@ -107,17 +106,77 @@ export type ActionMoveFreeStopArgs = AnimationArgs & {
     leave_phase_table?: Array<ActionMoveFreeStopLeaveArgs>;
 };
 
-export class ActionMoveFreeStop {
+function parseStopEnterPhaseTable(
+    table: ReadonlyArray<ActionMoveFreeStopEnterArgs>,
+    duration: float,
+    where: string,
+): ReadonlyArray<readonly [float, float]> {
+    checkArray(table, `${where}.enter_phase_table`, { min_len: 1 });
+    return table.map((item, idx) => {
+        checkArray(item, `${where}[${idx}]`, { len: 2 });
+        return [
+            parseFloat(item[0], `${where}[${idx}][0]`, { min: 0, max: 1, type: 'f32' }),
+            parseFloat(item[1], `${where}[${idx}][1]`, { min: 0, max: 1, type: 'f32' }),
+        ] as const;
+    });
+}
+
+function parseStopLeavePhaseTable(
+    table: undefined | Array<ActionMoveFreeStopLeaveArgs>,
+    duration: float,
+    where: string,
+): ReadonlyArray<{ readonly time: float; readonly phase: float }> {
+    if (table == null) {
+        return [];
+    }
+
+    checkArray(table, `${where}.leave_phase_table`, { min_len: 2 });
+    let iter_time = 0;
+    return table.map((item, idx) => {
+        let time: float, phase: float, time_where;
+        if (Array.isArray(item)) {
+            time = parseTime(item[0], `${where}[${idx}][0]`, {
+                min: 0,
+                max: duration,
+                type: 'f32',
+            });
+            phase = parseFloat(item[1], `${where}[${idx}][1]`, { min: 0, max: 1, type: 'f32' });
+            time_where = `${where}[${idx}][0]`;
+        } else {
+            time = parseTime(item.time, `${where}[${idx}].time`, {
+                min: 0,
+                max: duration,
+                type: 'f32',
+            });
+            phase = parseFloat(item.phase, `${where}[${idx}].phase`, {
+                min: 0,
+                max: 1,
+                type: 'f32',
+            });
+            time_where = `${where}[${idx}].time`;
+        }
+        if (idx === 0 && time !== 0) {
+            throw new Error(`${time_where} must == 0`);
+        }
+        if (time < iter_time) {
+            throw new Error(`${time_where} must be ascend`);
+        }
+        iter_time = time;
+        return { time, phase };
+    });
+}
+
+export class ActionMoveFreeStop1 {
+    public readonly T: string;
+
     /** Stop动画 */
     public readonly anim: Animation;
 
-    /** 进入该动画的相位表 */
-    public readonly enter_phase_table: ReadonlyArray<{
-        /** 进入该动画的相位 [开始, 结束] */
-        readonly phase: readonly [float, float];
-        /** 动画偏移时间 */
-        readonly offset: float;
-    }>;
+    /** 停止动画淡入时间 */
+    public readonly fade_in: float;
+
+    /** 进入该动画的相位表 [开始, 结束] */
+    public readonly enter_phase_table: ReadonlyArray<readonly [float, float]>;
 
     /** 停止动画减速阶段的结束时间 */
     public readonly leave_phase_table: ReadonlyArray<{
@@ -127,106 +186,153 @@ export class ActionMoveFreeStop {
         readonly phase: float;
     }>;
 
-    public constructor(args: ActionMoveFreeStopArgs, where: string) {
+    public constructor(args: ActionMoveFreeStop1Args, where: string) {
+        this.T = 'Stop1';
         this.anim = new Animation(args, where, { root_motion: true });
-        this.enter_phase_table = this.parseEnterPhaseTable(
+        this.fade_in =
+            args.fade_in == null
+                ? 0
+                : parseTime(args.fade_in, `${where}.fade_in`, {
+                      min: 0,
+                      max: this.anim.duration,
+                      type: 'f32',
+                  });
+        this.enter_phase_table = parseStopEnterPhaseTable(
             args.enter_phase_table,
             this.anim.duration,
             `${where}.enter_phase_table`,
         );
-        this.leave_phase_table = this.parseLeavePhaseTable(
+        this.leave_phase_table = parseStopLeavePhaseTable(
             args.leave_phase_table,
             this.anim.duration,
             `${where}.leave_phase_table`,
         );
     }
+}
 
-    private parseEnterPhaseTable(
-        table: ReadonlyArray<ActionMoveFreeStopEnterArgs>,
-        duration: float,
-        where: string,
-    ) {
-        checkArray(table, `${where}.enter_phase_table`, { min_len: 1 });
-        return table.map((item, idx) => {
-            let phase: readonly [float, float], offset: float;
-            if (Array.isArray(item)) {
-                checkArray(item[0], `${where}[${idx}]`, { len: 2 });
-                phase = [
-                    parseFloat(item[0][0], `${where}[${idx}][0]`, { min: 0, max: 1, type: 'f32' }),
-                    parseFloat(item[0][1], `${where}[${idx}][1]`, { min: 0, max: 1, type: 'f32' }),
-                ];
-                offset = parseTime(item[1], `${where}[${idx}]`, {
-                    min: 0,
-                    max: duration,
-                    type: 'f32',
-                });
-            } else {
-                checkArray(item.phase, `${where}[${idx}]`, { len: 2 });
-                phase = [
-                    parseFloat(item.phase[0], `${where}[${idx}][0]`, {
-                        min: 0,
-                        max: 1,
-                        type: 'f32',
-                    }),
-                    parseFloat(item.phase[1], `${where}[${idx}][1]`, {
-                        min: 0,
-                        max: 1,
-                        type: 'f32',
-                    }),
-                ];
-                offset = parseTime(item.offset, `${where}[${idx}]`, {
-                    min: 0,
-                    max: duration,
-                    type: 'f32',
-                });
-            }
-            return { phase, offset };
+/**
+ * 特殊Stop动作模式 重平滑了手臂动作
+ *
+ * 我们把身体拆分为两部分 分别处理
+ * 对于身体部分 简单插值过度
+ *
+ * 对于手臂部分 我们维持前动画继续播放一段时间（但速度逐渐减慢） 以保持动画平滑
+ * 再逐步削减前动画权重 直到stop结束 完全切换至stop动画的最终姿态
+ *
+ * 另外手臂动画支持以additive模式 附加一个额外动画偏移
+ */
+export type ActionMoveFreeStop2Args = {
+    /**
+     * 前动画继续播放的时间 [动画时间, 实际播放时间]
+     * 因为播放速度会逐渐减慢 所以要求：动画时间<实际播放时间
+     */
+    prev_anim_time: readonly [float | string, float | string];
+
+    /** 停止动画 */
+    anim_stop: AnimationArgs;
+
+    /** 不含手臂部分的淡入时间 */
+    no_arm_fade_in: float | string;
+
+    /** 手臂部分的淡出时间 */
+    arm_fade_out: float | string;
+
+    /** 手臂附加增加动画 */
+    anim_arm_additive?: AnimationArgs;
+
+    /** 手臂附加增加动画的淡入/淡出时间 [淡入结束时间，淡出开始时间] */
+    arm_additive_fade_inout?: readonly [float | string, float | string];
+
+    /** 进入该动画的相位表  */
+    enter_phase_table: Array<ActionMoveFreeStopEnterArgs>;
+
+    /** 离开该动画的相位表  */
+    leave_phase_table?: Array<ActionMoveFreeStopLeaveArgs>;
+};
+
+export class ActionMoveFreeStop2 {
+    public readonly T: string;
+
+    /** 前动画继续播放的时间 [动画时间, 实际播放时间] */
+    public readonly prev_anim_time: readonly [float, float];
+
+    /** Stop动画 */
+    public readonly anim_stop: Animation;
+
+    /** 不含手臂部分的淡入时间 */
+    public readonly no_arm_fade_in: float;
+
+    /** 手臂部分的淡出时间 */
+    public readonly arm_fade_out: float;
+
+    /** 手臂附加增加动画 */
+    public readonly anim_arm_additive?: Animation;
+
+    /** 手臂附加增加动画的淡入/淡出时间 [淡入结束时间，淡出开始时间] */
+    public readonly arm_additive_fade_inout?: readonly [float, float];
+
+    /** 进入该动画的相位表 [开始, 结束] */
+    public readonly enter_phase_table: ReadonlyArray<readonly [float, float]>;
+
+    /** 离开该动画的相位表 */
+    public readonly leave_phase_table: ReadonlyArray<{
+        /** 动画时间 */
+        readonly time: float;
+        /** 对应相位 */
+        readonly phase: float;
+    }>;
+
+    public constructor(args: ActionMoveFreeStop2Args, where: string) {
+        this.T = 'Stop2';
+
+        this.prev_anim_time = parseTimeRange(args.prev_anim_time, `${where}.prev_anim_time`, {
+            min: 0,
+            type: 'f32',
         });
-    }
 
-    private parseLeavePhaseTable(
-        table: undefined | Array<ActionMoveFreeStopLeaveArgs>,
-        duration: float,
-        where: string,
-    ) {
-        if (table == null) {
-            return [];
+        this.anim_stop = new Animation(args.anim_stop, `${where}.anim_stop`, { root_motion: true });
+        this.no_arm_fade_in = parseTime(args.no_arm_fade_in, `${where}.no_arm_fade_in`, {
+            min: 0,
+            max: this.anim_stop.duration,
+            type: 'f32',
+        });
+        this.arm_fade_out = parseTime(args.arm_fade_out, `${where}.arm_fade_out`, {
+            min: 0,
+            max: this.anim_stop.duration,
+            type: 'f32',
+        });
+
+        this.anim_arm_additive =
+            args.anim_arm_additive == null
+                ? undefined
+                : new Animation(args.anim_arm_additive, `${where}.anim_arm_additive`, {
+                      root_motion: false,
+                      weapon_control: false,
+                      hit_motion: false,
+                      additive_blending: true,
+                  });
+        if (this.anim_arm_additive != null) {
+            this.arm_additive_fade_inout = parseTimeRange(
+                args.arm_additive_fade_inout as any,
+                `${where}.arm_additive_fade_inout`,
+                {
+                    min: 0,
+                    max: this.anim_stop.duration,
+                    type: 'f32',
+                },
+            );
         }
 
-        checkArray(table, `${where}.leave_phase_table`, { min_len: 2 });
-        let iter_time = 0;
-        return table.map((item, idx) => {
-            let time: float, phase: float, time_where;
-            if (Array.isArray(item)) {
-                time = parseTime(item[0], `${where}[${idx}][0]`, {
-                    min: 0,
-                    max: duration,
-                    type: 'f32',
-                });
-                phase = parseFloat(item[1], `${where}[${idx}][1]`, { min: 0, max: 1, type: 'f32' });
-                time_where = `${where}[${idx}][0]`;
-            } else {
-                time = parseTime(item.time, `${where}[${idx}].time`, {
-                    min: 0,
-                    max: duration,
-                    type: 'f32',
-                });
-                phase = parseFloat(item.phase, `${where}[${idx}].phase`, {
-                    min: 0,
-                    max: 1,
-                    type: 'f32',
-                });
-                time_where = `${where}[${idx}].time`;
-            }
-            if (idx === 0 && time !== 0) {
-                throw new Error(`${time_where} must == 0`);
-            }
-            if (time < iter_time) {
-                throw new Error(`${time_where} must be ascend`);
-            }
-            iter_time = time;
-            return { time, phase };
-        });
+        this.enter_phase_table = parseStopEnterPhaseTable(
+            args.enter_phase_table,
+            this.anim_stop.duration,
+            `${where}.enter_phase_table`,
+        );
+        this.leave_phase_table = parseStopLeavePhaseTable(
+            args.leave_phase_table,
+            this.anim_stop.duration,
+            `${where}.leave_phase_table`,
+        );
     }
 }
 
@@ -258,7 +364,7 @@ export type ActionMoveFreeArgs = ActionArgs & {
     anim_starts: ReadonlyArray<ActionMoveFreeStartArgs>;
 
     /** 移动停止动画 */
-    anim_stops: ReadonlyArray<ActionMoveFreeStopArgs>;
+    anim_stops: ReadonlyArray<ActionMoveFreeStop1Args | ActionMoveFreeStop2Args>;
 
     /** 快速停止时间 */
     quick_stop_time?: float | string;
@@ -318,7 +424,7 @@ export class ActionMoveFree extends Action {
     public readonly starts: ReadonlyArray<ActionMoveFreeStart>;
 
     /** 移动停止动画 */
-    public readonly stops: ReadonlyArray<ActionMoveFreeStop>;
+    public readonly stops: ReadonlyArray<ActionMoveFreeStop1 | ActionMoveFreeStop2>;
 
     /** 快速停止时间 */
     public readonly quick_stop_time: float;
@@ -376,12 +482,7 @@ export class ActionMoveFree extends Action {
             { min_len: 1 },
         );
 
-        this.stops = parseArray(
-            args.anim_stops,
-            this.w('anim_stops'),
-            (item, idx) => new ActionMoveFreeStop(item, this.w(`anim_stops[${idx}]`)),
-            { min_len: 1 },
-        );
+        this.stops = this.parseStops(args.anim_stops);
         this.quick_stop_time = parseTime(args.quick_stop_time || 0, this.w('quick_stop_time'), {
             min: 0,
             type: 'f32',
@@ -417,8 +518,29 @@ export class ActionMoveFree extends Action {
             this.anim_move,
             ...this.starts.map((s) => s.anim),
             ...this.turns.map((s) => s.anim),
-            ...this.stops.map((s) => s.anim),
+            ...this.stops.flatMap((s) =>
+                s instanceof ActionMoveFreeStop2 ? [s.anim_stop, s.anim_arm_additive] : [s.anim],
+            ),
         ]);
+    }
+
+    private parseStops(
+        anim_stops: ActionMoveFreeArgs['anim_stops'],
+    ): ReadonlyArray<ActionMoveFreeStop1 | ActionMoveFreeStop2> {
+        const where = this.w('anim_stops');
+        if (!Array.isArray(anim_stops) || anim_stops.length < 1) {
+            throw new Error(`${where}: length must >= 1`);
+        }
+        const stops: Array<ActionMoveFreeStop1 | ActionMoveFreeStop2> = [];
+        for (const [idx, item] of anim_stops.entries()) {
+            const item_where = `${where}[${idx}]`;
+            if ('anim_stop' in item) {
+                stops.push(new ActionMoveFreeStop2(item, item_where));
+            } else {
+                stops.push(new ActionMoveFreeStop1(item, item_where));
+            }
+        }
+        return stops;
     }
 
     public override verify() {
@@ -428,6 +550,24 @@ export class ActionMoveFree extends Action {
             if (!(act instanceof ActionMoveFree)) {
                 throw this.e(`smooth_move_froms[${idx}]`, 'must not be ActionMoveFree');
             }
+        }
+
+        if (this.stops.some((s) => s instanceof ActionMoveFreeStop2)) {
+            const character = Character.find(this.character!, this.w('character'));
+            if (!character.joint_weights_table) {
+                throw this.e('character', `joint_weights_table not enabled`);
+            }
+            const where = this.w('character');
+            native.checkJointWeightsTableName(
+                character.skeleton_files,
+                'Arm',
+                `${where}: "Arm" not found in joint weights table`,
+            );
+            native.checkJointWeightsTableName(
+                character.skeleton_files,
+                'NoArm',
+                `${where}: "NoArm" not found in joint weights table`,
+            );
         }
     }
 }

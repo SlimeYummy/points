@@ -93,7 +93,10 @@ export class ActionHit extends Action {
         this.anim_down = !args.anim_down
             ? undefined
             : new Animation(args.anim_down, this.w('anim_down'));
-        this.max_down_time = parseTime(args.max_down_time ?? 0, this.w('max_down_time'), { min: 0, type: 'f32' });
+        this.max_down_time = parseTime(args.max_down_time ?? 0, this.w('max_down_time'), {
+            min: 0,
+            type: 'f32',
+        });
         this.anim_recovery = !args.anim_recovery
             ? undefined
             : new Animation(args.anim_recovery, this.w('anim_recovery'));

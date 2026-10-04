@@ -5,7 +5,6 @@ import {
     int,
     parseAngleXz,
     parseBool,
-    parseString,
     parseTime,
     TimelinePoint,
     TimelinePointArgs,
