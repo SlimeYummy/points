@@ -1,9 +1,10 @@
 import {
     Accessory,
     AccessoryPool,
+    ActionDodge,
+    ActionDodgeNpc,
     ActionGeneral,
     ActionGeneralNpc,
-    ActionDodgeNpc,
     ActionHit,
     ActionIdle,
     ActionMoveFree,
@@ -12,21 +13,24 @@ import {
     AiRoutine,
     AiTaskGeneral,
     AiTaskIdle,
+    AiTaskKeepDistance,
     AiTaskMoveToCharacter,
     AiTaskPatrol,
-    AiTaskKeepDistance,
     Attack,
     Attack1,
     Attack2,
     Character,
     CharacterNpc,
     Defense,
+    Dodge,
     Entry,
     Equipment,
     Hit1,
+    If,
     Jewel,
     LEVEL_ACTION,
     LEVEL_ATTACK,
+    LEVEL_DERIVE,
     MAX_ENTRY_PLUS,
     Perk,
     Rare1,
@@ -43,7 +47,6 @@ import {
     Variant3,
     Walk,
     Zone,
-    If,
 } from '../src';
 
 Var.define({
@@ -72,6 +75,7 @@ const ONE = new Character('Character.One', {
     styles: ['Style.One^1', 'Style.One^2'],
     equipments: ['Equipment.No1', 'Equipment.No2', 'Equipment.No3'],
     skeleton_files: 'Girl/Girl.*',
+    joint_weights_table: true,
 });
 
 new Style('Style.One^1', {
@@ -101,6 +105,7 @@ new Style('Style.One^1', {
         'Action.One.Run',
         'Action.One.Attack^1',
         'Action.One.Attack^2',
+        'Action.One.Dodge',
     ],
     view_model: 'StyleOne-1.vrm',
 });
@@ -245,7 +250,7 @@ new ActionMoveFree('Action.One.Run', {
     anim_starts: [
         {
             enter_angle: ['L15', 'R15'],
-            files: 'Girl/RunStart_Empty.*',
+            files: 'Girl/Run_Start_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '2F',
@@ -253,7 +258,7 @@ new ActionMoveFree('Action.One.Run', {
         },
         {
             enter_angle: ['L15', 'L180'],
-            files: 'Girl/RunStart_L180_Empty.*',
+            files: 'Girl/Run_Start_L180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -261,7 +266,7 @@ new ActionMoveFree('Action.One.Run', {
         },
         {
             enter_angle: ['R15', 'R180'],
-            files: 'Girl/RunStart_R180_Empty.*',
+            files: 'Girl/Run_Start_R180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -271,8 +276,8 @@ new ActionMoveFree('Action.One.Run', {
     turn_time: '10F',
     anim_stops: [
         {
-            enter_phase_table: [{ phase: [0.75, 0.25], offset: '2F' }],
-            files: 'Girl/RunStop_L_Empty.*',
+            enter_phase_table: [[0.75, 0.25]],
+            files: 'Girl/Run_Stop_L1_Empty.*',
             fade_in: '4F',
             root_motion: true,
             leave_phase_table: [
@@ -281,13 +286,24 @@ new ActionMoveFree('Action.One.Run', {
             ],
         },
         {
-            enter_phase_table: [{ phase: [0.25, 0.75], offset: '2F' }],
-            files: 'Girl/RunStop_R_Empty.*',
-            fade_in: '4F',
-            root_motion: true,
+            enter_phase_table: [[0.25, 0.75]],
+            prev_anim_time: ['6F', '12F'],
+            anim_stop: {
+                files: 'Girl/Run_Stop_R1_Empty.*',
+                fade_in: '4F',
+                root_motion: true,
+            },
+            no_arm_fade_in: '6F',
+            arm_fade_out: '14F',
+            anim_arm_additive: {
+                files: 'Girl/Run_Stop_Add_Empty.*',
+                additive_blending: true,
+            },
+            arm_additive_fade_inout: ['12F', '20F'],
             leave_phase_table: [
-                ['0F', 0.5],
-                ['14F', 0.0],
+                ['0F', 0.0],
+                ['14F', 0.5],
+                ['34F', 0.8],
             ],
         },
     ],
@@ -300,8 +316,9 @@ new ActionGeneral('Action.One.Attack^1', {
         files: 'Girl/Attack_Test.*',
         duration: '4s!',
         root_motion: true,
-        weapon_motion: true,
+        weapon_control: true,
         hit_motion: true,
+        additive_blending: true,
     },
     character: ONE.id,
     tags: ['Attack'],
@@ -367,6 +384,26 @@ new ActionGeneral('Action.One.Attack^2', {
     keep_levels: {
         '0-5s': LEVEL_ACTION,
         '3s-5s': LEVEL_ATTACK,
+    },
+});
+
+new ActionDodge('Action.One.Dodge', {
+    character: ONE.id,
+    tags: ['Dodge'],
+    styles: ['Style.One^1'],
+    enter_key: Dodge,
+    enter_level: LEVEL_DERIVE,
+    anim_dodge: {
+        files: 'Girl/Dodge_F_Empty.*',
+        root_motion: true,
+    },
+    smooth_move_froms: ['Action.One.Run'],
+    smooth_no_leg_fade_in: '8F',
+    smooth_speed_duration: '10F',
+    dodge_time: ['6F', '24F'],
+    derive_times: {
+        quick: '34F',
+        normal: '48F',
     },
 });
 
@@ -696,7 +733,7 @@ new ActionGeneralNpc('Action.Enemy.Attack', {
         files: 'Slime/Attack1A.*',
         duration: '168F',
         root_motion: true,
-        weapon_motion: false,
+        weapon_control: false,
         hit_motion: false,
     },
     adjust_movements: {
@@ -752,7 +789,7 @@ new ActionDodgeNpc('Action.Enemy.Dodge', {
             rotation_duration: ['16F', '24F'],
             rotation_max_angle: 180,
             keep_levels: { '0-110F': LEVEL_ACTION },
-        }
+        },
     ],
 });
 
@@ -830,8 +867,8 @@ new AiRoutine('AiRoutine.Enemy.Sequence', {
     tasks: [
         'AiTask.Enemy.Idle',
         If('true', 'AiTask.Enemy.Patrol')
-        .Elsif_R('Ok(true)', 'AiTask.Enemy.Patrol')
-        .Else('AiTask.Enemy.MoveTo'),
+            .Elsif_R('Ok(true)', 'AiTask.Enemy.Patrol')
+            .Else('AiTask.Enemy.MoveTo'),
     ],
 });
 
