@@ -4,11 +4,13 @@ if (!FORCE_GEN) {
     // Asset.enableIncrement();
 }
 
+const RE_SUFFIX = /\.(?:hm-json|cp-json|lw-json|vw-json)$/;
+
 const zones = ['/Zones'];
 Asset.copyFiles('../test-asset/', (dir, file) => {
     if (zones.includes(dir)) {
         return `${dir}/${file}`;
-    } else if (file.endsWith('.hm-json') || file.endsWith('.cp-json')) {
+    } else if (RE_SUFFIX.test(file)) {
         return `${dir}/${file}`;
     }
     return null;
@@ -20,7 +22,8 @@ const MAPPING_VRM_HUMAN = {
     viewFile: 'mapping_vrm_human_view.json',
 };
 
-Asset.gltf2ozz('Girl/GirlLocomotion.glb', null, MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
+// Asset.gltf2ozz('Girl/GirlLocomotion.glb', null, MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
+Asset.gltf2ozz('Girl/GirlLocomotionAxe.glb', 'Girl/', MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
 Asset.gltf2ozz('Girl/GirlAttack.glb', 'Girl/', MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
 Asset.gltf2ozz('Girl/GirlBeHit.glb', null, MAPPING_VRM_HUMAN, 'Girl', 'Girl/');
 Asset.gltf2ozz('Girl/GirlExtra.glb', null, MAPPING_VRM_HUMAN, 'Girl', 'Girl/');

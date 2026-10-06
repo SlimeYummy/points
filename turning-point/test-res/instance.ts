@@ -1,4 +1,5 @@
 import {
+    ActionDodge,
     ActionDodgeNpc,
     ActionGeneral,
     ActionGeneralNpc,
@@ -28,6 +29,8 @@ import {
     Style,
     Var,
     Walk,
+    Dodge,
+    LEVEL_DERIVE,
 } from '../src';
 
 //
@@ -57,6 +60,7 @@ new Character('Character.Instance^1', {
     styles: ['Style.Instance^1A'],
     equipments: ['Equipment.Instance^1A', 'Equipment.Instance^1B'],
     skeleton_files: 'Girl/Girl.*',
+    joint_weights_table: true,
 });
 
 new Style('Style.Instance^1A', {
@@ -85,6 +89,7 @@ new Style('Style.Instance^1A', {
         'Action.Instance.Attack^1A',
         'Action.Instance.AttackDerive^1A',
         'Action.Instance.AttackUnused^1A',
+        'Action.Instance.Dodge^1A',
     ],
     view_model: 'StyleOne-1.vrm',
 });
@@ -198,7 +203,7 @@ new ActionMoveFree('Action.Instance.Run^1A', {
     anim_starts: [
         {
             enter_angle: ['L15', 'R15'],
-            files: 'Girl/RunStart_Empty.*',
+            files: 'Girl/Run_Start_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '2F',
@@ -206,7 +211,7 @@ new ActionMoveFree('Action.Instance.Run^1A', {
         },
         {
             enter_angle: ['L15', 'L180'],
-            files: 'Girl/RunStart_L180_Empty.*',
+            files: 'Girl/Run_Start_L180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -214,7 +219,7 @@ new ActionMoveFree('Action.Instance.Run^1A', {
         },
         {
             enter_angle: ['R15', 'R180'],
-            files: 'Girl/RunStart_R180_Empty.*',
+            files: 'Girl/Run_Start_R180_Empty.*',
             fade_in: 0,
             root_motion: true,
             turn_in_place_end: '8F',
@@ -224,8 +229,8 @@ new ActionMoveFree('Action.Instance.Run^1A', {
     turn_time: '10F',
     anim_stops: [
         {
-            enter_phase_table: [{ phase: [0.75, 0.25], offset: '2F' }],
-            files: 'Girl/RunStop_L_Empty.*',
+            enter_phase_table: [[0.75, 0.25]],
+            files: 'Girl/Run_Stop_L1_Empty.*',
             fade_in: '4F',
             root_motion: true,
             leave_phase_table: [
@@ -234,13 +239,24 @@ new ActionMoveFree('Action.Instance.Run^1A', {
             ],
         },
         {
-            enter_phase_table: [{ phase: [0.25, 0.75], offset: '2F' }],
-            files: 'Girl/RunStop_R_Empty.*',
-            fade_in: '4F',
-            root_motion: true,
+            enter_phase_table: [[0.25, 0.75]],
+            prev_anim_time: ['6F', '12F'],
+            anim_stop: {
+                files: 'Girl/Run_Stop_R1_Empty.*',
+                fade_in: '4F',
+                root_motion: true,
+            },
+            no_arm_fade_in: '6F',
+            arm_fade_out: '14F',
+            anim_arm_additive: {
+                files: 'Girl/Run_Stop_Add_Empty.*',
+                additive_blending: true,
+            },
+            arm_additive_fade_inout: ['12F', '20F'],
             leave_phase_table: [
-                ['0F', 0.5],
-                ['14F', 0.0],
+                ['0F', 0.0],
+                ['14F', 0.5],
+                ['34F', 0.8],
             ],
         },
     ],
@@ -256,6 +272,7 @@ new ActionGeneral('Action.Instance.Attack^1A', {
         duration: '4s!',
         root_motion: true,
         hit_motion: true,
+        additive_blending: true,
     },
     enter_key: Attack1,
     enter_level: LEVEL_ATTACK,
@@ -336,6 +353,26 @@ new ActionGeneral('Action.Instance.AttackUnused^1A', {
     },
 });
 
+new ActionDodge('Action.Instance.Dodge^1A', {
+    character: 'Character.Instance^1',
+    tags: ['Dodge'],
+    styles: ['Style.Instance^1A'],
+    enter_key: Dodge,
+    enter_level: LEVEL_DERIVE,
+    anim_dodge: {
+        files: 'Girl/Dodge_F_Empty.*',
+        root_motion: true,
+    },
+    smooth_move_froms: ['Action.Instance.Run^1A'],
+    smooth_no_leg_fade_in: '8F',
+    smooth_speed_duration: '10F',
+    dodge_time: ['4F', '34F'],
+    derive_times: {
+        quick: '34F',
+        normal: '60F',
+    },
+});
+
 //
 // NPC
 //
@@ -395,7 +432,7 @@ new ActionGeneralNpc('Action.InstanceNpc.Attack^1A', {
         files: 'Slime/Attack1A.*',
         duration: '168F',
         root_motion: true,
-        weapon_motion: false,
+        weapon_control: false,
         hit_motion: false,
     },
     adjust_movements: {
