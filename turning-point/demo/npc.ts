@@ -278,8 +278,8 @@ new ActionGeneralNpc('Action.Slime.Attack1A', {
     },
     adjust_movements: [
         { time: '0F', duration: '30F', max_angle: 60 },
-        { time: '52F', duration: '15F', max_angle: 30 },
-        { time: '104F', duration: '26F', distance: [1.5, 4.0], speed_ratio: [0.6, 1.6] },
+        { time: '52F', duration: '15F', max_angle: 45 },
+        { time: '104F', duration: '20F', distance: [1.5, 4.0], speed_ratio: [1.5 / 2.9, 4.0 / 2.9] },
     ],
     keep_levels: {
         '0-150F': LEVEL_ACTION,
@@ -300,8 +300,8 @@ new ActionGeneralNpc('Action.Slime.Attack1B', {
         hit_motion: true,
     },
     adjust_movements: [
-        { time: '0F', duration: '15F', max_angle: 30 },
-        { time: '42F', duration: '26F', distance: [1.5, 4.0], speed_ratio: [0.6, 1.6] },
+        { time: '0F', duration: '15F', max_angle: 45 },
+        { time: '42F', duration: '20F', distance: [1.5, 4.0], speed_ratio: [1.5 / 2.9, 4.0 / 2.9] },
     ],
     keep_levels: {
         '0-100F': LEVEL_ACTION,
@@ -322,10 +322,11 @@ new ActionGeneralNpc('Action.Slime.Attack2', {
         hit_motion: true,
     },
     adjust_movements: [
-        { time: '0F', duration: '30F', max_angle: 60 },
-        { time: '54F', duration: '22F', max_angle: 45 },
-        { time: '110F', duration: '22F', max_angle: 45 },
-        { time: '122F', duration: '44F', distance: [3.9, 7.8], speed_ratio: [0.75, 1.5] },
+        { time: '0F', duration: '30F', max_angle: 45 },
+        { time: '54F', duration: '22F', max_angle: 60 },
+        { time: '110F', duration: '22F', max_angle: 60 },
+        { time: '122F', duration: '44F', distance: [3.9, 7.8], speed_ratio: [3.9 / 5.2, 7.8 / 5.2] },
+        { time: '166F', duration: '10F', distance: [0.5, 2.0], speed_ratio: [0.5 / 1.0, 2.0 / 1.0] },
     ],
     keep_levels: {
         '0-100F': LEVEL_ACTION,
@@ -338,9 +339,9 @@ new ActionGeneralNpc('Action.Slime.Attack2', {
 
 new AiBrain('AiBrain.Slime', {
     character_npc: 'CharacterNpc.Slime',
-    alert_sphere: { radius: 6 },
-    alert_cone: { radius: 10, half_angle: 60 },
-    aggro_sphere: { radius: 10 },
+    alert_sphere: { radius: 10 },
+    alert_cone: { radius: 15, half_angle: 60 },
+    aggro_sphere: { radius: 15 },
     aggro_lost_time: '10s',
     tasks_from_script: true,
     // execute: /*rust*/ `
@@ -362,12 +363,12 @@ new AiBrain('AiBrain.Slime', {
     //     }
     // `,
     execute: /*rust*/ `
-        if target_physics.is_some() {
-            let dist_sq = (target_physics.unwrap().position - chara_physics.position).length_squared();
-            if dist_sq < square(4.5) {
+        if let Some(target_physics) = target_physics {
+            let dist = target_physics.distance_to_chara_xz(chara_physics);
+            if dist < 5.0 {
                 // Near
                 out.push((id!("AiRoutine.Slime.Attack1"), 1.0, 1).into());
-            } else if dist_sq < square(9.0) {
+            } else if dist < 10.0 {
                 // Mid
                 out.push((id!("AiRoutine.Slime.Attack2"), 1.0, 1).into());
             } else {
@@ -431,8 +432,7 @@ new AiRoutine('AiRoutine.Slime.Attack1', {
     tasks: [
         If(/*rust*/`
             if let Some(target_physics) = target_physics {
-                let dist_sq = (target_physics.position - chara_physics.position).length_squared();
-                if dist_sq < square(1.5) {
+                if target_physics.distance_to_chara_xz(chara_physics) < 1.5 {
                    return true; 
                 }
             }
@@ -440,8 +440,7 @@ new AiRoutine('AiRoutine.Slime.Attack1', {
         `, "AiTask.Slime.KeepDistance^B")
         .Elsif(/*rust*/`
             if let Some(target_physics) = target_physics {
-                let dist_sq = (target_physics.position - chara_physics.position).length_squared();
-                if dist_sq > square(3.5) {
+                if target_physics.distance_to_chara_xz(chara_physics) > 3.5 {
                    return true; 
                 }
             }
