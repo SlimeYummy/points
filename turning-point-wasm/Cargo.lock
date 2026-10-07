@@ -100,7 +100,7 @@ dependencies = [
  "anyhow",
  "const_format",
  "critical-point-wasm-macros",
- "glam 0.30.10",
+ "glam 0.33.3",
  "glam-ext",
  "static_assertions",
 ]
