@@ -60,8 +60,10 @@ mod tests {
         assert_eq!(act.be_hits[0].anim.duration, cf2s(20));
         assert_eq!(act.be_hits[0].anim.fade_in, 0.1);
         assert_eq!(act.be_hits[0].anim.root_motion, true);
-        assert_eq!(act.be_hits[0].anim.weapon_motion, false);
+        assert_eq!(act.be_hits[0].anim.weapon_control, false);
         assert_eq!(act.be_hits[0].anim.hit_motion, false);
+        assert_eq!(act.be_hits[0].anim.shape_key, false);
+        assert_eq!(act.be_hits[0].anim.additive_blending, false);
 
         assert!(act.anim_down.is_none());
         assert_eq!(act.max_down_time, 0.0);

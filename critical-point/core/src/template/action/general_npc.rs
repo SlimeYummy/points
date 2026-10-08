@@ -138,8 +138,10 @@ mod tests {
         assert_eq!(act.anim_main.duration, cf2s(168));
         assert_eq!(act.anim_main.fade_in, 0.1);
         assert!(act.anim_main.root_motion);
-        assert!(!act.anim_main.weapon_motion);
+        assert!(!act.anim_main.weapon_control);
         assert!(!act.anim_main.hit_motion);
+        assert!(!act.anim_main.shape_key);
+        assert!(!act.anim_main.additive_blending);
 
         assert_eq!(act.keep_levels.fragments.len(), 2);
         assert_eq!(

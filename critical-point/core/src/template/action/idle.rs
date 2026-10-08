@@ -51,16 +51,20 @@ mod tests {
         assert_eq!(act.anim_idle.duration, 2.5);
         assert_eq!(act.anim_idle.fade_in, 0.1);
         assert_eq!(act.anim_idle.root_motion, false);
-        assert_eq!(act.anim_idle.weapon_motion, false);
+        assert_eq!(act.anim_idle.weapon_control, false);
         assert_eq!(act.anim_idle.hit_motion, false);
+        assert_eq!(act.anim_idle.shape_key, false);
+        assert_eq!(act.anim_idle.additive_blending, false);
 
         let anim_ready = act.anim_ready.as_ref().unwrap();
         assert_eq!(anim_ready.files, "Girl/Idle_Axe.*");
         assert_eq!(anim_ready.duration, 3.0);
         assert_eq!(anim_ready.fade_in, 0.1);
         assert_eq!(anim_ready.root_motion, false);
-        assert_eq!(anim_ready.weapon_motion, false);
+        assert_eq!(anim_ready.weapon_control, false);
         assert_eq!(anim_ready.hit_motion, false);
+        assert_eq!(anim_ready.shape_key, false);
+        assert_eq!(anim_ready.additive_blending, false);
 
         assert!(act.anim_randoms.is_empty());
 
@@ -91,7 +95,10 @@ mod tests {
         assert_eq!(act.anim_idle.duration, 4.0);
         assert_eq!(act.anim_idle.fade_in, 0.1);
         assert_eq!(act.anim_idle.root_motion, false);
-        assert_eq!(act.anim_idle.weapon_motion, false);
+        assert_eq!(act.anim_idle.weapon_control, false);
+        assert_eq!(act.anim_idle.hit_motion, false);
+        assert_eq!(act.anim_idle.shape_key, false);
+        assert_eq!(act.anim_idle.additive_blending, false);
 
         assert!(act.anim_ready.is_none());
         assert!(act.anim_randoms.is_empty());

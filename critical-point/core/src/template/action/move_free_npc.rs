@@ -75,24 +75,30 @@ mod tests {
         assert_eq!(act.anim_move.duration, cf2s(80));
         assert_eq!(act.anim_move.fade_in, 0.1);
         assert_eq!(act.anim_move.root_motion, true);
-        assert_eq!(act.anim_move.weapon_motion, false);
+        assert_eq!(act.anim_move.weapon_control, false);
         assert_eq!(act.anim_move.hit_motion, false);
+        assert_eq!(act.anim_move.shape_key, false);
+        assert_eq!(act.anim_move.additive_blending, false);
         assert_eq!(act.move_speed, 1.5);
 
         assert_eq!(act.anim_start.files, "Slime/WalkFrontStart.*");
         assert_eq!(act.anim_start.duration, cf2s(40));
         assert_eq!(act.anim_start.fade_in, 0.1);
         assert_eq!(act.anim_start.root_motion, true);
-        assert_eq!(act.anim_start.weapon_motion, false);
+        assert_eq!(act.anim_start.weapon_control, false);
         assert_eq!(act.anim_start.hit_motion, false);
+        assert_eq!(act.anim_start.shape_key, false);
+        assert_eq!(act.anim_start.additive_blending, false);
 
         assert_eq!(act.stops.len(), 1);
         assert_eq!(act.stops[0].anim.files, "Slime/WalkFrontStop.*");
         assert_eq!(act.stops[0].anim.duration, cf2s(40));
         assert_eq!(act.stops[0].anim.fade_in, 0.1);
         assert_eq!(act.stops[0].anim.root_motion, true);
-        assert_eq!(act.stops[0].anim.weapon_motion, false);
+        assert_eq!(act.stops[0].anim.weapon_control, false);
         assert_eq!(act.stops[0].anim.hit_motion, false);
+        assert_eq!(act.stops[0].anim.shape_key, false);
+        assert_eq!(act.stops[0].anim.additive_blending, false);
         assert_eq!(act.stops[0].enter_from_table.len(), 3);
         assert_eq!(act.stops[0].enter_from_table[0].anim.as_str(), "Slime/WalkFrontStart.*");
         assert_eq!(act.stops[0].enter_from_table[0].ratio.to_native(), 1.0);
