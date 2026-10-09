@@ -144,8 +144,54 @@ pub const fn ratio_warpping(a: f32, b: f32) -> f32 {
 }
 
 #[inline(always)]
-pub const fn calc_fade_in(prev_weight: f32, time_step: f32, duration: f32) -> f32 {
+pub const fn update_fade_in(prev_weight: f32, time_step: f32, duration: f32) -> f32 {
     (prev_weight + time_step / duration).min(1.0)
+}
+
+#[inline(always)]
+pub const fn calc_fade_in(time: f32, fade_in_end: f32) -> f32 {
+    debug_assert!(time >= 0.0);
+    debug_assert!(fade_in_end > 0.0);
+
+    if time < fade_in_end {
+        (time / fade_in_end).max(0.0)
+    }
+    else {
+        1.0
+    }
+}
+
+#[inline(always)]
+pub const fn calc_fade_out(time: f32, duration: f32, fade_out_start: f32) -> f32 {
+    debug_assert!(time >= 0.0);
+    debug_assert!(duration > 0.0);
+    debug_assert!(fade_out_start >= 0.0 && fade_out_start <= duration);
+
+    if time > fade_out_start {
+        ((duration - time) / (duration - fade_out_start)).max(0.0)
+    }
+    else {
+        1.0
+    }
+}
+
+/// inout: [fade_in_end_at, fade_out_start_at]
+#[inline]
+pub const fn calc_fade_inout(time: f32, duration: f32, inout: [f32; 2]) -> f32 {
+    debug_assert!(time >= 0.0);
+    debug_assert!(duration > 0.0);
+    debug_assert!(inout[0] <= inout[1]);
+    debug_assert!(inout[0] >= 0.0 && inout[1] <= duration);
+
+    if time < inout[0] {
+        (time / inout[0]).max(0.0)
+    }
+    else if time > inout[1] {
+        ((duration - time) / (duration - inout[1])).max(0.0)
+    }
+    else {
+        1.0
+    }
 }
 
 // #[inline]

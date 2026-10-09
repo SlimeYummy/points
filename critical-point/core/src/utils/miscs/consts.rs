@@ -120,6 +120,22 @@ pub enum HitType {
 rkyv_self!(HitType);
 
 //
+// BeHitResponse
+//
+
+#[csharp_enum]
+#[repr(u8)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Sequence, serde::Serialize, serde::Deserialize)]
+pub enum BeHitResponse {
+    #[default]
+    Injure,
+    Dodge,
+    Heal,
+}
+
+rkyv_self!(BeHitResponse);
+
+//
 // RotationReference
 //
 

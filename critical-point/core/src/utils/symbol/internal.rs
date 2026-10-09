@@ -245,7 +245,7 @@ impl SymbolCache {
 
 static SYMBOL_CACHE: std::sync::Mutex<SymbolCache> = std::sync::Mutex::new(SymbolCache::new(512, 16 * KB));
 
-#[ctor::ctor]
+#[ctor::ctor(unsafe)]
 fn init_symbol_cache() {
     SYMBOL_CACHE.lock().unwrap().init();
 }

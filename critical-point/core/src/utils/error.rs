@@ -518,6 +518,90 @@ macro_rules! xfromf {
 }
 pub use xfromf;
 
+#[macro_export]
+macro_rules! xdbg_assert {
+    ($cond:expr) => {
+        debug_assert!(
+            $cond,
+            "{}: assertion failed: {}",
+            const_format::formatcp!("{}:{}", file!(), line!()),
+            stringify!($cond)
+        )
+    };
+    ($cond:expr, $($arg:tt)+) => {
+        debug_assert!(
+            $cond,
+            "{}: {}",
+            const_format::formatcp!("{}:{}", file!(), line!()),
+            format!($($arg)+)
+        )
+    };
+}
+pub use xdbg_assert;
+
+#[macro_export]
+macro_rules! xdbg_assert_eq {
+    ($left:expr, $right:expr) => {
+        debug_assert!(
+            $left == $right,
+            "{}: assertion failed: left `{:?}` != right `{:?}`",
+            const_format::formatcp!("{}:{}", file!(), line!()),
+            &$left,
+            &$right
+        )
+    };
+    ($left:expr, $right:expr, $($arg:tt)+) => {
+        debug_assert!(
+            $left == $right,
+            "{}: {}",
+            const_format::formatcp!("{}:{}", file!(), line!()),
+            format!($($arg)+)
+        )
+    };
+}
+pub use xdbg_assert_eq;
+
+#[macro_export]
+macro_rules! xdbg_assert_ne {
+    ($left:expr, $right:expr) => {
+        debug_assert!(
+            $left != $right,
+            "{}: assertion failed: left `{:?}` == right `{:?}`",
+            const_format::formatcp!("{}:{}", file!(), line!()),
+            &$left,
+            &$right
+        )
+    };
+    ($left:expr, $right:expr, $($arg:tt)+) => {
+        debug_assert!(
+            $left != $right,
+            "{}: {}",
+            const_format::formatcp!("{}:{}", file!(), line!()),
+            format!($($arg)+)
+        )
+    };
+}
+pub use xdbg_assert_ne;
+
+#[macro_export]
+macro_rules! xdbg_unreachable {
+    () => {
+        if cfg!(debug_assertions) {
+            unreachable!("{}: unreachable", const_format::formatcp!("{}:{}", file!(), line!()))
+        }
+    };
+    ($($arg:tt)+) => {
+        if cfg!(debug_assertions) {
+            unreachable!(
+                "{}: unreachable: {}",
+                const_format::formatcp!("{}:{}", file!(), line!()),
+                format!($($arg)+)
+            )
+        }
+    };
+}
+pub use xdbg_unreachable;
+
 #[cfg(test)]
 mod tests {
     #[test]
