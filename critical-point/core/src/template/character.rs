@@ -1,5 +1,4 @@
 use critical_point_macros::csharp_enum;
-use glam_ext::Vec2xz;
 
 use crate::template::attribute::TmplAttribute;
 use crate::template::base::impl_tmpl;
@@ -25,6 +24,7 @@ pub struct TmplCharacter {
     pub styles: Vec<TmplID>,
     pub equipments: Vec<TmplID>,
     pub skeleton_files: String,
+    pub joint_weights_table: bool,
 }
 
 impl_tmpl!(TmplCharacter, Character, "Character");
@@ -68,6 +68,7 @@ pub struct TmplCharacterNpc {
     pub ai_brains: Vec<TmplID>,
     pub script_predicates: bool,
     pub skeleton_files: String,
+    pub joint_weights_table: bool,
     pub view_model: String,
 }
 
@@ -115,6 +116,7 @@ mod tests {
             id!("Equipment.No3")
         ]);
         assert_eq!(character.skeleton_files, "Girl/Girl.*");
+        assert_eq!(character.joint_weights_table, true);
     }
 
     #[test]
@@ -185,6 +187,7 @@ mod tests {
             id!("Action.One.Run"),
             id!("Action.One.Attack^1"),
             id!("Action.One.Attack^2"),
+            id!("Action.One.Dodge"),
         ]);
 
         assert_eq!(style.view_model, "StyleOne-1.vrm");
@@ -198,6 +201,7 @@ mod tests {
         assert_eq!(npc.id(), id!("CharacterNpc.Enemy"));
         assert_eq!(npc.name, "Enemy");
         assert_eq!(&npc.tags.as_slice(), &["Npc"]);
+        assert_eq!(npc.level, [1, 3].into());
 
         let attrs = npc.attributes.as_slice();
         assert_eq!(attrs.len(), 1);
@@ -223,6 +227,8 @@ mod tests {
         assert_eq!(npc.ai_brains.as_slice(), &[id!("AiBrain.Enemy")]);
 
         assert_eq!(npc.skeleton_files, "TrainingDummy/TrainingDummy.*");
+        assert_eq!(npc.joint_weights_table, false);
+        assert_eq!(npc.script_predicates, true);
         assert_eq!(npc.view_model, "TrainingDummy.prefab");
     }
 }

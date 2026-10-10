@@ -79,6 +79,12 @@ mod tests {
 
         assert_eq!(act.anim_dodges[0].anim.files, "Slime/Dodge_F.*");
         assert_eq!(act.anim_dodges[0].anim.duration, cf2s(110));
+        assert_eq!(act.anim_dodges[0].anim.fade_in, 0.1);
+        assert_eq!(act.anim_dodges[0].anim.root_motion, true);
+        assert_eq!(act.anim_dodges[0].anim.weapon_control, false);
+        assert_eq!(act.anim_dodges[0].anim.hit_motion, false);
+        assert_eq!(act.anim_dodges[0].anim.shape_key, true);
+        assert_eq!(act.anim_dodges[0].anim.additive_blending, false);
         assert_eq!(act.anim_dodges[0].enter_angle, 0f32.to_radians());
         assert_eq!(
             act.anim_dodges[0].rotation_reference,
@@ -96,6 +102,12 @@ mod tests {
 
         assert_eq!(act.anim_dodges[1].anim.files, "Slime/Dodge_B.*");
         assert_eq!(act.anim_dodges[1].anim.duration, cf2s(110));
+        assert_eq!(act.anim_dodges[1].anim.fade_in, 0.1);
+        assert_eq!(act.anim_dodges[1].anim.root_motion, true);
+        assert_eq!(act.anim_dodges[1].anim.weapon_control, false);
+        assert_eq!(act.anim_dodges[1].anim.hit_motion, false);
+        assert_eq!(act.anim_dodges[1].anim.shape_key, true);
+        assert_eq!(act.anim_dodges[1].anim.additive_blending, false);
         assert_eq!(act.anim_dodges[1].enter_angle, 180f32.to_radians());
         assert_eq!(
             act.anim_dodges[1].rotation_reference,

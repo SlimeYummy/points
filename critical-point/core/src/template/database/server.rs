@@ -32,7 +32,7 @@ pub(crate) unsafe fn init_database_static<P: AsRef<Path>>(path: P, force_reinit:
 }
 
 #[cfg(test)]
-#[ctor::ctor]
+#[ctor::ctor(unsafe)]
 fn test_init_database_static() {
     use crate::consts::TEST_TMPL_PATH;
 

@@ -126,10 +126,10 @@ const _: () = {
 
     use super::accessory::{ArchivedTmplAccessory, ArchivedTmplAccessoryPool, TmplAccessory, TmplAccessoryPool};
     use super::action::{
-        ArchivedTmplActionDodgeNpc, ArchivedTmplActionGeneral, ArchivedTmplActionGeneralNpc, ArchivedTmplActionHit,
-        ArchivedTmplActionIdle, ArchivedTmplActionMoveFree, ArchivedTmplActionMoveFreeNpc,
-        ArchivedTmplActionMoveTowardNpc, TmplActionDodgeNpc, TmplActionGeneral, TmplActionGeneralNpc, TmplActionHit,
-        TmplActionIdle, TmplActionMoveFree, TmplActionMoveFreeNpc, TmplActionMoveTowardNpc,
+        ArchivedTmplActionDodge, ArchivedTmplActionDodgeNpc, ArchivedTmplActionGeneral, ArchivedTmplActionGeneralNpc,
+        ArchivedTmplActionHit, ArchivedTmplActionIdle, ArchivedTmplActionMoveFree, ArchivedTmplActionMoveFreeNpc,
+        ArchivedTmplActionMoveTowardNpc, TmplActionDodge, TmplActionDodgeNpc, TmplActionGeneral, TmplActionGeneralNpc,
+        TmplActionHit, TmplActionIdle, TmplActionMoveFree, TmplActionMoveFreeNpc, TmplActionMoveTowardNpc,
     };
     use super::ai_brain::{ArchivedTmplAiBrain, TmplAiBrain};
     use super::ai_routine::{ArchivedTmplAiRoutine, TmplAiRoutine};
@@ -192,6 +192,7 @@ const _: () = {
                     ActionMoveTowardNpc => mem::transmute_copy::<usize, &ArchivedTmplActionMoveTowardNpc>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &ArchivedTmplActionGeneral>(&0),
                     ActionGeneralNpc => mem::transmute_copy::<usize, &ArchivedTmplActionGeneralNpc>(&0),
+                    ActionDodge => mem::transmute_copy::<usize, &ArchivedTmplActionDodge>(&0),
                     ActionDodgeNpc => mem::transmute_copy::<usize, &ArchivedTmplActionDodgeNpc>(&0),
                     ActionHit => mem::transmute_copy::<usize, &ArchivedTmplActionHit>(&0),
                     AiBrain => mem::transmute_copy::<usize, &ArchivedTmplAiBrain>(&0),
@@ -253,6 +254,7 @@ const _: () = {
                 ActionMoveTowardNpc => serialize::<TmplActionMoveTowardNpc, _>(self, serializer),
                 ActionGeneral => serialize::<TmplActionGeneral, _>(self, serializer),
                 ActionGeneralNpc => serialize::<TmplActionGeneralNpc, _>(self, serializer),
+                ActionDodge => serialize::<TmplActionDodge, _>(self, serializer),
                 ActionDodgeNpc => serialize::<TmplActionDodgeNpc, _>(self, serializer),
                 ActionHit => serialize::<TmplActionHit, _>(self, serializer),
                 AiBrain => serialize::<TmplAiBrain, _>(self, serializer),
@@ -309,6 +311,7 @@ const _: () = {
                 ActionMoveTowardNpc => deserialize::<TmplActionMoveTowardNpc, _>(self, deserializer, out),
                 ActionGeneral => deserialize::<TmplActionGeneral, _>(self, deserializer, out),
                 ActionGeneralNpc => deserialize::<TmplActionGeneralNpc, _>(self, deserializer, out),
+                ActionDodge => deserialize::<TmplActionDodge, _>(self, deserializer, out),
                 ActionDodgeNpc => deserialize::<TmplActionDodgeNpc, _>(self, deserializer, out),
                 ActionHit => deserialize::<TmplActionHit, _>(self, deserializer, out),
                 // NpcActionHit => deserialize::<TmplNpcActionHit, _>(self, deserializer, out),
@@ -343,6 +346,7 @@ const _: () = {
                     ActionMoveTowardNpc => mem::transmute_copy::<usize, &TmplActionMoveTowardNpc>(&0),
                     ActionGeneral => mem::transmute_copy::<usize, &TmplActionGeneral>(&0),
                     ActionGeneralNpc => mem::transmute_copy::<usize, &TmplActionGeneralNpc>(&0),
+                    ActionDodge => mem::transmute_copy::<usize, &TmplActionDodge>(&0),
                     ActionDodgeNpc => mem::transmute_copy::<usize, &TmplActionDodgeNpc>(&0),
                     ActionHit => mem::transmute_copy::<usize, &TmplActionHit>(&0),
                     // NpcActionHit => mem::transmute_copy::<usize, &TmplNpcActionHit>(&0),
