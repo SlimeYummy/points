@@ -1,4 +1,5 @@
 mod base;
+mod dodge;
 mod dodge_npc;
 mod general;
 mod general_npc;
@@ -9,6 +10,7 @@ mod move_free_npc;
 mod move_toward_npc;
 
 pub use base::*;
+pub use dodge::*;
 pub use dodge_npc::*;
 pub use general::*;
 pub use general_npc::*;
