@@ -1,9 +1,10 @@
-use critical_point_macros::csharp_out;
+use critical_point_macros::{csharp_enum, csharp_out};
 use glam::{Quat, Vec3A};
 use glam_ext::{Mat4, Transform3A};
 use ozz_animation_rs::{LocalToModelJob, LocalToModelJobRef, Skeleton, SoaTransform};
 
-use crate::utils::{Symbol, XResult, xfrom, xres};
+use crate::animation::weapon_control::WeaponState;
+use crate::utils::{Symbol, XResult, rkyv_self, xfrom, xres};
 
 #[repr(C)]
 #[csharp_out(Value)]
@@ -23,27 +24,62 @@ use crate::utils::{Symbol, XResult, xfrom, xres};
 pub struct AnimationFileMeta {
     pub files: Symbol,
     pub root_motion: bool,
-    pub weapon_motion: bool,
+    pub weapon_control: bool,
     pub shape_key: bool,
 }
 
 impl AnimationFileMeta {
     #[inline]
-    pub fn new(files: Symbol, root_motion: bool, weapon_motion: bool, shape_key: bool) -> Self {
+    pub fn new(files: Symbol, root_motion: bool, weapon_control: bool, shape_key: bool) -> Self {
         Self {
             files,
             root_motion,
-            weapon_motion,
+            weapon_control,
             shape_key,
         }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WeaponJoints {
+    pub left_root: i16,
+    pub right_root: i16,
+}
+
+impl WeaponJoints {
+    pub fn new(skeleton: &Skeleton) -> XResult<WeaponJoints> {
+        let left_root = match skeleton.joint_by_name("LeftWeaponRoot") {
+            Some(j) => j,
+            None => return xres!(BadAsset; "LeftWeaponRoot not found"),
+        };
+        let right_root = match skeleton.joint_by_name("RightWeaponRoot") {
+            Some(j) => j,
+            None => return xres!(BadAsset; "RightWeaponRoot not found"),
+        };
+        Ok(WeaponJoints { left_root, right_root })
+    }
+
+    pub fn try_new(skeleton: &Skeleton) -> Option<WeaponJoints> {
+        let left_root = skeleton.joint_by_name("LeftWeaponRoot")?;
+        let right_root = skeleton.joint_by_name("RightWeaponRoot")?;
+        Some(WeaponJoints { left_root, right_root })
+    }
+}
+
+#[repr(u8)]
+#[csharp_enum]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum WeaponSlot {
+    Left,
+    Right,
+}
+
+rkyv_self!(WeaponSlot);
+
 #[repr(C)]
 #[csharp_out(Value)]
 #[derive(
     Debug,
-    Default,
     Clone,
     Copy,
     PartialEq,
@@ -53,11 +89,29 @@ impl AnimationFileMeta {
     rkyv::Serialize,
     rkyv::Deserialize,
 )]
-pub struct WeaponTransform {
-    pub name: Symbol,
+pub struct WeaponValue {
+    pub slot: WeaponSlot,
+    pub left_hand: bool,
+    pub right_hand: bool,
     pub position: Vec3A,
     pub rotation: Quat,
-    pub weight: f32,
+    pub left_hand_position: Vec3A,
+    pub right_hand_position: Vec3A,
+}
+
+impl WeaponValue {
+    pub fn new(slot: WeaponSlot, state: WeaponState, transform: &Mat4) -> WeaponValue {
+        let (_, rot, pos) = transform.to_scale_rotation_translation();
+        WeaponValue {
+            slot,
+            left_hand: state.left_hand,
+            right_hand: state.right_hand,
+            position: pos.into(),
+            rotation: rot,
+            left_hand_position: Vec3A::ZERO,
+            right_hand_position: Vec3A::ZERO,
+        }
+    }
 }
 
 #[repr(C)]
