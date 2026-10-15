@@ -1,14 +1,14 @@
 use glam::{Quat, Vec3A};
 use jolt_physics_rs::{self as jolt, JRef, Shape, StaticCompoundShapeSettings, SubShapeSettings};
 use rkyv::vec::ArchivedVec;
-use smallvec::SmallVec;
 use static_assertions::const_assert_eq;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::{fs, mem, slice};
 
+use crate::animation::utils::WeaponSlot;
 use crate::asset::{AssetIndxedCompoundShape, AssetShape};
-use crate::utils::{HitType, Symbol, XResult, loose_ge, loose_le, xerrf, xfrom, xresf};
+use crate::utils::{HitType, SmallVec, Symbol, XResult, loose_ge, loose_le, xerrf, xfrom, xresf};
 
 //
 // Raw
@@ -48,7 +48,7 @@ struct RawHitBoxWeapon {
     shape_index: u32,
     typ: HitType,
     group: Symbol,
-    weapon: Symbol,
+    slot: WeaponSlot,
     position_keys: Vec<HitKeyPosition>,
     rotation_keys: Vec<HitKeyRotation>,
 }
@@ -153,8 +153,8 @@ impl HitMotion {
                         &joint.position_keys,
                         &joint.rotation_keys,
                     );
-                    let box_index = hit_motion.joint_offset + hit_motion.joint_boxes.len() as u16;
-                    let bx = HitBoxJoint::from_raw(joint, box_index, shape.clone(), pos_keys, rot_keys)?;
+                    let box_id = hit_motion.joint_offset + hit_motion.joint_boxes.len() as u16;
+                    let bx = HitBoxJoint::from_raw(joint, box_id, shape.clone(), pos_keys, rot_keys)?;
                     hit_motion.joint_boxes.push(bx);
                 }
                 RawHitBox::Weapon(weapon) => {
@@ -166,8 +166,8 @@ impl HitMotion {
                         &weapon.position_keys,
                         &weapon.rotation_keys,
                     );
-                    let box_index = hit_motion.weapon_offset + hit_motion.weapon_boxes.len() as u16;
-                    let bx = HitBoxWeapon::from_raw(weapon, box_index, shape.clone(), pos_keys, rot_keys)?;
+                    let box_id = hit_motion.weapon_offset + hit_motion.weapon_boxes.len() as u16;
+                    let bx = HitBoxWeapon::from_raw(weapon, box_id, shape.clone(), pos_keys, rot_keys)?;
                     hit_motion.weapon_boxes.push(bx);
                 }
             }
@@ -278,8 +278,8 @@ impl HitMotion {
                         &joint.position_keys,
                         &joint.rotation_keys,
                     );
-                    let box_index = hit_motion.joint_offset + hit_motion.joint_boxes.len() as u16;
-                    let bx = HitBoxJoint::from_archived(joint, box_index, shape.clone(), pos_keys, rot_keys)?;
+                    let box_id = hit_motion.joint_offset + hit_motion.joint_boxes.len() as u16;
+                    let bx = HitBoxJoint::from_archived(joint, box_id, shape.clone(), pos_keys, rot_keys)?;
                     hit_motion.joint_boxes.push(bx);
                 }
                 ArchivedRawHitBox::Weapon(weapon) => {
@@ -292,8 +292,8 @@ impl HitMotion {
                         &weapon.position_keys,
                         &weapon.rotation_keys,
                     );
-                    let box_index = hit_motion.weapon_offset + hit_motion.weapon_boxes.len() as u16;
-                    let bx = HitBoxWeapon::from_archived(weapon, box_index, shape.clone(), pos_keys, rot_keys)?;
+                    let box_id = hit_motion.weapon_offset + hit_motion.weapon_boxes.len() as u16;
+                    let bx = HitBoxWeapon::from_archived(weapon, box_id, shape.clone(), pos_keys, rot_keys)?;
                     hit_motion.weapon_boxes.push(bx);
                 }
             }
@@ -345,12 +345,12 @@ impl HitMotion {
         for bx in self.joint_boxes.iter_mut() {
             let idx = self.groups.iter().position(|g| g.name == bx.group);
             if let Some(idx) = idx {
-                bx.group_index = idx as u16;
+                bx.group_id = idx as u16;
                 self.groups[idx].start_time = f32::min(self.groups[idx].start_time, bx.start_time);
                 self.groups[idx].finish_time = f32::max(self.groups[idx].finish_time, bx.finish_time);
             }
             else {
-                bx.group_index = self.groups.len() as u16;
+                bx.group_id = self.groups.len() as u16;
                 self.groups.push(HitGroup::new(bx.group, bx.start_time, bx.finish_time));
             }
         }
@@ -358,12 +358,12 @@ impl HitMotion {
         for bx in self.weapon_boxes.iter_mut() {
             let idx = self.groups.iter().position(|g| g.name == bx.group);
             if let Some(idx) = idx {
-                bx.group_index = idx as u16;
+                bx.group_id = idx as u16;
                 self.groups[idx].start_time = f32::min(self.groups[idx].start_time, bx.start_time);
                 self.groups[idx].finish_time = f32::max(self.groups[idx].finish_time, bx.finish_time);
             }
             else {
-                bx.group_index = self.groups.len() as u16;
+                bx.group_id = self.groups.len() as u16;
                 self.groups
                     .push(HitGroup::new(bx.group.clone(), bx.start_time, bx.finish_time));
             }
@@ -372,11 +372,11 @@ impl HitMotion {
 
     fn init_box_ptrs(&mut self) {
         for bx in &self.joint_boxes {
-            debug_assert_eq!(bx.box_index as usize, self.boxes_ptrs.len());
+            debug_assert_eq!(bx.box_id as usize, self.boxes_ptrs.len());
             self.boxes_ptrs.push(&bx._base as *const _);
         }
         for bx in &self.weapon_boxes {
-            debug_assert_eq!(bx.box_index as usize, self.boxes_ptrs.len());
+            debug_assert_eq!(bx.box_id as usize, self.boxes_ptrs.len());
             self.boxes_ptrs.push(&bx._base as *const _);
         }
     }
@@ -402,11 +402,11 @@ impl HitMotion {
     }
 
     #[inline]
-    pub fn to_joint_box_index(&self, box_index: u16) -> Option<u16> {
-        if box_index < self.joint_offset {
+    pub fn to_joint_box_index(&self, box_id: u16) -> Option<u16> {
+        if box_id < self.joint_offset {
             return None;
         }
-        let idx = box_index - self.joint_offset;
+        let idx = box_id - self.joint_offset;
         match (idx as usize) < self.joint_boxes.len() {
             true => Some(idx),
             false => None,
@@ -414,11 +414,11 @@ impl HitMotion {
     }
 
     #[inline]
-    pub fn to_weapon_box_index(&self, box_index: u16) -> Option<u16> {
-        if box_index < self.weapon_offset {
+    pub fn to_weapon_box_index(&self, box_id: u16) -> Option<u16> {
+        if box_id < self.weapon_offset {
             return None;
         }
-        let idx = box_index - self.weapon_offset;
+        let idx = box_id - self.weapon_offset;
         match (idx as usize) < self.weapon_boxes.len() {
             true => Some(idx),
             false => None,
@@ -426,21 +426,21 @@ impl HitMotion {
     }
 
     #[inline]
-    pub fn find_box_joint(&self, box_index: u16) -> Option<&HitBoxJoint> {
-        self.to_joint_box_index(box_index)
+    pub fn find_box_joint(&self, box_id: u16) -> Option<&HitBoxJoint> {
+        self.to_joint_box_index(box_id)
             .and_then(|idx| self.joint_boxes.get(idx as usize))
     }
 
     #[inline]
-    pub fn find_box_weapon(&self, box_index: u16) -> Option<&HitBoxWeapon> {
-        self.to_weapon_box_index(box_index)
+    pub fn find_box_weapon(&self, box_id: u16) -> Option<&HitBoxWeapon> {
+        self.to_weapon_box_index(box_id)
             .and_then(|idx| self.weapon_boxes.get(idx as usize))
     }
 
     #[inline]
-    pub fn find_box(&self, box_index: u16) -> Option<&HitBoxBase> {
+    pub fn find_box(&self, box_id: u16) -> Option<&HitBoxBase> {
         // Safety: HitMotion is immutable, so it is safe to cache pointers.
-        match self.boxes_ptrs.get(box_index as usize).cloned() {
+        match self.boxes_ptrs.get(box_id as usize).cloned() {
             Some(ptr) => unsafe { Some(&*ptr) },
             None => None,
         }
@@ -483,11 +483,11 @@ impl HitGroup {
 
 #[derive(Debug)]
 pub struct HitBoxBase {
-    pub box_index: u16,
+    pub box_id: u16,
     pub shape: JRef<Shape>,
     pub typ: HitType,
     pub group: Symbol,
-    pub group_index: u16,
+    pub group_id: u16,
     pub start_time: f32,
     pub finish_time: f32,
     pos_keys_ptr: *const HitKeyPosition,
@@ -498,7 +498,7 @@ pub struct HitBoxBase {
 
 impl HitBoxBase {
     fn new(
-        box_index: u16,
+        box_id: u16,
         shape: JRef<Shape>,
         typ: HitType,
         group: Symbol,
@@ -525,11 +525,11 @@ impl HitBoxBase {
         }
 
         Ok(HitBoxBase {
-            box_index,
+            box_id,
             shape,
             typ,
             group,
-            group_index: 0,
+            group_id: 0,
             start_time: pos_start,
             finish_time: pos_finish,
             pos_keys_ptr: positions_keys.as_ptr(),
@@ -575,13 +575,13 @@ impl HitBoxJoint {
     #[inline]
     fn from_raw(
         raw: RawHitBoxJoint,
-        box_index: u16,
+        box_id: u16,
         shape: JRef<Shape>,
         pos_keys: &[HitKeyPosition],
         rot_keys: &[HitKeyRotation],
     ) -> XResult<HitBoxJoint> {
         Ok(HitBoxJoint {
-            _base: HitBoxBase::new(box_index, shape, raw.typ, raw.group, pos_keys, rot_keys)?,
+            _base: HitBoxBase::new(box_id, shape, raw.typ, raw.group, pos_keys, rot_keys)?,
             joint: raw.joint,
             ratio: raw.ratio,
             joint2: raw.joint2,
@@ -591,14 +591,14 @@ impl HitBoxJoint {
     #[inline]
     fn from_archived(
         raw: &ArchivedRawHitBoxJoint,
-        box_index: u16,
+        box_id: u16,
         shape: JRef<Shape>,
         pos_keys: &[HitKeyPosition],
         rot_keys: &[HitKeyRotation],
     ) -> XResult<HitBoxJoint> {
         Ok(HitBoxJoint {
             _base: HitBoxBase::new(
-                box_index,
+                box_id,
                 shape,
                 raw.typ,
                 Symbol::try_from(&raw.group)?,
@@ -615,7 +615,7 @@ impl HitBoxJoint {
 #[derive(Debug)]
 pub struct HitBoxWeapon {
     pub _base: HitBoxBase,
-    pub weapon: Symbol,
+    pub slot: WeaponSlot,
 }
 
 impl Deref for HitBoxWeapon {
@@ -642,7 +642,7 @@ impl HitBoxWeapon {
     ) -> XResult<HitBoxWeapon> {
         Ok(HitBoxWeapon {
             _base: HitBoxBase::new(hit_index, shape, raw.typ, raw.group, pos_keys, rot_keys)?,
-            weapon: raw.weapon,
+            slot: raw.slot,
         })
     }
 
@@ -663,7 +663,7 @@ impl HitBoxWeapon {
                 pos_keys,
                 rot_keys,
             )?,
-            weapon: Symbol::try_from(&raw.weapon)?,
+            slot: raw.slot,
         })
     }
 }
@@ -768,11 +768,11 @@ mod tests {
 
         assert_eq!(hit_motion.joint_boxes.len(), 2);
 
-        assert_eq!(hit_motion.joint_boxes[0].box_index, 0);
+        assert_eq!(hit_motion.joint_boxes[0].box_id, 0);
         assert!(hit_motion.joint_boxes[0].shape.count_ref() > 0);
         assert_eq!(hit_motion.joint_boxes[0].typ, HitType::Health);
         assert_eq!(hit_motion.joint_boxes[0].group, sb!("Health"));
-        assert_eq!(hit_motion.joint_boxes[0].group_index, 0);
+        assert_eq!(hit_motion.joint_boxes[0].group_id, 0);
         assert_eq!(hit_motion.joint_boxes[0].joint, sb!("Spine"));
         assert_eq!(hit_motion.joint_boxes[0].ratio, 0.5);
         assert_eq!(hit_motion.joint_boxes[0].joint2, sb!(""));
@@ -785,11 +785,11 @@ mod tests {
             HitKeyRotation::new(0.8333333, Quat::from_xyzw(0.0, 0.0, 0.0, 1.0)),
         ]);
 
-        assert_eq!(hit_motion.joint_boxes[1].box_index, 1);
+        assert_eq!(hit_motion.joint_boxes[1].box_id, 1);
         assert!(hit_motion.joint_boxes[1].shape.count_ref() > 0);
         assert_eq!(hit_motion.joint_boxes[1].typ, HitType::Counter);
         assert_eq!(hit_motion.joint_boxes[1].group, sb!("Counter"));
-        assert_eq!(hit_motion.joint_boxes[1].group_index, 1);
+        assert_eq!(hit_motion.joint_boxes[1].group_id, 1);
         assert_eq!(hit_motion.joint_boxes[1].joint, sb!("LeftHand"));
         assert_eq!(hit_motion.joint_boxes[1].ratio, 0.2);
         assert_eq!(hit_motion.joint_boxes[1].joint2, sb!("LeftLowerArm"));
@@ -804,12 +804,12 @@ mod tests {
 
         assert_eq!(hit_motion.weapon_boxes.len(), 2);
 
-        assert_eq!(hit_motion.weapon_boxes[0].box_index, 2);
+        assert_eq!(hit_motion.weapon_boxes[0].box_id, 2);
         assert!(hit_motion.weapon_boxes[0].shape.count_ref() > 0);
         assert_eq!(hit_motion.weapon_boxes[0].typ, HitType::Attack);
         assert_eq!(hit_motion.weapon_boxes[0].group, sb!("Axe"));
-        assert_eq!(hit_motion.weapon_boxes[0].group_index, 2);
-        assert_eq!(hit_motion.weapon_boxes[0].weapon, sb!("Axe"));
+        assert_eq!(hit_motion.weapon_boxes[0].group_id, 2);
+        assert_eq!(hit_motion.weapon_boxes[0].slot, WeaponSlot::Right);
         assert_eq!(hit_motion.weapon_boxes[0].positions_keys(), &[
             HitKeyPosition::new(1.05, Vec3A::new(0.0, -0.15, -0.7)),
             HitKeyPosition::new(1.2, Vec3A::new(0.0, -0.15, -0.7)),
@@ -819,12 +819,12 @@ mod tests {
             HitKeyRotation::new(1.2, Quat::from_xyzw(0.7071068, 0.0, 0.0, 0.7071068)),
         ]);
 
-        assert_eq!(hit_motion.weapon_boxes[1].box_index, 3);
+        assert_eq!(hit_motion.weapon_boxes[1].box_id, 3);
         assert!(hit_motion.weapon_boxes[1].shape.count_ref() > 0);
         assert_eq!(hit_motion.weapon_boxes[1].typ, HitType::Attack);
         assert_eq!(hit_motion.weapon_boxes[1].group, sb!("Axe"));
-        assert_eq!(hit_motion.weapon_boxes[1].group_index, 2);
-        assert_eq!(hit_motion.weapon_boxes[1].weapon, sb!("Axe"));
+        assert_eq!(hit_motion.weapon_boxes[1].group_id, 2);
+        assert_eq!(hit_motion.weapon_boxes[1].slot, WeaponSlot::Right);
         assert_eq!(hit_motion.weapon_boxes[1].positions_keys(), &[
             HitKeyPosition::new(1.2166667, Vec3A::new(0.0, -0.15, -0.7)),
             HitKeyPosition::new(1.36666667, Vec3A::new(0.0, -0.15, -0.7)),
@@ -855,8 +855,8 @@ mod tests {
         assert!(hit_motion.find_box_joint(2).is_none());
 
         assert!(hit_motion.find_box_weapon(1).is_none());
-        assert_eq!(hit_motion.find_box_weapon(2).map(|bx| bx.weapon), Some(sb!("Axe")));
-        assert_eq!(hit_motion.find_box_weapon(3).map(|bx| bx.weapon), Some(sb!("Axe")));
+        assert_eq!(hit_motion.find_box_weapon(2).map(|bx| bx.slot), Some(WeaponSlot::Right));
+        assert_eq!(hit_motion.find_box_weapon(3).map(|bx| bx.slot), Some(WeaponSlot::Right));
         assert!(hit_motion.find_box_weapon(4).is_none());
     }
 }
