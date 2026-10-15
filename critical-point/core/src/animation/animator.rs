@@ -1197,7 +1197,8 @@ mod tests {
 
     #[test]
     fn test_sampling_arena() {
-        let mut arena = SamplingArena::new(3);
+        let (_asset_loader, skeleton) = prepare_resource();
+        let mut arena = SamplingArena::new(&skeleton, 3);
         assert_eq!(arena.arena.iter().map(|a| a.next).collect::<Vec<_>>(), vec![
             1,
             2,
@@ -1228,10 +1229,10 @@ mod tests {
         assert_eq!(pos3, 3);
         assert_eq!(arena.free, 4);
         assert_eq!(arena.arena.iter().map(|a| a.next).collect::<Vec<_>>(), vec![
-            1,
-            2,
             u32::MAX,
-            4,
+            u32::MAX,
+            u32::MAX,
+            u32::MAX,
             5,
             u32::MAX
         ]);
@@ -1265,11 +1266,12 @@ mod tests {
     #[test]
     fn test_action_data_init() {
         let (mut asset_loader, skeleton) = prepare_resource();
-        let mut arena = SamplingArena::new(3);
+        let mut arena = SamplingArena::new(&skeleton, 3);
 
         let state: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
+        let state_ex = StateActionEx::new(&state, state.fade_in_weight, state.fade_in_weight);
         let mut ad: ActionData = ActionData::default();
-        let res = ad.init(&mut arena, 300, &state, &skeleton, &mut asset_loader);
+        let res = ad.init(&mut arena, 300, state_ex, &skeleton, &mut asset_loader);
         assert!(res.is_err());
 
         {
@@ -1277,35 +1279,49 @@ mod tests {
             state.id = 12345;
             state.tmpl_id = id!("Action.Empty");
             state.fade_in_weight = 0.7;
-            state.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Idle_Empty.*"),
-                101,
-                0.1,
-                0.7,
-            ));
-            state.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Run_Empty.*"),
-                102,
-                0.2,
-                0.3,
-            ));
+
+            let mut anim0 = StateActionAnimation::new(sb!("Girl/Idle_Empty.*"), 101, 0.1, 0.7);
+            anim0.set_joint_weights_index(5);
+            state.animations.push(anim0);
+
+            let mut anim_reuse = StateActionAnimation::new(sb!("Girl/Idle_Empty.*"), 101, 0.1, 0.1);
+            anim_reuse.reuse_layer_id = 1;
+            state.animations.push(anim_reuse);
+
+            let mut anim1 = StateActionAnimation::new(sb!("Girl/Run_Empty.*"), 102, 0.2, 0.3);
+            anim1.set_additive_blending(true);
+            state.animations.push(anim1);
+
+            let state_ex = StateActionEx::new(&state, state.fade_in_weight, state.fade_in_weight);
             let mut ad: ActionData = ActionData::default();
-            ad.init(&mut arena, 120, &state, &skeleton, &mut asset_loader).unwrap();
+            ad.init(&mut arena, 120, state_ex, &skeleton, &mut asset_loader)
+                .unwrap();
             assert_eq!(ad.id, 12345);
             assert_eq!(ad.tmpl_id, id!("Action.Empty"));
             assert_eq!(ad.frame, 120);
+
             let current = list_sampling(&arena, ad.job_current, ad.job_future);
             assert_eq!(current.len(), 2);
+
             assert_eq!(current[0].animation_id, 101);
             assert_eq!(current[0].frame, 120);
-            assert_eq!(current[0].weight, 0.7 * 0.7);
             assert_eq!(current[0].animation_file, "Girl/Idle_Empty.*");
             assert_eq!(current[0].sampling_job.ratio(), 0.1);
-            assert_eq!(current[1].animation_id, 102);
+            assert_eq!(current[0].additive_blending, false);
+            assert_eq!(current[0].layers.len(), 2);
+            assert_eq!(current[0].layers[0].weight, 0.7 * 0.7);
+            assert_eq!(current[0].layers[0].joint_weights_index, 5);
+            assert_eq!(current[0].layers[1].weight, 0.1 * 0.7);
+            assert_eq!(current[0].layers[1].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
+
             assert_eq!(current[1].frame, 120);
-            assert_eq!(current[1].weight, 0.3 * 0.7);
             assert_eq!(current[1].animation_file, "Girl/Run_Empty.*");
             assert_eq!(current[1].sampling_job.ratio(), 0.2);
+            assert_eq!(current[1].additive_blending, true);
+            assert_eq!(current[1].layers.len(), 1);
+            assert_eq!(current[1].layers[0].weight, 0.3 * 0.7);
+            assert_eq!(current[1].layers[0].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
+
             let past = list_sampling(&arena, ad.job_past, ad.job_current);
             assert_eq!(past.len(), 0);
             let future = list_sampling(&arena, ad.job_future, u32::MAX);
@@ -1316,41 +1332,57 @@ mod tests {
     #[test]
     fn test_action_data_update() {
         let (mut asset_loader, skeleton) = prepare_resource();
-        let mut arena = SamplingArena::new(3);
+        let mut arena = SamplingArena::new(&skeleton, 3);
         let mut ad: ActionData = ActionData::default();
 
         let state: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
-        let res = ad.update(&mut arena, 30, &state, &skeleton, &mut asset_loader);
+        let state_ex = StateActionEx::new(&state, state.fade_in_weight, state.fade_in_weight);
+        let res = ad.update(&mut arena, 30, state_ex, &skeleton, &mut asset_loader);
         assert!(res.is_err());
 
         {
             let mut state: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
             state.fade_in_weight = 0.4;
-            state.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Idle_Empty.*"),
-                11,
-                0.4,
-                0.7,
-            ));
-            state.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Run_Empty.*"),
-                12,
-                0.6,
-                0.3,
-            ));
-            ad.update(&mut arena, 31, &state, &skeleton, &mut asset_loader).unwrap();
+
+            let mut anim0 = StateActionAnimation::new(sb!("Girl/Idle_Empty.*"), 11, 0.4, 0.7);
+            anim0.set_joint_weights_index(3);
+            state.animations.push(anim0);
+
+            let mut anim_reuse = StateActionAnimation::new(sb!("Girl/Idle_Empty.*"), 11, 0.4, 0.5);
+            anim_reuse.reuse_layer_id = 1;
+            state.animations.push(anim_reuse);
+
+            let mut anim1 = StateActionAnimation::new(sb!("Girl/Run_Empty.*"), 12, 0.6, 0.3);
+            anim1.set_additive_blending(true);
+            state.animations.push(anim1);
+
+            let state_ex = StateActionEx::new(&state, state.fade_in_weight, state.fade_in_weight);
+            ad.update(&mut arena, 31, state_ex, &skeleton, &mut asset_loader)
+                .unwrap();
+
             let current = list_sampling(&arena, ad.job_current, ad.job_future);
             assert_eq!(current.len(), 2);
+
             assert_eq!(current[0].animation_id, 11);
             assert_eq!(current[0].frame, 31);
-            assert_eq!(current[0].weight, 0.7 * 0.4);
+            assert_eq!(current[0].layers.len(), 2);
+            assert_eq!(current[0].layers[0].weight, 0.7 * 0.4);
+            assert_eq!(current[0].layers[0].joint_weights_index, 3);
+            assert_eq!(current[0].layers[1].weight, 0.5 * 0.4);
+            assert_eq!(current[0].layers[1].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
             assert_eq!(current[0].animation_file, "Girl/Idle_Empty.*");
             assert_eq!(current[0].sampling_job.ratio(), 0.4);
+            assert_eq!(current[0].additive_blending, false);
+
             assert_eq!(current[1].animation_id, 12);
             assert_eq!(current[1].frame, 31);
-            assert_eq!(current[1].weight, 0.3 * 0.4);
             assert_eq!(current[1].animation_file, "Girl/Run_Empty.*");
             assert_eq!(current[1].sampling_job.ratio(), 0.6);
+            assert_eq!(current[1].additive_blending, true);
+            assert_eq!(current[1].layers.len(), 1);
+            assert_eq!(current[1].layers[0].weight, 0.3 * 0.4);
+            assert_eq!(current[1].layers[0].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
+
             let past = list_sampling(&arena, ad.job_past, ad.job_current);
             assert_eq!(past.len(), 0);
             let future = list_sampling(&arena, ad.job_future, u32::MAX);
@@ -1360,41 +1392,49 @@ mod tests {
         {
             let mut state: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
             state.fade_in_weight = 1.0;
-            state.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Idle_Empty.*"),
-                12,
-                0.7,
-                1.0,
-            ));
-            state.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Attack_01A.*"),
-                13,
-                0.0,
-                0.0,
-            ));
-            state.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Attack_02A.*"),
-                14,
-                0.0,
-                0.0,
-            ));
-            ad.update(&mut arena, 32, &state, &skeleton, &mut asset_loader).unwrap();
+
+            let mut anim2 = StateActionAnimation::new(sb!("Girl/Idle_Empty.*"), 12, 0.7, 1.0);
+            anim2.set_additive_blending(true);
+            anim2.set_joint_weights_index(7);
+            state.animations.push(anim2);
+            state
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl/Attack_01A.*"), 13, 0.0, 0.0));
+            state
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl/Attack_02A.*"), 14, 0.0, 0.0));
+
+            let state_ex = StateActionEx::new(&state, state.fade_in_weight, state.fade_in_weight);
+            ad.update(&mut arena, 32, state_ex, &skeleton, &mut asset_loader)
+                .unwrap();
+
             let current = list_sampling(&arena, ad.job_current, ad.job_future);
             assert_eq!(current.len(), 3);
+
             assert_eq!(current[0].animation_id, 12);
             assert_eq!(current[0].frame, 32);
-            assert_eq!(current[0].weight, 1.0);
+            assert_eq!(current[0].layers[0].weight, 1.0);
             assert_eq!(current[0].animation_file, "Girl/Run_Empty.*");
             assert_eq!(current[0].sampling_job.ratio(), 0.7);
+            assert_eq!(current[0].additive_blending, true);
+            assert_eq!(current[0].layers[0].joint_weights_index, 7);
+
             assert_eq!(current[1].animation_id, 13);
             assert_eq!(current[1].animation_file, "Girl/Attack_01A.*");
+            assert_eq!(current[1].additive_blending, false);
+            assert_eq!(current[1].layers[0].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
+
             assert_eq!(current[2].animation_id, 14);
             assert_eq!(current[2].animation_file, "Girl/Attack_02A.*");
+            assert_eq!(current[2].additive_blending, false);
+            assert_eq!(current[2].layers[0].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
+
             let past = list_sampling(&arena, ad.job_past, ad.job_current);
             assert_eq!(past.len(), 1);
             assert_eq!(past[0].animation_id, 11);
             assert_eq!(past[0].frame, 31);
             assert_eq!(past[0].animation_file, "Girl/Idle_Empty.*");
+            assert_eq!(past[0].layers.len(), 2);
             let future = list_sampling(&arena, ad.job_future, u32::MAX);
             assert_eq!(future.len(), 0);
         }
@@ -1411,49 +1451,47 @@ mod tests {
             Box<dyn StateActionAny>,
         ) {
             let (mut asset_loader, skeleton) = prepare_resource();
-            let mut arena = SamplingArena::new(3);
+            let mut arena = SamplingArena::new(&skeleton, 3);
             let mut ad: ActionData = ActionData::default();
 
             let mut state1: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
             state1.fade_in_weight = 1.0;
-            state1.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Idle_Empty.*"),
-                11,
-                0.1,
-                0.4,
-            ));
-            state1.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Run_Empty.*"),
-                12,
-                0.2,
-                0.6,
-            ));
-            ad.update(&mut arena, 50, &state1, &skeleton, &mut asset_loader)
+
+            let mut anim0 = StateActionAnimation::new(sb!("Girl/Idle_Empty.*"), 11, 0.1, 0.4);
+            anim0.set_joint_weights_index(2);
+            state1.animations.push(anim0);
+
+            let mut anim1 = StateActionAnimation::new(sb!("Girl/Run_Empty.*"), 12, 0.2, 0.6);
+            anim1.set_additive_blending(true);
+            state1.animations.push(anim1);
+
+            let state1_ex = StateActionEx::new(&state1, state1.fade_in_weight, state1.fade_in_weight);
+            ad.update(&mut arena, 50, state1_ex, &skeleton, &mut asset_loader)
                 .unwrap();
             let past = list_sampling(&arena, ad.job_past, u32::MAX);
             assert_eq!(past.len(), 2);
 
             let mut state2: Box<dyn StateActionAny> = Box::new(StateActionEmpty::default());
             state2.fade_in_weight = 0.8;
-            state2.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Run_Empty.*"),
-                12,
-                0.2,
-                1.0,
-            ));
-            state2.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Attack_01A.*"),
-                13,
-                0.0,
-                0.0,
-            ));
-            state2.animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Attack_02A.*"),
-                14,
-                0.0,
-                0.0,
-            ));
-            ad.update(&mut arena, 51, &state2, &skeleton, &mut asset_loader)
+            state2
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl/Run_Empty.*"), 12, 0.2, 1.0));
+
+            state2
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl/Attack_01A.*"), 13, 0.0, 0.0));
+
+            let mut anim_reuse = StateActionAnimation::new(sb!("Girl/Attack_01A.*"), 13, 0.0, 0.321);
+            anim_reuse.reuse_layer_id = 1;
+            anim_reuse.set_joint_weights_index(3);
+            state2.animations.push(anim_reuse);
+
+            state2
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl/Attack_02A.*"), 14, 0.0, 0.0));
+
+            let state2_ex = StateActionEx::new(&state2, state2.fade_in_weight, state2.fade_in_weight);
+            ad.update(&mut arena, 51, state2_ex, &skeleton, &mut asset_loader)
                 .unwrap();
             let past = list_sampling(&arena, ad.job_past, u32::MAX);
             assert_eq!(past.len(), 4);
@@ -1463,40 +1501,69 @@ mod tests {
 
         {
             let (mut asset_loader, skeleton, mut arena, mut ad, state1, state2) = prepare();
-            ad.restore(&mut arena, 50, &state1).unwrap();
+            let state1_ex = StateActionEx::new(&state1, state1.fade_in_weight, state1.fade_in_weight);
+            ad.restore(&mut arena, 50, state1_ex).unwrap();
             let current = list_sampling(&arena, ad.job_current, ad.job_future);
             assert_eq!(current.len(), 2);
+
             assert_eq!(current[0].animation_id, 11);
             assert_eq!(current[0].frame, 50);
-            assert_eq!(current[0].weight, 0.4);
             assert_eq!(current[0].animation_file, "Girl/Idle_Empty.*");
             assert_eq!(current[0].sampling_job.ratio(), 0.1);
+            assert_eq!(current[0].additive_blending, false);
+            assert_eq!(current[0].layers.len(), 1);
+            assert_eq!(current[0].layers[0].weight, 0.4);
+            assert_eq!(current[0].layers[0].joint_weights_index, 2);
+
             assert_eq!(current[1].animation_id, 12);
             assert_eq!(current[1].frame, 50);
-            assert_eq!(current[1].weight, 0.6);
             assert_eq!(current[1].animation_file, "Girl/Run_Empty.*");
             assert_eq!(current[1].sampling_job.ratio(), 0.2);
+            assert_eq!(current[1].additive_blending, true);
+            assert_eq!(current[1].layers[0].weight, 0.6);
+            assert_eq!(current[1].layers[0].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
+
             let past = list_sampling(&arena, ad.job_past, ad.job_current);
             assert_eq!(past.len(), 0);
             let future = list_sampling(&arena, ad.job_future, u32::MAX);
             assert_eq!(future.len(), 2);
             assert_eq!(list_next(&arena, arena.free), vec![4, 5]);
 
-            ad.update(&mut arena, 51, &state2, &skeleton, &mut asset_loader)
+            let state2_ex = StateActionEx::new(&state2, state2.fade_in_weight, state2.fade_in_weight);
+            ad.update(&mut arena, 51, state2_ex, &skeleton, &mut asset_loader)
                 .unwrap();
             let current = list_sampling(&arena, ad.job_current, u32::MAX);
             assert_eq!(current.len(), 3);
+
             assert_eq!(current[0].animation_id, 12);
             assert_eq!(current[0].frame, 51);
-            assert_eq!(current[0].weight, 1.0 * 0.8);
             assert_eq!(current[0].animation_file, "Girl/Run_Empty.*");
             assert_eq!(current[0].sampling_job.ratio(), 0.2);
+            assert_eq!(current[0].additive_blending, true);
+            assert_eq!(current[0].layers.len(), 1);
+            assert_eq!(current[0].layers[0].weight, 1.0 * 0.8);
+            assert_eq!(current[0].layers[0].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
+
             assert_eq!(current[1].animation_id, 13);
             assert_eq!(current[1].animation_file, "Girl/Attack_01A.*");
+            assert_eq!(current[1].additive_blending, false);
+            assert_eq!(current[1].layers.len(), 2);
+            assert_eq!(current[1].layers[0].weight, 0.0);
+            assert_eq!(current[1].layers[0].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
+            assert_eq!(current[1].layers[1].weight, 0.321 * 0.8);
+            assert_eq!(current[1].layers[1].joint_weights_index, 3);
+
             assert_eq!(current[2].animation_id, 14);
             assert_eq!(current[2].animation_file, "Girl/Attack_02A.*");
+            assert_eq!(current[2].additive_blending, false);
+            assert_eq!(current[2].layers.len(), 1);
+            assert_eq!(current[2].layers[0].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
+
             let past = list_sampling(&arena, ad.job_past, ad.job_current);
             assert_eq!(past.len(), 1);
+            assert_eq!(past[0].animation_id, 11);
+            assert_eq!(past[0].layers.len(), 1);
+
             let future = list_sampling(&arena, ad.job_future, u32::MAX);
             assert_eq!(future.len(), 0);
             assert_eq!(list_next(&arena, arena.free), vec![4, 5]);
@@ -1504,13 +1571,17 @@ mod tests {
 
         {
             let (mut asset_loader, skeleton, mut arena, mut ad, state1, mut state2) = prepare();
-            ad.restore(&mut arena, 50, &state1).unwrap();
-            state2.animations[1].animation_id = 13;
+            let state1_ex = StateActionEx::new(&state1, state1.fade_in_weight, state1.fade_in_weight);
+            ad.restore(&mut arena, 50, state1_ex).unwrap();
+            state2.animations[1].animation_id = 14;
             state2.animations[1].files = sb!("Girl/Walk_Empty.*");
             state2.animations[1].ratio = 0.5;
             state2.animations[1].weight = 0.5;
             state2.animations.pop();
-            ad.update(&mut arena, 51, &state2, &skeleton, &mut asset_loader)
+            state2.animations.pop();
+
+            let state2_ex = StateActionEx::new(&state2, state2.fade_in_weight, state2.fade_in_weight);
+            ad.update(&mut arena, 51, state2_ex, &skeleton, &mut asset_loader)
                 .unwrap();
             let current = list_sampling(&arena, ad.job_current, ad.job_future);
             assert_eq!(current.len(), 2);
@@ -1525,7 +1596,7 @@ mod tests {
     #[test]
     fn test_skeleton_animator_update() {
         let (mut asset_loader, skeleton) = prepare_resource();
-        let mut animator = Animator::new(skeleton, 0, 3).unwrap();
+        let mut animator = Animator::new(skeleton, Some(Rc::new(JointWeightsTable::default())), 0, 3).unwrap();
 
         let mut states: Vec<Box<dyn StateActionAny>> = vec![
             Box::new(StateActionEmpty::default()),
@@ -1533,20 +1604,14 @@ mod tests {
         ];
         states[0].id = 21;
         states[0].tmpl_id = id!("Action.Empty^1");
-        states[0].animations.push(StateActionAnimation::new_no_motion(
-            sb!("Girl/Idle_Empty.*"),
-            101,
-            0.0,
-            0.0,
-        ));
+        let mut anim0 = StateActionAnimation::new(sb!("Girl/Idle_Empty.*"), 101, 0.0, 0.0);
+        anim0.set_joint_weights_index(1);
+        states[0].animations.push(anim0);
         states[1].id = 22;
         states[1].tmpl_id = id!("Action.Empty^2");
-        states[1].animations.push(StateActionAnimation::new_no_motion(
-            sb!("Girl/Idle_Empty.*"),
-            102,
-            0.0,
-            0.0,
-        ));
+        let mut anim1 = StateActionAnimation::new(sb!("Girl/Idle_Empty.*"), 102, 0.0, 0.0);
+        anim1.set_additive_blending(true);
+        states[1].animations.push(anim1);
         animator.update(105, &states, &mut asset_loader).unwrap();
         assert_eq!(animator.action_queue.len(), 2);
         assert_eq!(animator.action_queue[0].id, 21);
@@ -1555,12 +1620,16 @@ mod tests {
         let sampling = list_sampling(&animator.sampling_arena, animator.action_queue[0].job_current, u32::MAX);
         assert_eq!(sampling.len(), 1);
         assert_eq!(sampling[0].animation_id, 101);
+        assert_eq!(sampling[0].additive_blending, false);
+        assert_eq!(sampling[0].layers[0].joint_weights_index, 1);
         assert_eq!(animator.action_queue[1].id, 22);
         assert_eq!(animator.action_queue[1].tmpl_id, id!("Action.Empty^2"));
         assert_eq!(animator.action_queue[1].frame, 105);
         let sampling = list_sampling(&animator.sampling_arena, animator.action_queue[1].job_current, u32::MAX);
         assert_eq!(sampling.len(), 1);
         assert_eq!(sampling[0].animation_id, 102);
+        assert_eq!(sampling[0].additive_blending, true);
+        assert_eq!(sampling[0].layers[0].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
 
         let mut states: Vec<Box<dyn StateActionAny>> = vec![
             Box::new(StateActionEmpty::default()),
@@ -1568,20 +1637,17 @@ mod tests {
         ];
         states[0].id = 22;
         states[0].tmpl_id = id!("Action.Empty^2");
-        states[0].animations.push(StateActionAnimation::new_no_motion(
-            sb!("Girl/Idle_Empty.*"),
-            102,
-            0.0,
-            0.0,
-        ));
+        // verify path: existing job with same animation_id gets flags/joint_weights updated
+        let mut anim2 = StateActionAnimation::new(sb!("Girl/Idle_Empty.*"), 102, 0.0, 0.0);
+        anim2.set_additive_blending(true);
+        anim2.set_joint_weights_index(2);
+        states[0].animations.push(anim2);
         states[1].id = 23;
         states[1].tmpl_id = id!("Action.Empty^3");
-        states[1].animations.push(StateActionAnimation::new_no_motion(
-            sb!("Girl/Attack_01A.*"),
-            103,
-            0.0,
-            0.0,
-        ));
+        // enqueue path: new job
+        let mut anim3 = StateActionAnimation::new(sb!("Girl/Attack_01A.*"), 103, 0.0, 0.0);
+        anim3.set_joint_weights_index(3);
+        states[1].animations.push(anim3);
         animator.update(106, &states, &mut asset_loader).unwrap();
         assert_eq!(animator.action_queue.len(), 2);
         assert_eq!(animator.action_queue[0].id, 22);
@@ -1590,12 +1656,16 @@ mod tests {
         let sampling = list_sampling(&animator.sampling_arena, animator.action_queue[0].job_current, u32::MAX);
         assert_eq!(sampling.len(), 1);
         assert_eq!(sampling[0].animation_id, 102);
+        assert_eq!(sampling[0].additive_blending, true);
+        assert_eq!(sampling[0].layers[0].joint_weights_index, 2);
         assert_eq!(animator.action_queue[1].id, 23);
         assert_eq!(animator.action_queue[1].tmpl_id, id!("Action.Empty^3"));
         assert_eq!(animator.action_queue[1].frame, 106);
         let sampling = list_sampling(&animator.sampling_arena, animator.action_queue[1].job_current, u32::MAX);
         assert_eq!(sampling.len(), 1);
         assert_eq!(sampling[0].animation_id, 103);
+        assert_eq!(sampling[0].additive_blending, false);
+        assert_eq!(sampling[0].layers[0].joint_weights_index, 3);
         assert_eq!(animator.action_queue.past_len(), 1);
         assert_eq!(animator.action_queue.future_len(), 0);
         assert_eq!(animator.action_queue.all_len(), 3);
@@ -1610,7 +1680,7 @@ mod tests {
             Vec<Box<dyn StateActionAny>>,
         ) {
             let (mut asset_loader, skeleton) = prepare_resource();
-            let mut animator = Animator::new(skeleton, 0, 3).unwrap();
+            let mut animator = Animator::new(skeleton, Some(Rc::new(JointWeightsTable::default())), 0, 3).unwrap();
 
             let mut states1: Vec<Box<dyn StateActionAny>> = vec![
                 Box::new(StateActionEmpty::default()),
@@ -1618,20 +1688,14 @@ mod tests {
             ];
             states1[0].id = 41;
             states1[0].tmpl_id = id!("Action.Empty^1");
-            states1[0].animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Idle_Empty.*"),
-                101,
-                0.0,
-                0.0,
-            ));
+            let mut anim0 = StateActionAnimation::new(sb!("Girl/Idle_Empty.*"), 101, 0.0, 0.0);
+            anim0.set_joint_weights_index(4);
+            states1[0].animations.push(anim0);
             states1[1].id = 42;
             states1[1].tmpl_id = id!("Action.Empty^2");
-            states1[1].animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Run_Empty.*"),
-                102,
-                0.0,
-                0.0,
-            ));
+            let mut anim1 = StateActionAnimation::new(sb!("Girl/Run_Empty.*"), 102, 0.0, 0.0);
+            anim1.set_additive_blending(true);
+            states1[1].animations.push(anim1);
             animator.update(205, &states1, &mut asset_loader).unwrap();
 
             let mut states2: Vec<Box<dyn StateActionAny>> = vec![
@@ -1641,28 +1705,19 @@ mod tests {
             ];
             states2[0].id = 42;
             states2[0].tmpl_id = id!("Action.Empty^2");
-            states2[0].animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Run_Empty.*"),
-                102,
-                0.0,
-                0.0,
-            ));
+            states2[0]
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl/Run_Empty.*"), 102, 0.0, 0.0));
             states2[1].id = 43;
             states2[1].tmpl_id = id!("Action.Empty^3");
-            states2[1].animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Attack_01A.*"),
-                103,
-                0.0,
-                0.0,
-            ));
+            states2[1]
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl/Attack_01A.*"), 103, 0.0, 0.0));
             states2[2].id = 44;
             states2[2].tmpl_id = id!("Action.Empty^4");
-            states2[2].animations.push(StateActionAnimation::new_no_motion(
-                sb!("Girl/Attack_02A.*"),
-                104,
-                0.0,
-                0.0,
-            ));
+            states2[2]
+                .animations
+                .push(StateActionAnimation::new(sb!("Girl/Attack_02A.*"), 104, 0.0, 0.0));
             animator.update(206, &states2, &mut asset_loader).unwrap();
 
             (asset_loader, animator, states1, states2)
@@ -1678,12 +1733,16 @@ mod tests {
             let sampling = list_sampling(&animator.sampling_arena, animator.action_queue[0].job_current, u32::MAX);
             assert_eq!(sampling.len(), 1);
             assert_eq!(sampling[0].animation_id, 101);
+            assert_eq!(sampling[0].additive_blending, false);
+            assert_eq!(sampling[0].layers[0].joint_weights_index, 4);
             assert_eq!(animator.action_queue[1].id, 42);
             assert_eq!(animator.action_queue[1].tmpl_id, id!("Action.Empty^2"));
             assert_eq!(animator.action_queue[1].frame, 205);
             let sampling = list_sampling(&animator.sampling_arena, animator.action_queue[1].job_current, u32::MAX);
             assert_eq!(sampling.len(), 1);
             assert_eq!(sampling[0].animation_id, 102);
+            assert_eq!(sampling[0].additive_blending, true);
+            assert_eq!(sampling[0].layers[0].joint_weights_index, EMPTY_JOINT_WEIGHT_INDEX);
             assert_eq!(animator.action_queue.past_len(), 0);
             assert_eq!(animator.action_queue.future_len(), 2);
             assert_eq!(animator.action_queue.all_len(), 4);
@@ -1739,7 +1798,7 @@ mod tests {
     #[test]
     fn test_skeleton_animator_discard() {
         let (mut asset_loader, skeleton) = prepare_resource();
-        let mut animator = Animator::new(skeleton, 0, 3).unwrap();
+        let mut animator = Animator::new(skeleton, Some(Rc::new(JointWeightsTable::default())), 0, 3).unwrap();
 
         let mut states1: Vec<Box<dyn StateActionAny>> = vec![
             Box::new(StateActionEmpty::default()),
@@ -1747,20 +1806,14 @@ mod tests {
         ];
         states1[0].id = 41;
         states1[0].tmpl_id = id!("Action.Empty^1");
-        states1[0].animations.push(StateActionAnimation::new_no_motion(
-            sb!("Girl/Idle_Empty.*"),
-            101,
-            0.0,
-            0.0,
-        ));
+        states1[0]
+            .animations
+            .push(StateActionAnimation::new(sb!("Girl/Idle_Empty.*"), 101, 0.0, 0.0));
         states1[1].id = 42;
         states1[1].tmpl_id = id!("Action.Empty^2");
-        states1[1].animations.push(StateActionAnimation::new_no_motion(
-            sb!("Girl/Run_Empty.*"),
-            102,
-            0.0,
-            0.0,
-        ));
+        states1[1]
+            .animations
+            .push(StateActionAnimation::new(sb!("Girl/Run_Empty.*"), 102, 0.0, 0.0));
         animator.update(205, &states1, &mut asset_loader).unwrap();
 
         let mut states2: Vec<Box<dyn StateActionAny>> = vec![
@@ -1769,20 +1822,14 @@ mod tests {
         ];
         states2[0].id = 42;
         states2[0].tmpl_id = id!("Action.Empty^2");
-        states2[0].animations.push(StateActionAnimation::new_no_motion(
-            sb!("Girl/Attack_01A.*"),
-            103,
-            0.0,
-            0.0,
-        ));
+        states2[0]
+            .animations
+            .push(StateActionAnimation::new(sb!("Girl/Attack_01A.*"), 103, 0.0, 0.0));
         states2[1].id = 43;
         states2[1].tmpl_id = id!("Action.Empty^4");
-        states2[1].animations.push(StateActionAnimation::new_no_motion(
-            sb!("Girl/Attack_02A.*"),
-            104,
-            0.0,
-            0.0,
-        ));
+        states2[1]
+            .animations
+            .push(StateActionAnimation::new(sb!("Girl/Attack_02A.*"), 104, 0.0, 0.0));
         animator.update(206, &states2, &mut asset_loader).unwrap();
 
         animator.discard(205);
