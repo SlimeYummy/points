@@ -1,3 +1,5 @@
+use arrayvec::ArrayVec;
+use glam::Vec4;
 use glam_ext::{Mat4, Transform3A};
 use ozz_animation_rs::{
     Animation, BlendingJob, BlendingLayer, LocalToModelJob, SamplingContext, SamplingJob, Skeleton, SoaTransform,
@@ -5,40 +7,91 @@ use ozz_animation_rs::{
 };
 use std::cell::RefCell;
 use std::mem;
+use std::ops::Deref;
 use std::rc::Rc;
 
 use crate::animation::hit_motion::{HitMotion, HitMotionSampler};
-use crate::animation::rest_poses_to_model_transforms;
-use crate::animation::utils::{WeaponTransform, matrices_to_transforms};
-use crate::animation::weapon_motion::{WeaponMotion, normalize_weapons_by_weight, sample_weapons_by_name_weight};
+use crate::animation::joint_weights::JointWeightsTable;
+use crate::animation::utils::{matrices_to_transforms, rest_poses_to_model_transforms};
+use crate::animation::weapon_control::{WeaponControl, WeaponStates};
 use crate::asset::AssetLoader;
-use crate::consts::{INVALID_ACTION_ID, INVALID_ANIMATION_ID};
+use crate::consts::{EMPTY_JOINT_WEIGHT_INDEX, INVALID_ACTION_ID, INVALID_ANIMATION_ID, MAX_ANIMATION_LAYERS};
 use crate::logic::{StateActionAnimation, StateActionAny};
-use crate::utils::{HistoryQueue, SmallVec, Symbol, TmplID, XResult, xfrom, xres};
+use crate::utils::{
+    HistoryQueue, SmallVec, Symbol, TmplID, XResult, ifelse, xdbg_assert, xdbg_unreachable, xfrom, xres,
+};
+
+type AnimatorBlendingJob =
+    BlendingJob<Rc<Skeleton>, Rc<RefCell<Vec<SoaTransform>>>, Rc<RefCell<Vec<SoaTransform>>>, Rc<Vec<Vec4>>>;
+type AnimatorBlendingLayer = BlendingLayer<Rc<RefCell<Vec<SoaTransform>>>, Rc<Vec<Vec4>>>;
+
+const DEFAULT_ACTION_STATE_LEN: usize = 6;
+
+// Append more fields for StateActionAny
+#[derive(Debug, Clone, Copy)]
+pub struct StateActionEx<'t> {
+    pub state: &'t dyn StateActionAny,
+    pub fade_weight: f32,
+    pub no_fade_weight: f32,
+}
+
+impl Deref for StateActionEx<'_> {
+    type Target = dyn StateActionAny;
+
+    fn deref(&self) -> &Self::Target {
+        self.state
+    }
+}
+
+impl<'t> StateActionEx<'t> {
+    #[inline]
+    pub fn new(state: &'t Box<dyn StateActionAny>, fade_weight: f32, no_fade_weight: f32) -> StateActionEx<'t> {
+        xdbg_assert!(fade_weight <= no_fade_weight);
+        StateActionEx {
+            state: state.as_ref(),
+            fade_weight,
+            no_fade_weight,
+        }
+    }
+
+    #[inline]
+    pub fn prev_fade_weight(&self) -> f32 {
+        self.no_fade_weight - self.fade_weight
+    }
+}
 
 #[derive(Debug)]
 pub struct Animator {
     skeleton: Rc<Skeleton>,
-    blending_job: BlendingJob,
+    joint_weights_table: Option<Rc<JointWeightsTable>>,
+    blending_job: AnimatorBlendingJob,
     l2m_job: LocalToModelJob,
-    weapon_transforms: Vec<WeaponTransform>,
+    weapon_states: WeaponStates,
     action_queue: HistoryQueue<ActionData>,
     sampling_arena: SamplingArena,
+    tmp_blending_output: Option<Rc<RefCell<Vec<SoaTransform>>>>,
     model_transforms: Vec<Transform3A>,
 }
 
 impl Animator {
-    pub fn new(skeleton: Rc<Skeleton>, action_cap: usize, sampling_cap: usize) -> XResult<Animator> {
+    pub fn new(
+        skeleton: Rc<Skeleton>,
+        joint_weights_table: Option<Rc<JointWeightsTable>>,
+        action_cap: usize,
+        sampling_cap: usize,
+    ) -> XResult<Animator> {
         let mut model_transforms = vec![Transform3A::ZERO; skeleton.num_joints()];
         rest_poses_to_model_transforms(&skeleton, &mut model_transforms)?;
 
         let mut animator: Animator = Animator {
             skeleton: skeleton.clone(),
-            blending_job: BlendingJob::default(),
+            joint_weights_table,
+            blending_job: AnimatorBlendingJob::default(),
             l2m_job: LocalToModelJob::default(),
-            weapon_transforms: Vec::with_capacity(4),
+            weapon_states: WeaponStates::default(),
             action_queue: HistoryQueue::with_capacity(action_cap.max(1)),
-            sampling_arena: SamplingArena::new(sampling_cap.max(1)),
+            sampling_arena: SamplingArena::new(&skeleton, sampling_cap.max(1)),
+            tmp_blending_output: None,
             model_transforms,
         };
 
@@ -58,13 +111,191 @@ impl Animator {
         Ok(animator)
     }
 
-    pub fn update(&mut self, frame: u32, states: &[Box<dyn StateActionAny>], loader: &mut AssetLoader) -> XResult<()> {
-        let states: SmallVec<[&Box<dyn StateActionAny>; 8]> =
-            states.iter().filter(|s| !s.previous_frame()).map(|s| s).collect();
+    // Prepare and verify action states
+    #[inline]
+    fn prepare_states<'t>(
+        states: &'t [Box<dyn StateActionAny>],
+    ) -> XResult<SmallVec<[StateActionEx<'t>; DEFAULT_ACTION_STATE_LEN]>> {
+        let mut new_states = SmallVec::new();
+        let mut unused_weight = 1.0;
 
-        if states.is_empty() {
+        for (idx, state) in states.iter().enumerate().rev() {
+            if state.previous_frame() {
+                let next_idx = idx + 1;
+
+                // Check previous frame
+                #[cfg(debug_assertions)]
+                {
+                    xdbg_assert!(
+                        states.get(next_idx).is_some(),
+                        "action state previous_frame, no next, act_idx={}, states={:?}",
+                        idx,
+                        states
+                    );
+                    let next_state = &states[next_idx];
+                    xdbg_assert!(
+                        state.id == next_state.id,
+                        "action state previous_frame, id miss match, act_idx={}, states={:?}",
+                        idx,
+                        states
+                    );
+                    xdbg_assert!(
+                        state.tmpl_id == next_state.tmpl_id,
+                        "action state previous_frame, tmpl_id miss match, act_idx={}, states={:?}",
+                        idx,
+                        states
+                    );
+                    xdbg_assert!(
+                        state.fade_joint_weights_index == next_state.fade_joint_weights_index,
+                        "action state previous_frame, fade joint weights miss match, act_idx={}, states={:?}",
+                        idx,
+                        states
+                    );
+                    xdbg_assert!(
+                        next_state.previous_frame() == false,
+                        "action state previous_frame, duplicate previous_frame, act_idx={}, states={:?}",
+                        idx,
+                        states
+                    );
+                }
+
+                continue;
+            }
+
+            if state.fade_joint_weights_index == EMPTY_JOINT_WEIGHT_INDEX {
+                let fade_weight = (unused_weight * state.fade_in_weight).clamp(0.0, 1.0);
+                new_states.push(StateActionEx::new(state, fade_weight, fade_weight));
+                unused_weight = (unused_weight - fade_weight).max(0.0);
+            }
+            else {
+                let fade_weight = (unused_weight * state.fade_in_weight).clamp(0.0, 1.0);
+                new_states.push(StateActionEx::new(state, fade_weight, unused_weight));
+                unused_weight = 1.0;
+
+                xdbg_assert!(
+                    idx != 0,
+                    "action state fade_joint_weights_index, bad position, act_idx=0, states={:?}",
+                    states
+                );
+            }
+
+            // Check reuse previous
+            #[cfg(debug_assertions)]
+            {
+                let mut base_idx = 0;
+                let mut reuse_layer_cnt = 0;
+                for (anim_idx, anim_state) in state.animations.iter().enumerate() {
+                    if !anim_state.reuse_previous() {
+                        base_idx = anim_idx;
+                        reuse_layer_cnt = 0;
+                    }
+                    else {
+                        xdbg_assert!(
+                            anim_idx != 0,
+                            "animation state reuse_previous, no previous, act_idx={}, anim_idx={}, states={:?}",
+                            idx,
+                            anim_idx,
+                            states
+                        );
+
+                        let base_state = &state.animations[base_idx];
+                        xdbg_assert!(
+                            base_state.animation_id == anim_state.animation_id,
+                            "animation state reuse_previous, id mismatch, act_idx={}, anim_idx={}, states={:?}",
+                            idx,
+                            anim_idx,
+                            states
+                        );
+                        xdbg_assert!(
+                            base_state.files == anim_state.files,
+                            "animation state reuse_previous, files mismatch, act_idx={}, anim_idx={}, states={:?}",
+                            idx,
+                            anim_idx,
+                            states
+                        );
+                        xdbg_assert!(
+                            base_state.ratio == anim_state.ratio,
+                            "animation state reuse_previous, ratio mismatch, act_idx={}, anim_idx={}, states={:?}",
+                            idx,
+                            anim_idx,
+                            states
+                        );
+
+                        reuse_layer_cnt += 1;
+                        if reuse_layer_cnt > MAX_ANIMATION_LAYERS {
+                            xdbg_assert!(
+                                base_state.ratio == anim_state.ratio,
+                                "animation state reuse_previous, too many, act_idx={}, anim_idx={}, states={:?}",
+                                idx,
+                                anim_idx,
+                                states
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Check unique id
+            #[cfg(debug_assertions)]
+            {
+                xdbg_assert!(
+                    states
+                        .iter()
+                        .filter(|s| !s.previous_frame() && s.id == state.id)
+                        .count()
+                        == 1,
+                    "action state duplicate id, act_idx={}, states={:?}",
+                    idx,
+                    states
+                );
+
+                for (anim_idx, anim_state) in state.animations.iter().enumerate() {
+                    if anim_state.reuse_previous() {
+                        continue;
+                    }
+                    xdbg_assert!(
+                        state
+                            .animations
+                            .iter()
+                            .filter(|a| !a.reuse_previous() && a.animation_id == anim_state.animation_id)
+                            .count()
+                            == 1,
+                        "animation state duplicate animation_id, act_idx={}, anim_idx={}, states={:?}",
+                        idx,
+                        anim_idx,
+                        states
+                    );
+                }
+
+                for (anim_idx, anim_state) in state.animations.iter().enumerate() {
+                    xdbg_assert!(
+                        state
+                            .animations
+                            .iter()
+                            .filter(|a| {
+                                a.animation_id == anim_state.animation_id
+                                    && a.reuse_layer_id == anim_state.reuse_layer_id
+                            })
+                            .count()
+                            == 1,
+                        "animation state duplicate reuse_layer_id, act_idx={}, anim_idx={}, states={:?}",
+                        idx,
+                        anim_idx,
+                        states
+                    );
+                }
+            }
+        }
+
+        new_states.reverse();
+        if new_states.is_empty() {
             return xres!(LogicBadState; "states empty");
         }
+        Ok(new_states)
+    }
+
+    pub fn update(&mut self, frame: u32, states: &[Box<dyn StateActionAny>], loader: &mut AssetLoader) -> XResult<()> {
+        let states = Self::prepare_states(states)?;
 
         // 1. dequeue unused actions
         self.action_queue.dequeue(|ad| states[0].id != ad.id);
@@ -73,7 +304,7 @@ impl Animator {
         if self.action_queue.len() > states.len() {
             return xres!(LogicBadState; "states len");
         }
-        for (idx, state) in states.iter().cloned().enumerate() {
+        for (idx, state) in states.iter().enumerate() {
             let Some(ad) = self.action_queue.get_mut(idx)
             else {
                 break;
@@ -81,7 +312,7 @@ impl Animator {
             if state.id != ad.id {
                 return xres!(LogicBadState; "state id");
             }
-            ad.update(&mut self.sampling_arena, frame, state, &self.skeleton, loader)?;
+            ad.update(&mut self.sampling_arena, frame, *state, &self.skeleton, loader)?;
         }
 
         // 3. try reuse actions
@@ -91,7 +322,7 @@ impl Animator {
                 .action_queue
                 .enqueue_reuse(|ad| {
                     if ad.tmpl_id == state.tmpl_id {
-                        ad.reuse(&mut self.sampling_arena, frame, state, &self.skeleton, loader)?;
+                        ad.reuse(&mut self.sampling_arena, frame, *state, &self.skeleton, loader)?;
                     }
                     Ok(ad.tmpl_id == state.tmpl_id)
                 })?
@@ -105,16 +336,14 @@ impl Animator {
         for idx in self.action_queue.len()..states.len() {
             let state = &states[idx];
             let mut ad = ActionData::default();
-            ad.init(&mut self.sampling_arena, frame, state, &self.skeleton, loader)?;
+            ad.init(&mut self.sampling_arena, frame, *state, &self.skeleton, loader)?;
             self.action_queue.enqueue_new(ad);
         }
         Ok(())
     }
 
     pub fn restore(&mut self, frame: u32, states: &[Box<dyn StateActionAny>]) -> XResult<()> {
-        if states.is_empty() {
-            return xres!(LogicBadState; "states empty");
-        }
+        let states = Self::prepare_states(states)?;
 
         let mut state_iter = states.iter();
         self.action_queue.restore_when(|ad| {
@@ -123,7 +352,7 @@ impl Animator {
             }
             if let Some(state) = state_iter.next() {
                 if ad.id == state.id {
-                    ad.restore(&mut self.sampling_arena, frame, state)?;
+                    ad.restore(&mut self.sampling_arena, frame, *state)?;
                     return Ok(0);
                 }
                 else {
@@ -152,15 +381,31 @@ impl Animator {
     }
 
     pub fn animate(&mut self) -> XResult<()> {
+        log::debug!(target:"#anim_debug.player", "--------------------");
+
         self.blending_job.layers_mut().clear();
-        self.weapon_transforms.clear();
+        self.blending_job.additive_layers_mut().clear();
+        self.weapon_states.clear();
+
         for ad in self.action_queue.iter_mut() {
+            // Handle fade in with joint weights
+            if ad.prev_fade_joint_weights_index != EMPTY_JOINT_WEIGHT_INDEX {
+                Self::handle_previous_fade_blending(
+                    &self.skeleton,
+                    &self.joint_weights_table,
+                    ad,
+                    &mut self.blending_job,
+                    &mut self.tmp_blending_output,
+                )?;
+            }
+
             ad.animate(
                 &mut self.sampling_arena,
                 &mut self.blending_job,
-                &mut self.weapon_transforms,
+                &self.joint_weights_table,
             )?;
         }
+
         self.blending_job.run().map_err(xfrom!())?;
         self.l2m_job.run().map_err(xfrom!())?;
         matrices_to_transforms(
@@ -168,15 +413,92 @@ impl Animator {
             &mut self.model_transforms,
         )?;
 
-        normalize_weapons_by_weight(&mut self.weapon_transforms);
-
         if let Some(current_action) = self.action_queue.last_mut() {
-            current_action.animate_hit_motion(
+            current_action.animate_weapons_and_hits(
                 &mut self.sampling_arena,
                 &self.model_transforms,
-                &self.weapon_transforms,
+                &mut self.weapon_states,
             )?;
         }
+        Ok(())
+    }
+
+    #[inline]
+    fn handle_previous_fade_blending(
+        skeleton: &Skeleton,
+        joint_weights_table: &Option<Rc<JointWeightsTable>>,
+        ad: &ActionData,
+        blending_job: &mut AnimatorBlendingJob,
+        tmp_blending_output: &mut Option<Rc<RefCell<Vec<SoaTransform>>>>,
+    ) -> XResult<()> {
+        let mut joint_weights = None;
+        if let Some(joint_weights_table) = joint_weights_table {
+            joint_weights = joint_weights_table
+                .get_weights(ad.prev_fade_joint_weights_index)
+                .cloned();
+        }
+        xdbg_assert!(
+            joint_weights.is_some(),
+            "joint weights not found, id={}, tmpl_id={}, table={}, index={}",
+            ad.id,
+            ad.tmpl_id,
+            joint_weights_table.is_some(),
+            ad.prev_fade_joint_weights_index
+        );
+
+        if blending_job.layers().is_empty() && blending_job.additive_layers().is_empty() {
+            // do nothing
+            xdbg_unreachable!("Unreachable, empty layers");
+            return Ok(());
+        }
+
+        // Quick path, we simply setup weight and joint weights.
+        #[rustfmt::skip]
+        if blending_job.layers().len() + blending_job.additive_layers().len() <= 4
+            && blending_job.layers().iter().all(|l| l.joint_weights.is_none())
+            && blending_job.additive_layers().iter().all(|l| l.joint_weights.is_none())
+        {
+            for layer in blending_job.layers_mut() {
+                layer.weight *= ad.prev_fade_weight;
+                layer.joint_weights = joint_weights.clone();
+            }
+            for layer in blending_job.additive_layers_mut() {
+                layer.weight *= ad.prev_fade_weight;
+                layer.joint_weights = joint_weights.clone();
+            }
+
+            log::debug!(
+                target:"#anim_debug.animator",
+                "prev_fade.update, fade_weight={}, fade_jwt_idx={}",
+                ad.prev_fade_weight, ad.prev_fade_joint_weights_index
+            );
+            return Ok(());
+        }
+
+        // Blend previous animation, use blending job output as new layer.
+        if tmp_blending_output.is_none() {
+            *tmp_blending_output = Some(Rc::new(RefCell::new(vec![
+                SoaTransform::default();
+                skeleton.num_soa_joints()
+            ])));
+        }
+        let old_output = blending_job.replace_output(tmp_blending_output.take().unwrap());
+        blending_job.run().map_err(xfrom!())?;
+
+        *tmp_blending_output = blending_job.replace_output(old_output.unwrap());
+        blending_job.layers_mut().push(BlendingLayer {
+            transform: tmp_blending_output.clone().unwrap(),
+            weight: ad.prev_fade_weight,
+            joint_weights,
+        });
+        blending_job.layers_mut().clear();
+        blending_job.additive_layers_mut().clear();
+
+        log::debug!(
+            target:"#anim_debug.animator",
+            "prev_fade.blend, fade_weight={}, fade_jwt_idx={}",
+            ad.prev_fade_weight, ad.prev_fade_joint_weights_index
+        );
         Ok(())
     }
 
@@ -186,8 +508,8 @@ impl Animator {
     }
 
     #[inline]
-    pub fn weapon_transforms(&self) -> &[WeaponTransform] {
-        &self.weapon_transforms
+    pub fn weapon_states(&self) -> &WeaponStates {
+        &self.weapon_states
     }
 
     #[inline]
@@ -209,6 +531,11 @@ impl Animator {
             }
         }
         None
+    }
+
+    #[inline]
+    pub fn joint_weights_table(&self) -> Option<Rc<JointWeightsTable>> {
+        self.joint_weights_table.clone()
     }
 }
 
@@ -235,6 +562,9 @@ struct ActionData {
     job_current: u32,
     job_past: u32,
     job_future: u32,
+
+    prev_fade_joint_weights_index: u8,
+    prev_fade_weight: f32,
 }
 
 impl Default for ActionData {
@@ -246,16 +576,79 @@ impl Default for ActionData {
             job_current: u32::MAX,
             job_past: u32::MAX,
             job_future: u32::MAX,
+
+            prev_fade_joint_weights_index: EMPTY_JOINT_WEIGHT_INDEX,
+            prev_fade_weight: 0.0,
         }
     }
 }
 
 impl ActionData {
+    fn load_resources(
+        loader: &mut AssetLoader,
+        anim_state: &StateActionAnimation,
+    ) -> XResult<(Rc<Animation>, Option<Rc<WeaponControl>>, Option<Rc<HitMotion>>)> {
+        let animation = loader.load_animation(anim_state.files)?;
+        let weapon_control = match anim_state.weapon_control() {
+            true => Some(loader.load_weapon_control(anim_state.files)?),
+            false => None,
+        };
+        let hit_motion = match anim_state.hit_motion() {
+            true => Some(loader.load_hit_motion(anim_state.files)?),
+            false => None,
+        };
+        Ok((animation, weapon_control, hit_motion))
+    }
+
+    // Return reuse previous states count (aka how many animations state should be skipped)
+    fn fill_sampling_data_layers(sd: &mut SamplingData, state: StateActionEx<'_>, base_idx: usize) -> usize {
+        sd.layers.clear();
+
+        let base_state = &state.animations[base_idx];
+        sd.layers.push(SamplingDataLayer {
+            weight: base_state.weight * ifelse!(base_state.skip_fade_in(), state.no_fade_weight, state.fade_weight),
+            joint_weights_index: base_state.joint_weights_index,
+        });
+
+        let mut idx = base_idx + 1;
+        let mut layer_cnt = 1;
+        while idx < state.animations.len() {
+            let reused_state = &state.animations[idx];
+            if !reused_state.reuse_previous() {
+                break;
+            }
+
+            idx += 1;
+            layer_cnt = idx - base_idx;
+            if layer_cnt > MAX_ANIMATION_LAYERS {
+                continue; // skip more reused_state here, we checked in prepare_states()
+            }
+
+            sd.layers.push(SamplingDataLayer {
+                weight: reused_state.weight
+                    * ifelse!(reused_state.skip_fade_in(), state.no_fade_weight, state.fade_weight),
+                joint_weights_index: reused_state.joint_weights_index,
+            });
+        }
+        layer_cnt - 1
+    }
+
+    #[inline]
+    fn fill_prev_fade(&mut self, state: StateActionEx<'_>) {
+        self.prev_fade_joint_weights_index = state.fade_joint_weights_index;
+        if state.fade_joint_weights_index != EMPTY_JOINT_WEIGHT_INDEX {
+            self.prev_fade_weight = state.prev_fade_weight();
+        }
+        else {
+            self.prev_fade_weight = 0.0;
+        }
+    }
+
     fn init(
         &mut self,
         arena: &mut SamplingArena,
         frame: u32,
-        state: &Box<dyn StateActionAny>,
+        state: StateActionEx<'_>,
         skeleton: &Skeleton,
         loader: &mut AssetLoader,
     ) -> XResult<()> {
@@ -266,24 +659,30 @@ impl ActionData {
         self.id = state.id;
         self.tmpl_id = state.tmpl_id;
         self.frame = frame;
+        self.fill_prev_fade(state);
 
         let mut pnext: *mut u32 = &mut self.job_current;
-        for anim_state in &state.animations {
+        let mut idx = 0;
+        while idx < state.animations.len() {
+            let anim_state = &state.animations[idx];
             let pos = arena.alloc_and_reptr(&mut pnext);
             let sd = arena.get_mut(pos);
-            let (animation, weapon_motion, hit_motion) = Self::load_resources(loader, anim_state)?;
-            sd.init(
-                anim_state.animation_id,
-                anim_state.files,
-                skeleton,
-                animation,
-                weapon_motion,
-                hit_motion,
-            )?;
+            let (animation, weapon_control, hit_motion) = Self::load_resources(loader, anim_state)?;
+
+            sd.animation_id = anim_state.animation_id;
+            sd.animation_file = anim_state.files;
+            sd.additive_blending = anim_state.additive_blending();
+            sd.layers.clear();
+            sd.sampling_job.set_animation(animation);
+            sd.weapon_control = weapon_control;
+            if let Some(hit_motion) = hit_motion {
+                sd.hit_motion_sampler = Some(HitMotionSampler::new(hit_motion, skeleton)?);
+            }
             sd.frame = frame;
-            sd.weight = anim_state.weight * state.fade_in_weight;
             sd.sampling_job.set_ratio(anim_state.ratio);
             log::debug!("ActionData::init() anim={:?}", anim_state.files);
+
+            idx += 1 + Self::fill_sampling_data_layers(sd, state, idx);
 
             unsafe { *pnext = pos };
             pnext = &mut sd.next;
@@ -292,27 +691,11 @@ impl ActionData {
         Ok(())
     }
 
-    fn load_resources(
-        loader: &mut AssetLoader,
-        anim_state: &StateActionAnimation,
-    ) -> XResult<(Rc<Animation>, Option<Rc<WeaponMotion>>, Option<Rc<HitMotion>>)> {
-        let animation = loader.load_animation(anim_state.files)?;
-        let weapon_motion = match anim_state.weapon_motion() {
-            true => Some(loader.load_weapon_motion(anim_state.files)?),
-            false => None,
-        };
-        let hit_motion = match anim_state.hit_motion() {
-            true => Some(loader.load_hit_motion(anim_state.files)?),
-            false => None,
-        };
-        Ok((animation, weapon_motion, hit_motion))
-    }
-
     fn reuse(
         &mut self,
         arena: &mut SamplingArena,
         frame: u32,
-        state: &Box<dyn StateActionAny>,
+        state: StateActionEx<'_>,
         skeleton: &Skeleton,
         loader: &mut AssetLoader,
     ) -> XResult<()> {
@@ -327,7 +710,7 @@ impl ActionData {
         &mut self,
         arena: &mut SamplingArena,
         frame: u32,
-        state: &Box<dyn StateActionAny>,
+        state: StateActionEx<'_>,
         skeleton: &Skeleton,
         loader: &mut AssetLoader,
     ) -> XResult<()> {
@@ -335,6 +718,7 @@ impl ActionData {
             return xres!(LogicBadState; "animations empty");
         }
         self.frame = frame;
+        self.fill_prev_fade(state);
 
         // 1. dequeue unused jobs
         let mut iter = self.job_current;
@@ -349,7 +733,7 @@ impl ActionData {
         }
         self.job_current = iter;
 
-        // 2. verify using jobs
+        // 2. verify & update using jobs
         let mut state_idx = 0;
         while iter != self.job_future {
             let anim_state = animation_state!(state.animations, state_idx, {
@@ -362,12 +746,12 @@ impl ActionData {
                 return xres!(LogicBadState; "animation id");
             }
             sd.frame = frame;
-            sd.weight = anim_state.weight * state.fade_in_weight;
             sd.sampling_job.set_ratio(anim_state.ratio);
+
+            state_idx += 1 + Self::fill_sampling_data_layers(sd, state, state_idx);
 
             last = iter;
             iter = sd.next;
-            state_idx += 1;
         }
         animation_state!(state.animations, state_idx, return);
 
@@ -380,13 +764,13 @@ impl ActionData {
                 // reuse job already in jobs, don't modify sd.next
                 sd.animation_id = anim_state.animation_id;
                 sd.frame = frame;
-                sd.weight = anim_state.weight * state.fade_in_weight;
                 sd.sampling_job.set_ratio(anim_state.ratio);
                 log::debug!("ActionData::update() reuse anim={:?}", anim_state.files);
 
+                state_idx += 1 + Self::fill_sampling_data_layers(sd, state, state_idx);
+
                 last = self.job_future;
                 self.job_future = sd.next;
-                state_idx += 1;
             }
             else {
                 while self.job_future != u32::MAX {
@@ -407,23 +791,24 @@ impl ActionData {
 
             let pos = arena.alloc_and_reptr(&mut pnext);
             let sd = arena.get_mut(pos);
-            let (animation, weapon_motion, hit_motion) = Self::load_resources(loader, anim_state)?;
-            sd.init(
-                anim_state.animation_id,
-                anim_state.files,
-                skeleton,
-                animation,
-                weapon_motion,
-                hit_motion,
-            )?;
+            let (animation, weapon_control, hit_motion) = Self::load_resources(loader, anim_state)?;
+            sd.animation_id = anim_state.animation_id;
+            sd.animation_file = anim_state.files;
+            sd.additive_blending = anim_state.additive_blending();
+            sd.layers.clear();
+            sd.sampling_job.set_animation(animation);
+            sd.weapon_control = weapon_control;
+            if let Some(hit_motion) = hit_motion {
+                sd.hit_motion_sampler = Some(HitMotionSampler::new(hit_motion, skeleton)?);
+            }
             sd.frame = frame;
-            sd.weight = anim_state.weight * state.fade_in_weight;
             sd.sampling_job.set_ratio(anim_state.ratio);
             log::debug!("ActionData::update() enqueue anim={:?}", anim_state.files);
 
+            state_idx += 1 + Self::fill_sampling_data_layers(sd, state, state_idx);
+
             unsafe { *pnext = pos };
             pnext = &mut sd.next;
-            state_idx += 1;
         }
 
         // connect new jobs to last existed job
@@ -442,14 +827,16 @@ impl ActionData {
         Ok(())
     }
 
-    fn restore(&mut self, arena: &mut SamplingArena, frame: u32, state: &Box<dyn StateActionAny>) -> XResult<()> {
+    fn restore(&mut self, arena: &mut SamplingArena, frame: u32, state: StateActionEx) -> XResult<()> {
         debug_assert!(self.job_past != u32::MAX);
 
         if state.animations.is_empty() {
             return xres!(LogicBadState; "animations empty");
         }
         self.frame = frame;
+        self.fill_prev_fade(state);
 
+        // Find new job list header
         let mut iter = self.job_past;
         while iter != u32::MAX {
             let sd = arena.get_ref(iter);
@@ -460,18 +847,22 @@ impl ActionData {
         }
         self.job_current = iter;
 
-        for anim_state in &state.animations {
+        // Reinit sampling data for new job list
+        let mut idx = 0;
+        while idx < state.animations.len() {
             if iter == u32::MAX {
                 return xres!(LogicBadState; "animations iter");
             }
 
+            let anim_state = &state.animations[idx];
             let sd: &mut SamplingData = arena.get_mut(iter);
             if sd.animation_id != anim_state.animation_id {
                 return xres!(LogicBadState; "animation id");
             }
             sd.frame = frame;
-            sd.weight = anim_state.weight * state.fade_in_weight;
             sd.sampling_job.set_ratio(anim_state.ratio);
+
+            idx += 1 + Self::fill_sampling_data_layers(sd, state, idx);
 
             iter = sd.next;
         }
@@ -511,38 +902,90 @@ impl ActionData {
     fn animate(
         &mut self,
         arena: &mut SamplingArena,
-        blending_job: &mut BlendingJob,
-        weapon_transforms: &mut Vec<WeaponTransform>,
+        blending_job: &mut AnimatorBlendingJob,
+        joint_weights_table: &Option<Rc<JointWeightsTable>>,
     ) -> XResult<()> {
         let mut iter = self.job_current;
         while iter != self.job_future {
             let sd = arena.get_mut(iter);
             iter = sd.next;
 
-            sd.sampling_job.run().map_err(xfrom!())?;
-            blending_job.layers_mut().push(BlendingLayer::with_weight(
-                sd.sampling_job.output().unwrap().clone(),
-                sd.weight,
-            ));
+            if sd.layers.is_empty() {
+                continue;
+            }
 
-            if let Some(weapon_motion) = &sd.weapon_motion {
-                sample_weapons_by_name_weight(weapon_motion, sd.sampling_job.ratio(), sd.weight, weapon_transforms)?;
+            if Self::need_run_sampling_job(&sd.sampling_job) {
+                sd.sampling_job.run().map_err(xfrom!())?;
+            }
+
+            for sd_layer in &sd.layers {
+                let mut layer_joint_weights = None;
+                if sd_layer.joint_weights_index != EMPTY_JOINT_WEIGHT_INDEX {
+                    if let Some(joint_weights_table) = joint_weights_table {
+                        layer_joint_weights = joint_weights_table.get_weights(sd_layer.joint_weights_index).cloned();
+                    }
+                    xdbg_assert!(
+                        layer_joint_weights.is_some(),
+                        "joint weights not found, table={}, index={}",
+                        joint_weights_table.is_some(),
+                        sd_layer.joint_weights_index
+                    );
+                }
+
+                log::debug!(
+                    target:"#anim_debug.animator",
+                    "anim: {}, ratio: {}, additive: {}, weight: {}, jwt_idx: {}",
+                    sd.animation_file,
+                    sd.sampling_job.ratio(),
+                    sd.additive_blending,
+                    sd_layer.weight,
+                    sd_layer.joint_weights_index
+                );
+
+                let blending_layer = AnimatorBlendingLayer {
+                    transform: sd.sampling_job.output().unwrap().clone(),
+                    weight: sd_layer.weight,
+                    joint_weights: layer_joint_weights,
+                };
+
+                match sd.additive_blending {
+                    true => blending_job.additive_layers_mut().push(blending_layer),
+                    false => blending_job.layers_mut().push(blending_layer),
+                }
             }
         }
         Ok(())
     }
 
-    fn animate_hit_motion(
+    // If the ratio and animation_id are unchanged, we can skip sampling_job.run() to improve performance
+    fn need_run_sampling_job(sampling_job: &SamplingJob) -> bool {
+        let (prev_ratio, prev_anim_id) = match sampling_job.context() {
+            Some(ctx) => (ctx.ratio(), ctx.animation_id()),
+            None => (0.0, 0),
+        };
+        let curr_ratio = sampling_job.ratio();
+        let curr_anim_id = match sampling_job.animation() {
+            Some(anim) => anim.as_id(),
+            None => 0,
+        };
+        (prev_ratio != curr_ratio) || (prev_anim_id != curr_anim_id)
+    }
+
+    fn animate_weapons_and_hits(
         &mut self,
         arena: &mut SamplingArena,
         model_transforms: &[Transform3A],
-        weapon_transforms: &[WeaponTransform],
+        weapon_states: &mut WeaponStates,
     ) -> XResult<()> {
         if self.job_current == self.job_future {
             return Ok(());
         }
 
         let sd: &mut SamplingData = arena.get_mut(self.job_current);
+        if let Some(weapon_control) = &sd.weapon_control {
+            *weapon_states = weapon_control.sample(sd.sampling_job.ratio())?;
+        }
+
         let hit_motion_sampler = match &mut sd.hit_motion_sampler {
             Some(hit_motion_sampler) => hit_motion_sampler,
             None => return Ok(()),
@@ -552,7 +995,7 @@ impl ActionData {
         let ratio = sd.sampling_job.ratio();
         let time = animation.duration() * ratio;
 
-        hit_motion_sampler.sample(time, model_transforms, weapon_transforms);
+        hit_motion_sampler.sample(time, model_transforms);
         Ok(())
     }
 
@@ -572,74 +1015,36 @@ struct SamplingData {
     next: u32,
     animation_id: u16,
     frame: u32,
-    weight: f32,
     animation_file: Symbol,
+    additive_blending: bool,
+    layers: ArrayVec<SamplingDataLayer, MAX_ANIMATION_LAYERS>,
     sampling_job: SamplingJob,
-    weapon_motion: Option<Rc<WeaponMotion>>,
+    weapon_control: Option<Rc<WeaponControl>>,
     hit_motion_sampler: Option<HitMotionSampler>,
 }
 
-impl Default for SamplingData {
-    fn default() -> SamplingData {
-        SamplingData {
-            next: u32::MAX,
-            animation_id: INVALID_ANIMATION_ID,
-            frame: 0,
-            weight: 0.0,
-            animation_file: Symbol::default(),
-            sampling_job: SamplingJob::default(),
-            weapon_motion: None,
-            hit_motion_sampler: None,
-        }
-    }
-}
-
-impl SamplingData {
-    fn init(
-        &mut self,
-        animation_id: u16,
-        animation_file: Symbol,
-        skeleton: &Skeleton,
-        animation: Rc<Animation>,
-        weapon_motion: Option<Rc<WeaponMotion>>,
-        hit_motion: Option<Rc<HitMotion>>,
-    ) -> XResult<()> {
-        self.animation_id = animation_id;
-        self.frame = 0;
-        self.weight = 0.0;
-        self.animation_file = animation_file;
-
-        let ctx = SamplingContext::from_animation(&animation);
-        self.sampling_job.set_animation(animation);
-        self.sampling_job.set_context(ctx);
-        self.sampling_job.set_output(Rc::new(RefCell::new(vec![
-            SoaTransform::default();
-            skeleton.num_soa_joints()
-        ])));
-
-        self.weapon_motion = weapon_motion;
-
-        if let Some(hit_motion) = hit_motion {
-            self.hit_motion_sampler = Some(HitMotionSampler::new(hit_motion, skeleton)?);
-        }
-
-        self.next = u32::MAX;
-        Ok(())
-    }
+#[derive(Debug, Clone, Copy)]
+struct SamplingDataLayer {
+    weight: f32,
+    joint_weights_index: u8,
 }
 
 #[derive(Debug)]
 struct SamplingArena {
+    num_joints: usize,
+    num_soa_joints: usize,
     init_cap: usize,
     arena: Vec<SamplingData>,
     free: u32,
 }
 
 impl SamplingArena {
-    fn new(cap: usize) -> SamplingArena {
+    fn new(skeleton: &Skeleton, cap: usize) -> SamplingArena {
         let mut sa: SamplingArena = SamplingArena {
+            num_joints: skeleton.num_joints(),
+            num_soa_joints: skeleton.num_soa_joints(),
             init_cap: cap,
-            arena: (0..cap).map(|_| SamplingData::default()).collect(),
+            arena: (0..cap).map(|_| Self::default_sd()).collect(),
             free: 0,
         };
         for (idx, sd) in sa.arena.iter_mut().enumerate() {
@@ -657,7 +1062,7 @@ impl SamplingArena {
 
             self.arena.reserve_exact(self.init_cap);
             for idx in 0..self.init_cap as u32 {
-                let mut sd = SamplingData::default();
+                let mut sd = Self::default_sd();
                 sd.next = prev_len + idx + 1;
                 self.arena.push(sd);
             }
@@ -679,12 +1084,15 @@ impl SamplingArena {
 
         let pos = self.free;
         self.free = self.get_ref(pos).next;
+        let num_joints = self.num_joints;
+        let num_soa_joints = self.num_soa_joints;
+        Self::init_sd(self.get_mut(pos), num_joints, num_soa_joints);
         pos
     }
 
     fn free(&mut self, pos: u32) {
         let sd = self.get_mut(pos);
-        *sd = SamplingData::default();
+        SamplingArena::clear_sd(sd);
 
         unsafe {
             let mut p: *mut u32 = &mut self.free;
@@ -706,6 +1114,49 @@ impl SamplingArena {
     fn get_mut(&mut self, pos: u32) -> &mut SamplingData {
         debug_assert!((pos as usize) < self.arena.len());
         return unsafe { self.arena.get_unchecked_mut(pos as usize) };
+    }
+
+    fn default_sd() -> SamplingData {
+        SamplingData {
+            next: u32::MAX,
+            animation_id: INVALID_ANIMATION_ID,
+            frame: 0,
+            animation_file: Symbol::default(),
+            additive_blending: false,
+            layers: ArrayVec::new(),
+            sampling_job: SamplingJob::default(),
+            weapon_control: None,
+            hit_motion_sampler: None,
+        }
+    }
+
+    fn init_sd(data: &mut SamplingData, num_joints: usize, num_soa_joints: usize) {
+        data.animation_id = u16::MAX;
+
+        if data.sampling_job.context().is_none() {
+            let ctx = SamplingContext::new(num_joints);
+            data.sampling_job.set_context(ctx);
+        }
+
+        if data.sampling_job.output().is_none() {
+            let output = Rc::new(RefCell::new(vec![SoaTransform::default(); num_soa_joints]));
+            data.sampling_job.set_output(output);
+        }
+
+        data.next = u32::MAX;
+    }
+
+    fn clear_sd(data: &mut SamplingData) {
+        data.next = u32::MAX;
+        data.animation_id = INVALID_ANIMATION_ID;
+        data.frame = 0;
+        data.animation_file = Symbol::default();
+        data.additive_blending = false;
+        data.layers.clear();
+        data.sampling_job.clear_animation();
+        data.sampling_job.set_ratio(0.0);
+        data.weapon_control = None;
+        data.hit_motion_sampler = None;
     }
 }
 
