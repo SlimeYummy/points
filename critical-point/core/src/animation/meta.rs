@@ -2,7 +2,7 @@ use critical_point_macros::csharp_out;
 use glam::{Vec3, Vec3Swizzles};
 use ozz_animation_rs::{Animation, Archive, Skeleton, Track};
 
-use crate::animation::{HitMotion, RootMotion, RootTrackName, WeaponMotion};
+use crate::animation::{HitMotion, JointWeightsTableRc, RootMotion, RootTrackName, ShapeKey, WeaponControl};
 use crate::utils::XResult;
 
 #[repr(C)]
@@ -31,8 +31,8 @@ impl Drop for SkeletonMeta {
     }
 }
 
-pub fn load_skeleton_meta(path: String, with_joints: bool) -> XResult<SkeletonMeta> {
-    let mut archive = Archive::from_path(&path)?;
+pub fn load_skeleton_meta(path: &str, with_joints: bool) -> XResult<SkeletonMeta> {
+    let mut archive = Archive::from_path(path)?;
     let ozz_meta = Skeleton::read_meta(&mut archive, with_joints)?;
 
     let mut meta = SkeletonMeta {
@@ -75,8 +75,8 @@ impl Drop for AnimationMeta {
     }
 }
 
-pub fn load_animation_meta(path: String) -> XResult<AnimationMeta> {
-    let mut archive = Archive::from_path(&path)?;
+pub fn load_animation_meta(path: &str) -> XResult<AnimationMeta> {
+    let mut archive = Archive::from_path(path)?;
     let ozz_meta = Animation::read_meta(&mut archive)?;
 
     Ok(AnimationMeta {
@@ -118,8 +118,8 @@ pub struct RootMotionPositionMeta {
     pub whole_distance_y: f32,
 }
 
-pub fn load_root_motion_meta(path: String) -> XResult<RootMotionMeta> {
-    let root_motion = RootMotion::from_path(&path)?;
+pub fn load_root_motion_meta(path: &str) -> XResult<RootMotionMeta> {
+    let root_motion = RootMotion::from_path(path)?;
 
     let mut position_default = RootMotionPositionMeta::default();
     if root_motion.has_position(RootTrackName::Default) {
@@ -166,64 +166,26 @@ pub fn load_root_motion_meta(path: String) -> XResult<RootMotionMeta> {
 #[repr(C)]
 #[csharp_out(Ref)]
 #[derive(Debug, Default, Clone)]
-pub struct WeaponMotionMeta {
+pub struct WeaponControlMeta {
     pub version: u32,
-    pub count: u32,
-    pub names: Vec<String>,
+    pub has_left_weapon: bool,
+    pub has_right_weapon: bool,
 }
 
 #[cfg(feature = "debug-print")]
-impl Drop for WeaponMotionMeta {
+impl Drop for WeaponControlMeta {
     fn drop(&mut self) {
-        log::debug!("WeaponMotionMeta::drop()");
+        log::debug!("WeaponControlMeta::drop()");
     }
 }
 
-pub fn load_weapon_motion_meta(path: String, with_names: bool) -> XResult<WeaponMotionMeta> {
-    let weapon_motion = WeaponMotion::from_path(&path)?;
-
-    let mut meta = WeaponMotionMeta {
+pub fn load_weapon_control_meta(path: &str) -> XResult<WeaponControlMeta> {
+    let weapon_control = WeaponControl::from_path(path)?;
+    Ok(WeaponControlMeta {
         version: Track::<Vec3>::version(),
-        count: weapon_motion.len() as u32,
-        names: Vec::new(),
-    };
-
-    if with_names {
-        meta.names = weapon_motion.iter().map(|w| w.name().to_string()).collect();
-    }
-    Ok(meta)
-}
-
-#[repr(C)]
-#[csharp_out(Ref)]
-#[derive(Debug, Default, Clone)]
-pub struct ShapeKeyMeta {
-    pub version: u32,
-    pub count: u32,
-    pub names: Vec<String>,
-}
-
-#[cfg(feature = "debug-print")]
-impl Drop for ShapeKeyMeta {
-    fn drop(&mut self) {
-        log::debug!("ShapeKeyMeta::drop()");
-    }
-}
-
-pub fn load_shape_key_meta(path: String, with_names: bool) -> XResult<ShapeKeyMeta> {
-    use crate::animation::ShapeKey;
-    let shape_keys = ShapeKey::from_path(&path)?;
-
-    let mut meta = ShapeKeyMeta {
-        version: Track::<f32>::version(),
-        count: shape_keys.len() as u32,
-        names: Vec::new(),
-    };
-
-    if with_names {
-        meta.names = shape_keys.iter().map(|w| w.name().to_string()).collect();
-    }
-    Ok(meta)
+        has_left_weapon: weapon_control.has_left_weapon(),
+        has_right_weapon: weapon_control.has_right_weapon(),
+    })
 }
 
 #[repr(C)]
@@ -241,8 +203,8 @@ pub struct HitTrackGroupMeta {
     pub count: u32,
 }
 
-pub fn load_hit_motion_meta(path: String) -> XResult<HitMotionMeta> {
-    let hit_motion = HitMotion::from_path(&path)?;
+pub fn load_hit_motion_meta(path: &str) -> XResult<HitMotionMeta> {
+    let hit_motion = HitMotion::from_path(path)?;
     let mut meta = HitMotionMeta::default();
 
     for bx in hit_motion.joint_boxes() {
@@ -272,6 +234,47 @@ pub fn load_hit_motion_meta(path: String) -> XResult<HitMotionMeta> {
     Ok(meta)
 }
 
+#[repr(C)]
+#[csharp_out(Ref)]
+#[derive(Debug, Default, Clone)]
+pub struct ShapeKeyMeta {
+    pub version: u32,
+    pub count: u32,
+    pub names: Vec<String>,
+}
+
+#[cfg(feature = "debug-print")]
+impl Drop for ShapeKeyMeta {
+    fn drop(&mut self) {
+        log::debug!("ShapeKeyMeta::drop()");
+    }
+}
+
+pub fn load_shape_key_meta(path: &str) -> XResult<ShapeKeyMeta> {
+    let shape_keys = ShapeKey::from_path(path)?;
+    Ok(ShapeKeyMeta {
+        version: Track::<f32>::version(),
+        count: shape_keys.len() as u32,
+        names: shape_keys.iter().map(|w| w.name().to_string()).collect(),
+    })
+}
+
+#[repr(C)]
+#[csharp_out(Ref)]
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct JointWeightsTableMeta {
+    pub names: Vec<String>,
+    pub count: u32,
+}
+
+pub fn load_joint_weights_table_meta(path: &str) -> XResult<JointWeightsTableMeta> {
+    let names = JointWeightsTableRc::names_from_path(&path)?;
+    Ok(JointWeightsTableMeta {
+        count: names.len() as u32,
+        names: names,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,11 +282,11 @@ mod tests {
 
     #[test]
     fn test_skeleton_meta() {
-        let meta = load_skeleton_meta(format!("{}/Girl/Girl.ls-ozz", TEST_ASSET_PATH), true).unwrap();
+        let meta = load_skeleton_meta(&format!("{}/Girl/Girl.ls-ozz", TEST_ASSET_PATH), true).unwrap();
         assert_eq!(meta.version, Skeleton::version());
-        assert_eq!(meta.num_joints, 20);
-        assert_eq!(meta.num_soa_joints, 5);
-        assert_eq!(meta.joint_metas.len(), 20);
+        assert_eq!(meta.num_joints, 22);
+        assert_eq!(meta.num_soa_joints, 6);
+        assert_eq!(meta.joint_metas.len(), 22);
         assert_eq!(meta.joint_metas[0], SkeletonJointMeta {
             index: 0,
             parent: -1,
@@ -293,7 +296,7 @@ mod tests {
 
     #[test]
     fn test_animation_meta() {
-        let meta = load_animation_meta(format!("{}/Girl/Attack_01A.la-ozz", TEST_ASSET_PATH)).unwrap();
+        let meta = load_animation_meta(&format!("{}/Girl/Attack_01A.la-ozz", TEST_ASSET_PATH)).unwrap();
         assert_eq!(meta.version, Animation::version());
         assert_eq!(meta.duration, 2.6666667);
         assert_eq!(meta.num_tracks, 20);
@@ -302,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_root_motion_meta() {
-        let meta = load_root_motion_meta(format!("{}/Girl/Attack_01A.rm-ozz", TEST_ASSET_PATH)).unwrap();
+        let meta = load_root_motion_meta(&format!("{}/Girl/Attack_01A.rm-ozz", TEST_ASSET_PATH)).unwrap();
         assert_eq!(meta.version, Track::<Vec3>::version());
         assert_eq!(meta.position_default.enabled, true);
         assert_eq!(
@@ -323,16 +326,16 @@ mod tests {
     }
 
     #[test]
-    fn test_weapon_motion_meta() {
-        let meta = load_weapon_motion_meta(format!("{}/Girl/Attack_01A.wm-ozz", TEST_ASSET_PATH), true).unwrap();
+    fn test_weapon_control_meta() {
+        let meta = load_weapon_control_meta(&format!("{}/Girl/Idle_Axe.wc-ozz", TEST_ASSET_PATH)).unwrap();
         assert_eq!(meta.version, Track::<Vec3>::version());
-        assert_eq!(meta.count, 1);
-        assert_eq!(meta.names, vec!["Axe".to_string()]);
+        assert_eq!(meta.has_left_weapon, false);
+        assert_eq!(meta.has_right_weapon, true);
     }
 
     #[test]
     fn test_hit_motion_meta() {
-        let meta = load_hit_motion_meta(format!("{}/Girl/Attack_Test.hm-json", TEST_ASSET_PATH)).unwrap();
+        let meta = load_hit_motion_meta(&format!("{}/Girl/Attack_Test.hm-json", TEST_ASSET_PATH)).unwrap();
         assert_eq!(meta.track_groups, vec![
             HitTrackGroupMeta {
                 group: "Health".to_string(),
@@ -346,6 +349,30 @@ mod tests {
                 group: "Axe".to_string(),
                 count: 2
             },
+        ]);
+    }
+
+    #[test]
+    fn test_shape_key_meta() {
+        let meta = load_shape_key_meta(&format!("{}/Slime/RunLoop.sk-ozz", TEST_ASSET_PATH)).unwrap();
+        assert_eq!(meta.version, Track::<f32>::version());
+        assert_eq!(meta.count, 2);
+        assert_eq!(meta.names, vec!["Air".to_string(), "Land".to_string()]);
+    }
+
+    #[test]
+    fn test_joint_weights_table_meta() {
+        let meta = load_joint_weights_table_meta(&format!("{}/Girl/Girl.lw-json", TEST_ASSET_PATH)).unwrap();
+        assert_eq!(meta.count, 8);
+        assert_eq!(meta.names, vec![
+            "All".to_string(),
+            "NoArm".to_string(),
+            "Arm".to_string(),
+            "LeftArm".to_string(),
+            "RightArm".to_string(),
+            "All".to_string(),
+            "NoLeg".to_string(),
+            "Leg".to_string()
         ]);
     }
 }
