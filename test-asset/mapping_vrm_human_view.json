@@ -52,6 +52,10 @@
                         "rename": "LeftHand",
                         "next": [
                           {
+                            "name": "Weapon_L_Root",
+                            "rename": "LeftWeaponRoot"
+                          },
+                          {
                             "name": "J_Bip_L_Index1",
                             "rename": "LeftIndexProximal",
                             "next": {
@@ -101,10 +105,10 @@
                           },
                           {
                             "name": "J_Bip_L_Thumb1",
-                            "rename": "LeftThumbMetacarpal",
+                            "rename": "LeftThumbProximal",
                             "next": {
                               "name": "J_Bip_L_Thumb2",
-                              "rename": "LeftThumbProximal",
+                              "rename": "LeftThumbIntermediate",
                               "next": {
                                 "name": "J_Bip_L_Thumb3",
                                 "rename": "LeftThumbDistal"
@@ -129,6 +133,10 @@
                         "name": "J_Bip_R_Hand",
                         "rename": "RightHand",
                         "next": [
+                          {
+                            "name": "Weapon_R_Root",
+                            "rename": "RightWeaponRoot"
+                          },
                           {
                             "name": "J_Bip_R_Index1",
                             "rename": "RightIndexProximal",
@@ -179,10 +187,10 @@
                           },
                           {
                             "name": "J_Bip_R_Thumb1",
-                            "rename": "RightThumbMetacarpal",
+                            "rename": "RightThumbProximal",
                             "next": {
                               "name": "J_Bip_R_Thumb2",
-                              "rename": "RightThumbProximal",
+                              "rename": "RightThumbIntermediate",
                               "next": {
                                 "name": "J_Bip_R_Thumb3",
                                 "rename": "RightThumbDistal"
