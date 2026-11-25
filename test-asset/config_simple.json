@@ -23,8 +23,7 @@
             "filename": "{{out_dir}}/*.rm-ozz",
             "root_motion_joint": "Root"
           }
-        <%
-        } %>
+        <% } %>
       }
     }
   ],
@@ -32,11 +31,12 @@
     <% for(var i = 0; i < json_tracks.length; i++){ %>
       {
         "json": "<%= json_tracks[i].json %>",
-        "filename": "<%= json_tracks[i].filename %>"
+        "filename": "<%= json_tracks[i].filename %>",
+        "optimize": true
       }
-      <% if (i != json_tracks.length - 1) { %>, <%
-      } %>
-    <%
-    } %>
+      <% if (i != json_tracks.length - 1) { %>
+      ,
+      <% } %>
+    <% } %>
   ]
 }

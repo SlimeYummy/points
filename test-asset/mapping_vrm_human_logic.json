@@ -39,7 +39,11 @@
                       "rename": "LeftLowerArm",
                       "next": {
                         "name": "J_Bip_L_Hand",
-                        "rename": "LeftHand"
+                        "rename": "LeftHand",
+                        "next": {
+                          "name": "Weapon_L_Root",
+                          "rename": "LeftWeaponRoot"
+                        }
                       }
                     }
                   }
@@ -55,7 +59,11 @@
                       "rename": "RightLowerArm",
                       "next": {
                         "name": "J_Bip_R_Hand",
-                        "rename": "RightHand"
+                        "rename": "RightHand",
+                        "next": {
+                          "name": "Weapon_R_Root",
+                          "rename": "RightWeaponRoot"
+                        }
                       }
                     }
                   }

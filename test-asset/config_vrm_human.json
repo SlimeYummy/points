@@ -4,32 +4,26 @@
     "renamed_file": "{{out_dir}}/{{skeleton_name}}.{{skeleton_suffix}}-ozz",
     "import": {
       "enable": true,
-      "raw": false,
       "types": {
-        "skeleton": true,
-        "marker": false,
-        "camera": false,
-        "geometry": false,
-        "light": false,
-        "null": false,
-        "any": false
+        "skeleton": true
       }
     }
   },
   "animations": [
     {
-      "clip": "Idle_(Empty|Axe)",
+      "clip": "Run_Stop_Add_Empty|Run_Stop_\\d_Add_Axe",
       "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
       "raw": false,
-      "additive": false,
-      "optimize": true
+      "optimize": true,
+      "additive": true,
+      "additive_reference": "skeleton"
     },
     {
-      "clip": "(Run|Walk)(Start|Stop)?(_\\w{1,4})?_(Empty|Axe)",
+      "clip": ".*",
       "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
       "raw": false,
-      "additive": false,
       "optimize": true,
+      "additive": false,
       "tracks": {
         <% if (root_motion) { %>
         "motion": {
@@ -38,86 +32,8 @@
           "root_motion_joint": "Root"
         }
         <% } %>
-      }
-    },
-    {
-      "clip": "Hit1_Empty_\\w",
-      "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
-      "raw": false,
-      "additive": false,
-      "optimize": true,
-      "tracks": {
-        <% if (root_motion) { %>
-        "motion": {
-          "enable": true,
-          "filename": "{{out_dir}}/*.rm-ozz",
-          "root_motion_joint": "Root"
-        }
-        <% } %>
-      }
-    },
-    {
-      "clip": "Attack_\\d\\d\\w",
-      "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
-      "raw": false,
-      "additive": false,
-      "optimize": true
-    },
-    {
-      "clip": "Greet",
-      "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
-      "raw": false,
-      "additive": false,
-      "optimize": true,
-      "tracks": {
-        <% if (root_motion) { %>
-        "motion": {
-            "enable": true,
-            "filename": "{{out_dir}}/*.rm-ozz",
-            "root_motion_joint": "Root"
-          }
-        <%
-        } %>
       }
     }
-    // {
-    //   "clip": "Attack_\\d\\d\\a",
-    //   "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
-    //   "raw": false,
-    //   "additive": false,
-    //   "optimize": true,
-    //   "tracks": {
-    //     <% if (motion) { %>
-    //     "motion": {
-    //       "enable": true,
-    //       "filename": "{{out_dir}}/*.rm-ozz",
-    //       "position": {
-    //         "components": "xzB",
-    //         "reference": "skeleton",
-    //         "bake": true,
-    //         "loop": false,
-    //         "raw": false,
-    //         "optimize": true
-    //       },
-    //       "rotation": {
-    //         "components": "y",
-    //         "reference": "skeleton",
-    //         "bake": true,
-    //         "loop": false,
-    //         "raw": false,
-    //         "optimize": true
-    //       }
-    //     }
-    //     <% } %>
-    //   }
-    // },
-    // {
-    //   "clip": "^(?!tpose)$",
-    //   "filename": "{{out_dir}}/*.{{animation_suffix}}-ozz",
-    //   "raw": false,
-    //   "additive": false,
-    //   "optimize": true
-    // }
   ],
   "json_tracks": [
     <% for(var i = 0; i < json_tracks.length; i++){ %>
