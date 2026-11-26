@@ -1,7 +1,7 @@
 use ozz_animation_rs::{Animation, Archive, Skeleton};
 use std::rc::Rc;
 
-use crate::animation::{HitMotion, RootMotion, WeaponMotion};
+use crate::animation::{HitMotion, JointWeightsTable, RootMotion, WeaponControl};
 use crate::asset::loader::AssetLoader;
 use crate::utils::{Symbol, XResult, xfromf};
 
@@ -43,17 +43,17 @@ impl AssetLoader {
         Ok(root_motion)
     }
 
-    pub fn load_weapon_motion(&mut self, path_pattern: Symbol) -> XResult<Rc<WeaponMotion>> {
-        if let Some(weapon_motion) = self.weapon_motion_cache.get(&path_pattern) {
-            return Ok(weapon_motion.clone());
+    pub fn load_weapon_control(&mut self, path_pattern: Symbol) -> XResult<Rc<WeaponControl>> {
+        if let Some(weapon_control) = self.weapon_control_cache.get(&path_pattern) {
+            return Ok(weapon_control.clone());
         }
-        let path = format!("{}.wm-ozz", &path_pattern[0..path_pattern.len() - 2]);
+        let path = format!("{}.wc-ozz", &path_pattern[0..path_pattern.len() - 2]);
         let data_buf = self.load_buffer(&path)?;
         let mut archive = Archive::from_vec(data_buf).map_err(xfromf!("path={:?}", &path))?;
-        let weapon_motion = Rc::new(WeaponMotion::from_archive(&mut archive).map_err(xfromf!("path={:?}", &path))?);
-        self.weapon_motion_cache
-            .insert(path_pattern.clone(), weapon_motion.clone());
-        Ok(weapon_motion)
+        let weapon_control = Rc::new(WeaponControl::from_archive(&mut archive).map_err(xfromf!("path={:?}", &path))?);
+        self.weapon_control_cache
+            .insert(path_pattern.clone(), weapon_control.clone());
+        Ok(weapon_control)
     }
 
     pub fn load_hit_motion(&mut self, path_pattern: Symbol) -> XResult<Rc<HitMotion>> {
@@ -66,5 +66,22 @@ impl AssetLoader {
             Rc::new(HitMotion::from_json_bytes(&data_buf, Some(path.as_str())).map_err(xfromf!("path={:?}", &path))?);
         self.hit_motion_cache.insert(path_pattern.clone(), hit_motion.clone());
         Ok(hit_motion)
+    }
+
+    pub fn load_joint_weights_table_with(
+        &mut self,
+        path_pattern: Symbol,
+        skeleton: &Skeleton,
+    ) -> XResult<Rc<JointWeightsTable>> {
+        if let Some(joint_weights_table) = self.joint_weights_table_cache.get(&path_pattern) {
+            return Ok(joint_weights_table.clone());
+        }
+        let path = format!("{}.lw-json", &path_pattern[0..path_pattern.len() - 2]);
+        let data_buf = self.load_buffer(&path)?;
+        let joint_weights_table =
+            Rc::new(JointWeightsTable::from_json_bytes_rc(&data_buf, skeleton).map_err(xfromf!("path={:?}", &path))?);
+        self.joint_weights_table_cache
+            .insert(path_pattern.clone(), joint_weights_table.clone());
+        Ok(joint_weights_table)
     }
 }
