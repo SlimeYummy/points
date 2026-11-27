@@ -141,8 +141,10 @@ mod tests {
             assert_eq!(inst_act.anim_main.duration, 4.0);
             assert_eq!(inst_act.anim_main.fade_in, 0.1);
             assert_eq!(inst_act.anim_main.root_motion, true);
-            assert_eq!(inst_act.anim_main.weapon_motion, false);
+            assert_eq!(inst_act.anim_main.weapon_control, false);
             assert_eq!(inst_act.anim_main.hit_motion, true);
+            assert_eq!(inst_act.anim_main.shape_key, false);
+            assert!(inst_act.anim_main.additive_blending);
 
             assert_eq!(inst_act.input_movements.len(), 2);
             assert_eq!(inst_act.input_movements[0].time, 0.0);
@@ -197,7 +199,6 @@ mod tests {
             assert_eq!(inst_act.hits[2].box_max_times, 0);
             assert_eq!(inst_act.hits[2].box_min_interval, 1e10);
             assert_eq!(inst_act.hits[2].group_max_times, 0);
-
         }
     }
 }

@@ -106,8 +106,10 @@ mod tests {
         assert_eq!(inst_act.anim_main.duration, cf2s(168));
         assert_eq!(inst_act.anim_main.fade_in, 0.1);
         assert_eq!(inst_act.anim_main.root_motion, true);
-        assert_eq!(inst_act.anim_main.weapon_motion, false);
+        assert_eq!(inst_act.anim_main.weapon_control, false);
         assert_eq!(inst_act.anim_main.hit_motion, false);
+        assert_eq!(inst_act.anim_main.shape_key, false);
+        assert_eq!(inst_act.anim_main.additive_blending, false);
 
         assert_eq!(inst_act.adjust_movements.len(), 2);
         assert_eq!(inst_act.adjust_movements[0].time, 0.0);
@@ -134,6 +136,5 @@ mod tests {
         assert_eq!(inst_act.keep_levels[0].value, LEVEL_ACTION);
         assert_eq!(inst_act.keep_levels[1].range, TimeRange::new(cf2s(150), cf2s(168)));
         assert_eq!(inst_act.keep_levels[1].value, LEVEL_ATTACK);
-
     }
 }

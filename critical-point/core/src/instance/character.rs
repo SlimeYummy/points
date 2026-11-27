@@ -26,6 +26,7 @@ pub struct InstCharacter {
 
     pub tags: Vec<Symbol>,
     pub skeleton_files: Symbol,
+    pub joint_weights_table: bool,
 
     pub values: Box<InstValues>,
     pub slots: JewelSlots,
@@ -92,6 +93,7 @@ impl InstCharacter {
 
         inst.tags = style.tags.iter().map(|t| sb!(t)).collect();
         inst.skeleton_files = sb!(&chara.skeleton_files);
+        inst.joint_weights_table = chara.joint_weights_table;
 
         let idx = chara.level_to_index(param.level);
         for attr in style.attributes.iter() {
@@ -275,6 +277,7 @@ impl InstCharacter {
 
         inst.tags = chara.tags.iter().map(|t| sb!(t)).collect();
         inst.skeleton_files = sb!(&chara.skeleton_files);
+        inst.joint_weights_table = chara.joint_weights_table;
 
         let idx = chara.level_to_index(param.level);
         for attr in chara.attributes.iter() {
@@ -422,6 +425,7 @@ mod tests {
         assert_eq!(inst.secondary.critical_damage, 0.3);
         assert_eq!(inst.secondary.max_health_up, 0.0);
         assert_eq!(inst.slots, JewelSlots::new(3, 5, 4));
+        assert_eq!(inst.joint_weights_table, true);
     }
 
     #[test]
@@ -559,12 +563,13 @@ mod tests {
         inst.var_indexes.insert(id!("#.Action.Instance.AttackDerive^1A"), 2);
         InstCharacter::collect_player_actions(&mut ctx, &param, &mut inst).unwrap();
 
-        assert_eq!(inst.actions.len(), 4);
+        assert_eq!(inst.actions.len(), 5);
         assert!(inst.actions.contains_key(&id!("Action.Instance.Idle^1A")));
         assert!(inst.actions.contains_key(&id!("Action.Instance.Run^1A")));
         assert!(inst.actions.contains_key(&id!("Action.Instance.Attack^1A")));
         assert!(inst.actions.contains_key(&id!("Action.Instance.AttackDerive^1A")));
-        assert_eq!(inst.primary_keys.len(), 3);
+        assert!(inst.actions.contains_key(&id!("Action.Instance.Dodge^1A")));
+        assert_eq!(inst.primary_keys.len(), 4);
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Idle).unwrap(),
             &id!("Action.Instance.Idle^1A")
@@ -576,6 +581,10 @@ mod tests {
         assert_eq!(
             inst.primary_keys.find_first(&VirtualKey::Attack1).unwrap(),
             &id!("Action.Instance.Attack^1A")
+        );
+        assert_eq!(
+            inst.primary_keys.find_first(&VirtualKey::Dodge).unwrap(),
+            &id!("Action.Instance.Dodge^1A")
         );
         assert_eq!(inst.derive_keys.len(), 2);
         assert_eq!(
@@ -654,8 +663,8 @@ mod tests {
         };
         let inst = InstCharacter::new_player(&mut ctx, &param).unwrap();
 
-        assert_eq!(inst.actions.len(), 3);
-        assert_eq!(inst.primary_keys.len(), 3);
+        assert_eq!(inst.actions.len(), 4);
+        assert_eq!(inst.primary_keys.len(), 4);
         assert_eq!(inst.derive_keys.len(), 2);
 
         assert_eq!(inst.primary.max_health, 850.0);
@@ -719,6 +728,7 @@ mod tests {
         assert_eq!(inst.primary.max_posture, 160.0);
         assert_eq!(inst.primary.physical_attack, 30.0);
         assert_eq!(inst.primary.physical_defense, 35.0);
+        assert_eq!(inst.joint_weights_table, false);
     }
 
     #[test]
@@ -773,5 +783,7 @@ mod tests {
         assert_eq!(inst.primary.max_posture, 160.0);
         assert_eq!(inst.primary.physical_attack, 30.0);
         assert_eq!(inst.primary.physical_defense, 35.0);
+        assert_eq!(inst.joint_weights_table, false);
+        assert_eq!(inst.script_predicates, false);
     }
 }
