@@ -1,6 +1,6 @@
 // mod aim;
 mod base;
-// mod dodge;
+mod dodge;
 mod dodge_npc;
 mod empty;
 mod general;
@@ -14,7 +14,7 @@ mod move_toward_npc;
 
 // pub use aim::*;
 pub use base::*;
-// pub use dodge::*;
+pub use dodge::*;
 pub use dodge_npc::*;
 pub use empty::*;
 pub use general::*;
@@ -70,10 +70,10 @@ pub(crate) fn assemble_action(
             Some(act) => Rc::new(act),
             None => return Ok(None),
         },
-        // TmplType::ActionDodge => match InstActionDodge::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
-        //     Some(act) => Rc::new(act),
-        //     None => return Ok(None),
-        // },
+        TmplType::ActionDodge => match InstActionDodge::new_from_action(ctx, unsafe { tmpl.cast_unchecked() })? {
+            Some(act) => Rc::new(act),
+            None => return Ok(None),
+        },
         // TmplType::ActionGuard => match InstActionGuard::new_from_action(ctx, unsafe { tmpl.cast_unchecked() }) {
         //     Some(act) => Rc::new(act),
         //     None => return Ok(None),

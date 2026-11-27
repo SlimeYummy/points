@@ -11,7 +11,7 @@ use crate::template::{
 };
 use crate::utils::{
     ActionType, DtHashMap, InputDir, Symbol, TimeRange, TimeRangeWith, TimeWith, TmplID, VirtualKey, VirtualKeyDir,
-    XResult, calc_fade_in, interface, ratio_saturating, ratio_warpping, sb,
+    XResult, interface, ratio_saturating, ratio_warpping, sb, update_fade_in,
 };
 
 pub unsafe trait InstActionAny: Debug + Any {
@@ -66,7 +66,8 @@ pub struct InstAnimation {
     pub duration: f32,
     pub fade_in: f32,
     pub root_motion: bool,
-    pub weapon_motion: bool,
+    pub additive_blending: bool,
+    pub weapon_control: bool,
     pub hit_motion: bool,
     pub shape_key: bool,
 }
@@ -79,8 +80,9 @@ impl InstAnimation {
             local_id: archived.local_id.into(),
             duration: archived.duration.into(),
             fade_in: archived.fade_in.into(),
+            additive_blending: archived.additive_blending,
             root_motion: archived.root_motion,
-            weapon_motion: archived.weapon_motion,
+            weapon_control: archived.weapon_control,
             hit_motion: archived.hit_motion,
             shape_key: archived.shape_key,
         }
@@ -88,7 +90,7 @@ impl InstAnimation {
 
     #[inline]
     pub fn fade_in_weight(&self, prev_weight: f32, time_step: f32) -> f32 {
-        calc_fade_in(prev_weight, time_step, self.fade_in)
+        update_fade_in(prev_weight, time_step, self.fade_in)
     }
 
     #[inline]
@@ -111,7 +113,7 @@ impl InstAnimation {
         AnimationFileMeta {
             files: self.files,
             root_motion: self.root_motion,
-            weapon_motion: self.weapon_motion,
+            weapon_control: self.weapon_control,
             shape_key: self.shape_key,
         }
     }

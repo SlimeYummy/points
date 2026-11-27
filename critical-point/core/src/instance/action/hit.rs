@@ -228,6 +228,11 @@ mod tests {
         assert_eq!(inst_act.be_hits[0].anim.files, sb!("TrainingDummy/Hit1_F.*"));
         assert_eq!(inst_act.be_hits[0].anim.duration, 0.5);
         assert_eq!(inst_act.be_hits[0].anim.fade_in, 0.1);
+        assert_eq!(inst_act.be_hits[0].anim.root_motion, true);
+        assert_eq!(inst_act.be_hits[0].anim.weapon_control, false);
+        assert_eq!(inst_act.be_hits[0].anim.hit_motion, false);
+        assert_eq!(inst_act.be_hits[0].anim.shape_key, false);
+        assert_eq!(inst_act.be_hits[0].anim.additive_blending, false);
 
         assert!(inst_act.anim_down.is_none());
         assert_eq!(inst_act.max_down_time, 0.0);
