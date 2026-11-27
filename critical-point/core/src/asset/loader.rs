@@ -6,7 +6,7 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use crate::animation::{HitMotion, RootMotion, WeaponMotion};
+use crate::animation::{HitMotion, JointWeightsTable, RootMotion, WeaponControl};
 use crate::utils::{DtHashMap, Symbol, XResult, xfromf, xresf};
 
 pub struct AssetLoader {
@@ -17,8 +17,9 @@ pub struct AssetLoader {
     pub(super) skeleton_cache: DtHashMap<Symbol, Rc<Skeleton>>,
     pub(super) animation_cache: DtHashMap<Symbol, Rc<Animation>>,
     pub(super) root_motion_cache: DtHashMap<Symbol, Rc<RootMotion>>,
-    pub(super) weapon_motion_cache: DtHashMap<Symbol, Rc<WeaponMotion>>,
+    pub(super) weapon_control_cache: DtHashMap<Symbol, Rc<WeaponControl>>,
     pub(super) hit_motion_cache: DtHashMap<Symbol, Rc<HitMotion>>,
+    pub(super) joint_weights_table_cache: DtHashMap<Symbol, Rc<JointWeightsTable>>,
 }
 
 #[cfg(feature = "debug-print")]
@@ -42,8 +43,9 @@ impl AssetLoader {
             skeleton_cache: DtHashMap::with_capacity_and_hasher(64, FxBuildHasher),
             animation_cache: DtHashMap::with_capacity_and_hasher(512, FxBuildHasher),
             root_motion_cache: DtHashMap::with_capacity_and_hasher(384, FxBuildHasher),
-            weapon_motion_cache: DtHashMap::with_capacity_and_hasher(384, FxBuildHasher),
+            weapon_control_cache: DtHashMap::with_capacity_and_hasher(384, FxBuildHasher),
             hit_motion_cache: DtHashMap::with_capacity_and_hasher(384, FxBuildHasher),
+            joint_weights_table_cache: DtHashMap::with_capacity_and_hasher(64, FxBuildHasher),
         });
     }
 
